@@ -25,6 +25,7 @@ from godfield_bot.observer import (
     ObservationTarget,
     observe_account_screen,
 )
+from godfield_bot.probe import record_observation_probe
 from godfield_bot.reference import (
     category_counts,
     refresh_bible,
@@ -253,6 +254,43 @@ def runs_list(
             indent=2,
         )
     )
+
+
+@runs_app.command("record-probe")
+def runs_record_probe(
+    observation_file: Annotated[
+        Path,
+        typer.Argument(exists=True, dir_okay=False, readable=True),
+    ],
+    client_sha256: Annotated[
+        str,
+        typer.Option(help="Observed web-client SHA-256 associated with this screen."),
+    ],
+    database: Annotated[
+        Path,
+        typer.Option(help="Ignored local SQLite trajectory database."),
+    ] = Path("runs", "godfield.sqlite"),
+) -> None:
+    """Record one saved state through the non-executing baseline policy."""
+
+    try:
+        observation = ScreenObservation.model_validate_json(
+            observation_file.read_text(encoding="utf-8")
+        )
+        run = record_observation_probe(
+            RunStore(database),
+            observation,
+            identity=AppSettings().identity,
+            client_sha256=client_sha256,
+        )
+    except (OSError, ValueError, GameStateParseError, RunStoreError) as error:
+        structlog.get_logger().error(
+            "observation_probe_failed",
+            error_type=type(error).__name__,
+            reason=str(error).splitlines()[0],
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(run.model_dump_json(indent=2))
 
 
 @data_app.command("refresh")

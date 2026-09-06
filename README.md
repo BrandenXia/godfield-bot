@@ -50,6 +50,7 @@ PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot observe
 uv run godfield-bot state parse runs/observations/game-spatial.json
 uv run godfield-bot runs init
 uv run godfield-bot runs list
+uv run godfield-bot runs record-probe <observation.json> --client-sha256 <sha256>
 ```
 
 God Field returns to its Prophet Name screen when the browser restarts. The

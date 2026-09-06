@@ -10,6 +10,8 @@ from godfield_bot.domain.observation import (
     VisibleText,
 )
 from godfield_bot.game_state import GameStateParseError, parse_game_state
+from godfield_bot.probe import record_observation_probe
+from godfield_bot.run_store import RunStore
 
 
 def bounds(x: float, y: float, width: float = 30, height: float = 26) -> Bounds:
@@ -84,3 +86,23 @@ def test_non_game_screen_fails_closed() -> None:
 
     with pytest.raises(GameStateParseError, match="expected game observation"):
         parse_game_state(observation, identity="ロキ-67")
+
+
+def test_observation_probe_records_full_non_executing_policy_pass(tmp_path) -> None:
+    store = RunStore(tmp_path / "runs.sqlite")
+
+    run = record_observation_probe(
+        store,
+        game_observation(),
+        identity="ロキ-67",
+        client_sha256="a" * 64,
+    )
+
+    assert run.status.value == "aborted"
+    assert run.outcome == {"reason": "observation_only_policy", "external_actions": 0}
+    assert [event.kind.value for event in store.events(run.run_id)] == [
+        "observation",
+        "game_state",
+        "legal_actions",
+        "decision",
+    ]

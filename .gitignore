@@ -1,0 +1,22 @@
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Never commit the bot's persistent identity or browser authentication state.
+.state/
+browser-profiles/
+credentials/
+
+# Runtime and training outputs are local by default.
+runs/
+checkpoints/
+models/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

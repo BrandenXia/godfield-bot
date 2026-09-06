@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-09-06T17:02:25Z",
+  "source": {
+    "bible_url": "https://godfield.net/",
+    "language": "en",
+    "web_bundle_url": "https://godfield.net/main.dart.js",
+    "web_bundle_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+    "web_bundle_etag": "2a2f9f9759840e21fb6391029ca2638e4a2ce6fa99e0869251eed00b6344374f",
+    "web_bundle_last_modified": "2026-08-11T01:40:09Z",
+    "app_store_version": "1.5.27",
+    "app_store_release_date": "2026-08-14",
+    "google_play_updated_date": "2026-08-11"
+  },
+  "catalog": {
+    "total": 291,
+    "detail_records_validated": 291,
+    "categories": {
+      "weapons": 107,
+      "armor": 78,
+      "sundries": 19,
+      "miracles": 30,
+      "devils": 5,
+      "guardians": 42,
+      "phenomena": 10
+    }
+  },
+  "elements": [
+    "non-element",
+    "fire",
+    "water",
+    "wood",
+    "stone",
+    "light",
+    "darkness"
+  ],
+  "curses": [
+    "cold",
+    "fever",
+    "hell",
+    "heaven",
+    "fog",
+    "flash",
+    "dream",
+    "dark-cloud"
+  ],
+  "representative_records": [
+    {
+      "category": "weapons",
+      "asset": "bronze-club",
+      "detail": ["Bronze Club", "ATK1", "$1", "Gift Rate: 3/500"]
+    },
+    {
+      "category": "armor",
+      "asset": "god-shield",
+      "detail": ["God Shield", "DEF30", "$30", "Gift Rate: 1/500"]
+    },
+    {
+      "category": "sundries",
+      "asset": "sun-amulet",
+      "detail": ["Sun Amulet", "HP+10 when the HP becomes 0", "$10", "Gift Rate: 1/500"]
+    },
+    {
+      "category": "miracles",
+      "asset": "fireball",
+      "detail": ["<Fireball>", "+ATK2", "Cost 2MP", "Gift Rate: 1/500"]
+    },
+    {
+      "category": "devils",
+      "asset": "large-devil",
+      "detail": ["Large Devil", "30 damage", "Appearance: 3%"]
+    },
+    {
+      "category": "guardians",
+      "asset": "full-moon-blade",
+      "detail": ["Full Moon Blade", "ATK10", "Moon God", "Governs Miracles"]
+    },
+    {
+      "category": "phenomena",
+      "asset": "solar-eclipse",
+      "detail": ["Solar Eclipse", "Summon guardians to everybody"]
+    }
+  ]
+}

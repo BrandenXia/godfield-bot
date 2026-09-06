@@ -162,6 +162,7 @@ name = "godfield-bot"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "filelock" },
     { name = "platformdirs" },
     { name = "playwright" },
     { name = "pydantic" },
@@ -184,6 +185,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "filelock", specifier = ">=3.18,<4" },
     { name = "platformdirs", specifier = ">=4.3,<5" },
     { name = "playwright", specifier = ">=1.50,<2" },
     { name = "pydantic", specifier = ">=2.10,<3" },

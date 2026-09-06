@@ -7,6 +7,7 @@ from pathlib import Path
 import structlog
 from playwright.async_api import BrowserContext, Page, async_playwright
 
+from godfield_bot.browser.controls import BrowserContractError, click_text_control
 from godfield_bot.domain.reference import (
     ArtifactCategory,
     ArtifactRecord,
@@ -45,7 +46,7 @@ IGNORED_REFERENCE_LINES = {
 }
 
 
-class ReferenceExtractionError(RuntimeError):
+class ReferenceExtractionError(BrowserContractError):
     """Raised when the public Bible no longer satisfies its selector contract."""
 
 
@@ -68,26 +69,6 @@ def _clean_lines(text: str) -> tuple[str, ...]:
     return tuple(line.strip() for line in text.splitlines() if line.strip())
 
 
-async def _click_text_control(page: Page, text: str) -> None:
-    labels = page.get_by_text(text, exact=True)
-    for index in range(await labels.count()):
-        label = labels.nth(index)
-        if not await label.is_visible():
-            continue
-        candidate = label
-        for _ in range(4):
-            candidate = candidate.locator("..")
-            style = await candidate.get_attribute("style") or ""
-            if "cursor: pointer" in style and await candidate.is_visible():
-                hit_targets = candidate.locator(":scope > div")
-                if await hit_targets.count():
-                    await hit_targets.last.click(force=True)
-                else:
-                    await candidate.click(force=True)
-                return
-    raise ReferenceExtractionError(f"visible clickable control not found: {text}")
-
-
 async def _fingerprint_client(context: BrowserContext) -> ClientFingerprint:
     response = await context.request.get(BUNDLE_URL, fail_on_status_code=True)
     body = await response.body()
@@ -103,7 +84,7 @@ async def _fingerprint_client(context: BrowserContext) -> ClientFingerprint:
 async def _open_bible(page: Page, *, timeout_ms: float) -> None:
     await page.goto(f"{BASE_URL}?lang=en", wait_until="domcontentloaded", timeout=timeout_ms)
     await page.locator('input[type="text"]').wait_for(state="visible", timeout=timeout_ms)
-    await _click_text_control(page, "Bible")
+    await click_text_control(page, "Bible")
     await page.get_by_text("Elements", exact=True).wait_for(state="visible", timeout=timeout_ms)
 
 
@@ -112,7 +93,7 @@ async def _extract_reference_sections(
 ) -> dict[str, tuple[str, ...]]:
     result: dict[str, tuple[str, ...]] = {}
     for section, sentinel in REFERENCE_SENTINELS.items():
-        await _click_text_control(page, section)
+        await click_text_control(page, section)
         await page.get_by_text(sentinel, exact=False).first.wait_for(
             state="visible", timeout=timeout_ms
         )
@@ -150,7 +131,7 @@ async def _selected_detail(page: Page, image_path: str) -> tuple[str, ...]:
 
 async def _extract_category(page: Page, category: str, *, timeout_ms: float) -> ArtifactCategory:
     category_slug = category.lower()
-    await _click_text_control(page, category)
+    await click_text_control(page, category)
     first_image = page.locator(f'img[src^="/images/items/{category_slug}/"]').first
     await first_image.wait_for(state="attached", timeout=timeout_ms)
     sources = await _artifact_sources(page, category_slug)

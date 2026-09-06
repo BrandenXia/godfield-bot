@@ -39,5 +39,14 @@ PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot data refresh
 uv run pytest
 ```
 
+Account creation is intentionally gated. It writes the anonymous login session
+to a dedicated owner-only browser profile outside the repository and requires
+the explicit `--confirm-create` flag:
+
+```console
+PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot account status
+PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot account create --confirm-create
+```
+
 Training and operator-owned private rooms are the only approved early play
 scope. Learning will be simulator-first with real-game fine-tuning.

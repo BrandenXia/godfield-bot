@@ -9,6 +9,7 @@ description = "An observable, browser-controlled learning agent for God Field"
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
 dependencies = [
+  "filelock>=3.18,<4",
   "platformdirs>=4.3,<5",
   "playwright>=1.50,<2",
   "pydantic>=2.10,<3",

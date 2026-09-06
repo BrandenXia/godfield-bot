@@ -44,7 +44,19 @@ async def execute_action(
             player_name=action.target_player_name,
         )
     elif action.kind is ActionKind.FORGIVE:
-        await click_phase_control(page, text="Forgive")
+        if (
+            action.artifact_asset_path is None
+            or action.target_player_name is None
+            or action.control_panel != "right"
+        ):
+            raise ActionExecutionError("Forgive is missing its verified identities")
+        await click_phase_control(
+            page,
+            text="Forgive",
+            panel=action.control_panel,
+            asset_path=action.artifact_asset_path,
+            target_name=action.target_player_name,
+        )
     elif action.kind is ActionKind.CONFIRM:
         if (
             action.artifact_asset_path is None

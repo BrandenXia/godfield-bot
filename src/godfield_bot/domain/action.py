@@ -41,6 +41,13 @@ class LegalAction(BaseModel):
             or self.control_panel is None
         ):
             raise ValueError("confirmation requires artifact, target, and panel identities")
+        if self.kind is ActionKind.FORGIVE and (
+            self.artifact_asset_path is None
+            or self.target_player_index is None
+            or not self.target_player_name
+            or self.control_panel is None
+        ):
+            raise ValueError("phase completion requires artifact, target, and panel identities")
         return self
 
 
@@ -79,3 +86,19 @@ class ActionExecutionResult(BaseModel):
     kind: ActionKind
     dispatched: bool
     latency_ms: float = Field(ge=0)
+
+
+class ActionTransition(BaseModel):
+    schema_version: int = 1
+    observed_at: datetime
+    action_id: str
+    before_state_digest: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
+    after_state_digest: str | None = Field(
+        default=None,
+        min_length=64,
+        max_length=64,
+        pattern=r"^[0-9a-f]{64}$",
+    )
+    state_changed: bool | None
+    field_delta: int | None = None
+    player_hp_deltas: dict[str, int] = Field(default_factory=dict)

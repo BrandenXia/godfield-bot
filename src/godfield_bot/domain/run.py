@@ -22,6 +22,7 @@ class EventKind(StrEnum):
     LEGAL_ACTIONS = "legal_actions"
     DECISION = "decision"
     ACTION_RESULT = "action_result"
+    TRANSITION = "transition"
     REWARD = "reward"
     MATCH_END = "match_end"
     ERROR = "error"

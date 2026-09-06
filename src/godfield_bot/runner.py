@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import os
+from contextlib import suppress
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
@@ -13,7 +14,8 @@ from godfield_bot.account import start_account_session
 from godfield_bot.browser.controls import click_header_back, click_text_control
 from godfield_bot.browser.profile import open_account_context, prepare_private_directory
 from godfield_bot.config import AppSettings
-from godfield_bot.domain.action import LegalAction, PolicyDecision
+from godfield_bot.domain.action import ActionTransition, LegalAction, PolicyDecision
+from godfield_bot.domain.game import GameState
 from godfield_bot.domain.observation import ScreenKind, ScreenObservation
 from godfield_bot.domain.run import EventKind, RunMode, RunRecord, RunSpec, RunStatus
 from godfield_bot.executor import execute_action
@@ -84,7 +86,13 @@ async def _reach_training_game(
     if observation.kind is ScreenKind.MENU:
         await click_text_control(page, "Training")
         entered_room_now = True
-        await page.wait_for_timeout(1_000)
+        await page.wait_for_function(
+            """
+            () => document.body.innerText.includes('Training') &&
+              !document.body.innerText.includes('Hidden Melee')
+            """,
+            timeout=room_timeout_ms,
+        )
         observation = await capture_screen(page)
     if observation.kind is ScreenKind.GAME:
         await page.wait_for_timeout(config.render_settle_seconds * 1_000)
@@ -118,11 +126,11 @@ def _record_policy_state(
     settings: AppSettings,
     policy: Policy,
     previous_digest: str | None,
-) -> tuple[str, PolicyDecision | None, LegalAction | None]:
+) -> tuple[str, PolicyDecision | None, LegalAction | None, GameState]:
     state = parse_game_state(observation, identity=settings.identity)
     digest = game_state_digest(state)
     if digest == previous_digest:
-        return digest, None, None
+        return digest, None, None, state
     legal_actions = verified_browser_actions(
         state,
         observation,
@@ -150,7 +158,38 @@ def _record_policy_state(
         action=decision.chosen_action_id,
         executable=decision.executable,
     )
-    return digest, decision, chosen_actions[0]
+    return digest, decision, chosen_actions[0], state
+
+
+def build_action_transition(
+    action_id: str,
+    before: GameState,
+    after: GameState | None,
+) -> ActionTransition:
+    before_digest = game_state_digest(before)
+    if after is None:
+        return ActionTransition(
+            observed_at=datetime.now(UTC),
+            action_id=action_id,
+            before_state_digest=before_digest,
+            state_changed=None,
+        )
+    after_digest = game_state_digest(after)
+    before_hp = {player.name: player.hp for player in before.players}
+    player_hp_deltas = {
+        player.name: player.hp - before_hp[player.name]
+        for player in after.players
+        if player.name in before_hp and player.hp != before_hp[player.name]
+    }
+    return ActionTransition(
+        observed_at=after.observed_at,
+        action_id=action_id,
+        before_state_digest=before_digest,
+        after_state_digest=after_digest,
+        state_changed=after_digest != before_digest,
+        field_delta=after.field_number - before.field_number,
+        player_hp_deltas=player_hp_deltas,
+    )
 
 
 def _policy_from_name(
@@ -221,7 +260,7 @@ async def run_training_observer(
                     raise RunnerError(f"Training game left the gameplay screen: {observation.kind}")
                 try:
                     prior_digest = previous_digest
-                    previous_digest, decision, chosen_action = _record_policy_state(
+                    previous_digest, decision, chosen_action, before_state = _record_policy_state(
                         store,
                         run.run_id,
                         observation,
@@ -255,6 +294,23 @@ async def run_training_observer(
                             EventKind.OBSERVATION,
                             observation,
                         )
+                        post_state: GameState | None = None
+                        if observation.kind is ScreenKind.GAME:
+                            with suppress(GameStateParseError):
+                                post_state = parse_game_state(
+                                    observation,
+                                    identity=settings.identity,
+                                )
+                        transition = build_action_transition(
+                            chosen_action.action_id,
+                            before_state,
+                            post_state,
+                        )
+                        store.append_event(
+                            run.run_id,
+                            EventKind.TRANSITION,
+                            transition,
+                        )
                         if config.screenshot_directory is not None:
                             post_action_path = (
                                 config.screenshot_directory
@@ -267,7 +323,11 @@ async def run_training_observer(
                             run_id=run.run_id,
                             action=chosen_action.action_id,
                             action_count=in_match_actions,
+                            state_changed=transition.state_changed,
                         )
+                        if transition.state_changed is False:
+                            outcome_reason = "action_not_accepted"
+                            break
                         if in_match_actions >= config.max_in_match_actions:
                             outcome_reason = "action_limit"
                             break

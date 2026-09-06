@@ -40,5 +40,6 @@ class GameState(BaseModel):
     action_artifact_asset_path: str | None = None
     action_hit_target_bounds: Bounds | None = None
     phase_control: str | None = None
+    phase_control_color: str | None = None
     phase_artifact_asset_path: str | None = None
     phase_control_hit_target_bounds: Bounds | None = None

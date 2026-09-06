@@ -163,6 +163,10 @@ def verified_browser_actions(
                 action_id="forgive",
                 kind=ActionKind.FORGIVE,
                 label="Forgive the incoming attack without defending",
+                artifact_asset_path=state.action_artifact_asset_path,
+                target_player_index=state.self_player_index,
+                target_player_name=self_player.name,
+                control_panel="right",
             )
         )
     return LegalActionSet(

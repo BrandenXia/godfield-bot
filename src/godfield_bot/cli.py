@@ -227,7 +227,7 @@ def run_bot(
     ] = None,
     policy: Annotated[
         RunnerPolicyName,
-        typer.Option(help="Policy; heuristic-v0 can currently select one verified weapon."),
+        typer.Option(help="Policy; heuristic-v0 uses only verified plain-card Training actions."),
     ] = RunnerPolicyName.SAFE_OBSERVER,
     max_actions: Annotated[
         int,

@@ -277,6 +277,7 @@ def parse_game_state(observation: ScreenObservation, *, identity: str) -> GameSt
         action_artifact_asset_path=_parse_action_artifact(observation),
         action_hit_target_bounds=_action_hit_target(observation),
         phase_control=phase_control.text if phase_control else None,
+        phase_control_color=phase_control.color if phase_control else None,
         phase_artifact_asset_path=_parse_phase_artifact(observation),
         phase_control_hit_target_bounds=(
             _phase_control_hit_target(observation) if phase_control else None

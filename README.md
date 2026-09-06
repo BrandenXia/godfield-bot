@@ -72,7 +72,8 @@ The default `safe-observer-v0` remains observation-only. The explicitly chosen
 `heuristic-v0` path can select the strongest plain Bible-verified weapon and
 confirm it against an already named sole opponent. It can also Forgive a fully
 identified incoming effect, and select plain armor during a verified neutral
-defense. Every browser interaction counts against `--max-actions`; unknown,
+defense before confirming that armor in its response panel. Every browser
+interaction counts against `--max-actions`; unknown,
 elemental-defense, multi-target, discard, and other phases remain blocked.
 
 God Field returns to its Prophet Name screen when the browser restarts. The
@@ -85,6 +86,9 @@ state containing players, resources, field number, hand slots, and scene layers.
 The ignored SQLite store is append-only while a run is active and records
 ordered typed events plus client, policy, and model lineage. Finished runs
 reject additional events so training data cannot silently change afterward.
+Executable runs also record whether each dispatched click changed normalized
+state, plus field and player-HP deltas; inert clicks terminate the run and are
+not silently treated as accepted transitions.
 
 Training and operator-owned private rooms are the only approved early play
 scope. Learning will be simulator-first with real-game fine-tuning.

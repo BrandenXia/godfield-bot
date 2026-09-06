@@ -213,14 +213,33 @@ async def click_player_target(page: Page, *, player_index: int, player_name: str
     await target.click(force=True)
 
 
-async def click_phase_control(page: Page, *, text: str) -> None:
+async def click_phase_control(
+    page: Page,
+    *,
+    text: str,
+    panel: str,
+    asset_path: str,
+    target_name: str,
+) -> None:
     """Click a phase label's separately rendered transparent action panel."""
+
+    if panel == "left":
+        panel_min_x, panel_max_x = 100, 150
+        label_min_x, label_max_x = 100, 450
+        asset_min_x, asset_max_x = 450, 550
+    elif panel == "right":
+        panel_min_x, panel_max_x = 450, 500
+        label_min_x, label_max_x = 451, 750
+        asset_min_x, asset_max_x = 100, 200
+    else:
+        raise BrowserContractError(f"unsupported phase control panel: {panel}")
 
     descriptor = cast(
         dict[str, Any] | None,
         await page.evaluate(
             """
-            (wantedText) => {
+            ({wantedText, wantedPath, wantedTarget, panelMinX, panelMaxX,
+              labelMinX, labelMaxX, assetMinX, assetMaxX}) => {
               const rendered = (element) => {
                 const style = getComputedStyle(element);
                 const rect = element.getBoundingClientRect();
@@ -230,9 +249,27 @@ async def click_phase_control(page: Page, *, text: str) -> None:
               const labels = [...document.querySelectorAll('span')].filter((element) => {
                 if (!rendered(element) || element.innerText.trim() !== wantedText) return false;
                 const rect = element.getBoundingClientRect();
-                return rect.x >= 451 && rect.x <= 750 && rect.y >= 390 && rect.y <= 450;
+                return rect.x >= labelMinX && rect.x <= labelMaxX &&
+                  rect.y >= 390 && rect.y <= 450;
               });
               if (labels.length !== 1) return null;
+              const selectedImages = [...document.querySelectorAll('img')].filter((element) => {
+                if (!rendered(element) || new URL(element.src).pathname !== wantedPath) {
+                  return false;
+                }
+                const rect = element.getBoundingClientRect();
+                return rect.x >= assetMinX && rect.x <= assetMaxX &&
+                  rect.y >= 80 && rect.y <= 200 &&
+                  rect.width >= 60 && rect.width <= 100 &&
+                  rect.height >= 60 && rect.height <= 100;
+              });
+              if (selectedImages.length !== 1) return null;
+              const targets = [...document.querySelectorAll('span')].filter((element) => {
+                if (!rendered(element) || element.innerText.trim() !== wantedTarget) return false;
+                const rect = element.getBoundingClientRect();
+                return rect.x >= 451 && rect.x <= 750 && rect.y >= 40 && rect.y <= 80;
+              });
+              if (targets.length !== 1) return null;
               const allDivs = [...document.querySelectorAll('div')];
               const candidates = allDivs.filter((element) => {
                 if (!rendered(element) || getComputedStyle(element).cursor !== 'pointer') {
@@ -243,7 +280,8 @@ async def click_phase_control(page: Page, *, text: str) -> None:
                   ? getComputedStyle(element.parentElement).cursor
                   : '';
                 return parentCursor !== 'pointer' && element.innerText.trim() === '' &&
-                  rect.x >= 450 && rect.x <= 500 && rect.y >= 80 && rect.y <= 120 &&
+                  rect.x >= panelMinX && rect.x <= panelMaxX &&
+                  rect.y >= 80 && rect.y <= 120 &&
                   rect.width >= 250 && rect.width <= 350 &&
                   rect.height >= 250 && rect.height <= 350;
               });
@@ -251,7 +289,17 @@ async def click_phase_control(page: Page, *, text: str) -> None:
               return {domIndex: allDivs.indexOf(candidates[0])};
             }
             """,
-            text,
+            {
+                "wantedText": text,
+                "wantedPath": asset_path,
+                "wantedTarget": target_name,
+                "panelMinX": panel_min_x,
+                "panelMaxX": panel_max_x,
+                "labelMinX": label_min_x,
+                "labelMaxX": label_max_x,
+                "assetMinX": asset_min_x,
+                "assetMaxX": asset_max_x,
+            },
         ),
     )
     if descriptor is None:

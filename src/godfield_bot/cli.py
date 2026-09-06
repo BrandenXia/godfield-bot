@@ -38,10 +38,12 @@ data_app = typer.Typer(no_args_is_help=True, help="Refresh versioned public game
 account_app = typer.Typer(no_args_is_help=True, help="Manage the persistent ロキ-67 identity.")
 state_app = typer.Typer(no_args_is_help=True, help="Normalize saved browser observations.")
 runs_app = typer.Typer(no_args_is_help=True, help="Inspect the local trajectory store.")
+models_app = typer.Typer(no_args_is_help=True, help="Manage local neural policy candidates.")
 app.add_typer(data_app, name="data")
 app.add_typer(account_app, name="account")
 app.add_typer(state_app, name="state")
 app.add_typer(runs_app, name="runs")
+app.add_typer(models_app, name="models")
 
 
 def _version_callback(value: bool) -> None:
@@ -291,6 +293,43 @@ def runs_record_probe(
         )
         raise typer.Exit(code=1) from None
     typer.echo(run.model_dump_json(indent=2))
+
+
+@models_app.command("init")
+def models_init(
+    snapshot: Annotated[
+        Path,
+        typer.Option(exists=True, dir_okay=False, readable=True),
+    ] = Path("data", "snapshots", "2026-09-06", "bible.json"),
+    root_directory: Annotated[
+        Path,
+        typer.Option(help="Ignored root directory for model artifacts."),
+    ] = Path("models"),
+    seed: Annotated[int, typer.Option()] = 67,
+) -> None:
+    """Initialize an untrained recurrent policy/value model; never promote it."""
+
+    try:
+        from godfield_bot.domain.reference import BibleSnapshot
+        from godfield_bot.features import ArtifactVocabulary
+        from godfield_bot.model_registry import initialize_model
+
+        bible = BibleSnapshot.model_validate_json(snapshot.read_text(encoding="utf-8"))
+        vocabulary = ArtifactVocabulary.from_snapshot(bible)
+        manifest = initialize_model(
+            root_directory,
+            vocabulary,
+            client_sha256=bible.client.sha256,
+            seed=seed,
+        )
+    except (ImportError, OSError, ValueError) as error:
+        structlog.get_logger().error(
+            "model_initialization_failed",
+            error_type=type(error).__name__,
+            reason=str(error).splitlines()[0],
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(manifest.model_dump_json(indent=2))
 
 
 @data_app.command("refresh")

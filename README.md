@@ -51,7 +51,14 @@ uv run godfield-bot state parse runs/observations/game-spatial.json
 uv run godfield-bot runs init
 uv run godfield-bot runs list
 uv run godfield-bot runs record-probe <observation.json> --client-sha256 <sha256>
+uv run godfield-bot models init
 ```
+
+Install the optional learning stack with `uv sync --extra training --group dev`.
+`models init` creates a checksum-protected, ignored model directory whose
+manifest is tied to the current Bible client hash and artifact vocabulary. Its
+status is `initialized`; evaluation and explicit promotion are required before
+any learned checkpoint can control the browser.
 
 God Field returns to its Prophet Name screen when the browser restarts. The
 `observe` command re-enters Genesis as `ロキ-67`, verifies a one-way fingerprint

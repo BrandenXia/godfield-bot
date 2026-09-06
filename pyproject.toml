@@ -19,6 +19,7 @@ dependencies = [
 
 [project.optional-dependencies]
 training = [
+  "numpy>=2.2,<3",
   "torch>=2.6,<3",
 ]
 

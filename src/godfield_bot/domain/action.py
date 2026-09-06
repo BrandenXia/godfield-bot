@@ -17,7 +17,16 @@ class LegalAction(BaseModel):
     kind: ActionKind
     label: str
     artifact_slot: int | None = Field(default=None, ge=0)
+    artifact_asset_path: str | None = None
     target_player_index: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def artifact_selection_has_identity(self) -> "LegalAction":
+        if self.kind is ActionKind.SELECT_ARTIFACT and (
+            self.artifact_slot is None or self.artifact_asset_path is None
+        ):
+            raise ValueError("artifact selection requires a slot and asset path")
+        return self
 
 
 class LegalActionSet(BaseModel):
@@ -46,3 +55,12 @@ class PolicyDecision(BaseModel):
     scores: dict[str, float]
     rationale: str
     executable: bool
+
+
+class ActionExecutionResult(BaseModel):
+    schema_version: int = 1
+    executed_at: datetime
+    action_id: str
+    kind: ActionKind
+    dispatched: bool
+    latency_ms: float = Field(ge=0)

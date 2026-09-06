@@ -132,6 +132,22 @@ def _parse_hand(observation: ScreenObservation) -> tuple[HandArtifact, ...]:
     return tuple(hand)
 
 
+def _single_spatial_text(
+    observation: ScreenObservation,
+    *,
+    minimum_x: float,
+    maximum_x: float,
+    minimum_y: float,
+    maximum_y: float,
+) -> str | None:
+    matches = [
+        element.text
+        for element in observation.text_elements
+        if minimum_x <= element.bounds.x <= maximum_x and minimum_y <= element.bounds.y <= maximum_y
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
 def parse_game_state(observation: ScreenObservation, *, identity: str) -> GameState:
     if observation.kind is not ScreenKind.GAME:
         raise GameStateParseError(f"expected game observation, got {observation.kind}")
@@ -151,5 +167,19 @@ def parse_game_state(observation: ScreenObservation, *, identity: str) -> GameSt
         hand=_parse_hand(observation),
         scene_layers=tuple(
             image.path for image in observation.images if image.path.startswith("/images/screens/")
+        ),
+        action_actor=_single_spatial_text(
+            observation,
+            minimum_x=100,
+            maximum_x=500,
+            minimum_y=40,
+            maximum_y=80,
+        ),
+        action_display=_single_spatial_text(
+            observation,
+            minimum_x=100,
+            maximum_x=500,
+            minimum_y=390,
+            maximum_y=450,
         ),
     )

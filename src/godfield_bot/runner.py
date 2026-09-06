@@ -1,25 +1,34 @@
 import asyncio
+import os
 from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 
 import structlog
 from playwright.async_api import Page
-from pydantic import BaseModel, Field, JsonValue
+from pydantic import BaseModel, Field, JsonValue, model_validator
 
 from godfield_bot.account import start_account_session
 from godfield_bot.browser.controls import click_header_back, click_text_control
-from godfield_bot.browser.profile import open_account_context
+from godfield_bot.browser.profile import open_account_context, prepare_private_directory
 from godfield_bot.config import AppSettings
+from godfield_bot.domain.action import LegalAction, PolicyDecision
 from godfield_bot.domain.observation import ScreenKind, ScreenObservation
 from godfield_bot.domain.run import EventKind, RunMode, RunRecord, RunSpec, RunStatus
+from godfield_bot.executor import execute_action
 from godfield_bot.game_state import GameStateParseError, parse_game_state
-from godfield_bot.legal_actions import game_state_digest, observation_only_actions
+from godfield_bot.legal_actions import game_state_digest, verified_browser_actions
 from godfield_bot.observer import capture_screen
-from godfield_bot.policy import SafeObserverPolicy
+from godfield_bot.policy import HeuristicV0Policy, Policy, SafeObserverPolicy
 from godfield_bot.reference import fingerprint_client
 from godfield_bot.run_store import RunStore
 
 log = structlog.get_logger()
+
+
+class RunnerPolicyName(StrEnum):
+    SAFE_OBSERVER = "safe-observer-v0"
+    HEURISTIC_V0 = "heuristic-v0"
 
 
 class TrainingRunConfig(BaseModel):
@@ -34,6 +43,15 @@ class TrainingRunConfig(BaseModel):
     room_timeout_seconds: float = Field(default=60.0, ge=5.0, le=300.0)
     poll_seconds: float = Field(default=2.0, ge=0.25, le=10.0)
     render_settle_seconds: float = Field(default=5.0, ge=1.0, le=30.0)
+    screenshot_directory: Path | None = None
+    policy: RunnerPolicyName = RunnerPolicyName.SAFE_OBSERVER
+    max_in_match_actions: int = Field(default=0, ge=0, le=100)
+
+    @model_validator(mode="after")
+    def executable_policy_has_action_budget(self) -> "TrainingRunConfig":
+        if self.policy is RunnerPolicyName.HEURISTIC_V0 and self.max_in_match_actions < 1:
+            raise ValueError("heuristic-v0 requires a positive in-match action budget")
+        return self
 
 
 class RunnerError(RuntimeError):
@@ -91,15 +109,20 @@ def _record_policy_state(
     run_id: str,
     observation: ScreenObservation,
     settings: AppSettings,
-    policy: SafeObserverPolicy,
+    policy: Policy,
     previous_digest: str | None,
-) -> str:
+) -> tuple[str, PolicyDecision | None, LegalAction | None]:
     state = parse_game_state(observation, identity=settings.identity)
     digest = game_state_digest(state)
     if digest == previous_digest:
-        return digest
-    legal_actions = observation_only_actions(state)
+        return digest, None, None
+    legal_actions = verified_browser_actions(state, observation)
     decision = policy.decide(state, legal_actions)
+    chosen_actions = [
+        action for action in legal_actions.actions if action.action_id == decision.chosen_action_id
+    ]
+    if len(chosen_actions) != 1:
+        raise RunnerError("policy chose an action outside the recorded legal set")
     store.append_event(run_id, EventKind.OBSERVATION, observation)
     store.append_event(run_id, EventKind.GAME_STATE, state)
     store.append_event(run_id, EventKind.LEGAL_ACTIONS, legal_actions)
@@ -111,7 +134,15 @@ def _record_policy_state(
         action=decision.chosen_action_id,
         executable=decision.executable,
     )
-    return digest
+    return digest, decision, chosen_actions[0]
+
+
+def _policy_from_name(name: RunnerPolicyName) -> Policy:
+    if name is RunnerPolicyName.SAFE_OBSERVER:
+        return SafeObserverPolicy()
+    if name is RunnerPolicyName.HEURISTIC_V0:
+        return HeuristicV0Policy()
+    raise RunnerError(f"unsupported policy: {name}")
 
 
 async def run_training_observer(
@@ -121,7 +152,7 @@ async def run_training_observer(
     if settings.public_duel_enabled:
         raise RunnerError("safe observer runner requires public Duel to remain disabled")
 
-    policy = SafeObserverPolicy()
+    policy = _policy_from_name(config.policy)
     store = RunStore(config.database)
     started = datetime.now(UTC)
     run: RunRecord | None = None
@@ -140,7 +171,7 @@ async def run_training_observer(
                         "max_games": 1,
                         "max_seconds": config.max_seconds,
                         "poll_seconds": config.poll_seconds,
-                        "in_match_action_policy": "wait_only",
+                        "max_in_match_actions": config.max_in_match_actions,
                     },
                 ),
                 started_at=started,
@@ -157,12 +188,15 @@ async def run_training_observer(
                 config,
             )
             previous_digest: str | None = None
+            in_match_actions = 0
+            outcome_reason = "wall_clock_limit"
             deadline = asyncio.get_running_loop().time() + config.max_seconds
             while asyncio.get_running_loop().time() < deadline:
                 if observation.kind is not ScreenKind.GAME:
                     raise RunnerError(f"Training game left the gameplay screen: {observation.kind}")
                 try:
-                    previous_digest = _record_policy_state(
+                    prior_digest = previous_digest
+                    previous_digest, decision, chosen_action = _record_policy_state(
                         store,
                         run.run_id,
                         observation,
@@ -170,6 +204,48 @@ async def run_training_observer(
                         policy,
                         previous_digest,
                     )
+                    if config.screenshot_directory is not None and previous_digest != prior_digest:
+                        prepare_private_directory(config.screenshot_directory)
+                        screenshot_path = (
+                            config.screenshot_directory / f"{run.run_id}-{previous_digest[:12]}.png"
+                        )
+                        await page.screenshot(path=str(screenshot_path), full_page=True)
+                        os.chmod(screenshot_path, 0o600)
+                    if decision is not None and decision.executable:
+                        if chosen_action is None:
+                            raise RunnerError("executable decision has no legal action")
+                        if in_match_actions >= config.max_in_match_actions:
+                            raise RunnerError("policy exceeded the in-match action budget")
+                        execution = await execute_action(page, chosen_action)
+                        store.append_event(
+                            run.run_id,
+                            EventKind.ACTION_RESULT,
+                            execution,
+                        )
+                        in_match_actions += 1
+                        await page.wait_for_timeout(config.poll_seconds * 1_000)
+                        observation = await capture_screen(page)
+                        store.append_event(
+                            run.run_id,
+                            EventKind.OBSERVATION,
+                            observation,
+                        )
+                        if config.screenshot_directory is not None:
+                            post_action_path = (
+                                config.screenshot_directory
+                                / f"{run.run_id}-after-action-{in_match_actions}.png"
+                            )
+                            await page.screenshot(path=str(post_action_path), full_page=True)
+                            os.chmod(post_action_path, 0o600)
+                        log.info(
+                            "in_match_action_executed",
+                            run_id=run.run_id,
+                            action=chosen_action.action_id,
+                            action_count=in_match_actions,
+                        )
+                        outcome_reason = "action_limit"
+                        if in_match_actions >= config.max_in_match_actions:
+                            break
                 except GameStateParseError as error:
                     log.info("incomplete_game_frame", reason=str(error))
                 await page.wait_for_timeout(config.poll_seconds * 1_000)
@@ -198,7 +274,7 @@ async def run_training_observer(
         run.run_id,
         RunStatus.ABORTED,
         outcome={
-            "reason": "wall_clock_limit",
-            "in_match_actions": 0,
+            "reason": outcome_reason,
+            "in_match_actions": in_match_actions,
         },
     )

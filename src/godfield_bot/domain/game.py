@@ -32,3 +32,5 @@ class GameState(BaseModel):
     players: tuple[PlayerState, ...]
     hand: tuple[HandArtifact, ...]
     scene_layers: tuple[str, ...]
+    action_actor: str | None = None
+    action_display: str | None = None

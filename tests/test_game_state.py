@@ -33,6 +33,8 @@ def game_observation() -> ScreenObservation:
         text=("Training", "G.F.0", "ロキ-67", "HP", "MP", "$", "CPU"),
         text_elements=(
             text("G.F.0", 580, 11),
+            text("ロキ-67", 160, 53),
+            text("Pray", 145, 403),
             text("ロキ-67", 810, 131),
             text("HP", 940, 131),
             text("40", 970, 131),
@@ -72,6 +74,8 @@ def test_game_observation_normalizes_players_and_hand() -> None:
 
     assert state.field_number == 0
     assert state.self_player_index == 0
+    assert state.action_actor == "ロキ-67"
+    assert state.action_display == "Pray"
     assert state.players[1].model_dump(exclude={"is_self", "status_marker_color"}) == {
         "name": "CPU",
         "hp": 35,

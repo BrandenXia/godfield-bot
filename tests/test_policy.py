@@ -1,9 +1,17 @@
 from datetime import UTC, datetime
 
 from godfield_bot.domain.game import GameState, HandArtifact, PlayerState
-from godfield_bot.domain.observation import Bounds
-from godfield_bot.legal_actions import game_state_digest, observation_only_actions
-from godfield_bot.policy import SafeObserverPolicy
+from godfield_bot.domain.observation import (
+    Bounds,
+    ScreenKind,
+    ScreenObservation,
+)
+from godfield_bot.legal_actions import (
+    game_state_digest,
+    observation_only_actions,
+    verified_browser_actions,
+)
+from godfield_bot.policy import HeuristicV0Policy, SafeObserverPolicy
 
 
 def state() -> GameState:
@@ -46,3 +54,37 @@ def test_safe_policy_only_selects_non_executable_wait() -> None:
     assert decision.chosen_action_id == "wait"
     assert decision.executable is False
     assert decision.state_digest == actions.state_digest
+
+
+def test_heuristic_selects_weapon_only_in_verified_self_phase() -> None:
+    initial = state()
+    weapon = initial.hand[0].model_copy(update={"hit_target_bounds": initial.hand[0].bounds})
+    game_state = initial.model_copy(
+        update={
+            "hand": (weapon,),
+            "action_actor": "ロキ-67",
+            "action_display": "Pray",
+        }
+    )
+    observation = ScreenObservation(
+        observed_at=game_state.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.1", "Pray", "HP"),
+        text_elements=(),
+        controls=(),
+        images=(),
+    )
+
+    actions = verified_browser_actions(game_state, observation)
+    decision = HeuristicV0Policy().decide(game_state, actions)
+
+    assert [action.action_id for action in actions.actions] == [
+        "wait",
+        "artifact:0:weapons/bronze-club",
+    ]
+    assert decision.chosen_action_id == "artifact:0:weapons/bronze-club"
+    assert decision.executable is True

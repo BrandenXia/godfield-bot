@@ -10,6 +10,7 @@ from godfield_bot.legal_actions import game_state_digest
 PAD_TOKEN = "<PAD>"
 UNKNOWN_TOKEN = "<UNKNOWN>"
 TRADE_TOKENS = ("trade/buy", "trade/exchange", "trade/sell")
+ARTIFACT_ACTION_OFFSET = 1
 
 
 class FeatureEncodingError(RuntimeError):
@@ -110,14 +111,14 @@ class StateFeatureEncoder:
             hand_tokens.append(0)
             hand_mask.append(False)
 
-        action_mask = [False] * (1 + self.max_hand_slots)
+        action_mask = [False] * (ARTIFACT_ACTION_OFFSET + self.max_hand_slots)
         for action in legal_actions.actions:
             if action.kind is ActionKind.WAIT:
                 action_mask[0] = True
             elif action.kind is ActionKind.SELECT_ARTIFACT:
                 if action.artifact_slot is None or action.artifact_slot >= self.max_hand_slots:
                     raise FeatureEncodingError("artifact action has an invalid slot")
-                action_mask[1 + action.artifact_slot] = True
+                action_mask[ARTIFACT_ACTION_OFFSET + action.artifact_slot] = True
             else:
                 raise FeatureEncodingError(
                     f"action kind {action.kind} is outside the initial neural action head"

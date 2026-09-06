@@ -32,7 +32,12 @@ from godfield_bot.reference import (
     write_snapshot,
 )
 from godfield_bot.run_store import RunStore, RunStoreError
-from godfield_bot.runner import RunnerError, TrainingRunConfig, run_training_observer
+from godfield_bot.runner import (
+    RunnerError,
+    RunnerPolicyName,
+    TrainingRunConfig,
+    run_training_observer,
+)
 
 app = typer.Typer(no_args_is_help=True, help="Control and train the ロキ-67 God Field bot.")
 data_app = typer.Typer(no_args_is_help=True, help="Refresh versioned public game data.")
@@ -214,8 +219,20 @@ def run_bot(
         float,
         typer.Option(min=0.25, max=10.0, help="Seconds between stable observations."),
     ] = 2.0,
+    screenshot_directory: Annotated[
+        Path | None,
+        typer.Option(help="Owner-only ignored screenshots for changed game states."),
+    ] = None,
+    policy: Annotated[
+        RunnerPolicyName,
+        typer.Option(help="Policy; heuristic-v0 can currently select one verified weapon."),
+    ] = RunnerPolicyName.SAFE_OBSERVER,
+    max_actions: Annotated[
+        int,
+        typer.Option(min=0, max=100, help="Hard in-match browser-click budget."),
+    ] = 0,
 ) -> None:
-    """Run one bounded Training session with the non-executing safe policy."""
+    """Run one bounded Training session under a hard in-match action budget."""
 
     from godfield_bot.domain.reference import BibleSnapshot
     from godfield_bot.domain.run import RunStatus
@@ -232,6 +249,9 @@ def run_bot(
                     max_seconds=max_seconds,
                     room_timeout_seconds=room_timeout_seconds,
                     poll_seconds=poll_seconds,
+                    screenshot_directory=screenshot_directory,
+                    policy=policy,
+                    max_in_match_actions=max_actions,
                 ),
             )
         )

@@ -48,6 +48,8 @@ PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot account status
 PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot account create --confirm-create
 PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot observe
 uv run godfield-bot state parse runs/observations/game-spatial.json
+uv run godfield-bot runs init
+uv run godfield-bot runs list
 ```
 
 God Field returns to its Prophet Name screen when the browser restarts. The
@@ -57,6 +59,9 @@ never prints tokens, profile contents, or the underlying account identifier.
 Saved observations include bounding boxes for visible text, controls, and image
 assets. `state parse` converts a gameplay observation into a typed policy-facing
 state containing players, resources, field number, hand slots, and scene layers.
+The ignored SQLite store is append-only while a run is active and records
+ordered typed events plus client, policy, and model lineage. Finished runs
+reject additional events so training data cannot silently change afterward.
 
 Training and operator-owned private rooms are the only approved early play
 scope. Learning will be simulator-first with real-game fine-tuning.

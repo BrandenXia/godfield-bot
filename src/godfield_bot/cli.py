@@ -30,14 +30,17 @@ from godfield_bot.reference import (
     refresh_bible,
     write_snapshot,
 )
+from godfield_bot.run_store import RunStore, RunStoreError
 
 app = typer.Typer(no_args_is_help=True, help="Control and train the ロキ-67 God Field bot.")
 data_app = typer.Typer(no_args_is_help=True, help="Refresh versioned public game data.")
 account_app = typer.Typer(no_args_is_help=True, help="Manage the persistent ロキ-67 identity.")
 state_app = typer.Typer(no_args_is_help=True, help="Normalize saved browser observations.")
+runs_app = typer.Typer(no_args_is_help=True, help="Inspect the local trajectory store.")
 app.add_typer(data_app, name="data")
 app.add_typer(account_app, name="account")
 app.add_typer(state_app, name="state")
+app.add_typer(runs_app, name="runs")
 
 
 def _version_callback(value: bool) -> None:
@@ -209,6 +212,47 @@ def state_parse(
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(serialized + "\n", encoding="utf-8")
     typer.echo(output)
+
+
+@runs_app.command("init")
+def runs_init(
+    database: Annotated[
+        Path,
+        typer.Option(help="Ignored local SQLite trajectory database."),
+    ] = Path("runs", "godfield.sqlite"),
+) -> None:
+    """Initialize the versioned local run and event store."""
+
+    try:
+        RunStore(database).initialize()
+    except RunStoreError as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(code=1) from None
+    typer.echo(database)
+
+
+@runs_app.command("list")
+def runs_list(
+    database: Annotated[
+        Path,
+        typer.Option(help="Ignored local SQLite trajectory database."),
+    ] = Path("runs", "godfield.sqlite"),
+    limit: Annotated[int, typer.Option(min=1, max=100)] = 20,
+) -> None:
+    """List recent runs without including event payloads."""
+
+    try:
+        records = RunStore(database).recent_runs(limit=limit)
+    except RunStoreError as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(code=1) from None
+    typer.echo(
+        json.dumps(
+            [record.model_dump(mode="json") for record in records],
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
 
 
 @data_app.command("refresh")

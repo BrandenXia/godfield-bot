@@ -1,6 +1,6 @@
 # ADR 0001: Proposed bot architecture
 
-- Status: **Proposed — awaiting operator decisions**
+- Status: **Accepted**
 - Date: 2026-09-06
 
 ## Context
@@ -16,7 +16,7 @@ checks so a model can never invent an invalid click sequence.
 
 ## Proposed stack
 
-Use one Python 3.12+ codebase:
+Use one Python 3.12+ codebase managed by **uv**:
 
 - **Playwright + dedicated Chromium profile** for browser control and stable
   account state.
@@ -138,15 +138,12 @@ not be baked into browser or storage interfaces.
 - Keep a deterministic heuristic fallback, but do not silently switch policy
   during a match.
 
-## Decision required
+## Decisions
 
-1. **Play scope.** Recommended: Training and operator-owned private rooms only
-   until the developer explicitly permits a bot; public Duel remains disabled.
-   Alternative: permit public Duel behind an explicit per-run opt-in.
-2. **Learning route.** Recommended: simulator-first self-play plus real-game
-   fine-tuning. Alternative: live-game-only learning, which avoids simulator
-   engineering but is much slower, harder to reproduce, and exposes other
-   players to an immature policy.
+1. **Play scope.** Training and operator-owned private rooms only until the
+   developer explicitly permits a bot; public Duel remains disabled.
+2. **Learning route.** Simulator-first self-play plus real-game fine-tuning.
+3. **Environment management.** Use uv for Python selection, dependency
+   locking, virtual environments, and command execution.
 
-Once these are decided, this ADR can be accepted and the repository can be
-scaffolded without leaving foundational behavior ambiguous.
+Account creation remains an explicit operator-confirmed action.

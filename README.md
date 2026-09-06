@@ -3,11 +3,13 @@
 This repository is for a browser-controlled, observable God Field agent that
 keeps a stable in-game identity and improves from completed games.
 
-The project is currently in its research and architecture phase. No game
-account has been created and no public match has been joined yet. The current
-official client and its in-game reference data were surveyed on 2026-09-06;
-see [the research snapshot](docs/research/2026-09-06-godfield.md) and the
-[proposed architecture](docs/architecture/0001-proposed-system.md).
+The architecture is accepted and implementation is underway. No game account
+has been created and no public match has been joined yet. The current official
+client and its in-game reference data were surveyed on 2026-09-06; see
+[the research snapshot](docs/research/2026-09-06-godfield.md) and the
+[architecture decision](docs/architecture/0001-proposed-system.md). The
+[complete extracted Bible](data/snapshots/2026-09-06/bible.json) contains all
+291 current artifact records.
 
 ## Working principles
 
@@ -24,11 +26,18 @@ see [the research snapshot](docs/research/2026-09-06-godfield.md) and the
 - Stop safely when the site changes, state confidence is low, or an action is
   not known to be legal.
 
-## Current decision gate
+## Development
 
-Implementation begins after two choices are confirmed:
+The project uses [uv](https://docs.astral.sh/uv/) for Python and virtual
+environment management:
 
-1. whether early play is restricted to Training/private rooms or may enter
-   public Duel matchmaking; and
-2. whether learning is simulator-first with real-game fine-tuning (proposed)
-   or live-game-only.
+```console
+uv sync --group dev
+PLAYWRIGHT_BROWSERS_PATH=.playwright uv run playwright install chromium
+uv run godfield-bot doctor
+PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot data refresh
+uv run pytest
+```
+
+Training and operator-owned private rooms are the only approved early play
+scope. Learning will be simulator-first with real-game fine-tuning.

@@ -165,7 +165,12 @@ def observe(
                 timeout_seconds=timeout_seconds,
             )
         )
-    except (ObservationError, ProfileStorageError, PlaywrightError) as error:
+    except (
+        ObservationError,
+        ProfileStorageError,
+        BrowserContractError,
+        PlaywrightError,
+    ) as error:
         structlog.get_logger().error(
             "screen_observation_failed",
             error_type=type(error).__name__,

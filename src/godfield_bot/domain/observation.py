@@ -29,15 +29,22 @@ class VisibleControl(BaseModel):
 class VisibleText(BaseModel):
     text: str
     bounds: Bounds
+    color: str | None = None
 
 
 class VisibleImage(BaseModel):
     path: str
     bounds: Bounds
+    hit_target_bounds: Bounds | None = None
+
+
+class VisibleMarker(BaseModel):
+    bounds: Bounds
+    background_color: str
 
 
 class ScreenObservation(BaseModel):
-    schema_version: int = 2
+    schema_version: int = 3
     observed_at: datetime
     url: str
     title: str
@@ -48,3 +55,4 @@ class ScreenObservation(BaseModel):
     text_elements: tuple[VisibleText, ...]
     controls: tuple[VisibleControl, ...]
     images: tuple[VisibleImage, ...]
+    markers: tuple[VisibleMarker, ...] = ()

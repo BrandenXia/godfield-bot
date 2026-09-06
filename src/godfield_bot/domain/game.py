@@ -11,6 +11,7 @@ class PlayerState(BaseModel):
     mp: int = Field(ge=0)
     money: int = Field(ge=0)
     is_self: bool
+    status_marker_color: str | None = None
 
 
 class HandArtifact(BaseModel):
@@ -19,6 +20,7 @@ class HandArtifact(BaseModel):
     slug: str
     asset_path: str
     bounds: Bounds
+    hit_target_bounds: Bounds | None = None
 
 
 class GameState(BaseModel):

@@ -4,9 +4,10 @@ from pathlib import Path
 from typing import Any, cast
 
 from playwright.async_api import Page
+from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from godfield_bot.account import start_account_session
-from godfield_bot.browser.controls import click_text_control
+from godfield_bot.browser.controls import click_header_back, click_text_control
 from godfield_bot.browser.profile import open_account_context
 from godfield_bot.config import AppSettings
 from godfield_bot.domain.observation import (
@@ -14,6 +15,7 @@ from godfield_bot.domain.observation import (
     ScreenObservation,
     VisibleControl,
     VisibleImage,
+    VisibleMarker,
     VisibleText,
 )
 
@@ -28,12 +30,40 @@ class ObservationTarget(StrEnum):
     GAME = "game"
 
 
+async def _start_or_recover_training_battle(
+    page: Page,
+    *,
+    timeout_seconds: float,
+) -> None:
+    start_battle = page.get_by_text("Start Battle", exact=True)
+    try:
+        await start_battle.wait_for(
+            state="visible",
+            timeout=min(timeout_seconds, 5.0) * 1_000,
+        )
+    except PlaywrightTimeoutError:
+        await click_header_back(page, "Training")
+        await page.get_by_text("Hidden Melee", exact=True).wait_for(
+            state="visible",
+            timeout=timeout_seconds * 1_000,
+        )
+        await click_text_control(page, "Training")
+        await start_battle.wait_for(
+            state="visible",
+            timeout=timeout_seconds * 1_000,
+        )
+    await click_text_control(page, "Start Battle")
+
+
 def classify_screen(text: tuple[str, ...], images: tuple[VisibleImage, ...]) -> ScreenKind:
     labels = set(text)
     image_paths = {image.path for image in images}
     if {"Training", "Hidden Melee", "Royal Duel"}.issubset(labels):
         return ScreenKind.MENU
-    if any("/images/items/" in path for path in image_paths) and "HP" in labels:
+    if "HP" in labels and (
+        any(label.startswith("G.F.") for label in labels)
+        or any("/images/items/" in path for path in image_paths)
+    ):
         return ScreenKind.GAME
     if "Training" in labels and "/images/screens/room.webp" in image_paths:
         return ScreenKind.TRAINING_SETUP
@@ -69,6 +99,7 @@ async def capture_screen(page: Page) -> ScreenObservation:
                 .map((element) => ({
                   text: element.innerText.trim(),
                   bounds: bounds(element),
+                  color: getComputedStyle(element).color,
                 }))
                 .filter((element) => element.text);
               const controls = [...document.querySelectorAll('div, input, a, select')]
@@ -88,9 +119,39 @@ async def capture_screen(page: Page) -> ScreenObservation:
                 }));
               const images = [...document.querySelectorAll('img')]
                 .filter(rendered)
+                .map((element) => {
+                  const sibling = element.nextElementSibling;
+                  const hitTarget = sibling?.tagName === 'DIV' && rendered(sibling)
+                    ? bounds(sibling)
+                    : null;
+                  return {
+                    path: new URL(element.src).pathname,
+                    bounds: bounds(element),
+                    hit_target_bounds: hitTarget,
+                  };
+                });
+              const markers = [...document.querySelectorAll('*')]
+                .filter((element) => {
+                  if (!rendered(element)) return false;
+                  const rect = element.getBoundingClientRect();
+                  if (rect.x < 700 || rect.y > 400) return false;
+                  if (rect.width < 10 || rect.width > 24 || rect.height < 10 ||
+                      rect.height > 24 || Math.abs(rect.width - rect.height) > 2) return false;
+                  const style = getComputedStyle(element);
+                  const opaqueBackground = style.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
+                    style.backgroundColor !== 'transparent';
+                  const opaqueFill = style.fill !== 'none' && style.fill !== 'rgba(0, 0, 0, 0)' &&
+                    style.fill !== 'transparent';
+                  const round = element.tagName.toLowerCase() === 'circle' ||
+                    parseFloat(style.borderRadius) >= rect.width / 3;
+                  return round && (opaqueBackground || opaqueFill);
+                })
                 .map((element) => ({
-                  path: new URL(element.src).pathname,
                   bounds: bounds(element),
+                  background_color: getComputedStyle(element).backgroundColor ===
+                    'rgba(0, 0, 0, 0)'
+                    ? getComputedStyle(element).fill
+                    : getComputedStyle(element).backgroundColor,
                 }));
               return {
                 url: location.href,
@@ -101,6 +162,7 @@ async def capture_screen(page: Page) -> ScreenObservation:
                 textElements,
                 controls,
                 images,
+                markers,
               };
             }
             """
@@ -110,6 +172,7 @@ async def capture_screen(page: Page) -> ScreenObservation:
     text_elements = tuple(VisibleText.model_validate(value) for value in raw["textElements"])
     controls = tuple(VisibleControl.model_validate(value) for value in raw["controls"])
     images = tuple(VisibleImage.model_validate(value) for value in raw["images"])
+    markers = tuple(VisibleMarker.model_validate(value) for value in raw["markers"])
     return ScreenObservation(
         observed_at=datetime.now(UTC),
         url=cast(str, raw["url"]),
@@ -121,6 +184,7 @@ async def capture_screen(page: Page) -> ScreenObservation:
         text_elements=text_elements,
         controls=controls,
         images=images,
+        markers=markers,
     )
 
 
@@ -137,6 +201,9 @@ async def observe_account_screen(
         page = context.pages[0] if context.pages else await context.new_page()
         await start_account_session(page, settings, timeout_seconds=timeout_seconds)
         observation = await capture_screen(page)
+        if target is ObservationTarget.GAME and observation.kind is ScreenKind.GAME:
+            await page.wait_for_timeout(settle_seconds * 1_000)
+            observation = await capture_screen(page)
         if target is ObservationTarget.MENU and observation.kind is not ScreenKind.MENU:
             raise ObservationError(f"expected menu screen, observed {observation.kind}")
         if target in {ObservationTarget.TRAINING, ObservationTarget.GAME} and (
@@ -150,11 +217,10 @@ async def observe_account_screen(
                 raise ObservationError(
                     f"expected Training setup or game, observed {observation.kind}"
                 )
-            await page.get_by_text("Start Battle", exact=True).wait_for(
-                state="visible",
-                timeout=timeout_seconds * 1_000,
+            await _start_or_recover_training_battle(
+                page,
+                timeout_seconds=timeout_seconds,
             )
-            await click_text_control(page, "Start Battle")
             await page.wait_for_timeout(settle_seconds * 1_000)
             observation = await capture_screen(page)
         if screenshot is not None:

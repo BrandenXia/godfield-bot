@@ -40,6 +40,12 @@ def test_game_evidence_takes_priority_over_persisted_room_layer() -> None:
     assert classify_screen(text, images) is ScreenKind.GAME
 
 
+def test_game_shell_is_recognized_before_hand_renders() -> None:
+    text = ("Training", "G.F.0", "HP")
+
+    assert classify_screen(text, (image("/images/screens/room.webp"),)) is ScreenKind.GAME
+
+
 def test_unknown_screen_fails_to_guess() -> None:
     assert (
         classify_screen(("Surprising new UI",), (image("/images/new.webp"),)) is ScreenKind.UNKNOWN

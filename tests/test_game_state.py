@@ -72,7 +72,7 @@ def test_game_observation_normalizes_players_and_hand() -> None:
 
     assert state.field_number == 0
     assert state.self_player_index == 0
-    assert state.players[1].model_dump(exclude={"is_self"}) == {
+    assert state.players[1].model_dump(exclude={"is_self", "status_marker_color"}) == {
         "name": "CPU",
         "hp": 35,
         "mp": 8,

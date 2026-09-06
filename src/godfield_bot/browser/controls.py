@@ -25,3 +25,46 @@ async def click_text_control(page: Page, text: str) -> None:
                     await candidate.click(force=True)
                 return
     raise BrowserContractError(f"visible clickable control not found: {text}")
+
+
+async def click_header_back(page: Page, title: str) -> None:
+    """Click the header control immediately left of an exact visible title."""
+
+    clicked: bool = await page.evaluate(
+        """
+        (wantedTitle) => {
+          const rendered = (element) => {
+            const style = getComputedStyle(element);
+            const rect = element.getBoundingClientRect();
+            return style.display !== 'none' && style.visibility !== 'hidden' &&
+              rect.width > 0 && rect.height > 0;
+          };
+          const title = [...document.querySelectorAll('span')]
+            .find((element) => rendered(element) && element.innerText.trim() === wantedTitle);
+          if (!title) return false;
+          const titleRect = title.getBoundingClientRect();
+          const candidates = [...document.querySelectorAll('div')]
+            .filter((element) => {
+              if (!rendered(element) || getComputedStyle(element).cursor !== 'pointer') {
+                return false;
+              }
+              const rect = element.getBoundingClientRect();
+              const overlapsTitleVertically = rect.top < titleRect.bottom &&
+                rect.bottom > titleRect.top;
+              const parentCursor = element.parentElement
+                ? getComputedStyle(element.parentElement).cursor
+                : '';
+              return overlapsTitleVertically && rect.right <= titleRect.left &&
+                parentCursor !== 'pointer';
+            })
+            .sort((left, right) => right.getBoundingClientRect().right -
+              left.getBoundingClientRect().right);
+          if (candidates.length !== 1) return false;
+          candidates[0].click();
+          return true;
+        }
+        """,
+        title,
+    )
+    if not clicked:
+        raise BrowserContractError(f"unique header back control not found for: {title}")

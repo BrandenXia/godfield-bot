@@ -60,6 +60,17 @@ def _parse_players(observation: ScreenObservation, identity: str) -> tuple[Playe
         if len(names) != 1:
             raise GameStateParseError("expected one player name on stats row")
         name = names[0]
+        markers = [
+            marker
+            for marker in observation.markers
+            if abs(
+                marker.bounds.y
+                + marker.bounds.height / 2
+                - (hp_label.bounds.y + hp_label.bounds.height / 2)
+            )
+            <= 3
+            and marker.bounds.x < hp_label.bounds.x
+        ]
         players.append(
             PlayerState(
                 name=name,
@@ -67,6 +78,7 @@ def _parse_players(observation: ScreenObservation, identity: str) -> tuple[Playe
                 mp=_label_value(row, "MP", "$"),
                 money=_label_value(row, "$", None),
                 is_self=name == identity,
+                status_marker_color=(markers[0].background_color if len(markers) == 1 else None),
             )
         )
     if len(players) < 2:
@@ -114,6 +126,7 @@ def _parse_hand(observation: ScreenObservation) -> tuple[HandArtifact, ...]:
                 slug=slug,
                 asset_path=image.path,
                 bounds=image.bounds,
+                hit_target_bounds=image.hit_target_bounds,
             )
         )
     return tuple(hand)

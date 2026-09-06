@@ -12,6 +12,7 @@ class PlayerState(BaseModel):
     money: int = Field(ge=0)
     is_self: bool
     status_marker_color: str | None = None
+    hit_target_bounds: Bounds | None = None
 
 
 class HandArtifact(BaseModel):
@@ -36,4 +37,8 @@ class GameState(BaseModel):
     action_target: str | None = None
     action_display: str | None = None
     action_display_color: str | None = None
+    action_artifact_asset_path: str | None = None
+    action_hit_target_bounds: Bounds | None = None
     phase_control: str | None = None
+    phase_artifact_asset_path: str | None = None
+    phase_control_hit_target_bounds: Bounds | None = None

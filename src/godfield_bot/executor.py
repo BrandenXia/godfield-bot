@@ -3,7 +3,12 @@ from time import monotonic
 
 from playwright.async_api import Page
 
-from godfield_bot.browser.controls import click_hand_artifact
+from godfield_bot.browser.controls import (
+    click_action_panel,
+    click_hand_artifact,
+    click_phase_control,
+    click_player_target,
+)
 from godfield_bot.domain.action import (
     ActionExecutionResult,
     ActionKind,
@@ -29,6 +34,30 @@ async def execute_action(
             page,
             slot=action.artifact_slot,
             asset_path=action.artifact_asset_path,
+        )
+    elif action.kind is ActionKind.SELECT_TARGET:
+        if action.target_player_index is None or action.target_player_name is None:
+            raise ActionExecutionError("target selection is missing its verified identity")
+        await click_player_target(
+            page,
+            player_index=action.target_player_index,
+            player_name=action.target_player_name,
+        )
+    elif action.kind is ActionKind.FORGIVE:
+        await click_phase_control(page, text="Forgive")
+    elif action.kind is ActionKind.CONFIRM:
+        if (
+            action.artifact_asset_path is None
+            or action.target_player_index is None
+            or action.target_player_name is None
+            or action.control_panel is None
+        ):
+            raise ActionExecutionError("confirmation is missing its verified identities")
+        await click_action_panel(
+            page,
+            asset_path=action.artifact_asset_path,
+            target_name=action.target_player_name,
+            panel=action.control_panel,
         )
     else:
         raise ActionExecutionError(f"unsupported executable action: {action.kind}")

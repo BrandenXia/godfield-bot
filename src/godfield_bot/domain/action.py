@@ -1,5 +1,6 @@
 from datetime import datetime
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -8,6 +9,7 @@ class ActionKind(StrEnum):
     WAIT = "wait"
     SELECT_ARTIFACT = "select_artifact"
     SELECT_TARGET = "select_target"
+    FORGIVE = "forgive"
     CONFIRM = "confirm"
     CANCEL = "cancel"
 
@@ -19,6 +21,8 @@ class LegalAction(BaseModel):
     artifact_slot: int | None = Field(default=None, ge=0)
     artifact_asset_path: str | None = None
     target_player_index: int | None = Field(default=None, ge=0)
+    target_player_name: str | None = None
+    control_panel: Literal["left", "right"] | None = None
 
     @model_validator(mode="after")
     def artifact_selection_has_identity(self) -> "LegalAction":
@@ -26,6 +30,17 @@ class LegalAction(BaseModel):
             self.artifact_slot is None or self.artifact_asset_path is None
         ):
             raise ValueError("artifact selection requires a slot and asset path")
+        if self.kind is ActionKind.SELECT_TARGET and (
+            self.target_player_index is None or not self.target_player_name
+        ):
+            raise ValueError("target selection requires a player index and name")
+        if self.kind is ActionKind.CONFIRM and (
+            self.artifact_asset_path is None
+            or self.target_player_index is None
+            or not self.target_player_name
+            or self.control_panel is None
+        ):
+            raise ValueError("confirmation requires artifact, target, and panel identities")
         return self
 
 

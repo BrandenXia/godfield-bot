@@ -60,6 +60,21 @@ class HeuristicV0Policy:
         artifact_actions = [
             action for action in legal_actions.actions if action.kind is ActionKind.SELECT_ARTIFACT
         ]
+        target_actions = [
+            action for action in legal_actions.actions if action.kind is ActionKind.SELECT_TARGET
+        ]
+        forgive_actions = [
+            action for action in legal_actions.actions if action.kind is ActionKind.FORGIVE
+        ]
+        confirm_actions = [
+            action for action in legal_actions.actions if action.kind is ActionKind.CONFIRM
+        ]
+        if len(target_actions) > 1:
+            raise ValueError("heuristic policy requires at most one verified target")
+        if len(forgive_actions) > 1:
+            raise ValueError("heuristic policy requires at most one Forgive action")
+        if len(confirm_actions) > 1:
+            raise ValueError("heuristic policy requires at most one verified confirmation")
         ranked_actions = [
             action
             for action in artifact_actions
@@ -87,7 +102,17 @@ class HeuristicV0Policy:
             )
             return values[artifact.slug], -action.artifact_slot
 
-        chosen = max(ranked_actions, key=artifact_value) if ranked_actions else wait_actions[0]
+        chosen = (
+            confirm_actions[0]
+            if confirm_actions
+            else target_actions[0]
+            if target_actions
+            else max(ranked_actions, key=artifact_value)
+            if ranked_actions
+            else forgive_actions[0]
+            if forgive_actions
+            else wait_actions[0]
+        )
         executable = chosen.kind is not ActionKind.WAIT
         return PolicyDecision(
             decided_at=datetime.now(UTC),
@@ -99,8 +124,14 @@ class HeuristicV0Policy:
                 for action in legal_actions.actions
             },
             rationale=(
-                "select the strongest phase-appropriate plain Bible artifact"
-                if executable
+                "select the sole verified opponent target"
+                if chosen.kind is ActionKind.SELECT_TARGET
+                else "confirm the selected plain attack on the named sole opponent"
+                if chosen.kind is ActionKind.CONFIRM
+                else "select the strongest phase-appropriate plain Bible artifact"
+                if chosen.kind is ActionKind.SELECT_ARTIFACT
+                else "forgive an incoming attack with no verified usable defense"
+                if chosen.kind is ActionKind.FORGIVE
                 else legal_actions.blocked_reason or "no executable action verified"
             ),
             executable=executable,

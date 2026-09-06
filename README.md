@@ -69,11 +69,11 @@ Training game, and records only changed states. Its room wait, gameplay
 duration, and in-match click count are independently bounded.
 
 The default `safe-observer-v0` remains observation-only. The explicitly chosen
-`--policy heuristic-v0 --max-actions 1` path can currently make one bounded
-card selection: choose the strongest plain Bible-verified weapon during
-`ロキ-67`'s attack selection, or the strongest plain armor during a verified
-neutral defense. Targeting, confirmation, elemental defense, Forgive, discard,
-and all other phases remain blocked.
+`heuristic-v0` path can select the strongest plain Bible-verified weapon and
+confirm it against an already named sole opponent. It can also Forgive a fully
+identified incoming effect, and select plain armor during a verified neutral
+defense. Every browser interaction counts against `--max-actions`; unknown,
+elemental-defense, multi-target, discard, and other phases remain blocked.
 
 God Field returns to its Prophet Name screen when the browser restarts. The
 `observe` command re-enters Genesis as `ロキ-67`, verifies a one-way fingerprint

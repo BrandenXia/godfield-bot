@@ -110,7 +110,9 @@ def test_heuristic_selects_plain_armor_for_neutral_defense() -> None:
             "action_target": "ロキ-67",
             "action_display": "ATK13",
             "action_display_color": "rgb(79, 79, 79)",
+            "action_artifact_asset_path": "/images/items/weapons/bronze-club.webp",
             "phase_control": "Forgive",
+            "phase_control_hit_target_bounds": Bounds(x=455, y=93, width=310, height=300),
         }
     )
     observation = ScreenObservation(
@@ -135,5 +137,214 @@ def test_heuristic_selects_plain_armor_for_neutral_defense() -> None:
     assert [action.action_id for action in actions.actions] == [
         "wait",
         "artifact:0:armor/iron-shield",
+        "forgive",
     ]
     assert decision.chosen_action_id == "artifact:0:armor/iron-shield"
+
+
+def test_heuristic_forgives_elemental_attack_without_verified_defense() -> None:
+    initial = state()
+    game_state = initial.model_copy(
+        update={
+            "action_actor": "CPU",
+            "action_target": "ロキ-67",
+            "action_display": "ATK13",
+            "action_display_color": "rgb(102, 136, 170)",
+            "action_artifact_asset_path": "/images/items/weapons/diamond-sword.webp",
+            "phase_control": "Forgive",
+            "phase_control_hit_target_bounds": Bounds(x=455, y=93, width=310, height=300),
+        }
+    )
+    observation = ScreenObservation(
+        observed_at=game_state.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.1", "ATK13", "Forgive", "HP"),
+        text_elements=(),
+        controls=(),
+        images=(),
+    )
+
+    actions = verified_browser_actions(game_state, observation)
+    decision = HeuristicV0Policy(
+        {"bronze-club": 1},
+        {"iron-shield": 4},
+    ).decide(game_state, actions)
+
+    assert [action.action_id for action in actions.actions] == ["wait", "forgive"]
+    assert decision.chosen_action_id == "forgive"
+    assert decision.executable is True
+
+
+def test_heuristic_forgives_identified_incoming_non_attack_effect() -> None:
+    initial = state()
+    game_state = initial.model_copy(
+        update={
+            "action_actor": "CPU",
+            "action_target": "ロキ-67",
+            "action_artifact_asset_path": "/images/items/sundries/thump-thump-tear.webp",
+            "phase_control": "Forgive",
+            "phase_control_hit_target_bounds": Bounds(x=455, y=93, width=310, height=300),
+        }
+    )
+    observation = ScreenObservation(
+        observed_at=game_state.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.1", "Forgive", "HP"),
+        text_elements=(),
+        controls=(),
+        images=(),
+    )
+
+    actions = verified_browser_actions(game_state, observation)
+    decision = HeuristicV0Policy(
+        {"bronze-club": 1},
+        {"iron-shield": 4},
+    ).decide(game_state, actions)
+
+    assert [action.action_id for action in actions.actions] == ["wait", "forgive"]
+    assert decision.chosen_action_id == "forgive"
+
+
+def test_heuristic_confirms_plain_weapon_on_named_sole_opponent() -> None:
+    initial = state()
+    target_bounds = Bounds(x=780, y=264, width=340, height=40)
+    game_state = initial.model_copy(
+        update={
+            "players": (
+                initial.players[0],
+                initial.players[1].model_copy(update={"hit_target_bounds": target_bounds}),
+            ),
+            "action_actor": "ロキ-67",
+            "action_target": "CPU",
+            "action_display": "ATK1",
+            "action_display_color": "rgb(79, 79, 79)",
+            "action_artifact_asset_path": "/images/items/weapons/bronze-club.webp",
+            "action_hit_target_bounds": Bounds(x=115, y=93, width=310, height=300),
+        }
+    )
+    observation = ScreenObservation(
+        observed_at=game_state.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.1", "ATK1", "HP"),
+        text_elements=(),
+        controls=(),
+        images=(),
+    )
+
+    actions = verified_browser_actions(
+        game_state,
+        observation,
+        plain_weapon_attacks={"bronze-club": 1},
+    )
+    decision = HeuristicV0Policy(
+        {"bronze-club": 1},
+        {"iron-shield": 4},
+    ).decide(game_state, actions)
+
+    assert [action.action_id for action in actions.actions] == [
+        "wait",
+        "confirm:attack:bronze-club:1:CPU",
+    ]
+    assert actions.actions[1].target_player_index == 1
+    assert actions.actions[1].target_player_name == "CPU"
+    assert actions.actions[1].artifact_asset_path == "/images/items/weapons/bronze-club.webp"
+    assert actions.actions[1].control_panel == "left"
+    assert decision.chosen_action_id == "confirm:attack:bronze-club:1:CPU"
+    assert decision.executable is True
+
+
+def test_targeting_fails_closed_when_displayed_attack_does_not_match_bible() -> None:
+    initial = state()
+    game_state = initial.model_copy(
+        update={
+            "players": (
+                initial.players[0],
+                initial.players[1].model_copy(
+                    update={"hit_target_bounds": Bounds(x=780, y=264, width=340, height=40)}
+                ),
+            ),
+            "action_actor": "ロキ-67",
+            "action_target": "CPU",
+            "action_display": "ATK2",
+            "action_display_color": "rgb(79, 79, 79)",
+            "action_artifact_asset_path": "/images/items/weapons/bronze-club.webp",
+            "action_hit_target_bounds": Bounds(x=115, y=93, width=310, height=300),
+        }
+    )
+    observation = ScreenObservation(
+        observed_at=game_state.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.1", "ATK2", "HP"),
+        text_elements=(),
+        controls=(),
+        images=(),
+    )
+
+    actions = verified_browser_actions(
+        game_state,
+        observation,
+        plain_weapon_attacks={"bronze-club": 1},
+    )
+
+    assert [action.action_id for action in actions.actions] == ["wait"]
+
+
+def test_heuristic_confirms_plain_armor_for_neutral_attack() -> None:
+    initial = state()
+    game_state = initial.model_copy(
+        update={
+            "action_actor": "CPU",
+            "action_target": "ロキ-67",
+            "action_display": "ATK2",
+            "action_display_color": "rgb(79, 79, 79)",
+            "action_artifact_asset_path": "/images/items/weapons/whip.webp",
+            "phase_control": "DEF4",
+            "phase_artifact_asset_path": "/images/items/armor/iron-shield.webp",
+            "phase_control_hit_target_bounds": Bounds(x=455, y=93, width=310, height=300),
+        }
+    )
+    observation = ScreenObservation(
+        observed_at=game_state.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.1", "ATK2", "DEF4", "HP"),
+        text_elements=(),
+        controls=(),
+        images=(),
+    )
+
+    actions = verified_browser_actions(
+        game_state,
+        observation,
+        plain_armor_defenses={"iron-shield": 4},
+    )
+    decision = HeuristicV0Policy(
+        {"bronze-club": 1},
+        {"iron-shield": 4},
+    ).decide(game_state, actions)
+
+    assert [action.action_id for action in actions.actions] == [
+        "wait",
+        "confirm:defense:iron-shield:0:ロキ-67",
+    ]
+    assert actions.actions[1].control_panel == "right"
+    assert decision.chosen_action_id == "confirm:defense:iron-shield:0:ロキ-67"

@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import os
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -122,7 +123,16 @@ def _record_policy_state(
     digest = game_state_digest(state)
     if digest == previous_digest:
         return digest, None, None
-    legal_actions = verified_browser_actions(state, observation)
+    legal_actions = verified_browser_actions(
+        state,
+        observation,
+        plain_weapon_attacks=(
+            policy.plain_weapon_attacks if isinstance(policy, HeuristicV0Policy) else None
+        ),
+        plain_armor_defenses=(
+            policy.plain_armor_defenses if isinstance(policy, HeuristicV0Policy) else None
+        ),
+    )
     decision = policy.decide(state, legal_actions)
     chosen_actions = [
         action for action in legal_actions.actions if action.action_id == decision.chosen_action_id
@@ -202,6 +212,7 @@ async def run_training_observer(
                 config,
             )
             previous_digest: str | None = None
+            previous_parse_error_digest: str | None = None
             in_match_actions = 0
             outcome_reason = "wall_clock_limit"
             deadline = asyncio.get_running_loop().time() + config.max_seconds
@@ -257,11 +268,34 @@ async def run_training_observer(
                             action=chosen_action.action_id,
                             action_count=in_match_actions,
                         )
-                        outcome_reason = "action_limit"
                         if in_match_actions >= config.max_in_match_actions:
+                            outcome_reason = "action_limit"
                             break
                 except GameStateParseError as error:
                     log.info("incomplete_game_frame", reason=str(error))
+                    parse_error_digest = hashlib.sha256(
+                        observation.model_dump_json(exclude={"observed_at"}).encode()
+                    ).hexdigest()
+                    if parse_error_digest != previous_parse_error_digest:
+                        store.append_event(run.run_id, EventKind.OBSERVATION, observation)
+                        store.append_event(
+                            run.run_id,
+                            EventKind.ERROR,
+                            {
+                                "error_type": type(error).__name__,
+                                "reason": str(error),
+                                "observation_digest": parse_error_digest,
+                            },
+                        )
+                        if config.screenshot_directory is not None:
+                            prepare_private_directory(config.screenshot_directory)
+                            parse_error_path = (
+                                config.screenshot_directory
+                                / f"{run.run_id}-parse-error-{parse_error_digest[:12]}.png"
+                            )
+                            await page.screenshot(path=str(parse_error_path), full_page=True)
+                            os.chmod(parse_error_path, 0o600)
+                        previous_parse_error_digest = parse_error_digest
                 await page.wait_for_timeout(config.poll_seconds * 1_000)
                 observation = await capture_screen(page)
     except asyncio.CancelledError:

@@ -111,7 +111,10 @@ class StateFeatureEncoder:
             hand_tokens.append(0)
             hand_mask.append(False)
 
-        action_mask = [False] * (ARTIFACT_ACTION_OFFSET + self.max_hand_slots)
+        target_action_offset = ARTIFACT_ACTION_OFFSET + self.max_hand_slots
+        forgive_action_index = target_action_offset + self.max_players
+        confirm_action_index = forgive_action_index + 1
+        action_mask = [False] * (confirm_action_index + 1)
         for action in legal_actions.actions:
             if action.kind is ActionKind.WAIT:
                 action_mask[0] = True
@@ -119,9 +122,20 @@ class StateFeatureEncoder:
                 if action.artifact_slot is None or action.artifact_slot >= self.max_hand_slots:
                     raise FeatureEncodingError("artifact action has an invalid slot")
                 action_mask[ARTIFACT_ACTION_OFFSET + action.artifact_slot] = True
+            elif action.kind is ActionKind.SELECT_TARGET:
+                if (
+                    action.target_player_index is None
+                    or action.target_player_index >= self.max_players
+                ):
+                    raise FeatureEncodingError("target action has an invalid player index")
+                action_mask[target_action_offset + action.target_player_index] = True
+            elif action.kind is ActionKind.FORGIVE:
+                action_mask[forgive_action_index] = True
+            elif action.kind is ActionKind.CONFIRM:
+                action_mask[confirm_action_index] = True
             else:
                 raise FeatureEncodingError(
-                    f"action kind {action.kind} is outside the initial neural action head"
+                    f"action kind {action.kind} is outside the neural action head"
                 )
         if not any(action_mask):
             raise FeatureEncodingError("neural action mask has no legal action")

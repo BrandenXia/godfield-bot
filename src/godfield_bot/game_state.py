@@ -1,7 +1,13 @@
 import re
 
 from godfield_bot.domain.game import GameState, HandArtifact, PlayerState
-from godfield_bot.domain.observation import ScreenKind, ScreenObservation, VisibleImage, VisibleText
+from godfield_bot.domain.observation import (
+    Bounds,
+    ScreenKind,
+    ScreenObservation,
+    VisibleImage,
+    VisibleText,
+)
 
 FIELD_PATTERN = re.compile(r"^G\.F\.(\d+)$")
 ITEM_PATTERN = re.compile(r"^/images/items/([^/]+)/([^/]+)\.(?:png|svg|webp)$")
@@ -42,24 +48,37 @@ def _label_value(row: list[VisibleText], label: str, next_label: str | None) -> 
 
 
 def _parse_players(observation: ScreenObservation, identity: str) -> tuple[PlayerState, ...]:
-    hp_labels = [
-        element
-        for element in observation.text_elements
-        if element.text == "HP" and element.bounds.x >= 700 and element.bounds.y < 400
-    ]
+    hp_labels = sorted(
+        (
+            element
+            for element in observation.text_elements
+            if element.text == "HP" and element.bounds.x >= 700 and element.bounds.y < 400
+        ),
+        key=lambda element: element.bounds.y,
+    )
     players: list[PlayerState] = []
     for hp_label in hp_labels:
         row = _elements_on_row(observation.text_elements, hp_label.bounds.y)
         names = [
-            element.text
+            element
             for element in row
-            if element.bounds.x < hp_label.bounds.x
+            if 780 <= element.bounds.x < hp_label.bounds.x
             and element.text not in {"HP", "MP", "$"}
             and not element.text.isdecimal()
         ]
         if len(names) != 1:
             raise GameStateParseError("expected one player name on stats row")
-        name = names[0]
+        name = names[0].text
+        hit_targets = [
+            control.bounds
+            for control in observation.controls
+            if not control.text
+            and 700 <= control.bounds.x <= names[0].bounds.x
+            and abs(control.bounds.y - hp_label.bounds.y) <= ROW_TOLERANCE
+            and 250 <= control.bounds.width <= 400
+            and 25 <= control.bounds.height <= 60
+            and control.bounds.x + control.bounds.width >= hp_label.bounds.x + hp_label.bounds.width
+        ]
         markers = [
             marker
             for marker in observation.markers
@@ -79,6 +98,7 @@ def _parse_players(observation: ScreenObservation, identity: str) -> tuple[Playe
                 money=_label_value(row, "$", None),
                 is_self=name == identity,
                 status_marker_color=(markers[0].background_color if len(markers) == 1 else None),
+                hit_target_bounds=hit_targets[0] if len(hit_targets) == 1 else None,
             )
         )
     if len(players) < 2:
@@ -132,6 +152,34 @@ def _parse_hand(observation: ScreenObservation) -> tuple[HandArtifact, ...]:
     return tuple(hand)
 
 
+def _parse_action_artifact(observation: ScreenObservation) -> str | None:
+    candidates = [
+        image.path
+        for image in observation.images
+        if _item_coordinates(image) is not None
+        and 100 <= image.bounds.x <= 450
+        and 80 <= image.bounds.y <= 250
+        and 60 <= image.bounds.width <= 100
+        and 60 <= image.bounds.height <= 100
+        and image.hit_target_bounds is None
+    ]
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def _parse_phase_artifact(observation: ScreenObservation) -> str | None:
+    candidates = [
+        image.path
+        for image in observation.images
+        if _item_coordinates(image) is not None
+        and 450 <= image.bounds.x <= 750
+        and 80 <= image.bounds.y <= 250
+        and 60 <= image.bounds.width <= 100
+        and 60 <= image.bounds.height <= 100
+        and image.hit_target_bounds is None
+    ]
+    return candidates[0] if len(candidates) == 1 else None
+
+
 def _single_spatial_element(
     observation: ScreenObservation,
     *,
@@ -146,6 +194,32 @@ def _single_spatial_element(
         if minimum_x <= element.bounds.x <= maximum_x and minimum_y <= element.bounds.y <= maximum_y
     ]
     return matches[0] if len(matches) == 1 else None
+
+
+def _phase_control_hit_target(observation: ScreenObservation) -> Bounds | None:
+    candidates = [
+        control.bounds
+        for control in observation.controls
+        if not control.text
+        and 450 <= control.bounds.x <= 500
+        and 80 <= control.bounds.y <= 120
+        and 250 <= control.bounds.width <= 350
+        and 250 <= control.bounds.height <= 350
+    ]
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def _action_hit_target(observation: ScreenObservation) -> Bounds | None:
+    candidates = [
+        control.bounds
+        for control in observation.controls
+        if not control.text
+        and 100 <= control.bounds.x <= 150
+        and 80 <= control.bounds.y <= 120
+        and 250 <= control.bounds.width <= 350
+        and 250 <= control.bounds.height <= 350
+    ]
+    return candidates[0] if len(candidates) == 1 else None
 
 
 def parse_game_state(observation: ScreenObservation, *, identity: str) -> GameState:
@@ -200,5 +274,11 @@ def parse_game_state(observation: ScreenObservation, *, identity: str) -> GameSt
         action_target=action_target.text if action_target else None,
         action_display=action_display.text if action_display else None,
         action_display_color=action_display.color if action_display else None,
+        action_artifact_asset_path=_parse_action_artifact(observation),
+        action_hit_target_bounds=_action_hit_target(observation),
         phase_control=phase_control.text if phase_control else None,
+        phase_artifact_asset_path=_parse_phase_artifact(observation),
+        phase_control_hit_target_bounds=(
+            _phase_control_hit_target(observation) if phase_control else None
+        ),
     )

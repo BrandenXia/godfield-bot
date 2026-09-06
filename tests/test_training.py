@@ -89,5 +89,5 @@ def test_initialized_model_round_trips_with_checksums(tmp_path) -> None:
     loaded_manifest, loaded_model = load_model(model_directory)
 
     assert loaded_manifest == manifest
-    assert loaded_model.policy_head.out_features == 10
+    assert loaded_model.policy_head.out_features == 21
     assert stat.S_IMODE((model_directory / "weights.pt").stat().st_mode) == 0o600

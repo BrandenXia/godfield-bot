@@ -67,6 +67,7 @@ def initialize_model(
     client_sha256: str,
     seed: int = 67,
     max_hand_slots: int = 9,
+    max_players: int = 9,
 ) -> ModelManifest:
     prepare_private_directory(root)
     model_id = str(uuid4())
@@ -74,7 +75,7 @@ def initialize_model(
     prepare_private_directory(model_directory)
     architecture = ModelArchitecture(
         vocabulary_size=len(vocabulary.tokens),
-        action_count=1 + max_hand_slots,
+        action_count=3 + max_hand_slots + max_players,
     )
     torch.manual_seed(seed)
     model = _build_model(architecture)

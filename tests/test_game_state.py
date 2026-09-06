@@ -6,6 +6,7 @@ from godfield_bot.domain.observation import (
     Bounds,
     ScreenKind,
     ScreenObservation,
+    VisibleControl,
     VisibleImage,
     VisibleText,
 )
@@ -43,6 +44,7 @@ def game_observation() -> ScreenObservation:
             text("$", 1055, 131),
             text("20", 1085, 131),
             text("CPU", 810, 264),
+            text("Incoming detail", 650, 264),
             text("HP", 940, 264),
             text("35", 970, 264),
             text("MP", 1000, 264),
@@ -50,7 +52,10 @@ def game_observation() -> ScreenObservation:
             text("$", 1055, 264),
             text("12", 1085, 264),
         ),
-        controls=(),
+        controls=(
+            VisibleControl(text="", tag="div", bounds=bounds(780, 131, 340, 40)),
+            VisibleControl(text="", tag="div", bounds=bounds(780, 264, 340, 40)),
+        ),
         images=(
             VisibleImage(path="/images/screens/room.webp", bounds=bounds(100, 38, 1080, 660)),
             VisibleImage(
@@ -76,12 +81,15 @@ def test_game_observation_normalizes_players_and_hand() -> None:
     assert state.self_player_index == 0
     assert state.action_actor == "ロキ-67"
     assert state.action_display == "Pray"
-    assert state.players[1].model_dump(exclude={"is_self", "status_marker_color"}) == {
+    assert state.players[1].model_dump(
+        exclude={"is_self", "status_marker_color", "hit_target_bounds"}
+    ) == {
         "name": "CPU",
         "hp": 35,
         "mp": 8,
         "money": 12,
     }
+    assert state.players[1].hit_target_bounds == bounds(780, 264, 340, 40)
     assert [artifact.slug for artifact in state.hand] == ["bronze-club", "iron-shield"]
 
 
@@ -101,6 +109,10 @@ def test_defense_phase_spatial_roles_are_distinct() -> None:
     )
     observation = initial.model_copy(
         update={
+            "controls": (
+                *initial.controls,
+                VisibleControl(text="", tag="div", bounds=bounds(455, 93, 310, 300)),
+            ),
             "text_elements": (
                 *retained,
                 text("CPU", 160, 53),
@@ -122,6 +134,56 @@ def test_defense_phase_spatial_roles_are_distinct() -> None:
     assert state.action_display == "ATK13"
     assert state.action_display_color == "rgb(79, 79, 79)"
     assert state.phase_control == "Forgive"
+    assert state.phase_control_hit_target_bounds == bounds(455, 93, 310, 300)
+
+
+def test_selected_action_artifact_is_separate_from_the_hand() -> None:
+    initial = game_observation()
+    observation = initial.model_copy(
+        update={
+            "controls": (
+                *initial.controls,
+                VisibleControl(text="", tag="div", bounds=bounds(115, 93, 310, 300)),
+            ),
+            "images": (
+                *initial.images,
+                VisibleImage(
+                    path="/images/items/weapons/bronze-club.webp",
+                    bounds=bounds(125, 103, 80, 80),
+                ),
+            )
+        }
+    )
+
+    state = parse_game_state(observation, identity="ロキ-67")
+
+    assert state.action_artifact_asset_path == "/images/items/weapons/bronze-club.webp"
+    assert state.action_hit_target_bounds == bounds(115, 93, 310, 300)
+
+
+def test_selected_phase_artifact_is_separate_from_the_hand() -> None:
+    initial = game_observation()
+    observation = initial.model_copy(
+        update={
+            "controls": (
+                *initial.controls,
+                VisibleControl(text="", tag="div", bounds=bounds(455, 93, 310, 300)),
+            ),
+            "images": (
+                *initial.images,
+                VisibleImage(
+                    path="/images/items/armor/iron-shield.webp",
+                    bounds=bounds(465, 103, 80, 80),
+                ),
+            ),
+            "text_elements": (*initial.text_elements, text("DEF4", 485, 403)),
+        }
+    )
+
+    state = parse_game_state(observation, identity="ロキ-67")
+
+    assert state.phase_artifact_asset_path == "/images/items/armor/iron-shield.webp"
+    assert state.phase_control_hit_target_bounds == bounds(455, 93, 310, 300)
 
 
 def test_observation_probe_records_full_non_executing_policy_pass(tmp_path) -> None:

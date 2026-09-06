@@ -10,14 +10,19 @@ from playwright.async_api import Error as PlaywrightError
 
 from godfield_bot import __version__
 from godfield_bot.account import (
-    AccountStorageError,
     account_status,
     create_account,
     status_json,
 )
 from godfield_bot.browser.controls import BrowserContractError
+from godfield_bot.browser.profile import ProfileStorageError
 from godfield_bot.config import AppSettings
 from godfield_bot.observability import configure_logging
+from godfield_bot.observer import (
+    ObservationError,
+    ObservationTarget,
+    observe_account_screen,
+)
 from godfield_bot.reference import (
     category_counts,
     refresh_bible,
@@ -97,7 +102,7 @@ def create_persistent_account(
         result = asyncio.run(
             create_account(settings, headed=headed, timeout_seconds=timeout_seconds)
         )
-    except (AccountStorageError, BrowserContractError, PlaywrightError) as error:
+    except (ProfileStorageError, BrowserContractError, PlaywrightError) as error:
         structlog.get_logger().error(
             "account_creation_failed",
             error_type=type(error).__name__,
@@ -105,6 +110,61 @@ def create_persistent_account(
         )
         raise typer.Exit(code=1) from None
     typer.echo(result.model_dump_json(indent=2))
+
+
+@app.command()
+def observe(
+    screen: Annotated[
+        ObservationTarget,
+        typer.Option(help="Screen to inspect; training cannot enter public matchmaking."),
+    ] = ObservationTarget.MENU,
+    output: Annotated[
+        Path | None,
+        typer.Option(help="Optional destination for the structured screen observation."),
+    ] = None,
+    headed: Annotated[
+        bool, typer.Option("--headed", help="Show Chromium while observing the account.")
+    ] = False,
+    settle_seconds: Annotated[
+        float,
+        typer.Option(
+            min=0.0,
+            max=30.0,
+            help="Time to let the selected screen advance before capture.",
+        ),
+    ] = 2.0,
+    timeout_seconds: Annotated[
+        float, typer.Option(min=1.0, help="Per-operation browser timeout.")
+    ] = 20.0,
+) -> None:
+    """Enter the named session and observe its menu without starting a game."""
+
+    settings = AppSettings()
+    try:
+        observation = asyncio.run(
+            observe_account_screen(
+                settings,
+                target=screen,
+                headed=headed,
+                settle_seconds=settle_seconds,
+                timeout_seconds=timeout_seconds,
+            )
+        )
+    except (ObservationError, ProfileStorageError, PlaywrightError) as error:
+        structlog.get_logger().error(
+            "screen_observation_failed",
+            error_type=type(error).__name__,
+            reason=str(error).splitlines()[0],
+        )
+        raise typer.Exit(code=1) from None
+
+    serialized = observation.model_dump_json(indent=2)
+    if output is None:
+        typer.echo(serialized)
+        return
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(serialized + "\n", encoding="utf-8")
+    typer.echo(output)
 
 
 @data_app.command("refresh")

@@ -3,9 +3,9 @@
 This repository is for a browser-controlled, observable God Field agent that
 keeps a stable in-game identity and improves from completed games.
 
-The architecture is accepted and implementation is underway. No game account
-has been created and no public match has been joined yet. The current official
-client and its in-game reference data were surveyed on 2026-09-06; see
+The architecture is accepted and implementation is underway. The dedicated
+`ロキ-67` browser identity has been created; no match has been joined yet. The current
+official client and its in-game reference data were surveyed on 2026-09-06; see
 [the research snapshot](docs/research/2026-09-06-godfield.md) and the
 [architecture decision](docs/architecture/0001-proposed-system.md). The
 [complete extracted Bible](data/snapshots/2026-09-06/bible.json) contains all
@@ -46,7 +46,13 @@ the explicit `--confirm-create` flag:
 ```console
 PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot account status
 PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot account create --confirm-create
+PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot observe
 ```
+
+God Field returns to its Prophet Name screen when the browser restarts. The
+`observe` command re-enters Genesis as `ロキ-67`, verifies a one-way fingerprint
+of the same persisted anonymous Firebase identity, and stops at the menu. It
+never prints tokens, profile contents, or the underlying account identifier.
 
 Training and operator-owned private rooms are the only approved early play
 scope. Learning will be simulator-first with real-game fine-tuning.

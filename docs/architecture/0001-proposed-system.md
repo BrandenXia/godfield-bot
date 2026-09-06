@@ -88,8 +88,8 @@ Initial commands should be shaped around operator intent:
 
 ```text
 godfield-bot data refresh
-godfield-bot account create --name ロキ-67
-godfield-bot observe --mode training
+godfield-bot account create --confirm-create
+godfield-bot observe --screen training
 godfield-bot run --mode training --policy heuristic --max-games 1
 godfield-bot train --dataset accepted
 godfield-bot evaluate --candidate <model-id>

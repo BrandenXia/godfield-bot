@@ -45,6 +45,7 @@ class TrainingRunConfig(BaseModel):
     max_seconds: float = Field(default=90.0, ge=10.0, le=3600.0)
     room_timeout_seconds: float = Field(default=60.0, ge=5.0, le=300.0)
     poll_seconds: float = Field(default=2.0, ge=0.25, le=10.0)
+    no_progress_seconds: float = Field(default=60.0, ge=10.0, le=600.0)
     render_settle_seconds: float = Field(default=5.0, ge=1.0, le=30.0)
     screenshot_directory: Path | None = None
     policy: RunnerPolicyName = RunnerPolicyName.SAFE_OBSERVER
@@ -234,6 +235,7 @@ async def run_training_observer(
                         "max_games": 1,
                         "max_seconds": config.max_seconds,
                         "poll_seconds": config.poll_seconds,
+                        "no_progress_seconds": config.no_progress_seconds,
                         "max_in_match_actions": config.max_in_match_actions,
                     },
                 ),
@@ -254,10 +256,22 @@ async def run_training_observer(
             previous_parse_error_digest: str | None = None
             in_match_actions = 0
             outcome_reason = "wall_clock_limit"
-            deadline = asyncio.get_running_loop().time() + config.max_seconds
-            while asyncio.get_running_loop().time() < deadline:
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + config.max_seconds
+            last_progress_at = loop.time()
+            while loop.time() < deadline:
                 if observation.kind is not ScreenKind.GAME:
-                    raise RunnerError(f"Training game left the gameplay screen: {observation.kind}")
+                    store.append_event(
+                        run.run_id,
+                        EventKind.MATCH_END,
+                        {
+                            "classification": "unclassified_terminal_candidate",
+                            "screen_kind": observation.kind.value,
+                            "visible_text": list(observation.text),
+                        },
+                    )
+                    outcome_reason = "left_gameplay_screen"
+                    break
                 try:
                     prior_digest = previous_digest
                     previous_digest, decision, chosen_action, before_state = _record_policy_state(
@@ -268,6 +282,8 @@ async def run_training_observer(
                         policy,
                         previous_digest,
                     )
+                    if previous_digest != prior_digest:
+                        last_progress_at = loop.time()
                     if config.screenshot_directory is not None and previous_digest != prior_digest:
                         prepare_private_directory(config.screenshot_directory)
                         screenshot_path = (
@@ -328,6 +344,8 @@ async def run_training_observer(
                         if transition.state_changed is False:
                             outcome_reason = "action_not_accepted"
                             break
+                        if transition.state_changed is True:
+                            last_progress_at = loop.time()
                         if in_match_actions >= config.max_in_match_actions:
                             outcome_reason = "action_limit"
                             break
@@ -356,6 +374,9 @@ async def run_training_observer(
                             await page.screenshot(path=str(parse_error_path), full_page=True)
                             os.chmod(parse_error_path, 0o600)
                         previous_parse_error_digest = parse_error_digest
+                if loop.time() - last_progress_at >= config.no_progress_seconds:
+                    outcome_reason = "no_progress_limit"
+                    break
                 await page.wait_for_timeout(config.poll_seconds * 1_000)
                 observation = await capture_screen(page)
     except asyncio.CancelledError:

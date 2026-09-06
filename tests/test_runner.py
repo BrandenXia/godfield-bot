@@ -46,6 +46,15 @@ def test_safe_observer_defaults_to_zero_action_budget() -> None:
 
     assert config.policy is RunnerPolicyName.SAFE_OBSERVER
     assert config.max_in_match_actions == 0
+    assert config.no_progress_seconds == 60
+
+
+def test_no_progress_limit_is_bounded() -> None:
+    with pytest.raises(ValidationError):
+        TrainingRunConfig(
+            expected_client_sha256="a" * 64,
+            no_progress_seconds=9,
+        )
 
 
 def test_action_transition_records_state_and_hp_changes() -> None:

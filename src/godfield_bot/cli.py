@@ -221,6 +221,14 @@ def run_bot(
         float,
         typer.Option(min=0.25, max=10.0, help="Seconds between stable observations."),
     ] = 2.0,
+    no_progress_seconds: Annotated[
+        float,
+        typer.Option(
+            min=10.0,
+            max=600.0,
+            help="Stop after this many seconds without a normalized state change.",
+        ),
+    ] = 60.0,
     screenshot_directory: Annotated[
         Path | None,
         typer.Option(help="Owner-only ignored screenshots for changed game states."),
@@ -251,6 +259,7 @@ def run_bot(
                     max_seconds=max_seconds,
                     room_timeout_seconds=room_timeout_seconds,
                     poll_seconds=poll_seconds,
+                    no_progress_seconds=no_progress_seconds,
                     screenshot_directory=screenshot_directory,
                     policy=policy,
                     max_in_match_actions=max_actions,

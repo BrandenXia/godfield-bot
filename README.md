@@ -66,7 +66,9 @@ any learned checkpoint can control the browser.
 `run` defaults to an observation-only Training policy. It is headed by default,
 checks the live client bundle against the accepted snapshot, permits one
 Training game, and records only changed states. Its room wait, gameplay
-duration, and in-match click count are independently bounded.
+duration, no-progress interval, and in-match click count are independently
+bounded. If gameplay leaves the known screen, the runner records a terminal
+candidate instead of guessing whether the match was won or lost.
 
 The default `safe-observer-v0` remains observation-only. The explicitly chosen
 `heuristic-v0` path can select the strongest plain Bible-verified weapon and

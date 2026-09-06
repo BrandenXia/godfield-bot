@@ -4,7 +4,7 @@ This repository is for a browser-controlled, observable God Field agent that
 keeps a stable in-game identity and improves from completed games.
 
 The architecture is accepted and implementation is underway. The dedicated
-`ロキ-67` browser identity has been created; no match has been joined yet. The current
+`ロキ-67` browser identity has been created and used only in bounded Training probes. The current
 official client and its in-game reference data were surveyed on 2026-09-06; see
 [the research snapshot](docs/research/2026-09-06-godfield.md) and the
 [architecture decision](docs/architecture/0001-proposed-system.md). The
@@ -69,9 +69,10 @@ Training game, and records only changed states. Its room wait, gameplay
 duration, and in-match click count are independently bounded.
 
 The default `safe-observer-v0` remains observation-only. The explicitly chosen
-`--policy heuristic-v0 --max-actions 1` path can currently make one move only:
-when the action display shows that `ロキ-67` has prayed and every hand card has
-a verified overlay, select the first weapon. Targeting, confirmation, discard,
+`--policy heuristic-v0 --max-actions 1` path can currently make one bounded
+card selection: choose the strongest plain Bible-verified weapon during
+`ロキ-67`'s attack selection, or the strongest plain armor during a verified
+neutral defense. Targeting, confirmation, elemental defense, Forgive, discard,
 and all other phases remain blocked.
 
 God Field returns to its Prophet Name screen when the browser restarts. The

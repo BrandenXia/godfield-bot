@@ -1,8 +1,11 @@
 import hashlib
+import re
 
 from godfield_bot.domain.action import ActionKind, LegalAction, LegalActionSet
 from godfield_bot.domain.game import GameState
 from godfield_bot.domain.observation import ScreenKind, ScreenObservation
+
+NEUTRAL_TEXT_COLOR = "rgb(79, 79, 79)"
 
 
 def game_state_digest(state: GameState) -> str:
@@ -43,10 +46,25 @@ def verified_browser_actions(
         )
     ]
     self_player = state.players[state.self_player_index]
-    self_selection_phase = state.action_actor == self_player.name and state.action_display == "Pray"
-    if self_selection_phase and all(
-        artifact.hit_target_bounds is not None for artifact in state.hand
-    ):
+    self_attack_selection = (
+        state.action_actor == self_player.name and state.action_display == "Pray"
+    )
+    self_neutral_defense = (
+        state.action_actor is not None
+        and state.action_actor != self_player.name
+        and state.action_target == self_player.name
+        and state.action_display is not None
+        and re.fullmatch(r"ATK\d+", state.action_display) is not None
+        and state.action_display_color == NEUTRAL_TEXT_COLOR
+        and state.phase_control == "Forgive"
+    )
+    if self_attack_selection:
+        candidates = [artifact for artifact in state.hand if artifact.category == "weapons"]
+    elif self_neutral_defense:
+        candidates = [artifact for artifact in state.hand if artifact.category == "armor"]
+    else:
+        candidates = []
+    if candidates and all(artifact.hit_target_bounds is not None for artifact in candidates):
         actions.extend(
             LegalAction(
                 action_id=f"artifact:{artifact.slot}:{artifact.category}/{artifact.slug}",
@@ -55,7 +73,7 @@ def verified_browser_actions(
                 artifact_slot=artifact.slot,
                 artifact_asset_path=artifact.asset_path,
             )
-            for artifact in state.hand
+            for artifact in candidates
         )
     return LegalActionSet(
         state_digest=game_state_digest(state),

@@ -92,6 +92,38 @@ def test_non_game_screen_fails_closed() -> None:
         parse_game_state(observation, identity="ロキ-67")
 
 
+def test_defense_phase_spatial_roles_are_distinct() -> None:
+    initial = game_observation()
+    retained = tuple(
+        element
+        for element in initial.text_elements
+        if not (40 <= element.bounds.y <= 80 or 390 <= element.bounds.y <= 450)
+    )
+    observation = initial.model_copy(
+        update={
+            "text_elements": (
+                *retained,
+                text("CPU", 160, 53),
+                text("ロキ-67", 500, 53),
+                VisibleText(
+                    text="ATK13",
+                    bounds=bounds(145, 403, 250, 40),
+                    color="rgb(79, 79, 79)",
+                ),
+                text("Forgive", 480, 403),
+            )
+        }
+    )
+
+    state = parse_game_state(observation, identity="ロキ-67")
+
+    assert state.action_actor == "CPU"
+    assert state.action_target == "ロキ-67"
+    assert state.action_display == "ATK13"
+    assert state.action_display_color == "rgb(79, 79, 79)"
+    assert state.phase_control == "Forgive"
+
+
 def test_observation_probe_records_full_non_executing_policy_pass(tmp_path) -> None:
     store = RunStore(tmp_path / "runs.sqlite")
 

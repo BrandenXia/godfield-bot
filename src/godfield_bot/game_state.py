@@ -132,16 +132,16 @@ def _parse_hand(observation: ScreenObservation) -> tuple[HandArtifact, ...]:
     return tuple(hand)
 
 
-def _single_spatial_text(
+def _single_spatial_element(
     observation: ScreenObservation,
     *,
     minimum_x: float,
     maximum_x: float,
     minimum_y: float,
     maximum_y: float,
-) -> str | None:
+) -> VisibleText | None:
     matches = [
-        element.text
+        element
         for element in observation.text_elements
         if minimum_x <= element.bounds.x <= maximum_x and minimum_y <= element.bounds.y <= maximum_y
     ]
@@ -159,6 +159,34 @@ def parse_game_state(observation: ScreenObservation, *, identity: str) -> GameSt
     if len(field_matches) != 1:
         raise GameStateParseError("expected exactly one G.F. field counter")
     players = _parse_players(observation, identity)
+    action_actor = _single_spatial_element(
+        observation,
+        minimum_x=100,
+        maximum_x=450,
+        minimum_y=40,
+        maximum_y=80,
+    )
+    action_target = _single_spatial_element(
+        observation,
+        minimum_x=451,
+        maximum_x=750,
+        minimum_y=40,
+        maximum_y=80,
+    )
+    action_display = _single_spatial_element(
+        observation,
+        minimum_x=100,
+        maximum_x=450,
+        minimum_y=390,
+        maximum_y=450,
+    )
+    phase_control = _single_spatial_element(
+        observation,
+        minimum_x=451,
+        maximum_x=750,
+        minimum_y=390,
+        maximum_y=450,
+    )
     return GameState(
         observed_at=observation.observed_at,
         field_number=int(field_matches[0].group(1)),
@@ -168,18 +196,9 @@ def parse_game_state(observation: ScreenObservation, *, identity: str) -> GameSt
         scene_layers=tuple(
             image.path for image in observation.images if image.path.startswith("/images/screens/")
         ),
-        action_actor=_single_spatial_text(
-            observation,
-            minimum_x=100,
-            maximum_x=500,
-            minimum_y=40,
-            maximum_y=80,
-        ),
-        action_display=_single_spatial_text(
-            observation,
-            minimum_x=100,
-            maximum_x=500,
-            minimum_y=390,
-            maximum_y=450,
-        ),
+        action_actor=action_actor.text if action_actor else None,
+        action_target=action_target.text if action_target else None,
+        action_display=action_display.text if action_display else None,
+        action_display_color=action_display.color if action_display else None,
+        phase_control=phase_control.text if phase_control else None,
     )

@@ -80,7 +80,10 @@ def test_heuristic_selects_weapon_only_in_verified_self_phase() -> None:
     )
 
     actions = verified_browser_actions(game_state, observation)
-    decision = HeuristicV0Policy().decide(game_state, actions)
+    decision = HeuristicV0Policy(
+        {"bronze-club": 1},
+        {"iron-shield": 4},
+    ).decide(game_state, actions)
 
     assert [action.action_id for action in actions.actions] == [
         "wait",
@@ -88,3 +91,49 @@ def test_heuristic_selects_weapon_only_in_verified_self_phase() -> None:
     ]
     assert decision.chosen_action_id == "artifact:0:weapons/bronze-club"
     assert decision.executable is True
+
+
+def test_heuristic_selects_plain_armor_for_neutral_defense() -> None:
+    initial = state()
+    armor = HandArtifact(
+        slot=0,
+        category="armor",
+        slug="iron-shield",
+        asset_path="/images/items/armor/iron-shield.webp",
+        bounds=Bounds(x=200, y=493, width=80, height=80),
+        hit_target_bounds=Bounds(x=200, y=493, width=80, height=80),
+    )
+    game_state = initial.model_copy(
+        update={
+            "hand": (armor,),
+            "action_actor": "CPU",
+            "action_target": "ロキ-67",
+            "action_display": "ATK13",
+            "action_display_color": "rgb(79, 79, 79)",
+            "phase_control": "Forgive",
+        }
+    )
+    observation = ScreenObservation(
+        observed_at=game_state.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.1", "ATK13", "Forgive", "HP"),
+        text_elements=(),
+        controls=(),
+        images=(),
+    )
+
+    actions = verified_browser_actions(game_state, observation)
+    decision = HeuristicV0Policy(
+        {"bronze-club": 1},
+        {"iron-shield": 4},
+    ).decide(game_state, actions)
+
+    assert [action.action_id for action in actions.actions] == [
+        "wait",
+        "artifact:0:armor/iron-shield",
+    ]
+    assert decision.chosen_action_id == "artifact:0:armor/iron-shield"

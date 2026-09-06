@@ -1,7 +1,8 @@
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Protocol
 
-from godfield_bot.domain.action import ActionKind, LegalActionSet, PolicyDecision
+from godfield_bot.domain.action import ActionKind, LegalAction, LegalActionSet, PolicyDecision
 from godfield_bot.domain.game import GameState
 
 
@@ -40,6 +41,16 @@ class HeuristicV0Policy:
 
     policy_id = "heuristic-v0"
 
+    def __init__(
+        self,
+        plain_weapon_attacks: Mapping[str, int],
+        plain_armor_defenses: Mapping[str, int],
+    ) -> None:
+        if not plain_weapon_attacks or not plain_armor_defenses:
+            raise ValueError("heuristic-v0 requires plain artifact values")
+        self.plain_weapon_attacks = dict(plain_weapon_attacks)
+        self.plain_armor_defenses = dict(plain_armor_defenses)
+
     def decide(self, state: GameState, legal_actions: LegalActionSet) -> PolicyDecision:
         wait_actions = [
             action for action in legal_actions.actions if action.kind is ActionKind.WAIT
@@ -49,13 +60,34 @@ class HeuristicV0Policy:
         artifact_actions = [
             action for action in legal_actions.actions if action.kind is ActionKind.SELECT_ARTIFACT
         ]
-        weapon_actions = [
+        ranked_actions = [
             action
             for action in artifact_actions
             if action.artifact_slot is not None
-            and state.hand[action.artifact_slot].category == "weapons"
+            and (
+                (
+                    state.hand[action.artifact_slot].category == "weapons"
+                    and state.hand[action.artifact_slot].slug in self.plain_weapon_attacks
+                )
+                or (
+                    state.hand[action.artifact_slot].category == "armor"
+                    and state.hand[action.artifact_slot].slug in self.plain_armor_defenses
+                )
+            )
         ]
-        chosen = weapon_actions[0] if weapon_actions else wait_actions[0]
+
+        def artifact_value(action: LegalAction) -> tuple[int, int]:
+            if action.artifact_slot is None:
+                raise ValueError("ranked artifact action is missing its slot")
+            artifact = state.hand[action.artifact_slot]
+            values = (
+                self.plain_weapon_attacks
+                if artifact.category == "weapons"
+                else self.plain_armor_defenses
+            )
+            return values[artifact.slug], -action.artifact_slot
+
+        chosen = max(ranked_actions, key=artifact_value) if ranked_actions else wait_actions[0]
         executable = chosen.kind is not ActionKind.WAIT
         return PolicyDecision(
             decided_at=datetime.now(UTC),
@@ -67,7 +99,7 @@ class HeuristicV0Policy:
                 for action in legal_actions.actions
             },
             rationale=(
-                "select the first weapon with a verified hand hit target"
+                "select the strongest phase-appropriate plain Bible artifact"
                 if executable
                 else legal_actions.blocked_reason or "no executable action verified"
             ),

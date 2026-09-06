@@ -2,7 +2,11 @@ import json
 from pathlib import Path
 
 from godfield_bot.domain.reference import BibleSnapshot
-from godfield_bot.reference import category_counts
+from godfield_bot.reference import (
+    category_counts,
+    plain_attack_weapon_values,
+    plain_defense_armor_values,
+)
 
 SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-06" / "bible.json"
 
@@ -23,3 +27,11 @@ def test_committed_snapshot_matches_validated_live_catalog() -> None:
         "guardians": 42,
         "phenomena": 10,
     }
+    plain_attacks = plain_attack_weapon_values(snapshot)
+    assert len(plain_attacks) == 39
+    assert plain_attacks["bronze-club"] == 1
+    assert plain_attacks["gravity-mace"] == 11
+    plain_defenses = plain_defense_armor_values(snapshot)
+    assert len(plain_defenses) == 47
+    assert plain_defenses["iron-shield"] == 4
+    assert plain_defenses["steel-shield"] == 8

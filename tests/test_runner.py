@@ -10,6 +10,17 @@ def test_executable_policy_requires_positive_action_budget() -> None:
             expected_client_sha256="a" * 64,
             policy=RunnerPolicyName.HEURISTIC_V0,
             max_in_match_actions=0,
+            plain_weapon_attacks={"bronze-club": 1},
+            plain_armor_defenses={"iron-shield": 4},
+        )
+
+
+def test_executable_policy_requires_bible_artifact_knowledge() -> None:
+    with pytest.raises(ValidationError, match="Bible-verified plain artifacts"):
+        TrainingRunConfig(
+            expected_client_sha256="a" * 64,
+            policy=RunnerPolicyName.HEURISTIC_V0,
+            max_in_match_actions=1,
         )
 
 

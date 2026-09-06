@@ -46,11 +46,17 @@ class TrainingRunConfig(BaseModel):
     screenshot_directory: Path | None = None
     policy: RunnerPolicyName = RunnerPolicyName.SAFE_OBSERVER
     max_in_match_actions: int = Field(default=0, ge=0, le=100)
+    plain_weapon_attacks: dict[str, int] = Field(default_factory=dict)
+    plain_armor_defenses: dict[str, int] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def executable_policy_has_action_budget(self) -> "TrainingRunConfig":
         if self.policy is RunnerPolicyName.HEURISTIC_V0 and self.max_in_match_actions < 1:
             raise ValueError("heuristic-v0 requires a positive in-match action budget")
+        if self.policy is RunnerPolicyName.HEURISTIC_V0 and (
+            not self.plain_weapon_attacks or not self.plain_armor_defenses
+        ):
+            raise ValueError("heuristic-v0 requires Bible-verified plain artifacts")
         return self
 
 
@@ -137,11 +143,15 @@ def _record_policy_state(
     return digest, decision, chosen_actions[0]
 
 
-def _policy_from_name(name: RunnerPolicyName) -> Policy:
+def _policy_from_name(
+    name: RunnerPolicyName,
+    plain_weapon_attacks: dict[str, int],
+    plain_armor_defenses: dict[str, int],
+) -> Policy:
     if name is RunnerPolicyName.SAFE_OBSERVER:
         return SafeObserverPolicy()
     if name is RunnerPolicyName.HEURISTIC_V0:
-        return HeuristicV0Policy()
+        return HeuristicV0Policy(plain_weapon_attacks, plain_armor_defenses)
     raise RunnerError(f"unsupported policy: {name}")
 
 
@@ -152,7 +162,11 @@ async def run_training_observer(
     if settings.public_duel_enabled:
         raise RunnerError("safe observer runner requires public Duel to remain disabled")
 
-    policy = _policy_from_name(config.policy)
+    policy = _policy_from_name(
+        config.policy,
+        config.plain_weapon_attacks,
+        config.plain_armor_defenses,
+    )
     store = RunStore(config.database)
     started = datetime.now(UTC)
     run: RunRecord | None = None

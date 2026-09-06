@@ -33,4 +33,7 @@ class GameState(BaseModel):
     hand: tuple[HandArtifact, ...]
     scene_layers: tuple[str, ...]
     action_actor: str | None = None
+    action_target: str | None = None
     action_display: str | None = None
+    action_display_color: str | None = None
+    phase_control: str | None = None

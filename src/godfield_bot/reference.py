@@ -1,5 +1,6 @@
 import hashlib
 import os
+import re
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -44,6 +45,8 @@ IGNORED_REFERENCE_LINES = {
     *ITEM_CATEGORIES,
     *REFERENCE_SENTINELS,
 }
+
+PLAIN_ATTACK_PATTERN = re.compile(r"^ATK(\d+)$")
 
 
 class ReferenceExtractionError(BrowserContractError):
@@ -210,6 +213,40 @@ def write_snapshot(snapshot: BibleSnapshot, output: Path) -> None:
 
 def category_counts(snapshot: BibleSnapshot) -> dict[str, int]:
     return {name: len(category.items) for name, category in snapshot.catalog.items()}
+
+
+def plain_attack_weapon_values(snapshot: BibleSnapshot) -> dict[str, int]:
+    """Return weapons whose current Bible detail is only name, ATK, price, and rate."""
+
+    result: dict[str, int] = {}
+    for artifact in snapshot.catalog["weapons"].items:
+        if len(artifact.detail) != 4:
+            continue
+        attack = PLAIN_ATTACK_PATTERN.fullmatch(artifact.detail[1])
+        if (
+            attack is not None
+            and re.fullmatch(r"\$\d+", artifact.detail[2]) is not None
+            and artifact.detail[3].startswith("Gift Rate:")
+        ):
+            result[artifact.asset] = int(attack.group(1))
+    return result
+
+
+def plain_defense_armor_values(snapshot: BibleSnapshot) -> dict[str, int]:
+    """Return armor whose current Bible detail is only name, DEF, price, and rate."""
+
+    result: dict[str, int] = {}
+    for artifact in snapshot.catalog["armor"].items:
+        if len(artifact.detail) != 4:
+            continue
+        defense = re.fullmatch(r"DEF(\d+)", artifact.detail[1])
+        if (
+            defense is not None
+            and re.fullmatch(r"\$\d+", artifact.detail[2]) is not None
+            and artifact.detail[3].startswith("Gift Rate:")
+        ):
+            result[artifact.asset] = int(defense.group(1))
+    return result
 
 
 def ensure_expected_counts(actual: dict[str, int], expected: Iterable[tuple[str, int]]) -> None:

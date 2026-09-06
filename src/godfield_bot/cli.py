@@ -17,6 +17,8 @@ from godfield_bot.account import (
 from godfield_bot.browser.controls import BrowserContractError
 from godfield_bot.browser.profile import ProfileStorageError
 from godfield_bot.config import AppSettings
+from godfield_bot.domain.observation import ScreenObservation
+from godfield_bot.game_state import GameStateParseError, parse_game_state
 from godfield_bot.observability import configure_logging
 from godfield_bot.observer import (
     ObservationError,
@@ -32,8 +34,10 @@ from godfield_bot.reference import (
 app = typer.Typer(no_args_is_help=True, help="Control and train the ロキ-67 God Field bot.")
 data_app = typer.Typer(no_args_is_help=True, help="Refresh versioned public game data.")
 account_app = typer.Typer(no_args_is_help=True, help="Manage the persistent ロキ-67 identity.")
+state_app = typer.Typer(no_args_is_help=True, help="Normalize saved browser observations.")
 app.add_typer(data_app, name="data")
 app.add_typer(account_app, name="account")
+app.add_typer(state_app, name="state")
 
 
 def _version_callback(value: bool) -> None:
@@ -116,7 +120,7 @@ def create_persistent_account(
 def observe(
     screen: Annotated[
         ObservationTarget,
-        typer.Option(help="Screen to inspect; training cannot enter public matchmaking."),
+        typer.Option(help="Screen to inspect; targets are restricted to Training."),
     ] = ObservationTarget.MENU,
     output: Annotated[
         Path | None,
@@ -125,6 +129,10 @@ def observe(
     headed: Annotated[
         bool, typer.Option("--headed", help="Show Chromium while observing the account.")
     ] = False,
+    screenshot: Annotated[
+        Path | None,
+        typer.Option(help="Optional ignored screenshot destination for visual diagnostics."),
+    ] = None,
     settle_seconds: Annotated[
         float,
         typer.Option(
@@ -137,7 +145,7 @@ def observe(
         float, typer.Option(min=1.0, help="Per-operation browser timeout.")
     ] = 20.0,
 ) -> None:
-    """Enter the named session and observe its menu without starting a game."""
+    """Enter the named session and inspect a bounded Training state."""
 
     settings = AppSettings()
     try:
@@ -146,6 +154,7 @@ def observe(
                 settings,
                 target=screen,
                 headed=headed,
+                screenshot=screenshot,
                 settle_seconds=settle_seconds,
                 timeout_seconds=timeout_seconds,
             )
@@ -159,6 +168,41 @@ def observe(
         raise typer.Exit(code=1) from None
 
     serialized = observation.model_dump_json(indent=2)
+    if output is None:
+        typer.echo(serialized)
+        return
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(serialized + "\n", encoding="utf-8")
+    typer.echo(output)
+
+
+@state_app.command("parse")
+def state_parse(
+    observation_file: Annotated[
+        Path,
+        typer.Argument(exists=True, dir_okay=False, readable=True),
+    ],
+    output: Annotated[
+        Path | None,
+        typer.Option(help="Optional destination for the normalized GameState."),
+    ] = None,
+) -> None:
+    """Parse a saved gameplay observation into a typed, policy-facing state."""
+
+    try:
+        observation = ScreenObservation.model_validate_json(
+            observation_file.read_text(encoding="utf-8")
+        )
+        state = parse_game_state(observation, identity=AppSettings().identity)
+    except (OSError, ValueError, GameStateParseError) as error:
+        structlog.get_logger().error(
+            "game_state_parse_failed",
+            error_type=type(error).__name__,
+            reason=str(error).splitlines()[0],
+        )
+        raise typer.Exit(code=1) from None
+
+    serialized = state.model_dump_json(indent=2)
     if output is None:
         typer.echo(serialized)
         return

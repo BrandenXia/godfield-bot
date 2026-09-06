@@ -26,13 +26,18 @@ class VisibleControl(BaseModel):
     bounds: Bounds
 
 
+class VisibleText(BaseModel):
+    text: str
+    bounds: Bounds
+
+
 class VisibleImage(BaseModel):
     path: str
     bounds: Bounds
 
 
 class ScreenObservation(BaseModel):
-    schema_version: int = 1
+    schema_version: int = 2
     observed_at: datetime
     url: str
     title: str
@@ -40,5 +45,6 @@ class ScreenObservation(BaseModel):
     viewport_width: int
     viewport_height: int
     text: tuple[str, ...]
+    text_elements: tuple[VisibleText, ...]
     controls: tuple[VisibleControl, ...]
     images: tuple[VisibleImage, ...]

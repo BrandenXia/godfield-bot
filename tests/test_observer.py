@@ -30,6 +30,16 @@ def test_training_room_is_classified_from_screen_asset() -> None:
     assert classify_screen(text, (image("/images/screens/room.webp"),)) is ScreenKind.TRAINING_SETUP
 
 
+def test_game_evidence_takes_priority_over_persisted_room_layer() -> None:
+    text = ("Training", "HP")
+    images = (
+        image("/images/screens/room.webp"),
+        image("/images/items/weapons/bronze-club.webp"),
+    )
+
+    assert classify_screen(text, images) is ScreenKind.GAME
+
+
 def test_unknown_screen_fails_to_guess() -> None:
     assert (
         classify_screen(("Surprising new UI",), (image("/images/new.webp"),)) is ScreenKind.UNKNOWN

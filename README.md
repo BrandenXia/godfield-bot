@@ -47,12 +47,16 @@ the explicit `--confirm-create` flag:
 PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot account status
 PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot account create --confirm-create
 PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot observe
+uv run godfield-bot state parse runs/observations/game-spatial.json
 ```
 
 God Field returns to its Prophet Name screen when the browser restarts. The
 `observe` command re-enters Genesis as `ロキ-67`, verifies a one-way fingerprint
 of the same persisted anonymous Firebase identity, and stops at the menu. It
 never prints tokens, profile contents, or the underlying account identifier.
+Saved observations include bounding boxes for visible text, controls, and image
+assets. `state parse` converts a gameplay observation into a typed policy-facing
+state containing players, resources, field number, hand slots, and scene layers.
 
 Training and operator-owned private rooms are the only approved early play
 scope. Learning will be simulator-first with real-game fine-tuning.

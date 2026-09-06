@@ -47,9 +47,11 @@ the explicit `--confirm-create` flag:
 PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot account status
 PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot account create --confirm-create
 PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot observe
+PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot run --max-seconds 90
 uv run godfield-bot state parse runs/observations/game-spatial.json
 uv run godfield-bot runs init
 uv run godfield-bot runs list
+uv run godfield-bot runs events <run-id> --include-payload
 uv run godfield-bot runs record-probe <observation.json> --client-sha256 <sha256>
 uv run godfield-bot models init
 ```
@@ -59,6 +61,11 @@ Install the optional learning stack with `uv sync --extra training --group dev`.
 manifest is tied to the current Bible client hash and artifact vocabulary. Its
 status is `initialized`; evaluation and explicit promotion are required before
 any learned checkpoint can control the browser.
+
+`run` is currently an observation-only Training runner. It is headed by
+default, checks the live client bundle against the accepted snapshot, permits
+one Training game, records only changed states, and never executes an in-match
+click. Its room wait and gameplay duration are independently bounded.
 
 God Field returns to its Prophet Name screen when the browser restarts. The
 `observe` command re-enters Genesis as `ロキ-67`, verifies a one-way fingerprint

@@ -201,6 +201,7 @@ class RunStore:
         return record
 
     def get_run(self, run_id: str) -> RunRecord | None:
+        self.initialize()
         with self._connect() as connection:
             row = connection.execute(
                 "SELECT * FROM runs WHERE run_id = ?",
@@ -220,6 +221,7 @@ class RunStore:
         return tuple(_run_record(row) for row in rows)
 
     def events(self, run_id: str) -> tuple[RunEvent, ...]:
+        self.initialize()
         with self._connect() as connection:
             rows = connection.execute(
                 "SELECT * FROM events WHERE run_id = ? ORDER BY sequence",

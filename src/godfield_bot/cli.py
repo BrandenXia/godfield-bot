@@ -32,6 +32,7 @@ from godfield_bot.reference import (
     write_snapshot,
 )
 from godfield_bot.run_store import RunStore, RunStoreError
+from godfield_bot.runner import RunnerError, TrainingRunConfig, run_training_observer
 
 app = typer.Typer(no_args_is_help=True, help="Control and train the ロキ-67 God Field bot.")
 data_app = typer.Typer(no_args_is_help=True, help="Refresh versioned public game data.")
@@ -187,6 +188,68 @@ def observe(
     typer.echo(output)
 
 
+@app.command("run")
+def run_bot(
+    snapshot: Annotated[
+        Path,
+        typer.Option(exists=True, dir_okay=False, readable=True),
+    ] = Path("data", "snapshots", "2026-09-06", "bible.json"),
+    database: Annotated[
+        Path,
+        typer.Option(help="Ignored local SQLite trajectory database."),
+    ] = Path("runs", "godfield.sqlite"),
+    headed: Annotated[
+        bool,
+        typer.Option("--headed/--headless", help="Show the bounded Training runner."),
+    ] = True,
+    max_seconds: Annotated[
+        float,
+        typer.Option(min=10.0, max=3600.0, help="Maximum gameplay observation time."),
+    ] = 90.0,
+    room_timeout_seconds: Annotated[
+        float,
+        typer.Option(min=5.0, max=300.0, help="Maximum wait for a Training computer."),
+    ] = 60.0,
+    poll_seconds: Annotated[
+        float,
+        typer.Option(min=0.25, max=10.0, help="Seconds between stable observations."),
+    ] = 2.0,
+) -> None:
+    """Run one bounded Training session with the non-executing safe policy."""
+
+    from godfield_bot.domain.reference import BibleSnapshot
+    from godfield_bot.domain.run import RunStatus
+
+    try:
+        bible = BibleSnapshot.model_validate_json(snapshot.read_text(encoding="utf-8"))
+        result = asyncio.run(
+            run_training_observer(
+                AppSettings(),
+                TrainingRunConfig(
+                    database=database,
+                    expected_client_sha256=bible.client.sha256,
+                    headed=headed,
+                    max_seconds=max_seconds,
+                    room_timeout_seconds=room_timeout_seconds,
+                    poll_seconds=poll_seconds,
+                ),
+            )
+        )
+    except KeyboardInterrupt:
+        typer.echo("Training run interrupted by operator", err=True)
+        raise typer.Exit(code=130) from None
+    except (OSError, ValueError, RunnerError, ProfileStorageError, PlaywrightError) as error:
+        structlog.get_logger().error(
+            "training_run_failed_before_recording",
+            error_type=type(error).__name__,
+            reason=str(error).splitlines()[0],
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(result.model_dump_json(indent=2))
+    if result.status is RunStatus.FAILED:
+        raise typer.Exit(code=1)
+
+
 @state_app.command("parse")
 def state_parse(
     observation_file: Annotated[
@@ -261,6 +324,38 @@ def runs_list(
             indent=2,
         )
     )
+
+
+@runs_app.command("events")
+def runs_events(
+    run_id: Annotated[str, typer.Argument()],
+    database: Annotated[
+        Path,
+        typer.Option(help="Ignored local SQLite trajectory database."),
+    ] = Path("runs", "godfield.sqlite"),
+    include_payload: Annotated[
+        bool,
+        typer.Option("--include-payload", help="Include full structured event payloads."),
+    ] = False,
+) -> None:
+    """Inspect ordered events from one recorded run."""
+
+    store = RunStore(database)
+    if store.get_run(run_id) is None:
+        typer.echo("unknown run", err=True)
+        raise typer.Exit(code=1)
+    events = store.events(run_id)
+    rows = [
+        event.model_dump(mode="json")
+        if include_payload
+        else {
+            "sequence": event.sequence,
+            "occurred_at": event.occurred_at.isoformat(),
+            "kind": event.kind.value,
+        }
+        for event in events
+    ]
+    typer.echo(json.dumps(rows, ensure_ascii=False, indent=2))
 
 
 @runs_app.command("record-probe")

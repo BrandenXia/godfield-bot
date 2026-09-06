@@ -69,7 +69,7 @@ def _clean_lines(text: str) -> tuple[str, ...]:
     return tuple(line.strip() for line in text.splitlines() if line.strip())
 
 
-async def _fingerprint_client(context: BrowserContext) -> ClientFingerprint:
+async def fingerprint_client(context: BrowserContext) -> ClientFingerprint:
     response = await context.request.get(BUNDLE_URL, fail_on_status_code=True)
     body = await response.body()
     headers = response.headers
@@ -175,7 +175,7 @@ async def refresh_bible(*, headed: bool, timeout_seconds: float) -> BibleSnapsho
             viewport={"width": 1280, "height": 800},
         )
         try:
-            client = await _fingerprint_client(context)
+            client = await fingerprint_client(context)
             page = await context.new_page()
             await _open_bible(page, timeout_ms=timeout_ms)
             reference_sections = await _extract_reference_sections(page, timeout_ms=timeout_ms)

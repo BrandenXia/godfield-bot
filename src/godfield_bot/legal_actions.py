@@ -37,7 +37,7 @@ def verified_browser_actions(
     state: GameState,
     observation: ScreenObservation,
     *,
-    plain_weapon_attacks: Mapping[str, int] | None = None,
+    verified_weapon_attacks: Mapping[str, int] | None = None,
     plain_armor_defenses: Mapping[str, int] | None = None,
 ) -> LegalActionSet:
     """Expose only semantic in-match controls verified in the current DOM."""
@@ -83,7 +83,7 @@ def verified_browser_actions(
         else None
     )
     selected_weapon_attack = (
-        (plain_weapon_attacks or {}).get(selected_weapon.group(1))
+        (verified_weapon_attacks or {}).get(selected_weapon.group(1))
         if selected_weapon is not None
         else None
     )
@@ -174,7 +174,7 @@ def verified_browser_actions(
         actions=tuple(actions),
         coverage_complete=False,
         blocked_reason=(
-            "only plain weapon selection, sole-opponent targeting, and neutral plain armor "
-            "selection are verified"
+            "only verified fixed-attack weapon selection and confirmation, incoming-effect "
+            "Forgive, and neutral plain-armor selection and confirmation are supported"
         ),
     )

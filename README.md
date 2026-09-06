@@ -71,8 +71,10 @@ bounded. If gameplay leaves the known screen, the runner records a terminal
 candidate instead of guessing whether the match was won or lost.
 
 The default `safe-observer-v0` remains observation-only. The explicitly chosen
-`heuristic-v0` path can select the strongest plain Bible-verified weapon and
-confirm it against an already named sole opponent. It can also Forgive a fully
+`heuristic-v0` path can select the strongest Bible-verified fixed-attack weapon
+and confirm it against an already named sole opponent. The attack allowlist
+includes plain weapons plus six weapons whose only extra effect is passive
+Bounce, Reflect, or Block behavior. It can also Forgive a fully
 identified incoming effect, and select plain armor during a verified neutral
 defense before confirming that armor in its response panel. Every browser
 interaction counts against `--max-actions`; unknown,

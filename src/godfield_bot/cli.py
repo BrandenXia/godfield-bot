@@ -28,9 +28,9 @@ from godfield_bot.observer import (
 from godfield_bot.probe import record_observation_probe
 from godfield_bot.reference import (
     category_counts,
-    plain_attack_weapon_values,
     plain_defense_armor_values,
     refresh_bible,
+    verified_attack_weapon_values,
     write_snapshot,
 )
 from godfield_bot.run_store import RunStore, RunStoreError
@@ -263,7 +263,7 @@ def run_bot(
                     screenshot_directory=screenshot_directory,
                     policy=policy,
                     max_in_match_actions=max_actions,
-                    plain_weapon_attacks=plain_attack_weapon_values(bible),
+                    verified_weapon_attacks=verified_attack_weapon_values(bible),
                     plain_armor_defenses=plain_defense_armor_values(bible),
                 ),
             )

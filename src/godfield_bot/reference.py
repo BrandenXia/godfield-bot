@@ -47,6 +47,14 @@ IGNORED_REFERENCE_LINES = {
 }
 
 PLAIN_ATTACK_PATTERN = re.compile(r"^ATK(\d+)$")
+VERIFIED_PASSIVE_ATTACK_EFFECTS = frozenset(
+    {
+        "Bounce a NE weapon",
+        "Reflect a NE weapon",
+        "Reflect a miracle",
+        "Block a miracle",
+    }
+)
 
 
 class ReferenceExtractionError(BrowserContractError):
@@ -227,6 +235,24 @@ def plain_attack_weapon_values(snapshot: BibleSnapshot) -> dict[str, int]:
             attack is not None
             and re.fullmatch(r"\$\d+", artifact.detail[2]) is not None
             and artifact.detail[3].startswith("Gift Rate:")
+        ):
+            result[artifact.asset] = int(attack.group(1))
+    return result
+
+
+def verified_attack_weapon_values(snapshot: BibleSnapshot) -> dict[str, int]:
+    """Return fixed attacks whose only extra behavior is a verified passive defense."""
+
+    result = plain_attack_weapon_values(snapshot)
+    for artifact in snapshot.catalog["weapons"].items:
+        if len(artifact.detail) != 5:
+            continue
+        attack = PLAIN_ATTACK_PATTERN.fullmatch(artifact.detail[1])
+        if (
+            attack is not None
+            and artifact.detail[2] in VERIFIED_PASSIVE_ATTACK_EFFECTS
+            and re.fullmatch(r"\$\d+", artifact.detail[3]) is not None
+            and artifact.detail[4].startswith("Gift Rate:")
         ):
             result[artifact.asset] = int(attack.group(1))
     return result

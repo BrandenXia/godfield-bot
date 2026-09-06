@@ -37,18 +37,18 @@ class SafeObserverPolicy:
 
 
 class HeuristicV0Policy:
-    """First executable baseline: select a weapon in the verified self phase."""
+    """Executable baseline constrained to Bible-audited fixed attacks and plain armor."""
 
     policy_id = "heuristic-v0"
 
     def __init__(
         self,
-        plain_weapon_attacks: Mapping[str, int],
+        verified_weapon_attacks: Mapping[str, int],
         plain_armor_defenses: Mapping[str, int],
     ) -> None:
-        if not plain_weapon_attacks or not plain_armor_defenses:
-            raise ValueError("heuristic-v0 requires plain artifact values")
-        self.plain_weapon_attacks = dict(plain_weapon_attacks)
+        if not verified_weapon_attacks or not plain_armor_defenses:
+            raise ValueError("heuristic-v0 requires Bible-audited artifact values")
+        self.verified_weapon_attacks = dict(verified_weapon_attacks)
         self.plain_armor_defenses = dict(plain_armor_defenses)
 
     def decide(self, state: GameState, legal_actions: LegalActionSet) -> PolicyDecision:
@@ -82,7 +82,7 @@ class HeuristicV0Policy:
             and (
                 (
                     state.hand[action.artifact_slot].category == "weapons"
-                    and state.hand[action.artifact_slot].slug in self.plain_weapon_attacks
+                    and state.hand[action.artifact_slot].slug in self.verified_weapon_attacks
                 )
                 or (
                     state.hand[action.artifact_slot].category == "armor"
@@ -96,7 +96,7 @@ class HeuristicV0Policy:
                 raise ValueError("ranked artifact action is missing its slot")
             artifact = state.hand[action.artifact_slot]
             values = (
-                self.plain_weapon_attacks
+                self.verified_weapon_attacks
                 if artifact.category == "weapons"
                 else self.plain_armor_defenses
             )
@@ -126,9 +126,9 @@ class HeuristicV0Policy:
             rationale=(
                 "select the sole verified opponent target"
                 if chosen.kind is ActionKind.SELECT_TARGET
-                else "confirm the selected plain attack on the named sole opponent"
+                else "confirm the selected verified attack on the named sole opponent"
                 if chosen.kind is ActionKind.CONFIRM
-                else "select the strongest phase-appropriate plain Bible artifact"
+                else "select the strongest phase-appropriate Bible-audited artifact"
                 if chosen.kind is ActionKind.SELECT_ARTIFACT
                 else "forgive an incoming attack with no verified usable defense"
                 if chosen.kind is ActionKind.FORGIVE

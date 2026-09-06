@@ -93,6 +93,45 @@ def test_heuristic_selects_weapon_only_in_verified_self_phase() -> None:
     assert decision.executable is True
 
 
+def test_heuristic_can_select_audited_passive_attack_weapon() -> None:
+    initial = state()
+    passive_weapon = HandArtifact(
+        slot=0,
+        category="weapons",
+        slug="angel-sword",
+        asset_path="/images/items/weapons/angel-sword.webp",
+        bounds=Bounds(x=200, y=493, width=80, height=80),
+        hit_target_bounds=Bounds(x=200, y=493, width=80, height=80),
+    )
+    game_state = initial.model_copy(
+        update={
+            "hand": (passive_weapon,),
+            "action_actor": "ロキ-67",
+            "action_display": "Pray",
+        }
+    )
+    observation = ScreenObservation(
+        observed_at=game_state.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.1", "Pray", "HP"),
+        text_elements=(),
+        controls=(),
+        images=(),
+    )
+
+    actions = verified_browser_actions(game_state, observation)
+    decision = HeuristicV0Policy(
+        {"angel-sword": 13},
+        {"iron-shield": 4},
+    ).decide(game_state, actions)
+
+    assert decision.chosen_action_id == "artifact:0:weapons/angel-sword"
+
+
 def test_heuristic_selects_plain_armor_for_neutral_defense() -> None:
     initial = state()
     armor = HandArtifact(
@@ -246,7 +285,7 @@ def test_heuristic_confirms_plain_weapon_on_named_sole_opponent() -> None:
     actions = verified_browser_actions(
         game_state,
         observation,
-        plain_weapon_attacks={"bronze-club": 1},
+        verified_weapon_attacks={"bronze-club": 1},
     )
     decision = HeuristicV0Policy(
         {"bronze-club": 1},
@@ -299,7 +338,7 @@ def test_targeting_fails_closed_when_displayed_attack_does_not_match_bible() -> 
     actions = verified_browser_actions(
         game_state,
         observation,
-        plain_weapon_attacks={"bronze-club": 1},
+        verified_weapon_attacks={"bronze-club": 1},
     )
 
     assert [action.action_id for action in actions.actions] == ["wait"]

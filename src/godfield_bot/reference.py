@@ -55,6 +55,7 @@ VERIFIED_PASSIVE_ATTACK_EFFECTS = frozenset(
         "Block a miracle",
     }
 )
+VERIFIED_DUAL_USE_ATTACK_EFFECTS = {"legendary-scabbard": "DEF1"}
 
 
 class ReferenceExtractionError(BrowserContractError):
@@ -251,6 +252,15 @@ def verified_attack_weapon_values(snapshot: BibleSnapshot) -> dict[str, int]:
         if (
             attack is not None
             and artifact.detail[2] in VERIFIED_PASSIVE_ATTACK_EFFECTS
+            and re.fullmatch(r"\$\d+", artifact.detail[3]) is not None
+            and artifact.detail[4].startswith("Gift Rate:")
+        ):
+            result[artifact.asset] = int(attack.group(1))
+        expected_dual_use_effect = VERIFIED_DUAL_USE_ATTACK_EFFECTS.get(artifact.asset)
+        if (
+            attack is not None
+            and expected_dual_use_effect is not None
+            and artifact.detail[2] == expected_dual_use_effect
             and re.fullmatch(r"\$\d+", artifact.detail[3]) is not None
             and artifact.detail[4].startswith("Gift Rate:")
         ):

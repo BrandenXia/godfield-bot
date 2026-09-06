@@ -37,8 +37,9 @@ def test_committed_snapshot_matches_validated_live_catalog() -> None:
     assert plain_defenses["iron-shield"] == 4
     assert plain_defenses["steel-shield"] == 8
     verified_attacks = verified_attack_weapon_values(snapshot)
-    assert len(verified_attacks) == 45
+    assert len(verified_attacks) == 46
     assert verified_attacks["bouncing-sword"] == 5
     assert verified_attacks["reflection-sword"] == 10
     assert verified_attacks["moonlight-axe"] == 10
     assert verified_attacks["angel-sword"] == 13
+    assert verified_attacks["legendary-scabbard"] == 13

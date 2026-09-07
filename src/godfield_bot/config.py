@@ -25,3 +25,11 @@ class AppSettings(BaseModel):
     @property
     def profile_directory(self) -> Path:
         return self.state_root / "profiles" / "loki-67"
+
+    @property
+    def api_token_file(self) -> Path:
+        return self.state_root / "api-identity.json"
+
+    @property
+    def identity_lock_file(self) -> Path:
+        return self.state_root / ".identity.lock"

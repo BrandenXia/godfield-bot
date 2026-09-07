@@ -217,8 +217,10 @@ async def create_account(
 
 
 def account_status(settings: AppSettings) -> dict[str, object]:
+    from godfield_bot.api_account import api_account_status
+
     metadata = read_account_metadata(settings)
-    return {
+    status = {
         "identity": settings.identity,
         "created": metadata is not None,
         "profile_present": settings.profile_directory.exists(),
@@ -226,6 +228,8 @@ def account_status(settings: AppSettings) -> dict[str, object]:
         "public_duel_enabled": settings.public_duel_enabled,
         "created_at": metadata.created_at.isoformat() if metadata else None,
     }
+    status.update(api_account_status(settings))
+    return status
 
 
 def status_json(settings: AppSettings) -> str:

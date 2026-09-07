@@ -32,7 +32,7 @@ async def open_account_context(
 
     prepare_private_directory(settings.state_root)
     prepare_private_directory(settings.profile_directory)
-    lock_path = settings.state_root / ".profile.lock"
+    lock_path = settings.identity_lock_file
     lock = FileLock(lock_path, timeout=0)
     try:
         with lock:

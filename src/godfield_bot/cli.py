@@ -138,6 +138,53 @@ def create_persistent_account(
     typer.echo(result.model_dump_json(indent=2))
 
 
+@account_app.command("enable-api")
+def enable_protocol_api(
+    confirm_enable: Annotated[
+        bool,
+        typer.Option(
+            "--confirm-enable",
+            help="Copy the existing ロキ-67 session into its owner-only API credential store.",
+        ),
+    ] = False,
+    headed: Annotated[
+        bool,
+        typer.Option("--headed/--headless", help="Show the credential migration browser."),
+    ] = True,
+    timeout_seconds: Annotated[
+        float, typer.Option(min=1.0, help="Per-operation browser timeout.")
+    ] = 20.0,
+) -> None:
+    """Enable pygodfield without creating or changing the persistent identity."""
+
+    if not confirm_enable:
+        typer.echo("Refusing to access stored credentials without --confirm-enable", err=True)
+        raise typer.Exit(code=2)
+    from godfield_bot.api_account import ApiAccountError, enable_api_account
+
+    try:
+        result = asyncio.run(
+            enable_api_account(
+                AppSettings(),
+                headed=headed,
+                timeout_seconds=timeout_seconds,
+            )
+        )
+    except (
+        ApiAccountError,
+        ProfileStorageError,
+        BrowserContractError,
+        PlaywrightError,
+    ) as error:
+        structlog.get_logger().error(
+            "api_account_enable_failed",
+            error_type=type(error).__name__,
+            reason=str(error).splitlines()[0],
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(result.model_dump_json(indent=2))
+
+
 @app.command()
 def observe(
     screen: Annotated[
@@ -715,6 +762,56 @@ def data_refresh(
         client_sha256=snapshot.client.sha256,
         total=snapshot.total_artifacts,
         categories=category_counts(snapshot),
+    )
+    typer.echo(destination)
+
+
+@data_app.command("refresh-api-catalog")
+def data_refresh_api_catalog(
+    output: Annotated[
+        Path | None,
+        typer.Option(help="Destination JSON; defaults to today's snapshot directory."),
+    ] = None,
+    language: Annotated[
+        str,
+        typer.Option(help="Published God Field catalog language."),
+    ] = "en",
+    timeout_seconds: Annotated[
+        float, typer.Option(min=1.0, help="Catalog request timeout.")
+    ] = 20.0,
+) -> None:
+    """Capture the current item catalog through the pinned pygodfield client."""
+
+    from godfield_bot.api_catalog import (
+        ApiCatalogError,
+        fetch_api_catalog_snapshot,
+        write_api_catalog_snapshot,
+    )
+
+    try:
+        snapshot = fetch_api_catalog_snapshot(
+            language=language,
+            timeout_seconds=timeout_seconds,
+        )
+    except ApiCatalogError as error:
+        structlog.get_logger().error(
+            "api_catalog_refresh_failed",
+            reason=str(error),
+        )
+        raise typer.Exit(code=1) from None
+    destination = output or Path(
+        "data",
+        "snapshots",
+        datetime.now(UTC).date().isoformat(),
+        f"api-catalog-{language}.json",
+    )
+    write_api_catalog_snapshot(snapshot, destination)
+    structlog.get_logger().info(
+        "api_catalog_refresh_completed",
+        output=str(destination),
+        language=language,
+        total=snapshot.total_items,
+        content_sha256=snapshot.content_sha256,
     )
     typer.echo(destination)
 

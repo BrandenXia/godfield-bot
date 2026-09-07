@@ -10,6 +10,7 @@ readme = "README.md"
 requires-python = ">=3.12,<3.14"
 dependencies = [
   "filelock>=3.18,<4",
+  "godfield==0.1.0",
   "platformdirs>=4.3,<5",
   "playwright>=1.50,<2",
   "pydantic>=2.10,<3",
@@ -28,6 +29,7 @@ training = [
 ]
 
 [tool.uv.sources]
+godfield = { git = "https://github.com/xu-shawn/pygodfield.git", rev = "679527115909cf9b516e6365b28c3221a33f3855" }
 godfield-sim = { path = "native/godfield_sim" }
 
 [project.scripts]

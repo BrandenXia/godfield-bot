@@ -1,6 +1,6 @@
 # ロキ-67 — a learning God Field bot
 
-This repository is for a browser-controlled, observable God Field agent that
+This repository is for an observable God Field agent that
 keeps a stable in-game identity and improves from completed games.
 
 The architecture is accepted and implementation is underway. The dedicated
@@ -10,12 +10,15 @@ revalidated with element metadata on 2026-09-07; see
 [the research snapshot](docs/research/2026-09-06-godfield.md) and the
 [architecture decision](docs/architecture/0001-proposed-system.md). The
 [complete extracted Bible](data/snapshots/2026-09-07/bible.json) contains all
-291 current artifact records.
+291 visible artifact records. The pinned pygodfield client independently
+captured the current 296-model API catalog, including five trade models, in
+[the API catalog snapshot](data/snapshots/2026-09-07/api-catalog-en.json).
 
 ## Working principles
 
-- Control the supported web UI through a dedicated browser profile; do not
-  couple the bot to undocumented backend endpoints.
+- Use the exact-pinned pygodfield client for private live-game transport and
+  the dedicated browser profile for identity bootstrap, browser-local Training,
+  and visible-client contract checks.
 - Keep authentication state, screenshots containing private information,
   model checkpoints, and run databases out of Git.
 - Separate perception, legal action generation, policy inference, execution,
@@ -48,6 +51,8 @@ the explicit `--confirm-create` flag:
 ```console
 PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot account status
 PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot account create --confirm-create
+PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot account enable-api --confirm-enable
+uv run godfield-bot data refresh-api-catalog
 PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot observe
 PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot run --max-seconds 90 \
   --screenshot-directory runs/screenshots
@@ -138,7 +143,11 @@ and after policy/value metrics; it also cannot control the browser until a
 separate evaluation and promotion gate exists.
 
 Training and operator-owned private rooms are the only approved early play
-scope. Learning will be simulator-first with real-game fine-tuning.
+scope. Public Duel and automated chat are disabled. The live private adapter is
+documented in [ADR 0003](docs/architecture/0003-pygodfield-live-api.md). API
+matches require another participant or separately authorized host account,
+because Training gameplay exists only inside the browser client. Learning will
+be simulator-first with real-game fine-tuning.
 
 The initial native `plain-attack-duel-v0` ruleset is a fast, deterministic
 curriculum and integration harness. It uses only effect-free neutral attacks,

@@ -76,7 +76,10 @@ matchmaking, then records bounded state without playing cards. An owner-only
 may instead be supplied with `--room-id`. Matchmaking keys are never accepted
 as ordinary CLI values or stored in the run database. The observer always stays
 a spectator. `api play-private --confirm-play --password-stdin` explicitly
-enters the next match with the bounded conservative API policy.
+enters the next match with the bounded conservative API policy. For an
+unlimited wall-clock session that remains available for subsequent matches,
+pass `--max-seconds 0`; the independent no-progress and action-count safeguards
+remain active.
 
 Install the optional learning stack with `uv sync --extra training --group dev`.
 Install the native C++ curriculum simulator with

@@ -219,7 +219,11 @@ def observe_private_api_game(
     ] = Path("runs", "godfield.sqlite"),
     max_seconds: Annotated[
         float,
-        typer.Option(min=10.0, max=3600.0, help="Maximum room observation time."),
+        typer.Option(
+            min=0.0,
+            max=3600.0,
+            help="Maximum room observation time; 0 disables the wall-clock limit.",
+        ),
     ] = 90.0,
     poll_seconds: Annotated[
         float,
@@ -320,7 +324,11 @@ def play_private_api_game(
     ] = Path("runs", "godfield.sqlite"),
     max_seconds: Annotated[
         float,
-        typer.Option(min=10.0, max=3600.0, help="Maximum private-session time."),
+        typer.Option(
+            min=0.0,
+            max=3600.0,
+            help="Maximum private-session time; 0 disables the wall-clock limit.",
+        ),
     ] = 3600.0,
     poll_seconds: Annotated[
         float,

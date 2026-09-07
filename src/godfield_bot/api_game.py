@@ -274,6 +274,7 @@ def verified_api_actions(room: RoomState, *, user_id: str) -> ApiLegalActionSet:
         raise ApiGameStateError("the API identity has no active player")
 
     actions: list[ApiLegalAction] = []
+    has_curses = bool(me.raw.get("curses"))
     if state.phase is ApiPhase.PURCHASE:
         actions.append(
             ApiLegalAction(
@@ -282,7 +283,7 @@ def verified_api_actions(room: RoomState, *, user_id: str) -> ApiLegalActionSet:
                 label="Decline the purchase",
             )
         )
-    elif state.phase in {ApiPhase.TURN, ApiPhase.DEFENSE}:
+    elif state.phase is ApiPhase.DEFENSE or (state.phase is ApiPhase.TURN and not has_curses):
         actions.append(
             ApiLegalAction(
                 action_id="pass",
@@ -293,7 +294,29 @@ def verified_api_actions(room: RoomState, *, user_id: str) -> ApiLegalActionSet:
 
     if state.phase is ApiPhase.TURN:
         opponents = game.opponents_of(me)
-        has_curses = bool(me.raw.get("curses"))
+        if has_curses:
+            for item in me.usable_items():
+                model = item.model
+                if (
+                    model is not None
+                    and not item.fake_model_id
+                    and model.ability == "removeAllCurses"
+                    and model.can_start_turn
+                    and item.cost <= me.mp
+                ):
+                    actions.append(
+                        ApiLegalAction(
+                            action_id=f"use:{item.id}:{item.model_id}:untargeted",
+                            kind=ApiActionKind.USE_ITEM,
+                            label=f"Remove curses with {item.name or f'model {item.model_id}'}",
+                            item_instance_ids=(
+                                _required_positive_int(item.id, "item instance ID"),
+                            ),
+                            item_model_ids=(
+                                _required_positive_int(item.model_id, "item model ID"),
+                            ),
+                        )
+                    )
         for item in me.weapons():
             model = item.model
             if (
@@ -347,7 +370,8 @@ def verified_api_actions(room: RoomState, *, user_id: str) -> ApiLegalActionSet:
         actions=tuple(actions),
         coverage_complete=False,
         blocked_reason=(
-            "pygodfield verifies conservative single-card attacks and defenses; "
+            "pygodfield verifies conservative single-card attacks, defenses, and "
+            "curse removal; passing a cursed attack turn, "
             "multi-card combinations, purchases, and unknown future effects remain excluded"
         ),
     )

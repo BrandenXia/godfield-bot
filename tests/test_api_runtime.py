@@ -18,6 +18,7 @@ from godfield_bot.api_runtime import (
     ApiRuntimeError,
     PrivateApiRunConfig,
     _read_password_file,
+    _within_wall_clock_limit,
     api_environment_fingerprint,
     run_private_api_observer,
 )
@@ -262,6 +263,67 @@ def test_api_policy_configuration_requires_explicit_safe_bounds() -> None:
             policy=ApiPolicyName.HEURISTIC,
             max_in_match_actions=1,
         )
+    with pytest.raises(ValidationError, match=r"zero \(unlimited\) or at least 10"):
+        PrivateApiRunConfig(room_id="private-room", max_seconds=1)
+
+
+def test_zero_max_seconds_disables_only_the_wall_clock_limit() -> None:
+    config = PrivateApiRunConfig(room_id="private-room", max_seconds=0)
+
+    assert config.max_seconds == 0
+    assert _within_wall_clock_limit(elapsed=10_000_000, max_seconds=config.max_seconds)
+    assert _within_wall_clock_limit(elapsed=9.9, max_seconds=10)
+    assert not _within_wall_clock_limit(elapsed=10, max_seconds=10)
+
+
+def test_unlimited_session_stays_in_room_after_a_terminal_match(tmp_path, monkeypatch) -> None:
+    snapshot_path = tmp_path / "catalog.json"
+    write_api_catalog_snapshot(catalog_snapshot(), snapshot_path)
+
+    class FakePersistentClient(FakeClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.states = iter([terminal_room(), empty_lobby()])
+
+        def state(self) -> RoomState:
+            try:
+                return next(self.states)
+            except StopIteration:
+                raise KeyboardInterrupt from None
+
+    client = FakePersistentClient()
+
+    @contextmanager
+    def fake_open_api_client(*args, **kwargs):
+        yield client
+
+    monkeypatch.setattr("godfield_bot.api_runtime.open_api_client", fake_open_api_client)
+    monkeypatch.setattr(
+        "godfield_bot.api_runtime.validate_api_credentials",
+        lambda settings: SimpleNamespace(user_id="loki-user"),
+    )
+    monkeypatch.setattr("godfield_bot.api_runtime.time.sleep", lambda seconds: None)
+    database = tmp_path / "runs" / "api.sqlite"
+
+    run = run_private_api_observer(
+        AppSettings(state_root=tmp_path / "state"),
+        PrivateApiRunConfig(
+            database=database,
+            catalog_snapshot=snapshot_path,
+            room_id="private-room",
+            max_seconds=0,
+            no_progress_seconds=10,
+        ),
+    )
+
+    assert run.status is RunStatus.ABORTED
+    assert run.outcome is not None
+    assert run.outcome["reason"] == "operator_interrupt"
+    assert run.outcome["games_completed"] == 1
+    assert [event.kind for event in RunStore(database).events(run.run_id)].count(
+        EventKind.MATCH_END
+    ) == 1
+    assert client.left is True
 
 
 def test_private_api_heuristic_enters_lobby_and_records_accepted_action(

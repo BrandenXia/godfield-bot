@@ -69,7 +69,7 @@ class PrivateApiRunConfig(BaseModel):
     enter_match: bool = False
     policy: ApiPolicyName = ApiPolicyName.OBSERVER
     max_in_match_actions: int = Field(default=0, ge=0, le=1000)
-    max_seconds: float = Field(default=90.0, ge=10.0, le=3600.0)
+    max_seconds: float = Field(default=90.0, ge=0.0, le=3600.0)
     poll_seconds: float = Field(default=1.0, ge=0.25, le=10.0)
     no_progress_seconds: float = Field(default=60.0, ge=10.0, le=600.0)
     request_timeout_seconds: float = Field(default=20.0, ge=1.0, le=120.0)
@@ -85,6 +85,8 @@ class PrivateApiRunConfig(BaseModel):
 
     @model_validator(mode="after")
     def executable_policy_has_safe_bounds(self) -> PrivateApiRunConfig:
+        if 0 < self.max_seconds < 10:
+            raise ValueError("max seconds must be zero (unlimited) or at least 10")
         if self.policy is ApiPolicyName.OBSERVER and self.max_in_match_actions != 0:
             raise ValueError("api-observer-v0 requires a zero in-match action budget")
         if self.policy is ApiPolicyName.HEURISTIC:
@@ -93,6 +95,12 @@ class PrivateApiRunConfig(BaseModel):
             if self.max_in_match_actions < 1:
                 raise ValueError("api-heuristic-v0 requires a positive action budget")
         return self
+
+
+def _within_wall_clock_limit(*, elapsed: float, max_seconds: float) -> bool:
+    """Return whether a session may continue; zero disables this one limit."""
+
+    return max_seconds == 0 or elapsed < max_seconds
 
 
 class ApiPrivateMatchOutcome(BaseModel):
@@ -322,14 +330,11 @@ def classify_api_two_player_terminal(state: ApiGameState) -> ApiPrivateMatchOutc
     )
 
 
-def _finish_terminal_run(
+def _record_terminal_outcome(
     store: RunStore,
     run: RunRecord,
     outcome: ApiPrivateMatchOutcome,
-    *,
-    states_recorded: int,
-    in_match_actions: int,
-) -> RunRecord:
+) -> SparseTerminalReward:
     reward = SparseTerminalReward(
         observed_at=outcome.observed_at,
         terminal_state_digest=outcome.terminal_state_digest,
@@ -348,6 +353,18 @@ def _finish_terminal_run(
         ),
         occurred_at=outcome.observed_at,
     )
+    return reward
+
+
+def _finish_terminal_run(
+    store: RunStore,
+    run: RunRecord,
+    outcome: ApiPrivateMatchOutcome,
+    *,
+    states_recorded: int,
+    in_match_actions: int,
+) -> RunRecord:
+    reward = _record_terminal_outcome(store, run, outcome)
     return store.finish_run(
         run.run_id,
         RunStatus.COMPLETED,
@@ -368,7 +385,7 @@ def run_private_api_observer(
     *,
     room_password: str | None = None,
 ) -> RunRecord:
-    """Run one bounded private-room API session under an explicit policy."""
+    """Run one safeguarded private-room API session under an explicit policy."""
 
     if settings.public_duel_enabled:
         raise ApiRuntimeError("private API runner requires public Duel to remain disabled")
@@ -388,7 +405,7 @@ def run_private_api_observer(
     environment_fingerprint = api_environment_fingerprint(snapshot)
     store = RunStore(config.database)
     run_config: dict[str, JsonValue] = {
-        "max_games": 1,
+        "max_games": 0 if config.max_seconds == 0 else 1,
         "max_seconds": config.max_seconds,
         "poll_seconds": config.poll_seconds,
         "no_progress_seconds": config.no_progress_seconds,
@@ -412,6 +429,7 @@ def run_private_api_observer(
     )
     states_recorded = 0
     in_match_actions = 0
+    games_completed = 0
     outcome_reason = "wall_clock_limit"
     pending_action: tuple[ApiLegalAction, ApiGameState] | None = None
     try:
@@ -457,11 +475,16 @@ def run_private_api_observer(
                 last_progress_at = started
                 previous_digest: str | None = None
                 entry_request_digest: str | None = None
-                while time.monotonic() - started < config.max_seconds:
+                terminal_recorded = False
+                while _within_wall_clock_limit(
+                    elapsed=time.monotonic() - started,
+                    max_seconds=config.max_seconds,
+                ):
                     room = client.state()
                     game = room.game
                     me = game.player_by_user(user_id) if game is not None else None
                     if game is None or me is None:
+                        terminal_recorded = False
                         lobby = _lobby_observation(room, user_id=user_id)
                         digest = _lobby_digest(lobby)
                         if (
@@ -485,6 +508,7 @@ def run_private_api_observer(
                             previous_digest = digest
                             last_progress_at = time.monotonic()
                     else:
+                        entry_request_digest = None
                         state = normalize_api_game_state(room, user_id=user_id)
                         digest = api_game_state_digest(state)
                         if digest != previous_digest:
@@ -531,17 +555,40 @@ def run_private_api_observer(
                             )
                             terminal = classify_api_two_player_terminal(state)
                             if terminal is not None:
-                                return _finish_terminal_run(
-                                    store,
-                                    run,
-                                    terminal,
-                                    states_recorded=states_recorded,
-                                    in_match_actions=in_match_actions,
-                                )
-                            if state.phase is ApiPhase.TERMINAL:
-                                outcome_reason = "unclassified_terminal"
-                                break
-                            if decision.executable:
+                                if config.max_seconds != 0:
+                                    return _finish_terminal_run(
+                                        store,
+                                        run,
+                                        terminal,
+                                        states_recorded=states_recorded,
+                                        in_match_actions=in_match_actions,
+                                    )
+                                if not terminal_recorded:
+                                    _record_terminal_outcome(store, run, terminal)
+                                    games_completed += 1
+                                    terminal_recorded = True
+                            elif state.phase is ApiPhase.TERMINAL:
+                                if config.max_seconds != 0:
+                                    outcome_reason = "unclassified_terminal"
+                                    break
+                                if not terminal_recorded:
+                                    store.append_event(
+                                        run.run_id,
+                                        EventKind.MATCH_END,
+                                        {
+                                            "schema_version": 1,
+                                            "observed_at": state.observed_at.isoformat(),
+                                            "terminal_state_digest": digest,
+                                            "result": "unclassified",
+                                            "player_count": len(state.players),
+                                        },
+                                        occurred_at=state.observed_at,
+                                    )
+                                    games_completed += 1
+                                    terminal_recorded = True
+                            else:
+                                terminal_recorded = False
+                            if state.phase is not ApiPhase.TERMINAL and decision.executable:
                                 if chosen_action is None:
                                     raise ApiRuntimeError(
                                         "executable API decision has no legal action"
@@ -638,5 +685,6 @@ def run_private_api_observer(
             "reason": outcome_reason,
             "states_recorded": states_recorded,
             "in_match_actions": in_match_actions,
+            "games_completed": games_completed,
         },
     )

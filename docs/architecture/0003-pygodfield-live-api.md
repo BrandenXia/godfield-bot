@@ -75,11 +75,13 @@ private-game evidence can enter model training.
 
 The first executable policy is `api-heuristic-v0`, gated behind the separate
 `api play-private --confirm-play` command, explicit next-match entry, a hard
-action budget, wall-clock limit, and no-progress limit. It ranks only the
+action budget, optional wall-clock limit, and no-progress limit. A wall-clock
+value of zero disables only that limit. It ranks only the
 project-owned conservative action set: the strongest eligible single weapon on
 an attack turn, the strongest eligible single defense, decline an unmodeled
-purchase, or pass. It submits at most once per observed state and never retries
-an ambiguous turn-consuming request. Every decision, dispatch result, and
+purchase, remove curses with the reviewed `removeAllCurses` action, or pass
+when the turn is not curse-constrained. It submits at most once per observed
+state and never retries an ambiguous turn-consuming request. Every decision, dispatch result, and
 observed transition is recorded. This policy is a data-collection baseline,
 not a learned or promotion-eligible policy.
 

@@ -18,6 +18,11 @@ def catalog() -> ItemCatalog:
             {"name": "Club", "category": "weapons", "atk": 5},
             {"name": "Shield", "category": "armor", "def": 5},
             {"name": "Fire Shield", "category": "armor", "def": 5, "element": "fire"},
+            {
+                "name": "Heart Shell",
+                "category": "sundries",
+                "ability": "removeAllCurses",
+            },
         ]
     )
 
@@ -122,13 +127,29 @@ def test_disguised_cards_never_expose_or_act_on_the_true_model() -> None:
     assert [action.action_id for action in actions.actions] == ["pass"]
 
 
-def test_unknown_curse_state_blocks_attack_actions() -> None:
+def test_unknown_curse_state_blocks_pass_and_attack_actions() -> None:
     actions = verified_api_actions(
         room_state(self_curses=["future-curse"]),
         user_id="loki-user",
     )
 
-    assert [action.action_id for action in actions.actions] == ["pass"]
+    assert actions.actions == ()
+
+
+def test_cursed_turn_can_use_reviewed_untargeted_curse_removal() -> None:
+    actions = verified_api_actions(
+        room_state(
+            self_curses=["future-curse"],
+            self_items=[
+                {"id": 11, "modelId": 1},
+                {"id": 14, "modelId": 4},
+            ],
+        ),
+        user_id="loki-user",
+    )
+
+    assert [action.action_id for action in actions.actions] == ["use:14:4:untargeted"]
+    assert command_for_api_action(actions.actions[0]).to_dict() == {"itemIds": [14]}
 
 
 def test_defense_actions_delegate_element_legality_to_pygodfield() -> None:

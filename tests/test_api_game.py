@@ -148,6 +148,28 @@ def test_disguised_placeholder_uses_only_its_visible_model_id() -> None:
     assert state.hand[0].name == "Fire Shield"
 
 
+def test_transient_hand_placeholder_without_instance_id_is_never_actionable() -> None:
+    room = room_state(self_items=[{"id": None, "modelId": 1}])
+
+    state = normalize_api_game_state(room, user_id="loki-user")
+    actions = verified_api_actions(room, user_id="loki-user")
+
+    assert state.hand[0].instance_id is None
+    assert state.hand[0].model_id == 1
+    assert state.hand[0].name == "Club"
+    assert [action.action_id for action in actions.actions] == ["pass"]
+
+
+def test_empty_transient_hand_placeholder_is_preserved_as_unknown() -> None:
+    room = room_state(self_items=[{}])
+
+    state = normalize_api_game_state(room, user_id="loki-user")
+
+    assert state.hand[0].instance_id is None
+    assert state.hand[0].model_id is None
+    assert state.hand[0].name is None
+
+
 def test_unknown_curse_state_blocks_pass_and_attack_actions() -> None:
     actions = verified_api_actions(
         room_state(self_curses=["future-curse"]),

@@ -30,7 +30,7 @@ class ApiActionKind(StrEnum):
 
 
 class ApiItemState(BaseModel):
-    instance_id: int = Field(gt=0)
+    instance_id: int | None = Field(default=None, gt=0)
     model_id: int | None = Field(default=None, gt=0)
     name: str | None = None
     category: str | None = None
@@ -159,7 +159,7 @@ def _item_state(item: Any) -> ApiItemState:
     catalog = getattr(item, "_catalog", None)
     model = catalog.get(model_id) if catalog is not None and model_id is not None else None
     return ApiItemState(
-        instance_id=_required_positive_int(item.id, "item instance ID"),
+        instance_id=_optional_positive_int(item.id, "item instance ID"),
         model_id=model_id,
         name=model.name if model is not None and isinstance(model.name, str) else None,
         category=(
@@ -297,8 +297,12 @@ def verified_api_actions(room: RoomState, *, user_id: str) -> ApiLegalActionSet:
         if has_curses:
             for item in me.usable_items():
                 model = item.model
+                item_instance_id = _optional_positive_int(item.id, "item instance ID")
+                item_model_id = _optional_positive_int(item.model_id, "item model ID")
                 if (
                     model is not None
+                    and item_instance_id is not None
+                    and item_model_id is not None
                     and not item.fake_model_id
                     and model.ability == "removeAllCurses"
                     and model.can_start_turn
@@ -306,21 +310,21 @@ def verified_api_actions(room: RoomState, *, user_id: str) -> ApiLegalActionSet:
                 ):
                     actions.append(
                         ApiLegalAction(
-                            action_id=f"use:{item.id}:{item.model_id}:untargeted",
+                            action_id=f"use:{item_instance_id}:{item_model_id}:untargeted",
                             kind=ApiActionKind.USE_ITEM,
                             label=f"Remove curses with {item.name or f'model {item.model_id}'}",
-                            item_instance_ids=(
-                                _required_positive_int(item.id, "item instance ID"),
-                            ),
-                            item_model_ids=(
-                                _required_positive_int(item.model_id, "item model ID"),
-                            ),
+                            item_instance_ids=(item_instance_id,),
+                            item_model_ids=(item_model_id,),
                         )
                     )
         for item in me.weapons():
             model = item.model
+            item_instance_id = _optional_positive_int(item.id, "item instance ID")
+            item_model_id = _optional_positive_int(item.model_id, "item model ID")
             if (
                 model is None
+                or item_instance_id is None
+                or item_model_id is None
                 or item.fake_model_id
                 or has_curses
                 or model.category != "weapons"
@@ -338,13 +342,13 @@ def verified_api_actions(room: RoomState, *, user_id: str) -> ApiLegalActionSet:
                 actions.append(
                     ApiLegalAction(
                         action_id=(
-                            f"use:{item.id}:{item.model_id}:"
+                            f"use:{item_instance_id}:{item_model_id}:"
                             f"{target_id if target_id is not None else 'untargeted'}"
                         ),
                         kind=ApiActionKind.USE_ITEM,
                         label=f"Use {item.name or f'model {item.model_id}'}",
-                        item_instance_ids=(_required_positive_int(item.id, "item instance ID"),),
-                        item_model_ids=(_required_positive_int(item.model_id, "item model ID"),),
+                        item_instance_ids=(item_instance_id,),
+                        item_model_ids=(item_model_id,),
                         target_player_id=target_id,
                     )
                 )
@@ -353,15 +357,17 @@ def verified_api_actions(room: RoomState, *, user_id: str) -> ApiLegalActionSet:
         if attack is None:
             raise ApiGameStateError("defense phase has no pending attack")
         for item in me.defense_options(attack):
-            if item.fake_model_id:
+            item_instance_id = _optional_positive_int(item.id, "item instance ID")
+            item_model_id = _optional_positive_int(item.model_id, "item model ID")
+            if item.fake_model_id or item_instance_id is None or item_model_id is None:
                 continue
             actions.append(
                 ApiLegalAction(
-                    action_id=f"defend:{item.id}:{item.model_id}",
+                    action_id=f"defend:{item_instance_id}:{item_model_id}",
                     kind=ApiActionKind.USE_ITEM,
                     label=f"Defend with {item.name or f'model {item.model_id}'}",
-                    item_instance_ids=(_required_positive_int(item.id, "item instance ID"),),
-                    item_model_ids=(_required_positive_int(item.model_id, "item model ID"),),
+                    item_instance_ids=(item_instance_id,),
+                    item_model_ids=(item_model_id,),
                 )
             )
 

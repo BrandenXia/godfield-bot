@@ -271,7 +271,7 @@ def decide_api_action(
             if item is None:
                 return (-1, -action.item_instance_ids[0])
             value = item.attack if state.phase is ApiPhase.TURN else item.defense
-            return (value, -item.instance_id)
+            return (value, -action.item_instance_ids[0])
 
         if candidates:
             chosen = max(candidates, key=action_value)

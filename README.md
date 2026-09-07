@@ -80,6 +80,9 @@ enters the next match with the bounded conservative API policy. For an
 unlimited wall-clock session that remains available for subsequent matches,
 pass `--max-seconds 0`; the independent no-progress and action-count safeguards
 remain active.
+Use `--team 0` for solo/free-for-all entry, or `--team 1` through `--team 4`
+for allied teams A through D. The selected team is retained across automatic
+entry into subsequent matches.
 
 Install the optional learning stack with `uv sync --extra training --group dev`.
 Install the native C++ curriculum simulator with

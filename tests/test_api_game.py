@@ -114,6 +114,33 @@ def test_turn_actions_use_only_safe_single_weapons_and_named_targets() -> None:
     }
 
 
+def test_turn_actions_never_target_a_member_of_the_selected_team() -> None:
+    room = room_state()
+    room.raw["game"]["players"][0]["team"] = 2
+    room.raw["game"]["players"][1]["team"] = 2
+    room.raw["game"]["players"].append(
+        {
+            "id": 3,
+            "userId": "enemy-user",
+            "name": "Enemy",
+            "hp": 35,
+            "mp": 8,
+            "cp": 19,
+            "team": 1,
+            "items": [],
+        }
+    )
+
+    actions = verified_api_actions(room, user_id="loki-user")
+    attack_targets = {
+        action.target_player_id
+        for action in actions.actions
+        if action.kind is ApiActionKind.USE_ITEM
+    }
+
+    assert attack_targets == {3}
+
+
 def test_disguised_cards_never_expose_or_act_on_the_true_model() -> None:
     room = room_state(self_items=[{"id": 11, "modelId": 1, "fakeModelId": 3}])
 

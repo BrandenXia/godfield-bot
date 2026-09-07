@@ -96,6 +96,12 @@ state and never retries an ambiguous turn-consuming request. Every decision, dis
 observed transition is recorded. This policy is a data-collection baseline,
 not a learned or promotion-eligible policy.
 
+Multiplayer entry has an explicit fixed team selection: `0` means solo and
+`1` through `4` mean allied teams A through D. The default remains solo. A
+persistent session reapplies its configured team on later lobby entries. If
+the identity is already entered on a different team, the runtime records the
+change, cancels that lobby entry once, and re-enters on the selected team.
+
 ## Learning boundary
 
 pygodfield is a live environment adapter, not the high-throughput learning

@@ -67,6 +67,7 @@ class PrivateApiRunConfig(BaseModel):
     room_id: str | None = Field(default=None, min_length=1, max_length=256)
     password_file: Path | None = None
     enter_match: bool = False
+    entry_team: int = Field(default=0, ge=0, le=4)
     policy: ApiPolicyName = ApiPolicyName.OBSERVER
     max_in_match_actions: int = Field(default=0, ge=0, le=1000)
     max_seconds: float = Field(default=90.0, ge=0.0, le=3600.0)
@@ -89,6 +90,8 @@ class PrivateApiRunConfig(BaseModel):
             raise ValueError("max seconds must be zero (unlimited) or at least 10")
         if self.policy is ApiPolicyName.OBSERVER and self.max_in_match_actions != 0:
             raise ValueError("api-observer-v0 requires a zero in-match action budget")
+        if not self.enter_match and self.entry_team != 0:
+            raise ValueError("a non-solo entry team requires explicit match entry")
         if self.policy is ApiPolicyName.HEURISTIC:
             if not self.enter_match:
                 raise ValueError("api-heuristic-v0 requires explicit match entry")
@@ -177,6 +180,7 @@ def _lobby_observation(room: Any, *, user_id: str) -> dict[str, JsonValue]:
         "entry_count": len(entry_ids),
         "identity_present": user_id in user_ids,
         "identity_entered": user_id in entry_ids,
+        "identity_entry_team": _identity_entry_team(room, user_id=user_id),
         "active_game": game is not None,
         "active_game_over": bool(game.is_over) if game is not None else None,
         "active_player_count": len(game.players) if game is not None else 0,
@@ -223,11 +227,33 @@ def _safe_runtime_error_payload(error: Exception) -> dict[str, JsonValue]:
     return payload
 
 
-def _should_request_match_entry(room: Any, *, user_id: str) -> bool:
+def _identity_entry_team(room: Any, *, user_id: str) -> int | None:
+    """Return the identity's lobby team, normalizing a legacy null team to solo."""
+
+    matching_entries = [
+        entry
+        for entry in room.entries
+        if isinstance(entry, dict) and entry.get("userId") == user_id
+    ]
+    if not matching_entries:
+        return None
+    raw_team = matching_entries[0].get("team")
+    if raw_team is None:
+        return 0
+    if (
+        not isinstance(raw_team, int)
+        or isinstance(raw_team, bool)
+        or not 0 <= raw_team <= 4
+    ):
+        raise ApiRuntimeError("the API identity has an invalid lobby team")
+    return raw_team
+
+
+def _should_request_match_entry(room: Any, *, user_id: str, entry_team: int) -> bool:
     game = room.game
     if game is not None and not game.is_over:
         return False
-    return not room.is_entered(user_id)
+    return _identity_entry_team(room, user_id=user_id) != entry_team
 
 
 def decide_api_action(
@@ -411,6 +437,7 @@ def run_private_api_observer(
         "no_progress_seconds": config.no_progress_seconds,
         "max_in_match_actions": config.max_in_match_actions,
         "enter_match": config.enter_match,
+        "entry_team": config.entry_team,
         "policy": config.policy.value,
         "pygodfield_revision": PYGODFIELD_REVISION,
         "catalog_sha256": snapshot.content_sha256,
@@ -474,7 +501,7 @@ def run_private_api_observer(
                 started = time.monotonic()
                 last_progress_at = started
                 previous_digest: str | None = None
-                entry_request_digest: str | None = None
+                entry_request_pending = False
                 terminal_recorded = False
                 while _within_wall_clock_limit(
                     elapsed=time.monotonic() - started,
@@ -487,13 +514,34 @@ def run_private_api_observer(
                         terminal_recorded = False
                         lobby = _lobby_observation(room, user_id=user_id)
                         digest = _lobby_digest(lobby)
+                        current_entry_team = _identity_entry_team(room, user_id=user_id)
+                        if current_entry_team == config.entry_team:
+                            entry_request_pending = False
                         if (
                             config.enter_match
-                            and _should_request_match_entry(room, user_id=user_id)
-                            and digest != entry_request_digest
+                            and _should_request_match_entry(
+                                room,
+                                user_id=user_id,
+                                entry_team=config.entry_team,
+                            )
+                            and not entry_request_pending
                         ):
-                            client.make_entry(team=0)
-                            entry_request_digest = digest
+                            previous_team = current_entry_team
+                            if previous_team is not None:
+                                client.cancel_entry()
+                                store.append_event(
+                                    run.run_id,
+                                    EventKind.OBSERVATION,
+                                    {
+                                        "schema_version": 1,
+                                        "mode": "private",
+                                        "phase": "entry_cancelled",
+                                        "previous_team": previous_team,
+                                        "requested_team": config.entry_team,
+                                    },
+                                )
+                            client.make_entry(team=config.entry_team)
+                            entry_request_pending = True
                             store.append_event(
                                 run.run_id,
                                 EventKind.OBSERVATION,
@@ -501,6 +549,7 @@ def run_private_api_observer(
                                     "schema_version": 1,
                                     "mode": "private",
                                     "phase": "entry_requested",
+                                    "team": config.entry_team,
                                 },
                             )
                         if digest != previous_digest:
@@ -508,7 +557,7 @@ def run_private_api_observer(
                             previous_digest = digest
                             last_progress_at = time.monotonic()
                     else:
-                        entry_request_digest = None
+                        entry_request_pending = False
                         state = normalize_api_game_state(room, user_id=user_id)
                         digest = api_game_state_digest(state)
                         if digest != previous_digest:

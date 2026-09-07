@@ -322,6 +322,15 @@ def play_private_api_game(
         Path,
         typer.Option(help="Ignored local SQLite trajectory database."),
     ] = Path("runs", "godfield.sqlite"),
+    team: Annotated[
+        int,
+        typer.Option(
+            "--team",
+            min=0,
+            max=4,
+            help="Lobby team: 0 is solo/free-for-all; 1-4 are allied teams A-D.",
+        ),
+    ] = 0,
     max_seconds: Annotated[
         float,
         typer.Option(
@@ -381,6 +390,7 @@ def play_private_api_game(
                 room_id=room_id,
                 password_file=password_file,
                 enter_match=True,
+                entry_team=team,
                 policy=ApiPolicyName.HEURISTIC,
                 max_in_match_actions=max_actions,
                 max_seconds=max_seconds,

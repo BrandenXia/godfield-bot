@@ -108,6 +108,12 @@ def empty_lobby() -> RoomState:
     )
 
 
+def entered_lobby(*, team: int | None) -> RoomState:
+    room = empty_lobby()
+    room.raw["entries"] = [{"userId": "loki-user", "team": team}]
+    return room
+
+
 class FakeClient:
     user_id = "loki-user"
 
@@ -117,6 +123,8 @@ class FakeClient:
         self.keepalive = False
         self.left = False
         self.matched = False
+        self.cancelled_entries = 0
+        self.entry_teams: list[int] = []
 
     def join_room(self, room_id, *, mode, password) -> None:
         assert room_id == "private-room"
@@ -132,8 +140,11 @@ class FakeClient:
         return "opaque-internal-room-id"
 
     def make_entry(self, *, team) -> None:
-        assert team == 0
+        self.entry_teams.append(team)
         self.entered = True
+
+    def cancel_entry(self) -> None:
+        self.cancelled_entries += 1
 
     def start_keepalive(self) -> None:
         self.keepalive = True
@@ -265,6 +276,10 @@ def test_api_policy_configuration_requires_explicit_safe_bounds() -> None:
         )
     with pytest.raises(ValidationError, match=r"zero \(unlimited\) or at least 10"):
         PrivateApiRunConfig(room_id="private-room", max_seconds=1)
+    with pytest.raises(ValidationError, match="less than or equal to 4"):
+        PrivateApiRunConfig(room_id="private-room", entry_team=5)
+    with pytest.raises(ValidationError, match="requires explicit match entry"):
+        PrivateApiRunConfig(room_id="private-room", entry_team=2)
 
 
 def test_zero_max_seconds_disables_only_the_wall_clock_limit() -> None:
@@ -383,6 +398,7 @@ def test_private_api_heuristic_enters_lobby_and_records_accepted_action(
     assert run.outcome is not None
     assert run.outcome["in_match_actions"] == 1
     assert client.entered is True
+    assert client.entry_teams == [0]
     assert client.commands == [{"itemIds": [11], "targetPlayerId": 2}]
     events = RunStore(database).events(run.run_id)
     assert EventKind.ACTION_RESULT in {event.kind for event in events}
@@ -390,3 +406,158 @@ def test_private_api_heuristic_enters_lobby_and_records_accepted_action(
     assert len(transitions) == 1
     assert transitions[0].payload["state_changed"] is True
     assert transitions[0].payload["player_hp_deltas"] == {"2": -35}
+
+
+def test_private_api_heuristic_enters_selected_multiplayer_team(tmp_path, monkeypatch) -> None:
+    snapshot_path = tmp_path / "catalog.json"
+    write_api_catalog_snapshot(catalog_snapshot(), snapshot_path)
+
+    class FakeTeamClient(FakeClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.states = iter([empty_lobby(), terminal_room()])
+
+        def state(self) -> RoomState:
+            return next(self.states)
+
+    client = FakeTeamClient()
+
+    @contextmanager
+    def fake_open_api_client(*args, **kwargs):
+        yield client
+
+    monkeypatch.setattr("godfield_bot.api_runtime.open_api_client", fake_open_api_client)
+    monkeypatch.setattr(
+        "godfield_bot.api_runtime.validate_api_credentials",
+        lambda settings: SimpleNamespace(user_id="loki-user"),
+    )
+    monkeypatch.setattr("godfield_bot.api_runtime.time.sleep", lambda seconds: None)
+    database = tmp_path / "runs" / "api.sqlite"
+
+    run = run_private_api_observer(
+        AppSettings(state_root=tmp_path / "state"),
+        PrivateApiRunConfig(
+            database=database,
+            catalog_snapshot=snapshot_path,
+            enter_match=True,
+            entry_team=3,
+            policy=ApiPolicyName.HEURISTIC,
+            max_in_match_actions=5,
+            max_seconds=10,
+            no_progress_seconds=10,
+        ),
+        room_password="astra-vs-humans",
+    )
+
+    assert run.status is RunStatus.COMPLETED
+    assert run.config["entry_team"] == 3
+    assert client.entry_teams == [3]
+    requested = [
+        event.payload
+        for event in RunStore(database).events(run.run_id)
+        if event.kind is EventKind.OBSERVATION
+        and event.payload.get("phase") == "entry_requested"
+    ]
+    assert requested == [
+        {
+            "schema_version": 1,
+            "mode": "private",
+            "phase": "entry_requested",
+            "team": 3,
+        }
+    ]
+
+
+def test_private_api_heuristic_switches_an_existing_lobby_team(tmp_path, monkeypatch) -> None:
+    snapshot_path = tmp_path / "catalog.json"
+    write_api_catalog_snapshot(catalog_snapshot(), snapshot_path)
+
+    class FakeTeamSwitchClient(FakeClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.states = iter([entered_lobby(team=1), terminal_room()])
+
+        def state(self) -> RoomState:
+            return next(self.states)
+
+    client = FakeTeamSwitchClient()
+
+    @contextmanager
+    def fake_open_api_client(*args, **kwargs):
+        yield client
+
+    monkeypatch.setattr("godfield_bot.api_runtime.open_api_client", fake_open_api_client)
+    monkeypatch.setattr(
+        "godfield_bot.api_runtime.validate_api_credentials",
+        lambda settings: SimpleNamespace(user_id="loki-user"),
+    )
+    monkeypatch.setattr("godfield_bot.api_runtime.time.sleep", lambda seconds: None)
+
+    run = run_private_api_observer(
+        AppSettings(state_root=tmp_path / "state"),
+        PrivateApiRunConfig(
+            database=tmp_path / "runs" / "api.sqlite",
+            catalog_snapshot=snapshot_path,
+            enter_match=True,
+            entry_team=4,
+            policy=ApiPolicyName.HEURISTIC,
+            max_in_match_actions=5,
+            max_seconds=10,
+            no_progress_seconds=10,
+        ),
+        room_password="astra-vs-humans",
+    )
+
+    assert run.status is RunStatus.COMPLETED
+    assert client.cancelled_entries == 1
+    assert client.entry_teams == [4]
+
+
+def test_private_api_team_entry_is_not_retried_before_acknowledgement(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    snapshot_path = tmp_path / "catalog.json"
+    write_api_catalog_snapshot(catalog_snapshot(), snapshot_path)
+    changed_lobby = empty_lobby()
+    changed_lobby.raw["users"].append({"id": "other-user", "name": "Opponent"})
+    changed_lobby.raw["userCount"] = 2
+
+    class FakeDelayedEntryClient(FakeClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.states = iter([empty_lobby(), changed_lobby, terminal_room()])
+
+        def state(self) -> RoomState:
+            return next(self.states)
+
+    client = FakeDelayedEntryClient()
+
+    @contextmanager
+    def fake_open_api_client(*args, **kwargs):
+        yield client
+
+    monkeypatch.setattr("godfield_bot.api_runtime.open_api_client", fake_open_api_client)
+    monkeypatch.setattr(
+        "godfield_bot.api_runtime.validate_api_credentials",
+        lambda settings: SimpleNamespace(user_id="loki-user"),
+    )
+    monkeypatch.setattr("godfield_bot.api_runtime.time.sleep", lambda seconds: None)
+
+    run = run_private_api_observer(
+        AppSettings(state_root=tmp_path / "state"),
+        PrivateApiRunConfig(
+            database=tmp_path / "runs" / "api.sqlite",
+            catalog_snapshot=snapshot_path,
+            enter_match=True,
+            entry_team=2,
+            policy=ApiPolicyName.HEURISTIC,
+            max_in_match_actions=5,
+            max_seconds=10,
+            no_progress_seconds=10,
+        ),
+        room_password="astra-vs-humans",
+    )
+
+    assert run.status is RunStatus.COMPLETED
+    assert client.entry_teams == [2]

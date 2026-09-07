@@ -38,12 +38,22 @@ def test_committed_snapshot_matches_validated_live_catalog() -> None:
     assert plain_defenses["iron-shield"] == 4
     assert plain_defenses["steel-shield"] == 8
     verified_attacks = verified_attack_weapon_values(snapshot)
-    assert len(verified_attacks) == 25
+    assert len(verified_attacks) == 32
     assert verified_attacks["bouncing-sword"] == 5
     assert verified_attacks["reflection-sword"] == 10
     assert verified_attacks["moonlight-axe"] == 10
     assert verified_attacks["angel-sword"] == 13
     assert verified_attacks["legendary-scabbard"] == 13
+    assert verified_attacks["ghost-sword"] == 7
+    assert verified_attacks["hell-scissors"] == 8
+    assert verified_attacks["gale-sword"] == 9
+    assert verified_attacks["bogus-spear"] == 10
+    assert verified_attacks["hexagon-doom"] == 11
+    assert verified_attacks["real-ghost-sword"] == 12
+    assert verified_attacks["severe-gale-sword"] == 13
+    assert "evil-broadsword" not in verified_attacks
+    assert "saw-boom-boom" not in verified_attacks
+    assert "spiritual-staff" not in verified_attacks
     assert "frozen-hammer" not in verified_attacks
     frozen_hammer = next(
         artifact

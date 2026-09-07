@@ -83,9 +83,11 @@ diagnostics and never become shaped rewards.
 The default `safe-observer-v0` remains observation-only. The explicitly chosen
 `heuristic-v0` path can select the strongest Bible-verified fixed-attack weapon
 and confirm it against an already named sole opponent. The attack allowlist
-contains 25 icon-verified neutral weapons: 18 plain weapons, six whose only
-extra effect is passive Bounce, Reflect, or Block behavior, and the
-live-verified neutral Legendary Scabbard.
+contains 32 icon-verified neutral weapons: 18 plain weapons, six whose extra
+effect is passive Bounce, Reflect, or Block behavior, seven whose on-damage
+effect resolves without another choice, and the live-verified neutral
+Legendary Scabbard. Random, multi-hit, elemental, resource-consuming, and
+self-damaging weapons remain excluded.
 It can also Forgive a targeted incoming interaction after revalidating every
 visible context artifact, and select plain armor during a verified neutral
 defense before confirming that armor in its response panel. Every browser

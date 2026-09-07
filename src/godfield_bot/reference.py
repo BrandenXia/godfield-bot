@@ -57,6 +57,15 @@ VERIFIED_PASSIVE_ATTACK_EFFECTS = frozenset(
         "Block a miracle",
     }
 )
+VERIFIED_AUTOMATIC_ATTACK_EFFECTS = frozenset(
+    {
+        "Absorb HP",
+        "Hell on damage",
+        "Cold on damage",
+        "Dream on damage",
+        "Dark Cloud on damage",
+    }
+)
 VERIFIED_DUAL_USE_ATTACK_EFFECTS = {"legendary-scabbard": "DEF1"}
 
 
@@ -341,7 +350,7 @@ def plain_attack_weapon_values(snapshot: BibleSnapshot) -> dict[str, int]:
 
 
 def verified_attack_weapon_values(snapshot: BibleSnapshot) -> dict[str, int]:
-    """Return fixed attacks whose only extra behavior is a verified passive defense."""
+    """Return fixed neutral attacks that require no follow-up decision."""
 
     result = plain_attack_weapon_values(snapshot)
     for artifact in snapshot.catalog["weapons"].items:
@@ -350,7 +359,8 @@ def verified_attack_weapon_values(snapshot: BibleSnapshot) -> dict[str, int]:
         attack = PLAIN_ATTACK_PATTERN.fullmatch(artifact.detail[1])
         if (
             attack is not None
-            and artifact.detail[2] in VERIFIED_PASSIVE_ATTACK_EFFECTS
+            and artifact.detail[2]
+            in VERIFIED_PASSIVE_ATTACK_EFFECTS | VERIFIED_AUTOMATIC_ATTACK_EFFECTS
             and re.fullmatch(r"\$\d+", artifact.detail[3]) is not None
             and artifact.detail[4].startswith("Gift Rate:")
         ):

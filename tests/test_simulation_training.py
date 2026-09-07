@@ -24,6 +24,10 @@ pytest.importorskip("godfield_sim")
 SNAPSHOT = Path("data/snapshots/2026-09-07/bible.json")
 
 
+def test_training_config_selects_versioned_mixed_hand_ruleset() -> None:
+    assert SimulationTrainingConfig(ruleset="mixed-hand").ruleset == "mixed-hand"
+
+
 def legacy_pooled_model(root: Path) -> Path:
     snapshot = BibleSnapshot.model_validate_json(SNAPSHOT.read_text(encoding="utf-8"))
     vocabulary = ArtifactVocabulary.from_snapshot(snapshot)

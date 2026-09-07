@@ -23,6 +23,12 @@ NB_MODULE(_native, module) {
       godfield_sim::kAttackDefenseObservationSchemaVersion;
   module.attr("ATTACK_DEFENSE_RULESET_ID") =
       godfield_sim::kAttackDefenseRulesetId;
+  module.attr("MIXED_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION") =
+      godfield_sim::kMixedAttackDefenseKernelSchemaVersion;
+  module.attr("MIXED_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION") =
+      godfield_sim::kMixedAttackDefenseObservationSchemaVersion;
+  module.attr("MIXED_ATTACK_DEFENSE_RULESET_ID") =
+      godfield_sim::kMixedAttackDefenseRulesetId;
   module.attr("WEAPON_SLOTS") = godfield_sim::kWeaponSlots;
   module.attr("ARMOR_SLOTS") = godfield_sim::kArmorSlots;
   module.attr("PHASE_ATTACK") =
@@ -75,14 +81,16 @@ NB_MODULE(_native, module) {
   nb::class_<AttackDefenseBatch>(module, "AttackDefenseBatch")
       .def(nb::init<std::size_t, godfield_sim::TokenInput,
                     godfield_sim::ValueInput, godfield_sim::TokenInput,
-                    godfield_sim::ValueInput, std::uint64_t, std::uint16_t>(),
+                    godfield_sim::ValueInput, std::uint64_t, std::uint16_t,
+                    bool>(),
            nb::arg("batch_size"), nb::arg("weapon_token_ids"),
            nb::arg("attack_values"), nb::arg("armor_token_ids"),
            nb::arg("defense_values"), nb::arg("seed") = 67U,
-           nb::arg("initial_hp") = 40U)
+           nb::arg("initial_hp") = 40U, nb::arg("mixed_hands") = false)
       .def_prop_ro("batch_size", &AttackDefenseBatch::batch_size)
       .def_prop_ro("seed", &AttackDefenseBatch::seed)
       .def_prop_ro("initial_hp", &AttackDefenseBatch::initial_hp)
+      .def_prop_ro("mixed_hands", &AttackDefenseBatch::mixed_hands)
       .def_prop_ro("global_features", &AttackDefenseBatch::global_features_view,
                    nb::rv_policy::reference_internal)
       .def_prop_ro("player_features", &AttackDefenseBatch::player_features_view,

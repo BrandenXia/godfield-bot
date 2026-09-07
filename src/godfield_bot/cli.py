@@ -943,6 +943,10 @@ def models_train_simulation(
         Path,
         typer.Option(help="Ignored root directory for the new candidate."),
     ] = Path("models"),
+    ruleset: Annotated[
+        Literal["fixed-role", "mixed-hand"],
+        typer.Option(help="Attack/defense hand-distribution curriculum."),
+    ] = "fixed-role",
     batch_size: Annotated[
         int,
         typer.Option(min=1, max=1_000_000, help="Parallel native self-play games."),
@@ -1017,6 +1021,7 @@ def models_train_simulation(
             model_root=root_directory,
             snapshot_path=snapshot,
             config=SimulationTrainingConfig(
+                ruleset=ruleset,
                 batch_size=batch_size,
                 rollout_steps=rollout_steps,
                 updates=updates,
@@ -1070,6 +1075,10 @@ def models_evaluate_simulation(
         Path,
         typer.Option(help="Owner-only directory for immutable evaluation reports."),
     ] = Path("models", "evaluations"),
+    ruleset: Annotated[
+        Literal["fixed-role", "mixed-hand"],
+        typer.Option(help="Attack/defense hand-distribution curriculum."),
+    ] = "fixed-role",
     games_per_seat: Annotated[
         int,
         typer.Option(min=1, max=100_000, help="Paired initial deals per seat assignment."),
@@ -1120,6 +1129,7 @@ def models_evaluate_simulation(
             snapshot_path=snapshot,
             evaluation_directory=evaluation_directory,
             config=SimulationEvaluationConfig(
+                ruleset=ruleset,
                 games_per_seat=games_per_seat,
                 max_decisions_per_game=max_decisions_per_game,
                 minimum_score=minimum_score,
@@ -1165,7 +1175,7 @@ def simulation_benchmark(
     ] = 1000,
     seed: Annotated[int, typer.Option(min=0)] = 67,
     ruleset: Annotated[
-        Literal["attack", "attack-defense"],
+        Literal["attack", "attack-defense", "mixed-attack-defense"],
         typer.Option(help="Native curriculum ruleset to benchmark."),
     ] = "attack-defense",
 ) -> None:
@@ -1178,17 +1188,21 @@ def simulation_benchmark(
             benchmark_fixed_attack_simulation,
         )
 
-        benchmark = (
-            benchmark_attack_defense_simulation
-            if ruleset == "attack-defense"
-            else benchmark_fixed_attack_simulation
-        )
-        result = benchmark(
-            snapshot,
-            batch_size=batch_size,
-            batch_steps=batch_steps,
-            seed=seed,
-        )
+        if ruleset == "attack":
+            result = benchmark_fixed_attack_simulation(
+                snapshot,
+                batch_size=batch_size,
+                batch_steps=batch_steps,
+                seed=seed,
+            )
+        else:
+            result = benchmark_attack_defense_simulation(
+                snapshot,
+                batch_size=batch_size,
+                batch_steps=batch_steps,
+                seed=seed,
+                ruleset="mixed-hand" if ruleset == "mixed-attack-defense" else "fixed-role",
+            )
     except (ImportError, OSError, ValueError, SimulationUnavailableError) as error:
         structlog.get_logger().error(
             "simulation_benchmark_failed",

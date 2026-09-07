@@ -13,6 +13,10 @@ inline constexpr std::uint32_t kAttackDefenseKernelSchemaVersion = 1;
 inline constexpr std::uint32_t kAttackDefenseObservationSchemaVersion = 2;
 inline constexpr const char *kAttackDefenseRulesetId =
     "plain-attack-defense-redraw-duel-v1";
+inline constexpr std::uint32_t kMixedAttackDefenseKernelSchemaVersion = 1;
+inline constexpr std::uint32_t kMixedAttackDefenseObservationSchemaVersion = 2;
+inline constexpr const char *kMixedAttackDefenseRulesetId =
+    "plain-mixed-hand-attack-defense-redraw-duel-v1";
 inline constexpr std::size_t kWeaponSlots = 5;
 inline constexpr std::size_t kArmorSlots = kHandSlots - kWeaponSlots;
 
@@ -27,13 +31,14 @@ public:
   AttackDefenseBatch(std::size_t batch_size, TokenInput weapon_token_ids,
                      ValueInput attack_values, TokenInput armor_token_ids,
                      ValueInput defense_values, std::uint64_t seed,
-                     std::uint16_t initial_hp);
+                     std::uint16_t initial_hp, bool mixed_hands);
 
   [[nodiscard]] std::size_t batch_size() const noexcept { return batch_size_; }
   [[nodiscard]] std::uint64_t seed() const noexcept { return base_seed_; }
   [[nodiscard]] std::uint16_t initial_hp() const noexcept {
     return initial_hp_;
   }
+  [[nodiscard]] bool mixed_hands() const noexcept { return mixed_hands_; }
 
   void reset();
   [[nodiscard]] std::size_t reset_done();
@@ -65,12 +70,19 @@ private:
                    std::size_t slot);
   void draw_armor(std::size_t environment, std::size_t player,
                   std::size_t slot);
+  void draw_mixed(std::size_t environment, std::size_t player,
+                  std::size_t slot);
+  [[nodiscard]] bool has_weapon(std::size_t environment,
+                                std::size_t player) const noexcept;
+  void redraw_consumed(std::size_t environment, std::size_t player,
+                       std::size_t slot, std::uint8_t consumed_kind);
   void reset_environment(std::size_t environment);
   void refresh_environment_views(std::size_t environment);
 
   std::size_t batch_size_;
   std::uint64_t base_seed_;
   std::uint16_t initial_hp_;
+  bool mixed_hands_;
   std::vector<std::uint32_t> weapon_token_ids_;
   std::vector<std::uint16_t> attack_values_;
   std::vector<std::uint32_t> armor_token_ids_;
@@ -80,6 +92,7 @@ private:
   std::vector<std::uint16_t> hit_points_;
   std::vector<std::uint16_t> hand_values_;
   std::vector<std::int64_t> hand_token_ids_by_player_;
+  std::vector<std::uint8_t> hand_card_kinds_by_player_;
   std::vector<std::uint8_t> active_players_;
   std::vector<std::uint8_t> phases_;
   std::vector<std::uint8_t> pending_attackers_;

@@ -20,6 +20,8 @@ if TYPE_CHECKING:
     from godfield_sim import AttackDefenseBatch, FixedAttackBatch
     from torch import Tensor
 
+AttackDefenseRuleset = Literal["fixed-role", "mixed-hand"]
+
 
 class SimulationUnavailableError(RuntimeError):
     """Raised when the optional native simulation package is unavailable."""
@@ -51,6 +53,7 @@ class SimulationMetadata(BaseModel):
     sampling_distribution: Literal[
         "uniform-redraw-with-replacement",
         "fixed-role-uniform-redraw-with-replacement",
+        "mixed-role-uniform-redraw-with-attack-liveness",
     ] = "uniform-redraw-with-replacement"
     promotion_eligible: Literal[False] = False
 
@@ -185,8 +188,9 @@ def create_attack_defense_simulation(
     batch_size: int,
     seed: int = 67,
     initial_hp: int = 40,
+    ruleset: AttackDefenseRuleset = "fixed-role",
 ) -> AttackDefenseSimulation:
-    """Build the non-promotable neutral attack/defense curriculum."""
+    """Build a non-promotable neutral attack/defense curriculum."""
 
     try:
         import numpy as np
@@ -196,6 +200,9 @@ def create_attack_defense_simulation(
             ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
             ATTACK_DEFENSE_RULESET_ID,
             HAND_SLOTS,
+            MIXED_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
+            MIXED_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
+            MIXED_ATTACK_DEFENSE_RULESET_ID,
             AttackDefenseBatch,
         )
     except ImportError as error:
@@ -242,14 +249,29 @@ def create_attack_defense_simulation(
         defense_values,
         seed,
         initial_hp,
+        ruleset == "mixed-hand",
     )
     catalog = weapon_catalog + armor_catalog
+    sampling_distribution: Literal[
+        "fixed-role-uniform-redraw-with-replacement",
+        "mixed-role-uniform-redraw-with-attack-liveness",
+    ]
+    if ruleset == "mixed-hand":
+        kernel_schema_version = MIXED_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION
+        observation_schema_version = MIXED_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION
+        ruleset_id = MIXED_ATTACK_DEFENSE_RULESET_ID
+        sampling_distribution = "mixed-role-uniform-redraw-with-attack-liveness"
+    else:
+        kernel_schema_version = ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION
+        observation_schema_version = ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION
+        ruleset_id = ATTACK_DEFENSE_RULESET_ID
+        sampling_distribution = "fixed-role-uniform-redraw-with-replacement"
     return AttackDefenseSimulation(
         batch=batch,
         metadata=SimulationMetadata(
-            kernel_schema_version=ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
-            observation_schema_version=ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
-            ruleset_id=ATTACK_DEFENSE_RULESET_ID,
+            kernel_schema_version=kernel_schema_version,
+            observation_schema_version=observation_schema_version,
+            ruleset_id=ruleset_id,
             client_sha256=snapshot.client.sha256,
             vocabulary_sha256=hashlib.sha256(vocabulary.model_dump_json().encode()).hexdigest(),
             rule_catalog_sha256=_sha256_json(catalog),
@@ -257,7 +279,7 @@ def create_attack_defense_simulation(
             action_count=ACTION_COUNT,
             hand_slots=HAND_SLOTS,
             action_semantics="atomic-attack-defense-macro",
-            sampling_distribution="fixed-role-uniform-redraw-with-replacement",
+            sampling_distribution=sampling_distribution,
         ),
     )
 
@@ -305,6 +327,7 @@ def benchmark_attack_defense_simulation(
     batch_size: int,
     batch_steps: int,
     seed: int = 67,
+    ruleset: AttackDefenseRuleset = "fixed-role",
 ) -> SimulationBenchmark:
     """Measure native attack/defense transitions without neural inference."""
 
@@ -314,6 +337,7 @@ def benchmark_attack_defense_simulation(
         snapshot_path,
         batch_size=batch_size,
         seed=seed,
+        ruleset=ruleset,
     )
     actions = np.empty(batch_size, dtype=np.int64)
     completed_episodes = 0

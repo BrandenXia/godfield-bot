@@ -39,6 +39,7 @@ class SimulationEvaluationError(RuntimeError):
 
 
 class SimulationEvaluationConfig(BaseModel):
+    ruleset: Literal["fixed-role", "mixed-hand"] = "fixed-role"
     games_per_seat: int = Field(default=512, ge=1, le=100_000)
     max_decisions_per_game: int = Field(default=512, ge=2, le=100_000)
     minimum_score: float = Field(default=0.5, ge=0, le=1)
@@ -171,11 +172,13 @@ def _evaluate_side(
     candidate_seat: int,
     max_decisions: int,
     device: torch.device,
+    ruleset: Literal["fixed-role", "mixed-hand"],
 ) -> _SideEvaluation:
     simulation = create_attack_defense_simulation(
         snapshot_path,
         batch_size=games,
         seed=seed,
+        ruleset=ruleset,
     )
     batch = simulation.batch
     candidate_states = torch.zeros(
@@ -400,7 +403,12 @@ def evaluate_simulation_candidate(
         raise ValueError("candidate client fingerprint differs from the Bible snapshot")
     if candidate_manifest.vocabulary_sha256 != vocabulary_digest(vocabulary):
         raise ValueError("candidate vocabulary differs from the Bible snapshot")
-    simulation = create_attack_defense_simulation(snapshot_path, batch_size=1, seed=config.seed)
+    simulation = create_attack_defense_simulation(
+        snapshot_path,
+        batch_size=1,
+        seed=config.seed,
+        ruleset=config.ruleset,
+    )
     if simulation.metadata.vocabulary_sha256 != candidate_manifest.vocabulary_sha256:
         raise ValueError("simulator vocabulary differs from the candidate")
 
@@ -420,6 +428,7 @@ def evaluate_simulation_candidate(
             candidate_seat=0,
             max_decisions=config.max_decisions_per_game,
             device=device,
+            ruleset=config.ruleset,
         ),
         _evaluate_side(
             candidate=candidate,
@@ -431,6 +440,7 @@ def evaluate_simulation_candidate(
             candidate_seat=1,
             max_decisions=config.max_decisions_per_game,
             device=device,
+            ruleset=config.ruleset,
         ),
     )
     heuristic_sides = (
@@ -444,6 +454,7 @@ def evaluate_simulation_candidate(
             candidate_seat=0,
             max_decisions=config.max_decisions_per_game,
             device=device,
+            ruleset=config.ruleset,
         ),
         _evaluate_side(
             candidate=candidate,
@@ -455,6 +466,7 @@ def evaluate_simulation_candidate(
             candidate_seat=1,
             max_decisions=config.max_decisions_per_game,
             device=device,
+            ruleset=config.ruleset,
         ),
     )
     matchups = (

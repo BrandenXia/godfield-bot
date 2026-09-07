@@ -11,6 +11,7 @@ from godfield_bot.reference import plain_attack_weapon_values, plain_defense_arm
 from godfield_bot.simulation import AttackDefenseSimulation
 
 HEURISTIC_POLICY_ID = "plain-max-attack-conservative-defense-v0"
+FORGIVE_ACTION_INDEX = 19
 
 
 class SimulationPolicyError(RuntimeError):
@@ -69,7 +70,10 @@ def curriculum_heuristic_actions(
             if legal[action] and int(hand[action - 1]) in policy.defenses
         ]
         if not candidates:
-            raise SimulationPolicyError("heuristic found no known legal defense")
+            if legal[FORGIVE_ACTION_INDEX]:
+                actions[output_index] = FORGIVE_ACTION_INDEX
+                continue
+            raise SimulationPolicyError("heuristic found no known legal defense or pass")
         sufficient = [item for item in candidates if item[0] >= pending_attack]
         if sufficient:
             actions[output_index] = min(sufficient, key=lambda item: (item[0], item[1]))[1]

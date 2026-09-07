@@ -68,11 +68,11 @@ uv run godfield-bot models init
 uv run godfield-bot models train-replay models/<base-model-id> runs/replay.jsonl
 uv run godfield-bot models train-outcomes models/<base-model-id> runs/outcomes.jsonl
 uv run godfield-bot models train-simulation models/<base-model-id> \
-  --batch-size 256 --rollout-steps 32 --updates 10
+  --ruleset mixed-hand --batch-size 256 --rollout-steps 32 --updates 10
 uv run godfield-bot models evaluate-simulation models/<candidate-model-id> \
-  --games-per-seat 512 --minimum-score 0.5 \
+  --ruleset mixed-hand --games-per-seat 512 --minimum-score 0.5 \
   --heuristic-noninferiority-margin 0.025
-uv run godfield-bot simulation benchmark --ruleset attack-defense \
+uv run godfield-bot simulation benchmark --ruleset mixed-attack-defense \
   --batch-size 4096 --batch-steps 1000
 ```
 
@@ -173,7 +173,7 @@ matches require another participant or separately authorized host account,
 because Training gameplay exists only inside the browser client. Learning will
 be simulator-first with real-game fine-tuning.
 
-The native simulator provides two fast, deterministic curricula. The original
+The native simulator provides three fast, deterministic curricula. The original
 `plain-attack-redraw-duel-v1` ruleset isolates effect-free neutral attacks. The
 default `plain-attack-defense-redraw-duel-v1` benchmark adds a separate defense
 decision: five weapon slots and four armor slots redraw within their own
@@ -185,9 +185,13 @@ the recurrent network to consume either source. Existing four-feature model
 checkpoints are deliberately incompatible. `models init` now creates a
 schema-v3, slot-aware policy checkpoint; schema-v2 pooled-hand checkpoints
 remain readable for historical evaluation but cannot continue simulator
-training. Both rulesets are fingerprinted against the accepted client,
-artifact vocabulary, and exact rule catalog, and neither is
-promotion-eligible.
+training. The separately versioned mixed-hand ruleset starts each player with
+the same five-weapon/four-armor composition in shuffled slots, then redraws
+consumed cards uniformly across both catalogs. Legal actions follow each
+card's current role, and the kernel guarantees that every attack phase retains
+at least one weapon. This removes the fixed-slot shortcut without changing the
+model interface. All rulesets are fingerprinted against the accepted client,
+artifact vocabulary, and exact rule catalog, and none is promotion-eligible.
 
 `models train-simulation` creates a bounded
 `heuristic-warmstart-recurrent-ppo-self-play-v1` candidate. The slot-aware
@@ -213,8 +217,8 @@ seats swapped. The gate requires every game to finish within its decision
 horizon. Its paired lower confidence bound must strictly exceed
 `--minimum-score` against the parent and remain within
 `--heuristic-noninferiority-margin` of that score against the heuristic. The
-aggregate Wilson bound remains diagnostic only. It writes an owner-only report containing
-model, simulator, configuration, pairing, and confidence evidence. A passing
+aggregate Wilson bound remains diagnostic only. It writes an owner-only report
+containing model, simulator, configuration, pairing, and confidence evidence. A passing
 report is curriculum evidence only: its `promotion_eligible` field is always
 false and it does not change any model manifest or authorize live play. See
 [ADR 0005](docs/architecture/0005-paired-curriculum-evaluation.md).

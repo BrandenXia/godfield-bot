@@ -11,6 +11,9 @@ HAND_SLOTS: Final[int]
 ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION: Final[int]
 ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION: Final[int]
 ATTACK_DEFENSE_RULESET_ID: Final[str]
+MIXED_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION: Final[int]
+MIXED_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION: Final[int]
+MIXED_ATTACK_DEFENSE_RULESET_ID: Final[str]
 WEAPON_SLOTS: Final[int]
 ARMOR_SLOTS: Final[int]
 PHASE_ATTACK: Final[int]
@@ -72,6 +75,7 @@ class AttackDefenseBatch:
         defense_values: npt.NDArray[np.uint16],
         seed: int = ...,
         initial_hp: int = ...,
+        mixed_hands: bool = ...,
     ) -> None: ...
     @property
     def batch_size(self) -> int: ...
@@ -79,6 +83,8 @@ class AttackDefenseBatch:
     def seed(self) -> int: ...
     @property
     def initial_hp(self) -> int: ...
+    @property
+    def mixed_hands(self) -> bool: ...
     @property
     def global_features(self) -> npt.NDArray[np.float32]: ...
     @property

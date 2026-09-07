@@ -73,6 +73,61 @@ def test_defense_factory_fingerprints_neutral_role_catalogs() -> None:
     assert simulation.batch.batch_size == 8
 
 
+def test_mixed_hand_factory_versions_distribution_without_changing_observation_schema() -> None:
+    simulation = create_attack_defense_simulation(
+        SNAPSHOT_PATH,
+        batch_size=128,
+        ruleset="mixed-hand",
+    )
+    kinds = simulation.batch.hand_card_kinds
+
+    assert simulation.metadata.kernel_schema_version == 1
+    assert simulation.metadata.observation_schema_version == 2
+    assert simulation.metadata.ruleset_id == ("plain-mixed-hand-attack-defense-redraw-duel-v1")
+    assert simulation.metadata.sampling_distribution == (
+        "mixed-role-uniform-redraw-with-attack-liveness"
+    )
+    assert simulation.batch.mixed_hands is True
+    assert np.all(np.count_nonzero(kinds == godfield_sim.CARD_KIND_WEAPON, axis=1) == 5)
+    assert np.any(kinds[:, :5] == godfield_sim.CARD_KIND_ARMOR)
+    assert np.any(kinds[:, 5:] == godfield_sim.CARD_KIND_WEAPON)
+    np.testing.assert_array_equal(
+        simulation.batch.action_mask[:, 1:10],
+        kinds == godfield_sim.CARD_KIND_WEAPON,
+    )
+
+
+def test_mixed_hand_redraws_roles_and_preserves_attack_liveness() -> None:
+    simulation = create_attack_defense_simulation(
+        SNAPSHOT_PATH,
+        batch_size=128,
+        ruleset="mixed-hand",
+    )
+    batch = simulation.batch
+    observed_non_initial_weapon_count = False
+
+    for _ in range(40):
+        attack_actions = batch.action_mask.argmax(axis=1).astype(np.int64)
+        batch.step(attack_actions)
+        visible_weapon_counts = np.count_nonzero(
+            batch.hand_card_kinds == godfield_sim.CARD_KIND_WEAPON,
+            axis=1,
+        )
+        observed_non_initial_weapon_count |= bool(np.any(visible_weapon_counts != 5))
+        batch.step(
+            np.full(
+                batch.batch_size,
+                godfield_sim.FORGIVE_ACTION_INDEX,
+                dtype=np.int64,
+            )
+        )
+        nonterminal = ~batch.terminated
+        assert np.all(batch.action_mask[nonterminal, 1:10].any(axis=1))
+        batch.reset_done()
+
+    assert observed_non_initial_weapon_count
+
+
 def test_defense_views_expose_phase_pending_attack_and_fixed_card_roles() -> None:
     batch = defense_batch()
 

@@ -81,6 +81,17 @@ so one six-global-input model can consume live and simulated states. Model
 manifests record feature schema v2; legacy four-global checkpoints are rejected
 instead of being loaded into an incompatible observation contract.
 
+The separately versioned
+`plain-mixed-hand-attack-defense-redraw-duel-v1` kernel removes the fixed slot
+roles while preserving observation schema v2 and the 21-action head. Initial
+hands contain five weapons and four armor cards in a deterministic shuffled
+layout. A consumed card redraws uniformly from the combined neutral catalog,
+so roles may change during an episode and legal masks follow the current card
+kinds. If consuming the last weapon would leave a player unable to attack, the
+consumed slot is redrawn from the weapon catalog. This explicit liveness rule
+prevents an absorbing no-weapon hand while the curriculum still lacks trades,
+miracles, and other real-game ways to change a hand.
+
 ## Compatibility and safety
 
 Every simulator instance reports:

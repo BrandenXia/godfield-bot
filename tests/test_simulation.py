@@ -140,6 +140,15 @@ def test_invalid_action_rejects_batch_without_partial_transition() -> None:
     np.testing.assert_array_equal(batch.turn_numbers, np.zeros(3, dtype=np.uint16))
 
 
+def test_native_catalog_rejects_duplicate_token_id_semantics() -> None:
+    with pytest.raises(ValueError, match="catalog token IDs must be unique"):
+        FixedAttackBatch(
+            1,
+            np.asarray([2, 2], dtype=np.uint32),
+            np.asarray([3, 13], dtype=np.uint16),
+        )
+
+
 def test_view_keeps_native_owner_alive() -> None:
     batch = native_batch(batch_size=2)
     view = batch.global_features

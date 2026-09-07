@@ -164,8 +164,9 @@ matches require another participant or separately authorized host account,
 because Training gameplay exists only inside the browser client. Learning will
 be simulator-first with real-game fine-tuning.
 
-The initial native `plain-attack-duel-v0` ruleset is a fast, deterministic
+The native `plain-attack-redraw-duel-v1` ruleset is a fast, deterministic
 curriculum and integration harness. It uses only effect-free neutral attacks,
-but intentionally omits defense and most game rules and samples synthetic
-hands uniformly. Its metadata is fingerprinted against the accepted client,
-artifact vocabulary, and rule catalog, and it is never promotion-eligible.
+keeps each nine-card hand full with uniform replacement draws, and
+intentionally omits defense and most game rules. Its metadata is fingerprinted
+against the accepted client, artifact vocabulary, and rule catalog, and it is
+never promotion-eligible.

@@ -4,6 +4,7 @@
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <unordered_set>
 
 namespace godfield_sim {
 
@@ -45,6 +46,8 @@ FixedAttackBatch::FixedAttackBatch(std::size_t batch_size, TokenInput token_ids,
 
   catalog_token_ids_.reserve(token_ids.shape(0));
   catalog_attack_values_.reserve(attack_values.shape(0));
+  std::unordered_set<std::uint32_t> unique_token_ids;
+  unique_token_ids.reserve(token_ids.shape(0));
   for (std::size_t index = 0; index < token_ids.shape(0); ++index) {
     const auto token_id = token_ids(index);
     const auto attack_value = attack_values(index);
@@ -55,6 +58,9 @@ FixedAttackBatch::FixedAttackBatch(std::size_t batch_size, TokenInput token_ids,
     if (attack_value == 0U || attack_value > 100U) {
       throw std::invalid_argument(
           "catalog attack values must be between 1 and 100");
+    }
+    if (!unique_token_ids.insert(token_id).second) {
+      throw std::invalid_argument("catalog token IDs must be unique");
     }
     catalog_token_ids_.push_back(token_id);
     catalog_attack_values_.push_back(attack_value);

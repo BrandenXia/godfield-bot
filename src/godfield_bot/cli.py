@@ -572,6 +572,71 @@ def models_train_replay(
     typer.echo(manifest.model_dump_json(indent=2))
 
 
+@models_app.command("train-outcomes")
+def models_train_outcomes(
+    base_model: Annotated[
+        Path,
+        typer.Argument(exists=True, file_okay=False, readable=True),
+    ],
+    outcome_replay: Annotated[
+        Path,
+        typer.Argument(exists=True, dir_okay=False, readable=True),
+    ],
+    snapshot: Annotated[
+        Path,
+        typer.Option(exists=True, dir_okay=False, readable=True),
+    ] = Path("data", "snapshots", "2026-09-07", "bible.json"),
+    root_directory: Annotated[
+        Path,
+        typer.Option(help="Ignored root directory for the new candidate."),
+    ] = Path("models"),
+    epochs: Annotated[
+        int,
+        typer.Option(min=1, max=10_000, help="Offline passes over terminal episodes."),
+    ] = 20,
+    learning_rate: Annotated[
+        float,
+        typer.Option(min=1e-8, max=1.0, help="Outcome-supervised learning rate."),
+    ] = 1e-3,
+    seed: Annotated[int, typer.Option()] = 67,
+) -> None:
+    """Create a non-deployable policy/value candidate from terminal episodes."""
+
+    try:
+        from godfield_bot.outcome_replay import OutcomeReplayDatasetError
+        from godfield_bot.outcome_training import (
+            OutcomeTrainingConfig,
+            train_outcome_candidate,
+        )
+        from godfield_bot.training import TrainingError
+
+        manifest = train_outcome_candidate(
+            base_model_directory=base_model,
+            model_root=root_directory,
+            outcome_replay_path=outcome_replay,
+            snapshot_path=snapshot,
+            config=OutcomeTrainingConfig(
+                epochs=epochs,
+                learning_rate=learning_rate,
+                seed=seed,
+            ),
+        )
+    except (
+        ImportError,
+        OSError,
+        ValueError,
+        OutcomeReplayDatasetError,
+        TrainingError,
+    ) as error:
+        structlog.get_logger().error(
+            "outcome_training_failed",
+            error_type=type(error).__name__,
+            reason=str(error).splitlines()[0],
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(manifest.model_dump_json(indent=2))
+
+
 @data_app.command("refresh")
 def data_refresh(
     output: Annotated[

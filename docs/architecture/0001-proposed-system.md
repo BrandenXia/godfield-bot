@@ -148,6 +148,9 @@ not be baked into browser or storage interfaces.
 4. **Reward design.** Emit one sparse reward only from a confidently observed
    two-player terminal state: win `+1`, loss `-1`, and draw `0`. HP, resource,
    and field deltas remain diagnostics; aborted or unclassified exits receive
-   no reward label. Any future reward shaping requires a separate decision.
+   no reward label. The initial offline value target is the undiscounted
+   terminal return for each recorded action in that episode; it does not emit
+   intermediate rewards. Any future discounting or reward shaping requires a
+   separate decision.
 
 Account creation remains an explicit operator-confirmed action.

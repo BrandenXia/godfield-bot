@@ -14,6 +14,7 @@ from godfield_bot.domain.action import (
 )
 from godfield_bot.domain.game import GameState, HandArtifact, PlayerState
 from godfield_bot.domain.observation import Bounds
+from godfield_bot.domain.outcome_replay import OutcomeReplayEpisode
 from godfield_bot.domain.reference import BibleSnapshot
 from godfield_bot.domain.replay import ReplaySample
 from godfield_bot.features import StateFeatureEncoder, action_index, load_vocabulary
@@ -21,11 +22,14 @@ from godfield_bot.imitation import ImitationTrainingConfig, train_imitation_cand
 from godfield_bot.legal_actions import game_state_digest, observation_only_actions
 from godfield_bot.model_registry import ModelStatus, initialize_model, load_model
 from godfield_bot.neural import RecurrentPolicyValueNet, features_to_tensors
+from godfield_bot.outcome_training import OutcomeTrainingConfig, train_outcome_candidate
+from godfield_bot.outcomes import classify_two_player_terminal, sparse_terminal_reward
 from godfield_bot.runner import build_action_transition
 from godfield_bot.training import (
     TrainingError,
     actor_critic_loss,
     behavior_cloning_sequence_step,
+    outcome_supervised_sequence_step,
     train_step,
 )
 
@@ -231,3 +235,118 @@ def test_replay_training_writes_immutable_candidate_lineage(tmp_path) -> None:
     assert (root / parent.model_id / "manifest.json").read_text(encoding="utf-8") == (
         parent.model_dump_json(indent=2) + "\n"
     )
+
+
+def outcome_episode() -> OutcomeReplayEpisode:
+    sample = imitation_sample()
+    terminal_state = sample.after_state.model_copy(
+        update={
+            "observed_at": datetime.now(UTC),
+            "field_number": 2,
+            "players": (
+                sample.after_state.players[0],
+                sample.after_state.players[1].model_copy(update={"hp": 0}),
+            ),
+        }
+    )
+    outcome = classify_two_player_terminal(terminal_state)
+    assert outcome is not None
+    return OutcomeReplayEpisode(
+        run_id=sample.run_id,
+        client_sha256=sample.client_sha256,
+        policy_id=sample.policy_id,
+        model_id=sample.model_id,
+        steps=(sample,),
+        terminal_state=terminal_state,
+        outcome=outcome,
+        reward=sparse_terminal_reward(outcome),
+    )
+
+
+def test_outcome_step_updates_policy_and_value_heads() -> None:
+    torch.manual_seed(67)
+    vocabulary = load_vocabulary(SNAPSHOT)
+    sample = imitation_sample()
+    features = StateFeatureEncoder(vocabulary).encode(
+        sample.before_state,
+        sample.legal_actions,
+    )
+    model = RecurrentPolicyValueNet(
+        vocabulary_size=len(vocabulary.tokens),
+        action_count=len(features.action_mask),
+    )
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    policy_before = model.policy_head.weight.detach().clone()
+    value_before = model.value_head.weight.detach().clone()
+
+    metrics = outcome_supervised_sequence_step(
+        model,
+        optimizer,
+        [features],
+        [action_index(sample.chosen_action)],
+        1.0,
+    )
+
+    assert metrics.total_loss > 0
+    assert metrics.value_loss > 0
+    assert not torch.equal(policy_before, model.policy_head.weight.detach())
+    assert not torch.equal(value_before, model.value_head.weight.detach())
+
+
+def test_outcome_step_rejects_shaped_return() -> None:
+    vocabulary = load_vocabulary(SNAPSHOT)
+    sample = imitation_sample()
+    features = StateFeatureEncoder(vocabulary).encode(
+        sample.before_state,
+        sample.legal_actions,
+    )
+    model = RecurrentPolicyValueNet(
+        vocabulary_size=len(vocabulary.tokens),
+        action_count=len(features.action_mask),
+    )
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+
+    with pytest.raises(TrainingError, match="sparse terminal return"):
+        outcome_supervised_sequence_step(
+            model,
+            optimizer,
+            [features],
+            [action_index(sample.chosen_action)],
+            0.5,
+        )
+
+
+def test_outcome_training_writes_immutable_candidate_lineage(tmp_path) -> None:
+    snapshot = BibleSnapshot.model_validate_json(SNAPSHOT.read_text(encoding="utf-8"))
+    vocabulary = load_vocabulary(SNAPSHOT)
+    root = tmp_path / "models"
+    parent = initialize_model(
+        root,
+        vocabulary,
+        client_sha256=snapshot.client.sha256,
+    )
+    _, parent_model = load_model(root / parent.model_id)
+    parent_value_head = parent_model.value_head.weight.detach().clone()
+    outcome_replay = tmp_path / "outcomes.jsonl"
+    outcome_replay.write_text(outcome_episode().model_dump_json() + "\n", encoding="utf-8")
+
+    candidate = train_outcome_candidate(
+        base_model_directory=root / parent.model_id,
+        model_root=root,
+        outcome_replay_path=outcome_replay,
+        snapshot_path=SNAPSHOT,
+        config=OutcomeTrainingConfig(epochs=2),
+    )
+    loaded_manifest, candidate_model = load_model(root / candidate.model_id)
+
+    assert candidate.status is ModelStatus.CANDIDATE
+    assert candidate.parent_model_id == parent.model_id
+    assert candidate.training_algorithm == "outcome-supervised-v0"
+    assert candidate.training_dataset_sha256 is not None
+    assert candidate.training_run_ids == ("fixture-run",)
+    assert candidate.metrics["training_episodes"] == 1
+    assert candidate.metrics["training_steps"] == 1
+    assert candidate.metrics["training_wins"] == 1
+    assert candidate.metrics["value_loss_after"] < candidate.metrics["value_loss_before"]
+    assert not torch.equal(parent_value_head, candidate_model.value_head.weight.detach())
+    assert loaded_manifest == candidate

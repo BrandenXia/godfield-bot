@@ -88,6 +88,117 @@ def train_step(
     return metrics
 
 
+def outcome_supervised_sequence_step(
+    model: RecurrentPolicyValueNet,
+    optimizer: torch.optim.Optimizer,
+    features: Sequence[StateFeatures],
+    target_actions: Sequence[int],
+    terminal_return: float,
+    *,
+    value_weight: float = 0.5,
+    entropy_weight: float = 0.01,
+    max_gradient_norm: float = 1.0,
+) -> TrainingMetrics:
+    """Train one recurrent episode from accepted actions and its sparse return."""
+
+    if not features or len(features) != len(target_actions):
+        raise TrainingError("outcome features and actions must be a non-empty aligned sequence")
+    if terminal_return not in {-1.0, 0.0, 1.0}:
+        raise TrainingError("outcome training requires a sparse terminal return")
+    model.train()
+    optimizer.zero_grad(set_to_none=True)
+    recurrent_state: Tensor | None = None
+    logits_rows: list[Tensor] = []
+    value_rows: list[Tensor] = []
+    for state_features in features:
+        logits, values, recurrent_state = model(
+            *features_to_tensors([state_features]),
+            recurrent_state=recurrent_state,
+        )
+        logits_rows.append(logits)
+        value_rows.append(values)
+    logits = torch.cat(logits_rows)
+    values = torch.cat(value_rows)
+    actions = torch.tensor(target_actions, dtype=torch.long, device=logits.device)
+    returns = torch.full_like(values, terminal_return)
+    total_loss, policy_loss, value_loss, entropy = actor_critic_loss(
+        logits,
+        values,
+        actions,
+        returns,
+        value_weight=value_weight,
+        entropy_weight=entropy_weight,
+    )
+    total_loss.backward()  # type: ignore[no-untyped-call]
+    gradient_norm = nn.utils.clip_grad_norm_(model.parameters(), max_gradient_norm)
+    optimizer.step()
+    metrics = TrainingMetrics(
+        total_loss=float(total_loss.detach()),
+        policy_loss=float(policy_loss.detach()),
+        value_loss=float(value_loss.detach()),
+        entropy=float(entropy.detach()),
+        gradient_norm=float(gradient_norm.detach()),
+    )
+    if not all(math.isfinite(value) for value in metrics.model_dump().values()):
+        raise TrainingError("outcome training step produced non-finite metrics")
+    return metrics
+
+
+def evaluate_outcome_sequences(
+    model: RecurrentPolicyValueNet,
+    episodes: Sequence[tuple[Sequence[StateFeatures], Sequence[int], float]],
+    *,
+    value_weight: float = 0.5,
+    entropy_weight: float = 0.01,
+) -> TrainingMetrics:
+    if not episodes or any(
+        not features or len(features) != len(actions)
+        for features, actions, _ in episodes
+    ):
+        raise TrainingError("outcome evaluation requires aligned episodes")
+    if any(terminal_return not in {-1.0, 0.0, 1.0} for _, _, terminal_return in episodes):
+        raise TrainingError("outcome evaluation requires sparse terminal returns")
+    model.eval()
+    logits_rows: list[Tensor] = []
+    value_rows: list[Tensor] = []
+    action_rows: list[int] = []
+    return_rows: list[float] = []
+    with torch.no_grad():
+        for features, actions, terminal_return in episodes:
+            recurrent_state: Tensor | None = None
+            for state_features, target_action in zip(features, actions, strict=True):
+                logits, values, recurrent_state = model(
+                    *features_to_tensors([state_features]),
+                    recurrent_state=recurrent_state,
+                )
+                logits_rows.append(logits)
+                value_rows.append(values)
+                action_rows.append(target_action)
+                return_rows.append(terminal_return)
+        logits = torch.cat(logits_rows)
+        values = torch.cat(value_rows)
+        targets = torch.tensor(action_rows, dtype=torch.long, device=logits.device)
+        returns = torch.tensor(return_rows, dtype=values.dtype, device=values.device)
+        total_loss, policy_loss, value_loss, entropy = actor_critic_loss(
+            logits,
+            values,
+            targets,
+            returns,
+            value_weight=value_weight,
+            entropy_weight=entropy_weight,
+        )
+    metrics = TrainingMetrics(
+        total_loss=float(total_loss),
+        policy_loss=float(policy_loss),
+        value_loss=float(value_loss),
+        entropy=float(entropy),
+        gradient_norm=0.0,
+    )
+    if not all(math.isfinite(value) for value in metrics.model_dump().values()):
+        raise TrainingError("outcome evaluation produced non-finite metrics")
+    return metrics
+
+
 def behavior_cloning_sequence_step(
     model: RecurrentPolicyValueNet,
     optimizer: torch.optim.Optimizer,

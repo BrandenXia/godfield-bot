@@ -60,6 +60,7 @@ uv run godfield-bot runs export-replay runs/replay.jsonl
 uv run godfield-bot runs export-outcomes runs/outcomes.jsonl
 uv run godfield-bot models init
 uv run godfield-bot models train-replay models/<base-model-id> runs/replay.jsonl
+uv run godfield-bot models train-outcomes models/<base-model-id> runs/outcomes.jsonl
 ```
 
 Install the optional learning stack with `uv sync --extra training --group dev`.
@@ -121,6 +122,13 @@ vocabulary fingerprints, contributing run IDs, and before/after imitation
 metrics. A replay-trained model remains a candidate: this command does not
 evaluate, promote, or allow it to control the browser, and it does not train
 the value head from invented returns.
+
+`models train-outcomes` accepts only the stricter terminal-labeled episode
+dataset. It uses the undiscounted sparse terminal result as the value target
+for each recorded action in an episode while continuing to imitate only the
+accepted action evidence. It writes another immutable candidate with before
+and after policy/value metrics; it also cannot control the browser until a
+separate evaluation and promotion gate exists.
 
 Training and operator-owned private rooms are the only approved early play
 scope. Learning will be simulator-first with real-game fine-tuning.

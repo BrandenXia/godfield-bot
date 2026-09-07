@@ -174,6 +174,7 @@ def build_action_transition(
             action_id=action_id,
             before_state_digest=before_digest,
             state_changed=None,
+            before_state=before,
         )
     after_digest = game_state_digest(after)
     before_hp = {player.name: player.hp for player in before.players}
@@ -190,6 +191,8 @@ def build_action_transition(
         state_changed=after_digest != before_digest,
         field_delta=after.field_number - before.field_number,
         player_hp_deltas=player_hp_deltas,
+        before_state=before,
+        after_state=after,
     )
 
 

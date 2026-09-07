@@ -67,6 +67,8 @@ def test_action_transition_records_state_and_hp_changes() -> None:
     assert transition.before_state_digest != transition.after_state_digest
     assert transition.field_delta == 1
     assert transition.player_hp_deltas == {"CPU": -9}
+    assert transition.before_state == before
+    assert transition.after_state == after
 
 
 def test_action_transition_marks_unaccepted_unchanged_frame() -> None:
@@ -77,3 +79,5 @@ def test_action_transition_marks_unaccepted_unchanged_frame() -> None:
 
     assert transition.state_changed is False
     assert transition.before_state_digest == transition.after_state_digest
+    assert transition.before_state == before
+    assert transition.after_state == after

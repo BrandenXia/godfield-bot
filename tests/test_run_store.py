@@ -36,6 +36,7 @@ def test_run_events_are_ordered_and_round_trip(tmp_path) -> None:
     assert finished.status is RunStatus.ABORTED
     assert finished.outcome == {"reason": "probe_complete"}
     assert store.recent_runs() == (finished,)
+    assert store.all_runs() == (finished,)
     assert stat.S_IMODE(store.path.stat().st_mode) == 0o600
 
 

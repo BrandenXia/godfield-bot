@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from godfield_bot.domain.game import GameState
+
 
 class ActionKind(StrEnum):
     WAIT = "wait"
@@ -102,3 +104,21 @@ class ActionTransition(BaseModel):
     state_changed: bool | None
     field_delta: int | None = None
     player_hp_deltas: dict[str, int] = Field(default_factory=dict)
+    before_state: GameState | None = None
+    after_state: GameState | None = None
+
+    @model_validator(mode="after")
+    def observed_state_contract_is_consistent(self) -> "ActionTransition":
+        if self.state_changed is None:
+            if self.after_state_digest is not None or self.after_state is not None:
+                raise ValueError("unobserved transition cannot include an after state")
+            return self
+        if self.after_state_digest is None:
+            raise ValueError("observed transition requires an after-state digest")
+        if self.state_changed == (self.after_state_digest == self.before_state_digest):
+            raise ValueError("state-change flag conflicts with transition digests")
+        if self.before_state is None and self.after_state is not None:
+            raise ValueError("embedded after state requires an embedded before state")
+        if self.before_state is not None and self.after_state is None:
+            raise ValueError("embedded observed states must include both endpoints")
+        return self

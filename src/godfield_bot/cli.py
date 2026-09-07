@@ -33,6 +33,7 @@ from godfield_bot.reference import (
     verified_attack_weapon_values,
     write_snapshot,
 )
+from godfield_bot.replay import ReplayExportError, export_replay_jsonl
 from godfield_bot.run_store import RunStore, RunStoreError
 from godfield_bot.runner import (
     RunnerError,
@@ -426,6 +427,27 @@ def runs_record_probe(
         )
         raise typer.Exit(code=1) from None
     typer.echo(run.model_dump_json(indent=2))
+
+
+@runs_app.command("export-replay")
+def runs_export_replay(
+    destination: Annotated[
+        Path,
+        typer.Argument(dir_okay=False, help="Destination JSONL dataset."),
+    ],
+    database: Annotated[
+        Path,
+        typer.Option(help="Ignored local SQLite trajectory database."),
+    ] = Path("runs", "godfield.sqlite"),
+) -> None:
+    """Export only fully verified, state-changing browser transitions."""
+
+    try:
+        summary = export_replay_jsonl(RunStore(database), destination)
+    except (OSError, RunStoreError, ReplayExportError) as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(code=1) from None
+    typer.echo(summary.model_dump_json(indent=2))
 
 
 @models_app.command("init")

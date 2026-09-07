@@ -54,6 +54,7 @@ uv run godfield-bot runs init
 uv run godfield-bot runs list
 uv run godfield-bot runs events <run-id> --include-payload
 uv run godfield-bot runs record-probe <observation.json> --client-sha256 <sha256>
+uv run godfield-bot runs export-replay runs/replay.jsonl
 uv run godfield-bot models init
 ```
 
@@ -94,6 +95,11 @@ reject additional events so training data cannot silently change afterward.
 Executable runs also record whether each dispatched click changed normalized
 state, plus field and player-HP deltas; inert clicks terminate the run and are
 not silently treated as accepted transitions.
+`runs export-replay` atomically creates an owner-only JSONL dataset containing
+only fully evidenced, dispatched actions that changed normalized state. Each
+sample preserves the before and after states, legal action set, chosen action,
+policy decision, execution result, client fingerprint, and raw transition
+deltas. Rewards are deliberately not inferred during export.
 
 Training and operator-owned private rooms are the only approved early play
 scope. Learning will be simulator-first with real-game fine-tuning.

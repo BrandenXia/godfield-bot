@@ -220,6 +220,14 @@ class RunStore:
             ).fetchall()
         return tuple(_run_record(row) for row in rows)
 
+    def all_runs(self) -> tuple[RunRecord, ...]:
+        self.initialize()
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT * FROM runs ORDER BY started_at, run_id",
+            ).fetchall()
+        return tuple(_run_record(row) for row in rows)
+
     def events(self, run_id: str) -> tuple[RunEvent, ...]:
         self.initialize()
         with self._connect() as connection:

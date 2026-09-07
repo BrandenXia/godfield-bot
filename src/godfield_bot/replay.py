@@ -253,6 +253,16 @@ def _samples_for_run(
     return samples, skipped, len(transitions)
 
 
+def collect_run_replay_samples(
+    run: RunRecord,
+    events: tuple[RunEvent, ...],
+) -> tuple[tuple[ReplaySample, ...], dict[str, int], int]:
+    """Collect verified action samples for one immutable run."""
+
+    samples, skipped, transitions_seen = _samples_for_run(run, events)
+    return tuple(samples), dict(sorted(skipped.items())), transitions_seen
+
+
 def collect_replay_samples(
     store: RunStore,
 ) -> tuple[tuple[ReplaySample, ...], ReplayExportSummary]:
@@ -261,7 +271,7 @@ def collect_replay_samples(
     skipped: Counter[str] = Counter()
     transitions_seen = 0
     for run in runs:
-        run_samples, run_skipped, run_transition_count = _samples_for_run(
+        run_samples, run_skipped, run_transition_count = collect_run_replay_samples(
             run,
             store.events(run.run_id),
         )

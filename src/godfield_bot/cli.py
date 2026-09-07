@@ -25,6 +25,10 @@ from godfield_bot.observer import (
     ObservationTarget,
     observe_account_screen,
 )
+from godfield_bot.outcome_replay import (
+    OutcomeReplayExportError,
+    export_outcome_replay_jsonl,
+)
 from godfield_bot.probe import record_observation_probe
 from godfield_bot.reference import (
     category_counts,
@@ -446,6 +450,27 @@ def runs_export_replay(
     try:
         summary = export_replay_jsonl(RunStore(database), destination)
     except (OSError, RunStoreError, ReplayExportError) as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(code=1) from None
+    typer.echo(summary.model_dump_json(indent=2))
+
+
+@runs_app.command("export-outcomes")
+def runs_export_outcomes(
+    destination: Annotated[
+        Path,
+        typer.Argument(dir_okay=False, help="Destination terminal-labeled JSONL dataset."),
+    ],
+    database: Annotated[
+        Path,
+        typer.Option(help="Ignored local SQLite trajectory database."),
+    ] = Path("runs", "godfield.sqlite"),
+) -> None:
+    """Export complete episodes with verified sparse terminal rewards."""
+
+    try:
+        summary = export_outcome_replay_jsonl(RunStore(database), destination)
+    except (OSError, RunStoreError, OutcomeReplayExportError) as error:
         typer.echo(str(error), err=True)
         raise typer.Exit(code=1) from None
     typer.echo(summary.model_dump_json(indent=2))

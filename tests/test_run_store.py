@@ -49,6 +49,30 @@ def test_finished_run_rejects_more_events(tmp_path) -> None:
         store.append_event(run.run_id, EventKind.REWARD, {"reward": 1})
 
 
+def test_related_events_are_appended_as_one_ordered_group(tmp_path) -> None:
+    store = RunStore(tmp_path / "runs.sqlite")
+    run = store.start_run(spec())
+
+    events = store.append_events(
+        run.run_id,
+        (
+            (EventKind.MATCH_END, {"result": "win"}),
+            (EventKind.REWARD, {"value": 1.0}),
+        ),
+    )
+
+    assert [event.sequence for event in events] == [0, 1]
+    assert store.events(run.run_id) == events
+
+
+def test_empty_event_group_is_rejected(tmp_path) -> None:
+    store = RunStore(tmp_path / "runs.sqlite")
+    run = store.start_run(spec())
+
+    with pytest.raises(RunStoreError, match="empty event group"):
+        store.append_events(run.run_id, ())
+
+
 def test_unknown_run_cannot_be_finished(tmp_path) -> None:
     store = RunStore(tmp_path / "runs.sqlite")
     store.initialize()

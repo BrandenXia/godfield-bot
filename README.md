@@ -57,6 +57,7 @@ uv run godfield-bot runs list
 uv run godfield-bot runs events <run-id> --include-payload
 uv run godfield-bot runs record-probe <observation.json> --client-sha256 <sha256>
 uv run godfield-bot runs export-replay runs/replay.jsonl
+uv run godfield-bot runs export-outcomes runs/outcomes.jsonl
 uv run godfield-bot models init
 uv run godfield-bot models train-replay models/<base-model-id> runs/replay.jsonl
 ```
@@ -108,6 +109,10 @@ only fully evidenced, dispatched actions that changed normalized state. Each
 sample preserves the before and after states, legal action set, chosen action,
 policy decision, execution result, client fingerprint, and raw transition
 deltas. Rewards are deliberately not inferred from those deltas during export.
+`runs export-outcomes` is stricter: it includes only completed episodes with
+one atomically recorded terminal outcome/reward pair, a matching terminal
+state, and complete accepted-action evidence. Aborted, failed, partial, and
+unclassified runs cannot enter this reward-labeled dataset.
 
 `models train-replay` performs behavior cloning over each run as a recurrent
 sequence and writes a new immutable candidate rather than modifying its base

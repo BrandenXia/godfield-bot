@@ -58,6 +58,27 @@ Browser confirmation actions remain separate and must continue to be learned
 from real transition evidence. Simulator field numbers count macro turns and
 must not be assumed to prove the live client's exact G.F. timing semantics.
 
+The separately versioned
+`plain-attack-defense-redraw-duel-v1` kernel adds the first response phase
+without changing attack-only v1 trajectories. Each synthetic hand has five
+weapon slots and four armor slots. Weapon slots redraw uniformly from the 18
+effect-free neutral fixed-ATK weapons; armor slots redraw uniformly from the 15
+effect-free neutral fixed-DEF armor cards. Elemental armor is excluded even
+when its Bible entry has no text effect. On attack, the chosen weapon is
+consumed and redrawn, control moves to the defender, and the pending ATK is
+exposed. The defender either uses the live action head's Forgive index 19 or
+chooses one armor slot (actions 6-9); damage is `max(ATK - DEF, 0)`. The
+defender begins the next attack after resolution. Returns remain sparse seat
+results only.
+
+Defense observations expose `phases`, `pending_attacks`, and
+`hand_card_kinds` as separate read-only arrays. They are not smuggled into the
+four global features, whose positions retain the live feature meanings. The
+existing `simulation_feature_tensors()` adapter therefore remains restricted
+to attack-only v1. Connecting defense rollouts to the neural policy requires a
+deliberate observation-schema and model-architecture decision shared with the
+live state encoder.
+
 ## Compatibility and safety
 
 Every simulator instance reports:
@@ -66,6 +87,7 @@ Every simulator instance reports:
 - ruleset ID;
 - accepted client SHA-256;
 - canonical rule-catalog SHA-256;
+- category-preserving sampling semantics where applicable;
 - whether its output is eligible for promotion.
 
 The kernel is always `promotion_eligible = false`. Models trained from

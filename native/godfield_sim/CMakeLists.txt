@@ -8,6 +8,7 @@ nanobind_add_module(
   _native
   NB_STATIC
   src/bindings.cpp
+  src/attack_defense_batch.cpp
   src/fixed_attack_batch.cpp
 )
 target_compile_features(_native PRIVATE cxx_std_20)

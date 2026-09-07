@@ -11,10 +11,13 @@ from pydantic import BaseModel, Field
 
 from godfield_bot.domain.reference import BibleSnapshot
 from godfield_bot.features import ArtifactVocabulary
-from godfield_bot.reference import plain_attack_weapon_values
+from godfield_bot.reference import (
+    plain_attack_weapon_values,
+    plain_defense_armor_values,
+)
 
 if TYPE_CHECKING:
-    from godfield_sim import FixedAttackBatch
+    from godfield_sim import AttackDefenseBatch, FixedAttackBatch
     from torch import Tensor
 
 
@@ -41,10 +44,14 @@ class SimulationMetadata(BaseModel):
     rule_catalog_size: int = Field(gt=0)
     action_count: int = Field(gt=0)
     hand_slots: int = Field(gt=0)
-    action_semantics: Literal["atomic-hand-slot-macro"] = "atomic-hand-slot-macro"
-    sampling_distribution: Literal["uniform-redraw-with-replacement"] = (
-        "uniform-redraw-with-replacement"
-    )
+    action_semantics: Literal[
+        "atomic-hand-slot-macro",
+        "atomic-attack-defense-macro",
+    ] = "atomic-hand-slot-macro"
+    sampling_distribution: Literal[
+        "uniform-redraw-with-replacement",
+        "fixed-role-uniform-redraw-with-replacement",
+    ] = "uniform-redraw-with-replacement"
     promotion_eligible: Literal[False] = False
 
 
@@ -63,6 +70,14 @@ class FixedAttackSimulation:
     """A native batch plus the fingerprints required to interpret its output."""
 
     batch: FixedAttackBatch
+    metadata: SimulationMetadata
+
+
+@dataclass(frozen=True)
+class AttackDefenseSimulation:
+    """A native defense curriculum and its exact rule-catalog identity."""
+
+    batch: AttackDefenseBatch
     metadata: SimulationMetadata
 
 
@@ -164,6 +179,89 @@ def create_fixed_attack_simulation(
     )
 
 
+def create_attack_defense_simulation(
+    snapshot_path: Path,
+    *,
+    batch_size: int,
+    seed: int = 67,
+    initial_hp: int = 40,
+) -> AttackDefenseSimulation:
+    """Build the non-promotable neutral attack/defense curriculum."""
+
+    try:
+        import numpy as np
+        from godfield_sim import (
+            ACTION_COUNT,
+            ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
+            ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
+            ATTACK_DEFENSE_RULESET_ID,
+            HAND_SLOTS,
+            AttackDefenseBatch,
+        )
+    except ImportError as error:
+        raise SimulationUnavailableError(
+            "native simulation is unavailable; run `uv sync --extra simulation --group dev`"
+        ) from error
+
+    snapshot = BibleSnapshot.model_validate_json(snapshot_path.read_text(encoding="utf-8"))
+    vocabulary = ArtifactVocabulary.from_snapshot(snapshot)
+    attacks = plain_attack_weapon_values(snapshot)
+    defenses = plain_defense_armor_values(snapshot)
+    if not attacks:
+        raise ValueError("accepted snapshot contains no effect-free neutral attacks")
+    if not defenses:
+        raise ValueError("accepted snapshot contains no effect-free neutral armor")
+
+    weapon_catalog = [
+        {
+            "attack": attack,
+            "kind": "weapon",
+            "slug": slug,
+            "token_id": vocabulary.token_id("weapons", slug),
+        }
+        for slug, attack in sorted(attacks.items())
+    ]
+    armor_catalog = [
+        {
+            "defense": defense,
+            "kind": "armor",
+            "slug": slug,
+            "token_id": vocabulary.token_id("armor", slug),
+        }
+        for slug, defense in sorted(defenses.items())
+    ]
+    weapon_token_ids = np.asarray([row["token_id"] for row in weapon_catalog], dtype=np.uint32)
+    attack_values = np.asarray([row["attack"] for row in weapon_catalog], dtype=np.uint16)
+    armor_token_ids = np.asarray([row["token_id"] for row in armor_catalog], dtype=np.uint32)
+    defense_values = np.asarray([row["defense"] for row in armor_catalog], dtype=np.uint16)
+    batch = AttackDefenseBatch(
+        batch_size,
+        weapon_token_ids,
+        attack_values,
+        armor_token_ids,
+        defense_values,
+        seed,
+        initial_hp,
+    )
+    catalog = weapon_catalog + armor_catalog
+    return AttackDefenseSimulation(
+        batch=batch,
+        metadata=SimulationMetadata(
+            kernel_schema_version=ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
+            observation_schema_version=ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
+            ruleset_id=ATTACK_DEFENSE_RULESET_ID,
+            client_sha256=snapshot.client.sha256,
+            vocabulary_sha256=hashlib.sha256(vocabulary.model_dump_json().encode()).hexdigest(),
+            rule_catalog_sha256=_sha256_json(catalog),
+            rule_catalog_size=len(catalog),
+            action_count=ACTION_COUNT,
+            hand_slots=HAND_SLOTS,
+            action_semantics="atomic-attack-defense-macro",
+            sampling_distribution="fixed-role-uniform-redraw-with-replacement",
+        ),
+    )
+
+
 def benchmark_fixed_attack_simulation(
     snapshot_path: Path,
     *,
@@ -176,6 +274,43 @@ def benchmark_fixed_attack_simulation(
     import numpy as np
 
     simulation = create_fixed_attack_simulation(
+        snapshot_path,
+        batch_size=batch_size,
+        seed=seed,
+    )
+    actions = np.empty(batch_size, dtype=np.int64)
+    completed_episodes = 0
+    started = time.perf_counter()
+    for _ in range(batch_steps):
+        simulation.batch.reset_done()
+        actions[:] = simulation.batch.action_mask.argmax(axis=1)
+        simulation.batch.step(actions)
+        completed_episodes += int(np.count_nonzero(simulation.batch.terminated))
+    elapsed = time.perf_counter() - started
+    transitions = batch_size * batch_steps
+    return SimulationBenchmark(
+        metadata=simulation.metadata,
+        batch_size=batch_size,
+        batch_steps=batch_steps,
+        transitions=transitions,
+        completed_episodes=completed_episodes,
+        elapsed_seconds=elapsed,
+        transitions_per_second=transitions / elapsed,
+    )
+
+
+def benchmark_attack_defense_simulation(
+    snapshot_path: Path,
+    *,
+    batch_size: int,
+    batch_steps: int,
+    seed: int = 67,
+) -> SimulationBenchmark:
+    """Measure native attack/defense transitions without neural inference."""
+
+    import numpy as np
+
+    simulation = create_attack_defense_simulation(
         snapshot_path,
         batch_size=batch_size,
         seed=seed,

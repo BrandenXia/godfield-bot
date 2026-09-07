@@ -4,7 +4,9 @@ from pathlib import Path
 import pytest
 
 from godfield_bot.simulation import (
+    benchmark_attack_defense_simulation,
     benchmark_fixed_attack_simulation,
+    create_attack_defense_simulation,
     create_fixed_attack_simulation,
     simulation_feature_tensors,
 )
@@ -12,6 +14,7 @@ from godfield_bot.simulation import (
 np = pytest.importorskip("numpy")
 godfield_sim = pytest.importorskip("godfield_sim")
 FixedAttackBatch = godfield_sim.FixedAttackBatch
+AttackDefenseBatch = godfield_sim.AttackDefenseBatch
 
 SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-07" / "bible.json"
 
@@ -21,6 +24,18 @@ def native_batch(*, batch_size: int = 4, attack: int = 13) -> FixedAttackBatch:
         batch_size,
         np.asarray([2], dtype=np.uint32),
         np.asarray([attack], dtype=np.uint16),
+        67,
+        40,
+    )
+
+
+def defense_batch(*, batch_size: int = 4, attack: int = 13, defense: int = 4) -> AttackDefenseBatch:
+    return AttackDefenseBatch(
+        batch_size,
+        np.asarray([2], dtype=np.uint32),
+        np.asarray([attack], dtype=np.uint16),
+        np.asarray([3], dtype=np.uint32),
+        np.asarray([defense], dtype=np.uint16),
         67,
         40,
     )
@@ -41,6 +56,119 @@ def test_snapshot_factory_fingerprints_non_promotable_curriculum() -> None:
     assert simulation.metadata.sampling_distribution == "uniform-redraw-with-replacement"
     assert simulation.metadata.promotion_eligible is False
     assert simulation.batch.batch_size == 8
+
+
+def test_defense_factory_fingerprints_neutral_role_catalogs() -> None:
+    simulation = create_attack_defense_simulation(SNAPSHOT_PATH, batch_size=8)
+
+    assert simulation.metadata.kernel_schema_version == 1
+    assert simulation.metadata.observation_schema_version == 1
+    assert simulation.metadata.ruleset_id == "plain-attack-defense-redraw-duel-v1"
+    assert simulation.metadata.rule_catalog_size == 33
+    assert simulation.metadata.sampling_distribution == (
+        "fixed-role-uniform-redraw-with-replacement"
+    )
+    assert simulation.metadata.promotion_eligible is False
+    assert simulation.batch.batch_size == 8
+
+
+def test_defense_views_expose_phase_pending_attack_and_fixed_card_roles() -> None:
+    batch = defense_batch()
+
+    assert batch.phases.shape == (4,)
+    assert batch.pending_attacks.shape == (4,)
+    assert batch.hand_card_kinds.shape == (4, 9)
+    assert not batch.phases.flags.writeable
+    assert not batch.pending_attacks.flags.writeable
+    assert np.all(batch.phases == godfield_sim.PHASE_ATTACK)
+    assert np.all(batch.pending_attacks == 0)
+    assert np.all(batch.hand_card_kinds[:, :5] == godfield_sim.CARD_KIND_WEAPON)
+    assert np.all(batch.hand_card_kinds[:, 5:] == godfield_sim.CARD_KIND_ARMOR)
+    assert np.all(batch.action_mask[:, 1:6])
+    assert not np.any(batch.action_mask[:, 0])
+    assert not np.any(batch.action_mask[:, 6:])
+
+
+def test_attack_then_armor_resolves_damage_and_hands_turn_to_defender() -> None:
+    batch = defense_batch(attack=13, defense=4)
+    attackers = batch.active_players.copy()
+
+    batch.step(np.ones(batch.batch_size, dtype=np.int64))
+
+    assert np.all(batch.phases == godfield_sim.PHASE_DEFENSE)
+    assert np.all(batch.pending_attacks == 13)
+    assert np.all(batch.turn_numbers == 0)
+    np.testing.assert_array_equal(batch.active_players, 1 - attackers)
+    assert np.all(batch.action_mask[:, godfield_sim.FORGIVE_ACTION_INDEX])
+    assert np.all(batch.action_mask[:, 6:10])
+    assert not np.any(batch.action_mask[:, 1:6])
+
+    batch.step(np.full(batch.batch_size, 6, dtype=np.int64))
+
+    assert np.all(batch.phases == godfield_sim.PHASE_ATTACK)
+    assert np.all(batch.pending_attacks == 0)
+    assert np.all(batch.turn_numbers == 1)
+    assert np.allclose(batch.global_features[:, 1], 0.31)
+    assert np.all(batch.action_mask[:, 1:6])
+
+
+def test_defense_pass_and_full_block_have_expected_hp_effects() -> None:
+    passing = defense_batch(attack=13, defense=4)
+    blocking = defense_batch(attack=13, defense=20)
+    attack_actions = np.ones(passing.batch_size, dtype=np.int64)
+    passing.step(attack_actions)
+    blocking.step(attack_actions.copy())
+
+    passing.step(
+        np.full(passing.batch_size, godfield_sim.FORGIVE_ACTION_INDEX, dtype=np.int64)
+    )
+    blocking.step(np.full(blocking.batch_size, 6, dtype=np.int64))
+
+    assert np.allclose(passing.global_features[:, 1], 0.27)
+    assert np.allclose(blocking.global_features[:, 1], 0.40)
+
+
+def test_lethal_attack_terminates_only_after_defense_resolution() -> None:
+    batch = defense_batch(batch_size=16, attack=100, defense=1)
+    attackers = batch.active_players.copy()
+
+    batch.step(np.ones(batch.batch_size, dtype=np.int64))
+    assert not np.any(batch.terminated)
+    batch.step(
+        np.full(batch.batch_size, godfield_sim.FORGIVE_ACTION_INDEX, dtype=np.int64)
+    )
+
+    assert np.all(batch.terminated)
+    assert np.all(batch.phases == godfield_sim.PHASE_TERMINAL)
+    assert not np.any(batch.action_mask)
+    for attacker, returns in zip(attackers, batch.terminal_returns, strict=True):
+        assert returns[int(attacker)] == 1.0
+        assert returns[1 - int(attacker)] == -1.0
+
+
+def test_invalid_defense_action_rejects_batch_atomically() -> None:
+    batch = defense_batch(batch_size=3)
+    batch.step(np.ones(3, dtype=np.int64))
+    before = batch.global_features.copy()
+    actions = np.full(3, godfield_sim.FORGIVE_ACTION_INDEX, dtype=np.int64)
+    actions[1] = 1
+
+    with pytest.raises(ValueError, match="environment 1 selected a masked action"):
+        batch.step(actions)
+
+    np.testing.assert_array_equal(batch.global_features, before)
+    assert np.all(batch.phases == godfield_sim.PHASE_DEFENSE)
+
+
+def test_defense_catalogs_reject_cross_role_token_aliases() -> None:
+    with pytest.raises(ValueError, match="weapon and armor catalog token IDs must be unique"):
+        AttackDefenseBatch(
+            1,
+            np.asarray([2], dtype=np.uint32),
+            np.asarray([3], dtype=np.uint16),
+            np.asarray([2], dtype=np.uint32),
+            np.asarray([4], dtype=np.uint16),
+        )
 
 
 def test_native_views_match_policy_shapes_and_are_read_only() -> None:
@@ -186,6 +314,18 @@ def test_pytorch_inference_views_share_native_buffers() -> None:
 
 def test_benchmark_collects_full_batches() -> None:
     result = benchmark_fixed_attack_simulation(
+        SNAPSHOT_PATH,
+        batch_size=128,
+        batch_steps=30,
+    )
+
+    assert result.transitions == 3840
+    assert result.completed_episodes > 0
+    assert result.transitions_per_second > 0
+
+
+def test_defense_benchmark_collects_both_decision_phases() -> None:
+    result = benchmark_attack_defense_simulation(
         SNAPSHOT_PATH,
         batch_size=128,
         batch_steps=30,

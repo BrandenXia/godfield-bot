@@ -2,7 +2,7 @@ import asyncio
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 import structlog
 import typer
@@ -944,16 +944,26 @@ def simulation_benchmark(
         typer.Option(min=1, max=1_000_000, help="Batched simulator calls to measure."),
     ] = 1000,
     seed: Annotated[int, typer.Option(min=0)] = 67,
+    ruleset: Annotated[
+        Literal["attack", "attack-defense"],
+        typer.Option(help="Native curriculum ruleset to benchmark."),
+    ] = "attack-defense",
 ) -> None:
     """Benchmark native transition collection without neural inference."""
 
     try:
         from godfield_bot.simulation import (
             SimulationUnavailableError,
+            benchmark_attack_defense_simulation,
             benchmark_fixed_attack_simulation,
         )
 
-        result = benchmark_fixed_attack_simulation(
+        benchmark = (
+            benchmark_attack_defense_simulation
+            if ruleset == "attack-defense"
+            else benchmark_fixed_attack_simulation
+        )
+        result = benchmark(
             snapshot,
             batch_size=batch_size,
             batch_steps=batch_steps,

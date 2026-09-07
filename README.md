@@ -67,7 +67,8 @@ uv run godfield-bot runs export-outcomes runs/outcomes.jsonl
 uv run godfield-bot models init
 uv run godfield-bot models train-replay models/<base-model-id> runs/replay.jsonl
 uv run godfield-bot models train-outcomes models/<base-model-id> runs/outcomes.jsonl
-uv run godfield-bot simulation benchmark --batch-size 4096 --batch-steps 1000
+uv run godfield-bot simulation benchmark --ruleset attack-defense \
+  --batch-size 4096 --batch-steps 1000
 ```
 
 `api observe-private --password-stdin` uses God Field's keyed private-room
@@ -164,9 +165,12 @@ matches require another participant or separately authorized host account,
 because Training gameplay exists only inside the browser client. Learning will
 be simulator-first with real-game fine-tuning.
 
-The native `plain-attack-redraw-duel-v1` ruleset is a fast, deterministic
-curriculum and integration harness. It uses only effect-free neutral attacks,
-keeps each nine-card hand full with uniform replacement draws, and
-intentionally omits defense and most game rules. Its metadata is fingerprinted
-against the accepted client, artifact vocabulary, and rule catalog, and it is
-never promotion-eligible.
+The native simulator provides two fast, deterministic curricula. The original
+`plain-attack-redraw-duel-v1` ruleset isolates effect-free neutral attacks. The
+default `plain-attack-defense-redraw-duel-v1` benchmark adds a separate defense
+decision: five weapon slots and four armor slots redraw within their own
+categories, defense may pass or consume one neutral plain armor card, and
+damage is `max(ATK - DEF, 0)`. Phase, pending ATK, and card role are explicit
+native views; they are not yet connected to the neural feature encoder. Both
+rulesets are fingerprinted against the accepted client, artifact vocabulary,
+and exact rule catalog, and neither is promotion-eligible.

@@ -237,48 +237,48 @@ void FixedAttackBatch::refresh_environment_views(std::size_t environment) {
   }
 }
 
-FixedAttackBatch::Float2D FixedAttackBatch::global_features_view() const {
+Float2D FixedAttackBatch::global_features_view() const {
   return Float2D(global_features_.data(), {batch_size_, kGlobalFeatureCount});
 }
 
-FixedAttackBatch::Float3D FixedAttackBatch::player_features_view() const {
+Float3D FixedAttackBatch::player_features_view() const {
   return Float3D(player_features_.data(),
                  {batch_size_, kPlayerCount, kPlayerFeatureCount});
 }
 
-FixedAttackBatch::Bool2D FixedAttackBatch::player_mask_view() const {
+Bool2D FixedAttackBatch::player_mask_view() const {
   return Bool2D(player_mask_.get(), {batch_size_, kPlayerCount});
 }
 
-FixedAttackBatch::Int64_2D FixedAttackBatch::hand_token_ids_view() const {
+Int64_2D FixedAttackBatch::hand_token_ids_view() const {
   return Int64_2D(visible_hand_token_ids_.data(), {batch_size_, kHandSlots});
 }
 
-FixedAttackBatch::Bool2D FixedAttackBatch::hand_mask_view() const {
+Bool2D FixedAttackBatch::hand_mask_view() const {
   return Bool2D(hand_mask_.get(), {batch_size_, kHandSlots});
 }
 
-FixedAttackBatch::Bool2D FixedAttackBatch::action_mask_view() const {
+Bool2D FixedAttackBatch::action_mask_view() const {
   return Bool2D(action_mask_.get(), {batch_size_, kActionCount});
 }
 
-FixedAttackBatch::UInt8_1D FixedAttackBatch::active_players_view() const {
+UInt8_1D FixedAttackBatch::active_players_view() const {
   return UInt8_1D(active_players_.data(), {batch_size_});
 }
 
-FixedAttackBatch::Float2D FixedAttackBatch::terminal_returns_view() const {
+Float2D FixedAttackBatch::terminal_returns_view() const {
   return Float2D(terminal_returns_.data(), {batch_size_, kPlayerCount});
 }
 
-FixedAttackBatch::Bool1D FixedAttackBatch::terminated_view() const {
+Bool1D FixedAttackBatch::terminated_view() const {
   return Bool1D(terminated_.get(), {batch_size_});
 }
 
-FixedAttackBatch::UInt64_1D FixedAttackBatch::episode_ids_view() const {
+UInt64_1D FixedAttackBatch::episode_ids_view() const {
   return UInt64_1D(episode_ids_.data(), {batch_size_});
 }
 
-FixedAttackBatch::UInt16_1D FixedAttackBatch::turn_numbers_view() const {
+UInt16_1D FixedAttackBatch::turn_numbers_view() const {
   return UInt16_1D(turn_numbers_.data(), {batch_size_});
 }
 

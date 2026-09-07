@@ -382,7 +382,7 @@ def plain_defense_armor_values(snapshot: BibleSnapshot) -> dict[str, int]:
 
     result: dict[str, int] = {}
     for artifact in snapshot.catalog["armor"].items:
-        if len(artifact.detail) != 4:
+        if artifact.element_image_paths or len(artifact.detail) != 4:
             continue
         defense = re.fullmatch(r"DEF(\d+)", artifact.detail[1])
         if (

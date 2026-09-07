@@ -70,11 +70,12 @@ uv run godfield-bot models train-outcomes models/<base-model-id> runs/outcomes.j
 uv run godfield-bot simulation benchmark --batch-size 4096 --batch-steps 1000
 ```
 
-`api observe-private --room-id <room-id>` joins and enters an existing
-operator-owned private room, then records bounded state without playing cards.
-If the room is password protected, supply an owner-only (`0600`)
-`--password-file`; passwords are never accepted as ordinary CLI values or
-stored in the run database.
+`api observe-private --password-stdin` uses God Field's keyed private-room
+matchmaking, then records bounded state without playing cards. An owner-only
+(`0600`) `--password-file` can be used for unattended runs. An internal room ID
+may instead be supplied with `--room-id`. Matchmaking keys are never accepted
+as ordinary CLI values or stored in the run database. The observer stays a
+spectator unless `--enter-match` is explicitly supplied.
 
 Install the optional learning stack with `uv sync --extra training --group dev`.
 Install the native C++ curriculum simulator with

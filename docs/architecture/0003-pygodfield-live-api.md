@@ -61,12 +61,14 @@ a checksummed, versioned snapshot. The 2026-09-07 English API catalog has 296
 models: the same 291 artifact records shown across the seven existing Bible
 categories plus five `trade` models.
 
-The first runtime is `api-observer-v0`. It joins and enters an existing
-operator-owned private room, records lobby progress and normalized active-game
-states in the append-only run store, emits sparse terminal outcome evidence,
-and always has an in-match action budget of zero. Room IDs are stored only as a
-one-way fingerprint. An optional room password is read from a regular
-owner-only file and is never copied into events, configuration, or logs.
+The first runtime is `api-observer-v0`. It can use a private matchmaking key or
+an internal room ID, records lobby progress and normalized active-game states
+in the append-only run store, emits sparse terminal outcome evidence, and
+always has an in-match action budget of zero. It remains a spectator by
+default; entering the next match requires a separate explicit flag. Room IDs
+are stored only as a one-way fingerprint. An optional room key is read without
+echo or from a regular owner-only file and is never copied into events,
+configuration, or logs.
 The existing browser replay exporters intentionally reject these API-specific
 state and action schemas; a reviewed feature/action conversion must land before
 private-game evidence can enter model training.

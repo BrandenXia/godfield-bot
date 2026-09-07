@@ -190,18 +190,32 @@ def enable_protocol_api(
 @api_app.command("observe-private")
 def observe_private_api_game(
     room_id: Annotated[
-        str,
-        typer.Option(help="Existing operator-owned private room ID."),
-    ],
+        str | None,
+        typer.Option(help="Optional internal private room ID; omit to use keyed matchmaking."),
+    ] = None,
     password_file: Annotated[
         Path | None,
         typer.Option(
             exists=True,
             dir_okay=False,
             readable=True,
-            help="Optional owner-only file containing the private-room password.",
+            help="Optional owner-only file containing the private-room matchmaking key.",
         ),
     ] = None,
+    password_stdin: Annotated[
+        bool,
+        typer.Option(
+            "--password-stdin",
+            help="Read the private-room matchmaking key without echoing it.",
+        ),
+    ] = False,
+    enter_match: Annotated[
+        bool,
+        typer.Option(
+            "--enter-match",
+            help="Enter the next game; otherwise remain an observation-only spectator.",
+        ),
+    ] = False,
     catalog_snapshot: Annotated[
         Path,
         typer.Option(exists=True, dir_okay=False, readable=True),
@@ -240,6 +254,15 @@ def observe_private_api_game(
     )
 
     try:
+        if password_stdin and password_file is not None:
+            raise ApiRuntimeError("provide the private-room key through only one input")
+        if room_id is None and not password_stdin and password_file is None:
+            raise ApiRuntimeError("keyed matchmaking requires --password-stdin or --password-file")
+        room_password: str | None = None
+        if password_stdin:
+            from getpass import getpass
+
+            room_password = getpass("Private room key: ")
         result = run_private_api_observer(
             AppSettings(),
             PrivateApiRunConfig(
@@ -247,11 +270,13 @@ def observe_private_api_game(
                 catalog_snapshot=catalog_snapshot,
                 room_id=room_id,
                 password_file=password_file,
+                enter_match=enter_match,
                 max_seconds=max_seconds,
                 poll_seconds=poll_seconds,
                 no_progress_seconds=no_progress_seconds,
                 request_timeout_seconds=request_timeout_seconds,
             ),
+            room_password=room_password,
         )
     except (ApiRuntimeError, RunStoreError, ValueError) as error:
         structlog.get_logger().error(

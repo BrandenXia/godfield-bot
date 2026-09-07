@@ -51,8 +51,9 @@ class PrivateApiRunConfig(BaseModel):
         "2026-09-07",
         "api-catalog-en.json",
     )
-    room_id: str = Field(min_length=1, max_length=256)
+    room_id: str | None = Field(default=None, min_length=1, max_length=256)
     password_file: Path | None = None
+    enter_match: bool = False
     max_seconds: float = Field(default=90.0, ge=10.0, le=3600.0)
     poll_seconds: float = Field(default=1.0, ge=0.25, le=10.0)
     no_progress_seconds: float = Field(default=60.0, ge=10.0, le=600.0)
@@ -60,7 +61,9 @@ class PrivateApiRunConfig(BaseModel):
 
     @field_validator("room_id")
     @classmethod
-    def room_id_has_no_outer_whitespace(cls, value: str) -> str:
+    def room_id_has_no_outer_whitespace(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         if value != value.strip():
             raise ValueError("room ID must not start or end with whitespace")
         return value
@@ -116,8 +119,12 @@ def _read_password_file(path: Path | None) -> str | None:
     finally:
         if descriptor >= 0:
             os.close(descriptor)
+    return _validate_room_password(raw_password, source="password file")
+
+
+def _validate_room_password(raw_password: str, *, source: str) -> str:
     if len(raw_password) > 258:
-        raise ApiRuntimeError("the private-room password file has an invalid value")
+        raise ApiRuntimeError(f"the private-room {source} has an invalid value")
     if raw_password.endswith("\r\n"):
         password = raw_password[:-2]
     elif raw_password.endswith("\n"):
@@ -125,7 +132,7 @@ def _read_password_file(path: Path | None) -> str | None:
     else:
         password = raw_password
     if not password or len(password) > 256 or "\n" in password or "\r" in password:
-        raise ApiRuntimeError("the private-room password file has an invalid value")
+        raise ApiRuntimeError(f"the private-room {source} has an invalid value")
     return password
 
 
@@ -137,6 +144,7 @@ def api_environment_fingerprint(snapshot: ApiCatalogSnapshot) -> str:
 def _lobby_observation(room: Any, *, user_id: str) -> dict[str, JsonValue]:
     user_ids = room.user_ids()
     entry_ids = room.entry_ids()
+    game = room.game
     return {
         "schema_version": 1,
         "mode": "private",
@@ -145,7 +153,17 @@ def _lobby_observation(room: Any, *, user_id: str) -> dict[str, JsonValue]:
         "entry_count": len(entry_ids),
         "identity_present": user_id in user_ids,
         "identity_entered": user_id in entry_ids,
-        "active_game": room.game is not None,
+        "active_game": game is not None,
+        "active_game_over": bool(game.is_over) if game is not None else None,
+        "active_player_count": len(game.players) if game is not None else 0,
+        "active_game_update_count": (
+            int(game.update_count)
+            if game is not None
+            and isinstance(game.update_count, int)
+            and not isinstance(game.update_count, bool)
+            and game.update_count >= 0
+            else None
+        ),
     }
 
 
@@ -158,6 +176,26 @@ def _safe_runtime_error_reason(error: Exception) -> str:
     if isinstance(error, (ApiRuntimeError, ApiAccountError)):
         return str(error).splitlines()[0]
     return "pygodfield private-room operation failed"
+
+
+def _safe_runtime_error_payload(error: Exception) -> dict[str, JsonValue]:
+    payload: dict[str, JsonValue] = {
+        "error_type": type(error).__name__,
+        "reason": _safe_runtime_error_reason(error),
+    }
+    action = getattr(error, "action", None)
+    status = getattr(error, "status", None)
+    if action in {
+        "create-room",
+        "join-room",
+        "make-entry",
+        "keep-alive",
+        "leave-room",
+    }:
+        payload["api_action"] = action
+    if isinstance(status, int) and not isinstance(status, bool):
+        payload["http_status"] = status
+    return payload
 
 
 def classify_api_two_player_terminal(state: ApiGameState) -> ApiPrivateMatchOutcome | None:
@@ -225,34 +263,48 @@ def _finish_terminal_run(
 def run_private_api_observer(
     settings: AppSettings,
     config: PrivateApiRunConfig,
+    *,
+    room_password: str | None = None,
 ) -> RunRecord:
     """Join one existing private room and record bounded, observation-only state."""
 
     if settings.public_duel_enabled:
         raise ApiRuntimeError("private API observer requires public Duel to remain disabled")
-    password = _read_password_file(config.password_file)
+    if room_password is not None and config.password_file is not None:
+        raise ApiRuntimeError("provide the private-room key through only one input")
+    password = (
+        _validate_room_password(room_password, source="key")
+        if room_password is not None
+        else _read_password_file(config.password_file)
+    )
+    if config.room_id is None and password is None:
+        raise ApiRuntimeError("private matchmaking requires a room key")
     snapshot = read_api_catalog_snapshot(config.catalog_snapshot)
     if snapshot.upstream_revision != PYGODFIELD_REVISION:
         raise ApiRuntimeError("catalog snapshot was captured by a different pygodfield revision")
     catalog = item_catalog_from_snapshot(snapshot)
     environment_fingerprint = api_environment_fingerprint(snapshot)
     store = RunStore(config.database)
+    run_config: dict[str, JsonValue] = {
+        "max_games": 1,
+        "max_seconds": config.max_seconds,
+        "poll_seconds": config.poll_seconds,
+        "no_progress_seconds": config.no_progress_seconds,
+        "max_in_match_actions": 0,
+        "enter_match": config.enter_match,
+        "pygodfield_revision": PYGODFIELD_REVISION,
+        "catalog_sha256": snapshot.content_sha256,
+        "room_selector": "room_id" if config.room_id is not None else "matchmaking_key",
+    }
+    if config.room_id is not None:
+        run_config["room_fingerprint"] = hashlib.sha256(config.room_id.encode()).hexdigest()
     run = store.start_run(
         RunSpec(
             mode=RunMode.PRIVATE,
             identity=settings.identity,
             client_sha256=environment_fingerprint,
             policy_id="api-observer-v0",
-            config={
-                "max_games": 1,
-                "max_seconds": config.max_seconds,
-                "poll_seconds": config.poll_seconds,
-                "no_progress_seconds": config.no_progress_seconds,
-                "max_in_match_actions": 0,
-                "pygodfield_revision": PYGODFIELD_REVISION,
-                "catalog_sha256": snapshot.content_sha256,
-                "room_fingerprint": hashlib.sha256(config.room_id.encode()).hexdigest(),
-            },
+            config=run_config,
         )
     )
     states_recorded = 0
@@ -269,13 +321,34 @@ def run_private_api_observer(
             refreshed_credentials = validate_api_credentials(settings)
             if user_id != refreshed_credentials.user_id:
                 raise ApiAccountError("the refreshed API identity failed its continuity check")
-            client.join_room(
-                config.room_id,
-                mode=Mode.PRIVATE,
-                password=password,
+            if config.room_id is not None:
+                client.join_room(
+                    config.room_id,
+                    mode=Mode.PRIVATE,
+                    password=password,
+                )
+                joined_room_id = config.room_id
+            else:
+                joined_room_id = client.enter(
+                    Mode.PRIVATE,
+                    password=password,
+                    lang=snapshot.language,
+                )
+            if not isinstance(joined_room_id, str) or not joined_room_id:
+                raise ApiRuntimeError("pygodfield returned no valid private room ID")
+            store.append_event(
+                run.run_id,
+                EventKind.OBSERVATION,
+                {
+                    "schema_version": 1,
+                    "mode": "private",
+                    "phase": "joined",
+                    "room_fingerprint": hashlib.sha256(joined_room_id.encode()).hexdigest(),
+                },
             )
             try:
-                client.make_entry(team=0)
+                if config.enter_match:
+                    client.make_entry(team=0)
                 client.start_keepalive()
                 started = time.monotonic()
                 last_progress_at = started
@@ -349,10 +422,7 @@ def run_private_api_observer(
     except KeyboardInterrupt:
         outcome_reason = "operator_interrupt"
     except Exception as error:
-        payload: dict[str, JsonValue] = {
-            "error_type": type(error).__name__,
-            "reason": _safe_runtime_error_reason(error),
-        }
+        payload = _safe_runtime_error_payload(error)
         store.append_event(run.run_id, EventKind.ERROR, payload)
         return store.finish_run(run.run_id, RunStatus.FAILED, outcome=payload)
     return store.finish_run(

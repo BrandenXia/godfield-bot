@@ -127,6 +127,27 @@ def test_disguised_cards_never_expose_or_act_on_the_true_model() -> None:
     assert [action.action_id for action in actions.actions] == ["pass"]
 
 
+def test_transient_hand_placeholder_without_model_id_is_preserved_but_never_used() -> None:
+    room = room_state(self_items=[{"id": 11, "modelId": None}])
+
+    state = normalize_api_game_state(room, user_id="loki-user")
+    actions = verified_api_actions(room, user_id="loki-user")
+
+    assert state.hand[0].instance_id == 11
+    assert state.hand[0].model_id is None
+    assert state.hand[0].name is None
+    assert [action.action_id for action in actions.actions] == ["pass"]
+
+
+def test_disguised_placeholder_uses_only_its_visible_model_id() -> None:
+    room = room_state(self_items=[{"id": 11, "modelId": None, "fakeModelId": 3}])
+
+    state = normalize_api_game_state(room, user_id="loki-user")
+
+    assert state.hand[0].model_id == 3
+    assert state.hand[0].name == "Fire Shield"
+
+
 def test_unknown_curse_state_blocks_pass_and_attack_actions() -> None:
     actions = verified_api_actions(
         room_state(self_curses=["future-curse"]),

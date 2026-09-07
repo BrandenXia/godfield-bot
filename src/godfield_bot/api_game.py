@@ -31,7 +31,7 @@ class ApiActionKind(StrEnum):
 
 class ApiItemState(BaseModel):
     instance_id: int = Field(gt=0)
-    model_id: int = Field(gt=0)
+    model_id: int | None = Field(default=None, gt=0)
     name: str | None = None
     category: str | None = None
     element: str | None = None
@@ -153,11 +153,11 @@ def _optional_positive_int(value: object, field: str) -> int | None:
 
 
 def _item_state(item: Any) -> ApiItemState:
-    true_model_id = _required_positive_int(item.model_id, "item model ID")
+    true_model_id = _optional_positive_int(item.model_id, "item model ID")
     visible_model_id = _optional_positive_int(item.fake_model_id, "fake item model ID")
     model_id = visible_model_id or true_model_id
     catalog = getattr(item, "_catalog", None)
-    model = catalog.get(model_id) if catalog is not None else None
+    model = catalog.get(model_id) if catalog is not None and model_id is not None else None
     return ApiItemState(
         instance_id=_required_positive_int(item.id, "item instance ID"),
         model_id=model_id,

@@ -42,6 +42,9 @@ Keep these project-owned boundaries around it:
   player statistics and hand counts. Opponents' item instance IDs, model IDs,
   names, and stats are discarded even if the room document exposes them.
   Declared attack cards remain observable because they have been played.
+  A transient own-hand placeholder without a model ID is retained as an
+  unknown, non-actionable item instead of terminating the session or inventing
+  an identity for it.
 - A project-owned legal-action layer converts only reviewed actions into
   pygodfield commands. The initial surface is deliberately incomplete:
   passing, declining a purchase, and conservative single-card actions. Unknown

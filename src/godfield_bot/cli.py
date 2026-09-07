@@ -209,13 +209,6 @@ def observe_private_api_game(
             help="Read the private-room matchmaking key without echoing it.",
         ),
     ] = False,
-    enter_match: Annotated[
-        bool,
-        typer.Option(
-            "--enter-match",
-            help="Enter the next game; otherwise remain an observation-only spectator.",
-        ),
-    ] = False,
     catalog_snapshot: Annotated[
         Path,
         typer.Option(exists=True, dir_okay=False, readable=True),
@@ -270,7 +263,7 @@ def observe_private_api_game(
                 catalog_snapshot=catalog_snapshot,
                 room_id=room_id,
                 password_file=password_file,
-                enter_match=enter_match,
+                enter_match=False,
                 max_seconds=max_seconds,
                 poll_seconds=poll_seconds,
                 no_progress_seconds=no_progress_seconds,
@@ -281,6 +274,117 @@ def observe_private_api_game(
     except (ApiRuntimeError, RunStoreError, ValueError) as error:
         structlog.get_logger().error(
             "api_private_observer_failed",
+            error_type=type(error).__name__,
+            reason=str(error).splitlines()[0],
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(result.model_dump_json(indent=2))
+
+
+@api_app.command("play-private")
+def play_private_api_game(
+    confirm_play: Annotated[
+        bool,
+        typer.Option(
+            "--confirm-play",
+            help="Confirm entry and conservative card play in an operator-owned private room.",
+        ),
+    ] = False,
+    room_id: Annotated[
+        str | None,
+        typer.Option(help="Optional internal private room ID; omit to use keyed matchmaking."),
+    ] = None,
+    password_file: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            help="Optional owner-only file containing the private-room matchmaking key.",
+        ),
+    ] = None,
+    password_stdin: Annotated[
+        bool,
+        typer.Option(
+            "--password-stdin",
+            help="Read the private-room matchmaking key without echoing it.",
+        ),
+    ] = False,
+    catalog_snapshot: Annotated[
+        Path,
+        typer.Option(exists=True, dir_okay=False, readable=True),
+    ] = Path("data", "snapshots", "2026-09-07", "api-catalog-en.json"),
+    database: Annotated[
+        Path,
+        typer.Option(help="Ignored local SQLite trajectory database."),
+    ] = Path("runs", "godfield.sqlite"),
+    max_seconds: Annotated[
+        float,
+        typer.Option(min=10.0, max=3600.0, help="Maximum private-session time."),
+    ] = 3600.0,
+    poll_seconds: Annotated[
+        float,
+        typer.Option(min=0.25, max=10.0, help="Seconds between room reads."),
+    ] = 1.0,
+    no_progress_seconds: Annotated[
+        float,
+        typer.Option(
+            min=10.0,
+            max=600.0,
+            help="Stop after this many seconds without normalized progress.",
+        ),
+    ] = 180.0,
+    max_actions: Annotated[
+        int,
+        typer.Option(min=1, max=1000, help="Hard in-match API action budget."),
+    ] = 500,
+    request_timeout_seconds: Annotated[
+        float,
+        typer.Option(min=1.0, max=120.0, help="Per-request API timeout."),
+    ] = 20.0,
+) -> None:
+    """Enter the next private game and use only conservative verified actions."""
+
+    if not confirm_play:
+        typer.echo("Refusing private game entry without --confirm-play", err=True)
+        raise typer.Exit(code=2)
+    from godfield_bot.api_runtime import (
+        ApiPolicyName,
+        ApiRuntimeError,
+        PrivateApiRunConfig,
+        run_private_api_observer,
+    )
+
+    try:
+        if password_stdin and password_file is not None:
+            raise ApiRuntimeError("provide the private-room key through only one input")
+        if room_id is None and not password_stdin and password_file is None:
+            raise ApiRuntimeError("keyed matchmaking requires --password-stdin or --password-file")
+        room_password: str | None = None
+        if password_stdin:
+            from getpass import getpass
+
+            room_password = getpass("Private room key: ")
+        result = run_private_api_observer(
+            AppSettings(),
+            PrivateApiRunConfig(
+                database=database,
+                catalog_snapshot=catalog_snapshot,
+                room_id=room_id,
+                password_file=password_file,
+                enter_match=True,
+                policy=ApiPolicyName.HEURISTIC,
+                max_in_match_actions=max_actions,
+                max_seconds=max_seconds,
+                poll_seconds=poll_seconds,
+                no_progress_seconds=no_progress_seconds,
+                request_timeout_seconds=request_timeout_seconds,
+            ),
+            room_password=room_password,
+        )
+    except (ApiRuntimeError, RunStoreError, ValueError) as error:
+        structlog.get_logger().error(
+            "api_private_play_failed",
             error_type=type(error).__name__,
             reason=str(error).splitlines()[0],
         )

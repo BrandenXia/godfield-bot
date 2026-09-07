@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 from godfield import ItemCatalog, RoomState
+from pydantic import ValidationError
 
 from godfield_bot.api_catalog import (
     ApiCatalogItem,
@@ -13,6 +14,7 @@ from godfield_bot.api_catalog import (
     write_api_catalog_snapshot,
 )
 from godfield_bot.api_runtime import (
+    ApiPolicyName,
     ApiRuntimeError,
     PrivateApiRunConfig,
     _read_password_file,
@@ -81,6 +83,25 @@ def terminal_room() -> RoomState:
                 "updateCount": 17,
                 "isOver": True,
             }
+        },
+        catalog(),
+    )
+
+
+def active_room(*, opponent_hp: int = 35, update_count: int = 12) -> RoomState:
+    room = terminal_room()
+    room.raw["game"]["players"][1]["hp"] = opponent_hp
+    room.raw["game"]["updateCount"] = update_count
+    room.raw["game"]["isOver"] = False
+    return room
+
+
+def empty_lobby() -> RoomState:
+    return RoomState(
+        {
+            "users": [{"id": "loki-user", "name": "ロキ-67"}],
+            "entries": [],
+            "userCount": 1,
         },
         catalog(),
     )
@@ -157,7 +178,8 @@ def test_private_api_observer_records_terminal_sparse_outcome(tmp_path, monkeypa
     assert run.outcome["result"] == "win"
     assert run.outcome["reward"] == 1.0
     assert run.outcome["in_match_actions"] == 0
-    assert client.joined and client.entered and client.keepalive and client.left
+    assert client.joined and client.keepalive and client.left
+    assert client.entered is False
     events = RunStore(database).events(run.run_id)
     assert [event.kind for event in events] == [
         EventKind.OBSERVATION,
@@ -226,3 +248,83 @@ def test_password_file_must_be_owner_only(tmp_path) -> None:
     password_file.chmod(0o600)
     assert stat.S_IMODE(password_file.stat().st_mode) == 0o600
     assert _read_password_file(password_file) == "secret"
+
+
+def test_api_policy_configuration_requires_explicit_safe_bounds() -> None:
+    with pytest.raises(ValidationError, match="zero in-match action budget"):
+        PrivateApiRunConfig(
+            room_id="private-room",
+            max_in_match_actions=1,
+        )
+    with pytest.raises(ValidationError, match="explicit match entry"):
+        PrivateApiRunConfig(
+            room_id="private-room",
+            policy=ApiPolicyName.HEURISTIC,
+            max_in_match_actions=1,
+        )
+
+
+def test_private_api_heuristic_enters_lobby_and_records_accepted_action(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    snapshot_path = tmp_path / "catalog.json"
+    write_api_catalog_snapshot(catalog_snapshot(), snapshot_path)
+
+    class FakePlayingClient(FakeClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.states = iter(
+                [
+                    empty_lobby(),
+                    active_room(),
+                    terminal_room(),
+                ]
+            )
+            self.commands: list[dict[str, object]] = []
+
+        def state(self) -> RoomState:
+            return next(self.states)
+
+        def submit(self, command) -> None:
+            self.commands.append(command.to_dict())
+
+    client = FakePlayingClient()
+
+    @contextmanager
+    def fake_open_api_client(*args, **kwargs):
+        yield client
+
+    monkeypatch.setattr("godfield_bot.api_runtime.open_api_client", fake_open_api_client)
+    monkeypatch.setattr(
+        "godfield_bot.api_runtime.validate_api_credentials",
+        lambda settings: SimpleNamespace(user_id="loki-user"),
+    )
+    monkeypatch.setattr("godfield_bot.api_runtime.time.sleep", lambda seconds: None)
+    database = tmp_path / "runs" / "api.sqlite"
+
+    run = run_private_api_observer(
+        AppSettings(state_root=tmp_path / "state"),
+        PrivateApiRunConfig(
+            database=database,
+            catalog_snapshot=snapshot_path,
+            enter_match=True,
+            policy=ApiPolicyName.HEURISTIC,
+            max_in_match_actions=5,
+            max_seconds=10,
+            no_progress_seconds=10,
+        ),
+        room_password="astra-vs-humans",
+    )
+
+    assert run.status is RunStatus.COMPLETED
+    assert run.outcome is not None
+    assert run.outcome["in_match_actions"] == 1
+    assert client.entered is True
+    assert client.commands == [{"itemIds": [11], "targetPlayerId": 2}]
+    events = RunStore(database).events(run.run_id)
+    assert EventKind.ACTION_RESULT in {event.kind for event in events}
+    transitions = [event for event in events if event.kind is EventKind.TRANSITION]
+    assert len(transitions) == 1
+    assert transitions[0].payload["state_changed"] is True
+    assert transitions[0].payload["player_hp_deltas"] == {"2": -35}

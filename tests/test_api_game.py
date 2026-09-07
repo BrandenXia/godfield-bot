@@ -5,6 +5,7 @@ from godfield import Attack, ItemCatalog, RoomState
 from godfield_bot.api_game import (
     ApiActionKind,
     ApiPhase,
+    build_api_action_transition,
     command_for_api_action,
     normalize_api_game_state,
     verified_api_actions,
@@ -187,3 +188,22 @@ def test_pending_attack_uses_pygodfield_aggregation() -> None:
     assert state.pending_attack is not None
     assert state.pending_attack.attack == 9
     assert state.pending_attack.item_model_ids == (1,)
+
+
+def test_api_action_transition_records_state_and_public_hp_delta() -> None:
+    before_room = room_state()
+    after_room = room_state()
+    after_room.raw["game"]["players"][1]["hp"] = 30
+    after_room.raw["game"]["updateCount"] = 13
+    action = verified_api_actions(before_room, user_id="loki-user").actions[1]
+
+    transition = build_api_action_transition(
+        action,
+        normalize_api_game_state(before_room, user_id="loki-user"),
+        normalize_api_game_state(after_room, user_id="loki-user"),
+    )
+
+    assert transition.state_changed is True
+    assert transition.update_count_delta == 1
+    assert transition.player_hp_deltas == {2: -5}
+    assert transition.after_state is not None

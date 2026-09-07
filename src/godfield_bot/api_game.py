@@ -95,6 +95,40 @@ class ApiLegalActionSet(BaseModel):
     blocked_reason: str | None = None
 
 
+class ApiPolicyDecision(BaseModel):
+    schema_version: int = 1
+    decided_at: datetime
+    policy_id: str
+    state_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    chosen_action_id: str | None = None
+    scores: dict[str, float]
+    rationale: str
+    executable: bool
+
+
+class ApiActionExecutionResult(BaseModel):
+    schema_version: int = 1
+    executed_at: datetime
+    action_id: str
+    kind: ApiActionKind
+    dispatched: bool
+    server_acknowledged: bool | None = None
+    latency_ms: float = Field(ge=0)
+
+
+class ApiActionTransition(BaseModel):
+    schema_version: int = 1
+    observed_at: datetime
+    action_id: str
+    before_state_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    after_state_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    state_changed: bool | None
+    update_count_delta: int | None = None
+    player_hp_deltas: dict[int, int] = Field(default_factory=dict)
+    before_state: ApiGameState
+    after_state: ApiGameState | None = None
+
+
 def api_game_state_digest(state: ApiGameState) -> str:
     canonical = state.model_dump_json(exclude={"observed_at"})
     return hashlib.sha256(canonical.encode()).hexdigest()
@@ -334,3 +368,37 @@ def command_for_api_action(action: ApiLegalAction) -> Command:
             target=action.target_player_id,
         )
     raise ApiGameStateError("API action cannot be represented as a pygodfield command")
+
+
+def build_api_action_transition(
+    action: ApiLegalAction,
+    before: ApiGameState,
+    after: ApiGameState | None,
+) -> ApiActionTransition:
+    before_digest = api_game_state_digest(before)
+    if after is None:
+        return ApiActionTransition(
+            observed_at=datetime.now(UTC),
+            action_id=action.action_id,
+            before_state_digest=before_digest,
+            state_changed=None,
+            before_state=before,
+        )
+    after_digest = api_game_state_digest(after)
+    before_hp = {player.player_id: player.hp for player in before.players}
+    hp_deltas = {
+        player.player_id: player.hp - before_hp[player.player_id]
+        for player in after.players
+        if player.player_id in before_hp and player.hp != before_hp[player.player_id]
+    }
+    return ApiActionTransition(
+        observed_at=after.observed_at,
+        action_id=action.action_id,
+        before_state_digest=before_digest,
+        after_state_digest=after_digest,
+        state_changed=after_digest != before_digest,
+        update_count_delta=after.update_count - before.update_count,
+        player_hp_deltas=hp_deltas,
+        before_state=before,
+        after_state=after,
+    )

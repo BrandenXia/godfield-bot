@@ -6,11 +6,12 @@ import os
 import stat
 import time
 from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
 import structlog
-from pydantic import BaseModel, Field, JsonValue, field_validator
+from pydantic import BaseModel, Field, JsonValue, field_validator, model_validator
 
 from godfield_bot.api_account import (
     PYGODFIELD_REVISION,
@@ -24,10 +25,16 @@ from godfield_bot.api_catalog import (
     read_api_catalog_snapshot,
 )
 from godfield_bot.api_game import (
+    ApiActionExecutionResult,
+    ApiActionKind,
     ApiGameState,
+    ApiLegalAction,
     ApiLegalActionSet,
     ApiPhase,
+    ApiPolicyDecision,
     api_game_state_digest,
+    build_api_action_transition,
+    command_for_api_action,
     normalize_api_game_state,
     verified_api_actions,
 )
@@ -43,6 +50,11 @@ class ApiRuntimeError(RuntimeError):
     """Raised when private API observation cannot continue safely."""
 
 
+class ApiPolicyName(StrEnum):
+    OBSERVER = "api-observer-v0"
+    HEURISTIC = "api-heuristic-v0"
+
+
 class PrivateApiRunConfig(BaseModel):
     database: Path = Path("runs", "godfield.sqlite")
     catalog_snapshot: Path = Path(
@@ -54,6 +66,8 @@ class PrivateApiRunConfig(BaseModel):
     room_id: str | None = Field(default=None, min_length=1, max_length=256)
     password_file: Path | None = None
     enter_match: bool = False
+    policy: ApiPolicyName = ApiPolicyName.OBSERVER
+    max_in_match_actions: int = Field(default=0, ge=0, le=1000)
     max_seconds: float = Field(default=90.0, ge=10.0, le=3600.0)
     poll_seconds: float = Field(default=1.0, ge=0.25, le=10.0)
     no_progress_seconds: float = Field(default=60.0, ge=10.0, le=600.0)
@@ -68,15 +82,16 @@ class PrivateApiRunConfig(BaseModel):
             raise ValueError("room ID must not start or end with whitespace")
         return value
 
-
-class ApiObserverDecision(BaseModel):
-    schema_version: int = 1
-    decided_at: datetime
-    policy_id: str = "api-observer-v0"
-    state_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
-    chosen_action_id: None = None
-    executable: bool = False
-    rationale: str = "observation-only private API safety gate"
+    @model_validator(mode="after")
+    def executable_policy_has_safe_bounds(self) -> PrivateApiRunConfig:
+        if self.policy is ApiPolicyName.OBSERVER and self.max_in_match_actions != 0:
+            raise ValueError("api-observer-v0 requires a zero in-match action budget")
+        if self.policy is ApiPolicyName.HEURISTIC:
+            if not self.enter_match:
+                raise ValueError("api-heuristic-v0 requires explicit match entry")
+            if self.max_in_match_actions < 1:
+                raise ValueError("api-heuristic-v0 requires a positive action budget")
+        return self
 
 
 class ApiPrivateMatchOutcome(BaseModel):
@@ -191,11 +206,96 @@ def _safe_runtime_error_payload(error: Exception) -> dict[str, JsonValue]:
         "make-entry",
         "keep-alive",
         "leave-room",
+        "submit-command",
     }:
         payload["api_action"] = action
     if isinstance(status, int) and not isinstance(status, bool):
         payload["http_status"] = status
     return payload
+
+
+def _should_request_match_entry(room: Any, *, user_id: str) -> bool:
+    game = room.game
+    if game is not None and not game.is_over:
+        return False
+    return not room.is_entered(user_id)
+
+
+def decide_api_action(
+    policy: ApiPolicyName,
+    state: ApiGameState,
+    legal_actions: ApiLegalActionSet,
+) -> tuple[ApiPolicyDecision, ApiLegalAction | None]:
+    if policy is ApiPolicyName.OBSERVER:
+        return (
+            ApiPolicyDecision(
+                decided_at=datetime.now(UTC),
+                policy_id=policy.value,
+                state_digest=legal_actions.state_digest,
+                scores={action.action_id: 0.0 for action in legal_actions.actions},
+                rationale="observation-only private API safety gate",
+                executable=False,
+            ),
+            None,
+        )
+
+    chosen: ApiLegalAction | None = None
+    if state.phase is ApiPhase.PURCHASE:
+        chosen = next(
+            (
+                action
+                for action in legal_actions.actions
+                if action.kind is ApiActionKind.DECLINE_PURCHASE
+            ),
+            None,
+        )
+    elif state.phase in {ApiPhase.TURN, ApiPhase.DEFENSE}:
+        candidates = [
+            action
+            for action in legal_actions.actions
+            if action.kind is ApiActionKind.USE_ITEM and action.item_instance_ids
+        ]
+        hand_by_instance = {item.instance_id: item for item in state.hand}
+
+        def action_value(action: ApiLegalAction) -> tuple[int, int]:
+            item = hand_by_instance.get(action.item_instance_ids[0])
+            if item is None:
+                return (-1, -action.item_instance_ids[0])
+            value = item.attack if state.phase is ApiPhase.TURN else item.defense
+            return (value, -item.instance_id)
+
+        if candidates:
+            chosen = max(candidates, key=action_value)
+        else:
+            chosen = next(
+                (action for action in legal_actions.actions if action.kind is ApiActionKind.PASS),
+                None,
+            )
+    executable = chosen is not None
+    rationale = (
+        "decline an unmodeled purchase"
+        if chosen is not None and chosen.kind is ApiActionKind.DECLINE_PURCHASE
+        else "use the strongest conservative single-card action"
+        if chosen is not None and chosen.kind is ApiActionKind.USE_ITEM
+        else "pass because no conservative card action is available"
+        if chosen is not None
+        else "the server is not awaiting an action from ロキ-67"
+    )
+    return (
+        ApiPolicyDecision(
+            decided_at=datetime.now(UTC),
+            policy_id=policy.value,
+            state_digest=legal_actions.state_digest,
+            chosen_action_id=chosen.action_id if chosen is not None else None,
+            scores={
+                action.action_id: float(chosen is not None and action.action_id == chosen.action_id)
+                for action in legal_actions.actions
+            },
+            rationale=rationale,
+            executable=executable,
+        ),
+        chosen,
+    )
 
 
 def classify_api_two_player_terminal(state: ApiGameState) -> ApiPrivateMatchOutcome | None:
@@ -227,6 +327,7 @@ def _finish_terminal_run(
     outcome: ApiPrivateMatchOutcome,
     *,
     states_recorded: int,
+    in_match_actions: int,
 ) -> RunRecord:
     reward = SparseTerminalReward(
         observed_at=outcome.observed_at,
@@ -255,7 +356,7 @@ def _finish_terminal_run(
             "reward": reward.value,
             "terminal_state_digest": outcome.terminal_state_digest,
             "states_recorded": states_recorded,
-            "in_match_actions": 0,
+            "in_match_actions": in_match_actions,
         },
     )
 
@@ -266,10 +367,10 @@ def run_private_api_observer(
     *,
     room_password: str | None = None,
 ) -> RunRecord:
-    """Join one existing private room and record bounded, observation-only state."""
+    """Run one bounded private-room API session under an explicit policy."""
 
     if settings.public_duel_enabled:
-        raise ApiRuntimeError("private API observer requires public Duel to remain disabled")
+        raise ApiRuntimeError("private API runner requires public Duel to remain disabled")
     if room_password is not None and config.password_file is not None:
         raise ApiRuntimeError("provide the private-room key through only one input")
     password = (
@@ -290,8 +391,9 @@ def run_private_api_observer(
         "max_seconds": config.max_seconds,
         "poll_seconds": config.poll_seconds,
         "no_progress_seconds": config.no_progress_seconds,
-        "max_in_match_actions": 0,
+        "max_in_match_actions": config.max_in_match_actions,
         "enter_match": config.enter_match,
+        "policy": config.policy.value,
         "pygodfield_revision": PYGODFIELD_REVISION,
         "catalog_sha256": snapshot.content_sha256,
         "room_selector": "room_id" if config.room_id is not None else "matchmaking_key",
@@ -303,12 +405,14 @@ def run_private_api_observer(
             mode=RunMode.PRIVATE,
             identity=settings.identity,
             client_sha256=environment_fingerprint,
-            policy_id="api-observer-v0",
+            policy_id=config.policy.value,
             config=run_config,
         )
     )
     states_recorded = 0
+    in_match_actions = 0
     outcome_reason = "wall_clock_limit"
+    pending_action: tuple[ApiLegalAction, ApiGameState] | None = None
     try:
         from godfield import Mode  # type: ignore[import-untyped]
 
@@ -347,12 +451,11 @@ def run_private_api_observer(
                 },
             )
             try:
-                if config.enter_match:
-                    client.make_entry(team=0)
                 client.start_keepalive()
                 started = time.monotonic()
                 last_progress_at = started
                 previous_digest: str | None = None
+                entry_request_digest: str | None = None
                 while time.monotonic() - started < config.max_seconds:
                     room = client.state()
                     game = room.game
@@ -360,6 +463,22 @@ def run_private_api_observer(
                     if game is None or me is None:
                         lobby = _lobby_observation(room, user_id=user_id)
                         digest = _lobby_digest(lobby)
+                        if (
+                            config.enter_match
+                            and _should_request_match_entry(room, user_id=user_id)
+                            and digest != entry_request_digest
+                        ):
+                            client.make_entry(team=0)
+                            entry_request_digest = digest
+                            store.append_event(
+                                run.run_id,
+                                EventKind.OBSERVATION,
+                                {
+                                    "schema_version": 1,
+                                    "mode": "private",
+                                    "phase": "entry_requested",
+                                },
+                            )
                         if digest != previous_digest:
                             store.append_event(run.run_id, EventKind.OBSERVATION, lobby)
                             previous_digest = digest
@@ -368,13 +487,27 @@ def run_private_api_observer(
                         state = normalize_api_game_state(room, user_id=user_id)
                         digest = api_game_state_digest(state)
                         if digest != previous_digest:
+                            if pending_action is not None:
+                                previous_action, previous_state = pending_action
+                                store.append_event(
+                                    run.run_id,
+                                    EventKind.TRANSITION,
+                                    build_api_action_transition(
+                                        previous_action,
+                                        previous_state,
+                                        state,
+                                    ),
+                                    occurred_at=state.observed_at,
+                                )
+                                pending_action = None
                             legal_actions: ApiLegalActionSet = verified_api_actions(
                                 room,
                                 user_id=user_id,
                             )
-                            decision = ApiObserverDecision(
-                                decided_at=datetime.now(UTC),
-                                state_digest=digest,
+                            decision, chosen_action = decide_api_action(
+                                config.policy,
+                                state,
+                                legal_actions,
                             )
                             store.append_events(
                                 run.run_id,
@@ -402,10 +535,67 @@ def run_private_api_observer(
                                     run,
                                     terminal,
                                     states_recorded=states_recorded,
+                                    in_match_actions=in_match_actions,
                                 )
                             if state.phase is ApiPhase.TERMINAL:
                                 outcome_reason = "unclassified_terminal"
                                 break
+                            if decision.executable:
+                                if chosen_action is None:
+                                    raise ApiRuntimeError(
+                                        "executable API decision has no legal action"
+                                    )
+                                if in_match_actions >= config.max_in_match_actions:
+                                    outcome_reason = "action_limit"
+                                    break
+                                action_started = time.perf_counter()
+                                try:
+                                    client.submit(command_for_api_action(chosen_action))
+                                except Exception:
+                                    execution = ApiActionExecutionResult(
+                                        executed_at=datetime.now(UTC),
+                                        action_id=chosen_action.action_id,
+                                        kind=chosen_action.kind,
+                                        dispatched=True,
+                                        server_acknowledged=None,
+                                        latency_ms=(time.perf_counter() - action_started) * 1000,
+                                    )
+                                    store.append_events(
+                                        run.run_id,
+                                        (
+                                            (EventKind.ACTION_RESULT, execution),
+                                            (
+                                                EventKind.TRANSITION,
+                                                build_api_action_transition(
+                                                    chosen_action,
+                                                    state,
+                                                    None,
+                                                ),
+                                            ),
+                                        ),
+                                    )
+                                    raise
+                                execution = ApiActionExecutionResult(
+                                    executed_at=datetime.now(UTC),
+                                    action_id=chosen_action.action_id,
+                                    kind=chosen_action.kind,
+                                    dispatched=True,
+                                    server_acknowledged=True,
+                                    latency_ms=(time.perf_counter() - action_started) * 1000,
+                                )
+                                store.append_event(
+                                    run.run_id,
+                                    EventKind.ACTION_RESULT,
+                                    execution,
+                                )
+                                pending_action = (chosen_action, state)
+                                in_match_actions += 1
+                                log.info(
+                                    "api_private_action_dispatched",
+                                    run_id=run.run_id,
+                                    action=chosen_action.action_id,
+                                    action_count=in_match_actions,
+                                )
                     if time.monotonic() - last_progress_at >= config.no_progress_seconds:
                         outcome_reason = "no_progress_limit"
                         break
@@ -422,15 +612,30 @@ def run_private_api_observer(
     except KeyboardInterrupt:
         outcome_reason = "operator_interrupt"
     except Exception as error:
+        if pending_action is not None:
+            action, before_state = pending_action
+            store.append_event(
+                run.run_id,
+                EventKind.TRANSITION,
+                build_api_action_transition(action, before_state, None),
+            )
+            pending_action = None
         payload = _safe_runtime_error_payload(error)
         store.append_event(run.run_id, EventKind.ERROR, payload)
         return store.finish_run(run.run_id, RunStatus.FAILED, outcome=payload)
+    if pending_action is not None:
+        action, before_state = pending_action
+        store.append_event(
+            run.run_id,
+            EventKind.TRANSITION,
+            build_api_action_transition(action, before_state, None),
+        )
     return store.finish_run(
         run.run_id,
         RunStatus.ABORTED,
         outcome={
             "reason": outcome_reason,
             "states_recorded": states_recorded,
-            "in_match_actions": 0,
+            "in_match_actions": in_match_actions,
         },
     )

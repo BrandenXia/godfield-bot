@@ -4,6 +4,7 @@ import re
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Literal
 
 import structlog
 from playwright.async_api import BrowserContext, Page, async_playwright
@@ -15,6 +16,7 @@ from godfield_bot.domain.reference import (
     BibleSnapshot,
     ClientFingerprint,
 )
+from godfield_bot.domain.reference_diff import ArtifactDelta, BibleDiff, TextDelta
 
 log = structlog.get_logger()
 
@@ -222,6 +224,88 @@ def write_snapshot(snapshot: BibleSnapshot, output: Path) -> None:
 
 def category_counts(snapshot: BibleSnapshot) -> dict[str, int]:
     return {name: len(category.items) for name, category in snapshot.catalog.items()}
+
+
+def diff_bible_snapshots(baseline: BibleSnapshot, candidate: BibleSnapshot) -> BibleDiff:
+    reference_changes = tuple(
+        TextDelta(
+            name=name,
+            before=baseline.reference_sections.get(name, ()),
+            after=candidate.reference_sections.get(name, ()),
+        )
+        for name in sorted(
+            baseline.reference_sections.keys() | candidate.reference_sections.keys()
+        )
+        if baseline.reference_sections.get(name, ())
+        != candidate.reference_sections.get(name, ())
+    )
+    category_names = baseline.catalog.keys() | candidate.catalog.keys()
+    note_changes = tuple(
+        TextDelta(
+            name=name,
+            before=baseline.catalog[name].notes if name in baseline.catalog else (),
+            after=candidate.catalog[name].notes if name in candidate.catalog else (),
+        )
+        for name in sorted(category_names)
+        if (baseline.catalog[name].notes if name in baseline.catalog else ())
+        != (candidate.catalog[name].notes if name in candidate.catalog else ())
+    )
+    artifact_changes: list[ArtifactDelta] = []
+    for category_name in sorted(category_names):
+        before_items = (
+            {item.asset: item for item in baseline.catalog[category_name].items}
+            if category_name in baseline.catalog
+            else {}
+        )
+        after_items = (
+            {item.asset: item for item in candidate.catalog[category_name].items}
+            if category_name in candidate.catalog
+            else {}
+        )
+        for asset in sorted(before_items.keys() | after_items.keys()):
+            before = before_items.get(asset)
+            after = after_items.get(asset)
+            if before == after:
+                continue
+            if before is None:
+                change: Literal["added", "removed", "modified"] = "added"
+            elif after is None:
+                change = "removed"
+            else:
+                change = "modified"
+            artifact_changes.append(
+                ArtifactDelta(
+                    category=category_name,
+                    asset=asset,
+                    change=change,
+                    before=before,
+                    after=after,
+                )
+            )
+    client_changed = baseline.client.sha256 != candidate.client.sha256
+    source_url_changed = baseline.source_url != candidate.source_url
+    language_changed = baseline.language != candidate.language
+    has_semantic_changes = bool(
+        client_changed
+        or source_url_changed
+        or language_changed
+        or reference_changes
+        or note_changes
+        or artifact_changes
+    )
+    return BibleDiff(
+        baseline_client_sha256=baseline.client.sha256,
+        candidate_client_sha256=candidate.client.sha256,
+        client_changed=client_changed,
+        source_url_changed=source_url_changed,
+        language_changed=language_changed,
+        baseline_category_counts=category_counts(baseline),
+        candidate_category_counts=category_counts(candidate),
+        reference_section_changes=reference_changes,
+        category_note_changes=note_changes,
+        artifact_changes=tuple(artifact_changes),
+        has_semantic_changes=has_semantic_changes,
+    )
 
 
 def plain_attack_weapon_values(snapshot: BibleSnapshot) -> dict[str, int]:

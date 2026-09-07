@@ -36,6 +36,7 @@ uv sync --group dev
 PLAYWRIGHT_BROWSERS_PATH=.playwright uv run playwright install chromium
 uv run godfield-bot doctor
 PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot data refresh
+uv run godfield-bot data diff data/snapshots/<accepted>/bible.json runs/current-bible.json
 uv run pytest
 ```
 

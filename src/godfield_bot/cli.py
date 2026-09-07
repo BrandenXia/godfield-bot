@@ -28,6 +28,7 @@ from godfield_bot.observer import (
 from godfield_bot.probe import record_observation_probe
 from godfield_bot.reference import (
     category_counts,
+    diff_bible_snapshots,
     plain_defense_armor_values,
     refresh_bible,
     verified_attack_weapon_values,
@@ -584,3 +585,38 @@ def data_refresh(
         categories=category_counts(snapshot),
     )
     typer.echo(destination)
+
+
+@data_app.command("diff")
+def data_diff(
+    baseline: Annotated[
+        Path,
+        typer.Argument(exists=True, dir_okay=False, readable=True),
+    ],
+    candidate: Annotated[
+        Path,
+        typer.Argument(exists=True, dir_okay=False, readable=True),
+    ],
+    fail_on_change: Annotated[
+        bool,
+        typer.Option(help="Exit nonzero when a semantic or client change is found."),
+    ] = False,
+) -> None:
+    """Compare two Bible snapshots without treating timestamps as changes."""
+
+    from godfield_bot.domain.reference import BibleSnapshot
+
+    try:
+        before = BibleSnapshot.model_validate_json(baseline.read_text(encoding="utf-8"))
+        after = BibleSnapshot.model_validate_json(candidate.read_text(encoding="utf-8"))
+        result = diff_bible_snapshots(before, after)
+    except (OSError, ValueError) as error:
+        structlog.get_logger().error(
+            "reference_diff_failed",
+            error_type=type(error).__name__,
+            reason=str(error).splitlines()[0],
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(result.model_dump_json(indent=2))
+    if fail_on_change and result.has_semantic_changes:
+        raise typer.Exit(code=3)

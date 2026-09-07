@@ -56,6 +56,7 @@ uv run godfield-bot runs events <run-id> --include-payload
 uv run godfield-bot runs record-probe <observation.json> --client-sha256 <sha256>
 uv run godfield-bot runs export-replay runs/replay.jsonl
 uv run godfield-bot models init
+uv run godfield-bot models train-replay models/<base-model-id> runs/replay.jsonl
 ```
 
 Install the optional learning stack with `uv sync --extra training --group dev`.
@@ -100,6 +101,14 @@ only fully evidenced, dispatched actions that changed normalized state. Each
 sample preserves the before and after states, legal action set, chosen action,
 policy decision, execution result, client fingerprint, and raw transition
 deltas. Rewards are deliberately not inferred during export.
+
+`models train-replay` performs behavior cloning over each run as a recurrent
+sequence and writes a new immutable candidate rather than modifying its base
+model. The manifest records the parent model, replay checksum, client and
+vocabulary fingerprints, contributing run IDs, and before/after imitation
+metrics. A replay-trained model remains a candidate: this command does not
+evaluate, promote, or allow it to control the browser, and it does not train
+the value head from invented returns.
 
 Training and operator-owned private rooms are the only approved early play
 scope. Learning will be simulator-first with real-game fine-tuning.

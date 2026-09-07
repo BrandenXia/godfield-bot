@@ -23,6 +23,10 @@ class ReplayExportError(RuntimeError):
     """Raised when verified replay data cannot be exported safely."""
 
 
+class ReplayDatasetError(RuntimeError):
+    """Raised when an exported replay dataset fails its typed contract."""
+
+
 def _parse_events(
     events: tuple[RunEvent, ...],
 ) -> tuple[
@@ -272,6 +276,39 @@ def collect_replay_samples(
         skipped=dict(sorted(skipped.items())),
     )
     return tuple(samples), summary
+
+
+def load_replay_jsonl(source: Path) -> tuple[ReplaySample, ...]:
+    samples: list[ReplaySample] = []
+    try:
+        with source.open(encoding="utf-8") as input_file:
+            for line_number, raw_line in enumerate(input_file, start=1):
+                if not raw_line.strip():
+                    continue
+                try:
+                    sample = ReplaySample.model_validate_json(raw_line)
+                except ValidationError as error:
+                    raise ReplayDatasetError(
+                        f"replay line {line_number} violates the dataset contract"
+                    ) from error
+                if (
+                    game_state_digest(sample.before_state)
+                    != sample.transition.before_state_digest
+                    or game_state_digest(sample.after_state)
+                    != sample.transition.after_state_digest
+                ):
+                    raise ReplayDatasetError(
+                        f"replay line {line_number} has mismatched state digests"
+                    )
+                samples.append(sample)
+    except OSError as error:
+        raise ReplayDatasetError(f"could not read replay dataset: {error}") from error
+    if not samples:
+        raise ReplayDatasetError("replay dataset has no samples")
+    identities = {(sample.run_id, sample.transition_sequence) for sample in samples}
+    if len(identities) != len(samples):
+        raise ReplayDatasetError("replay dataset contains duplicate transition identities")
+    return tuple(samples)
 
 
 def export_replay_jsonl(store: RunStore, destination: Path) -> ReplayExportSummary:

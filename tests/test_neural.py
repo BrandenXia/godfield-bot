@@ -6,7 +6,7 @@ import torch
 from godfield_bot.domain.action import ActionKind, LegalAction, LegalActionSet
 from godfield_bot.domain.game import GameState, HandArtifact, PlayerState
 from godfield_bot.domain.observation import Bounds
-from godfield_bot.features import StateFeatureEncoder, load_vocabulary
+from godfield_bot.features import StateFeatureEncoder, action_index, load_vocabulary
 from godfield_bot.legal_actions import game_state_digest, observation_only_actions
 from godfield_bot.neural import RecurrentPolicyValueNet, features_to_tensors
 
@@ -126,3 +126,4 @@ def test_confirm_action_uses_final_action_head_slot() -> None:
     features = StateFeatureEncoder(vocabulary).encode(game_state, legal_actions)
 
     assert [index for index, allowed in enumerate(features.action_mask) if allowed] == [0, 20]
+    assert action_index(legal_actions.actions[1]) == 20

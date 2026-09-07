@@ -2,6 +2,8 @@ import json
 import stat
 from datetime import UTC, datetime
 
+import pytest
+
 from godfield_bot.domain.action import (
     ActionExecutionResult,
     ActionKind,
@@ -12,7 +14,12 @@ from godfield_bot.domain.action import (
 from godfield_bot.domain.game import GameState, PlayerState
 from godfield_bot.domain.run import EventKind, RunMode, RunSpec, RunStatus
 from godfield_bot.legal_actions import game_state_digest
-from godfield_bot.replay import collect_replay_samples, export_replay_jsonl
+from godfield_bot.replay import (
+    ReplayDatasetError,
+    collect_replay_samples,
+    export_replay_jsonl,
+    load_replay_jsonl,
+)
 from godfield_bot.run_store import RunStore
 from godfield_bot.runner import build_action_transition
 
@@ -203,3 +210,22 @@ def test_replay_recovers_legacy_transition_from_adjacent_state_events(tmp_path) 
     assert samples[0].before_state == before
     assert samples[0].after_state == after
     assert summary.skipped == {}
+
+
+def test_replay_loader_rejects_duplicate_transition_identity(tmp_path) -> None:
+    store = RunStore(tmp_path / "runs.sqlite")
+    run_id = start_run(store)
+    append_action_evidence(
+        store,
+        run_id,
+        before=game_state(field_number=1, opponent_hp=40),
+        after=game_state(field_number=2, opponent_hp=38),
+    )
+    store.finish_run(run_id, RunStatus.ABORTED)
+    dataset = tmp_path / "replay.jsonl"
+    export_replay_jsonl(store, dataset)
+    original = dataset.read_text(encoding="utf-8")
+    dataset.write_text(original + original, encoding="utf-8")
+
+    with pytest.raises(ReplayDatasetError, match="duplicate transition"):
+        load_replay_jsonl(dataset)

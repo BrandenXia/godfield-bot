@@ -487,6 +487,65 @@ def models_init(
     typer.echo(manifest.model_dump_json(indent=2))
 
 
+@models_app.command("train-replay")
+def models_train_replay(
+    base_model: Annotated[
+        Path,
+        typer.Argument(exists=True, file_okay=False, readable=True),
+    ],
+    replay: Annotated[
+        Path,
+        typer.Argument(exists=True, dir_okay=False, readable=True),
+    ],
+    snapshot: Annotated[
+        Path,
+        typer.Option(exists=True, dir_okay=False, readable=True),
+    ] = Path("data", "snapshots", "2026-09-06", "bible.json"),
+    root_directory: Annotated[
+        Path,
+        typer.Option(help="Ignored root directory for the new candidate."),
+    ] = Path("models"),
+    epochs: Annotated[
+        int,
+        typer.Option(min=1, max=10_000, help="Offline passes over replay trajectories."),
+    ] = 20,
+    learning_rate: Annotated[
+        float,
+        typer.Option(min=1e-8, max=1.0, help="Behavior-cloning learning rate."),
+    ] = 1e-3,
+    seed: Annotated[int, typer.Option()] = 67,
+) -> None:
+    """Create a non-deployable imitation candidate from verified replay."""
+
+    try:
+        from godfield_bot.imitation import (
+            ImitationTrainingConfig,
+            train_imitation_candidate,
+        )
+        from godfield_bot.replay import ReplayDatasetError
+        from godfield_bot.training import TrainingError
+
+        manifest = train_imitation_candidate(
+            base_model_directory=base_model,
+            model_root=root_directory,
+            replay_path=replay,
+            snapshot_path=snapshot,
+            config=ImitationTrainingConfig(
+                epochs=epochs,
+                learning_rate=learning_rate,
+                seed=seed,
+            ),
+        )
+    except (ImportError, OSError, ValueError, ReplayDatasetError, TrainingError) as error:
+        structlog.get_logger().error(
+            "replay_training_failed",
+            error_type=type(error).__name__,
+            reason=str(error).splitlines()[0],
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(manifest.model_dump_json(indent=2))
+
+
 @data_app.command("refresh")
 def data_refresh(
     output: Annotated[

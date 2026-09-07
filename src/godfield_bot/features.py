@@ -2,7 +2,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, model_validator
 
-from godfield_bot.domain.action import ActionKind, LegalActionSet
+from godfield_bot.domain.action import ActionKind, LegalAction, LegalActionSet
 from godfield_bot.domain.game import GameState
 from godfield_bot.domain.reference import BibleSnapshot
 from godfield_bot.legal_actions import game_state_digest
@@ -11,6 +11,34 @@ PAD_TOKEN = "<PAD>"
 UNKNOWN_TOKEN = "<UNKNOWN>"
 TRADE_TOKENS = ("trade/buy", "trade/exchange", "trade/sell")
 ARTIFACT_ACTION_OFFSET = 1
+
+
+def action_index(
+    action: LegalAction,
+    *,
+    max_players: int = 9,
+    max_hand_slots: int = 9,
+) -> int:
+    """Map one typed action onto the versioned neural action head."""
+
+    target_action_offset = ARTIFACT_ACTION_OFFSET + max_hand_slots
+    forgive_action_index = target_action_offset + max_players
+    confirm_action_index = forgive_action_index + 1
+    if action.kind is ActionKind.WAIT:
+        return 0
+    if action.kind is ActionKind.SELECT_ARTIFACT:
+        if action.artifact_slot is None or action.artifact_slot >= max_hand_slots:
+            raise FeatureEncodingError("artifact action has an invalid slot")
+        return ARTIFACT_ACTION_OFFSET + action.artifact_slot
+    if action.kind is ActionKind.SELECT_TARGET:
+        if action.target_player_index is None or action.target_player_index >= max_players:
+            raise FeatureEncodingError("target action has an invalid player index")
+        return target_action_offset + action.target_player_index
+    if action.kind is ActionKind.FORGIVE:
+        return forgive_action_index
+    if action.kind is ActionKind.CONFIRM:
+        return confirm_action_index
+    raise FeatureEncodingError(f"action kind {action.kind} is outside the neural action head")
 
 
 class FeatureEncodingError(RuntimeError):
@@ -111,32 +139,15 @@ class StateFeatureEncoder:
             hand_tokens.append(0)
             hand_mask.append(False)
 
-        target_action_offset = ARTIFACT_ACTION_OFFSET + self.max_hand_slots
-        forgive_action_index = target_action_offset + self.max_players
-        confirm_action_index = forgive_action_index + 1
+        confirm_action_index = ARTIFACT_ACTION_OFFSET + self.max_hand_slots + self.max_players + 1
         action_mask = [False] * (confirm_action_index + 1)
         for action in legal_actions.actions:
-            if action.kind is ActionKind.WAIT:
-                action_mask[0] = True
-            elif action.kind is ActionKind.SELECT_ARTIFACT:
-                if action.artifact_slot is None or action.artifact_slot >= self.max_hand_slots:
-                    raise FeatureEncodingError("artifact action has an invalid slot")
-                action_mask[ARTIFACT_ACTION_OFFSET + action.artifact_slot] = True
-            elif action.kind is ActionKind.SELECT_TARGET:
-                if (
-                    action.target_player_index is None
-                    or action.target_player_index >= self.max_players
-                ):
-                    raise FeatureEncodingError("target action has an invalid player index")
-                action_mask[target_action_offset + action.target_player_index] = True
-            elif action.kind is ActionKind.FORGIVE:
-                action_mask[forgive_action_index] = True
-            elif action.kind is ActionKind.CONFIRM:
-                action_mask[confirm_action_index] = True
-            else:
-                raise FeatureEncodingError(
-                    f"action kind {action.kind} is outside the neural action head"
-                )
+            index = action_index(
+                action,
+                max_players=self.max_players,
+                max_hand_slots=self.max_hand_slots,
+            )
+            action_mask[index] = True
         if not any(action_mask):
             raise FeatureEncodingError("neural action mask has no legal action")
 

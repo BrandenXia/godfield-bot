@@ -40,6 +40,14 @@ class ModelManifest(BaseModel):
     weights_file: str
     architecture: ModelArchitecture
     seed: int
+    parent_model_id: str | None = None
+    training_algorithm: str | None = None
+    training_dataset_sha256: str | None = Field(
+        default=None,
+        min_length=64,
+        max_length=64,
+        pattern=r"^[0-9a-f]{64}$",
+    )
     training_run_ids: tuple[str, ...] = ()
     metrics: dict[str, float] = Field(default_factory=dict)
 
@@ -115,3 +123,59 @@ def load_model(model_directory: Path) -> tuple[ModelManifest, RecurrentPolicyVal
     state_dict = torch.load(weights_path, map_location="cpu", weights_only=True)
     model.load_state_dict(state_dict)
     return manifest, model
+
+
+def save_candidate(
+    root: Path,
+    model: RecurrentPolicyValueNet,
+    vocabulary: ArtifactVocabulary,
+    *,
+    parent: ModelManifest,
+    seed: int,
+    training_algorithm: str,
+    training_dataset_sha256: str,
+    training_run_ids: tuple[str, ...],
+    metrics: dict[str, float],
+) -> ModelManifest:
+    """Persist trained weights as a new immutable, non-promoted candidate."""
+
+    if vocabulary_digest(vocabulary) != parent.vocabulary_sha256:
+        raise ValueError("candidate vocabulary differs from its parent model")
+    expected = _build_model(parent.architecture)
+    expected.load_state_dict(model.state_dict())
+    del expected
+
+    prepare_private_directory(root)
+    model_id = str(uuid4())
+    model_directory = root / model_id
+    prepare_private_directory(model_directory)
+    weights_file = "weights.pt"
+    weights_path = model_directory / weights_file
+    temporary_weights = model_directory / "weights.pt.tmp"
+    torch.save(model.state_dict(), temporary_weights)
+    os.chmod(temporary_weights, 0o600)
+    os.replace(temporary_weights, weights_path)
+    manifest = ModelManifest(
+        model_id=model_id,
+        created_at=datetime.now(UTC),
+        status=ModelStatus.CANDIDATE,
+        client_sha256=parent.client_sha256,
+        vocabulary_sha256=parent.vocabulary_sha256,
+        weights_sha256=_file_digest(weights_path),
+        weights_file=weights_file,
+        architecture=parent.architecture,
+        seed=seed,
+        parent_model_id=parent.model_id,
+        training_algorithm=training_algorithm,
+        training_dataset_sha256=training_dataset_sha256,
+        training_run_ids=tuple(dict.fromkeys(training_run_ids)),
+        metrics=metrics,
+    )
+    temporary_manifest = model_directory / "manifest.json.tmp"
+    temporary_manifest.write_text(
+        manifest.model_dump_json(indent=2) + "\n",
+        encoding="utf-8",
+    )
+    os.chmod(temporary_manifest, 0o600)
+    os.replace(temporary_manifest, model_directory / "manifest.json")
+    return manifest

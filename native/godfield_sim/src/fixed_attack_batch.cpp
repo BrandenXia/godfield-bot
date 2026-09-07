@@ -91,6 +91,18 @@ std::uint64_t FixedAttackBatch::next_random(std::size_t environment) noexcept {
   return mix64(rng_states_[environment]);
 }
 
+void FixedAttackBatch::draw_into_slot(std::size_t environment,
+                                      std::size_t player, std::size_t slot) {
+  const auto catalog_size =
+      static_cast<std::uint64_t>(catalog_token_ids_.size());
+  const auto catalog_index =
+      static_cast<std::size_t>(next_random(environment) % catalog_size);
+  const auto offset = hand_offset(environment, player, slot);
+  hand_token_ids_by_player_[offset] =
+      static_cast<std::int64_t>(catalog_token_ids_[catalog_index]);
+  hand_attack_values_[offset] = catalog_attack_values_[catalog_index];
+}
+
 void FixedAttackBatch::reset_environment(std::size_t environment) {
   ++episode_ids_[environment];
   hit_points_[environment * kPlayerCount] = initial_hp_;
@@ -102,16 +114,9 @@ void FixedAttackBatch::reset_environment(std::size_t environment) {
   terminal_returns_[environment * kPlayerCount] = 0.0F;
   terminal_returns_[environment * kPlayerCount + 1U] = 0.0F;
 
-  const auto catalog_size =
-      static_cast<std::uint64_t>(catalog_token_ids_.size());
   for (std::size_t player = 0; player < kPlayerCount; ++player) {
     for (std::size_t slot = 0; slot < kHandSlots; ++slot) {
-      const auto catalog_index =
-          static_cast<std::size_t>(next_random(environment) % catalog_size);
-      const auto offset = hand_offset(environment, player, slot);
-      hand_token_ids_by_player_[offset] =
-          static_cast<std::int64_t>(catalog_token_ids_[catalog_index]);
-      hand_attack_values_[offset] = catalog_attack_values_[catalog_index];
+      draw_into_slot(environment, player, slot);
     }
   }
   refresh_environment_views(environment);
@@ -132,18 +137,6 @@ std::size_t FixedAttackBatch::reset_done() {
     }
   }
   return reset_count;
-}
-
-bool FixedAttackBatch::hands_empty(std::size_t environment) const noexcept {
-  for (std::size_t player = 0; player < kPlayerCount; ++player) {
-    for (std::size_t slot = 0; slot < kHandSlots; ++slot) {
-      if (hand_token_ids_by_player_[hand_offset(environment, player, slot)] !=
-          0) {
-        return false;
-      }
-    }
-  }
-  return true;
 }
 
 void FixedAttackBatch::step(ActionInput actions) {
@@ -189,9 +182,8 @@ void FixedAttackBatch::step(ActionInput actions) {
       terminated_[environment] = true;
       terminal_returns_[environment * kPlayerCount + actor] = 1.0F;
       terminal_returns_[environment * kPlayerCount + opponent] = -1.0F;
-    } else if (hands_empty(environment)) {
-      terminated_[environment] = true;
     } else {
+      draw_into_slot(environment, actor, slot);
       active_players_[environment] = static_cast<std::uint8_t>(opponent);
     }
     refresh_environment_views(environment);

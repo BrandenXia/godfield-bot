@@ -33,10 +33,12 @@ def first_legal_actions(batch: FixedAttackBatch) -> np.ndarray:
 def test_snapshot_factory_fingerprints_non_promotable_curriculum() -> None:
     simulation = create_fixed_attack_simulation(SNAPSHOT_PATH, batch_size=8)
 
-    assert simulation.metadata.ruleset_id == "plain-attack-duel-v0"
+    assert simulation.metadata.kernel_schema_version == 2
+    assert simulation.metadata.ruleset_id == "plain-attack-redraw-duel-v1"
     assert simulation.metadata.rule_catalog_size == 18
     assert simulation.metadata.action_count == 21
     assert simulation.metadata.hand_slots == 9
+    assert simulation.metadata.sampling_distribution == "uniform-redraw-with-replacement"
     assert simulation.metadata.promotion_eligible is False
     assert simulation.batch.batch_size == 8
 
@@ -73,6 +75,29 @@ def test_identical_seeds_produce_identical_batched_transitions() -> None:
     np.testing.assert_array_equal(first.hand_token_ids, second.hand_token_ids)
     np.testing.assert_array_equal(first.global_features, second.global_features)
     np.testing.assert_array_equal(first.terminal_returns, second.terminal_returns)
+
+
+def test_nonterminal_attacks_redraw_into_the_consumed_slot() -> None:
+    batch = native_batch(batch_size=8, attack=1)
+
+    batch.step(first_legal_actions(batch))
+    batch.step(first_legal_actions(batch))
+
+    assert not np.any(batch.terminated)
+    assert np.all(batch.hand_mask)
+    assert np.all(batch.hand_token_ids > 0)
+    assert np.all(batch.action_mask[:, 1:10])
+
+
+def test_curriculum_no_longer_ends_in_an_artificial_empty_hand_draw() -> None:
+    batch = native_batch(batch_size=8, attack=1)
+
+    for _ in range(18):
+        batch.step(first_legal_actions(batch))
+
+    assert not np.any(batch.terminated)
+    assert np.all(batch.terminal_returns == 0)
+    assert np.all(batch.action_mask[:, 1:10])
 
 
 def test_terminal_step_emits_only_sparse_seat_returns() -> None:

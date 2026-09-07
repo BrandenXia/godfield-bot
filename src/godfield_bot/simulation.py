@@ -42,7 +42,9 @@ class SimulationMetadata(BaseModel):
     action_count: int = Field(gt=0)
     hand_slots: int = Field(gt=0)
     action_semantics: Literal["atomic-hand-slot-macro"] = "atomic-hand-slot-macro"
-    sampling_distribution: Literal["uniform-with-replacement"] = "uniform-with-replacement"
+    sampling_distribution: Literal["uniform-redraw-with-replacement"] = (
+        "uniform-redraw-with-replacement"
+    )
     promotion_eligible: Literal[False] = False
 
 

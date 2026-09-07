@@ -43,13 +43,15 @@ The Python adapter converts these views to PyTorch through DLPack without a CPU
 copy. They are explicitly ephemeral: collectors clone or copy a state only when
 it must survive the next native step.
 
-The initial `plain-attack-duel-v0` kernel is deliberately narrow. It samples
+The `plain-attack-redraw-duel-v1` kernel is deliberately narrow. It samples
 uniform synthetic nine-card hands from the 18 effect-free, neutral, fixed-ATK
 weapons in an accepted Bible snapshot. Two players begin at the observed 40 HP;
-one selected hand slot atomically deals its fixed ATK, and there are no armor,
-elements, resources, status effects, trades, or card effects. Empty hands draw.
-This is a curriculum abstraction and performance harness, not a complete God
-Field implementation.
+one selected hand slot atomically deals its fixed ATK, then a nonterminal attack
+draws a uniform replacement into that slot. There are no armor, elements,
+resources, status effects, trades, or card effects. The v1 redraw rule replaces
+v0's artificial empty-hand draw and reflects the stable nine-card hands in
+recorded live transitions. This remains a curriculum abstraction and
+performance harness, not a complete God Field implementation.
 
 The kernel's slot selection is a macro action using action-head indices 1-9.
 Browser confirmation actions remain separate and must continue to be learned
@@ -66,7 +68,7 @@ Every simulator instance reports:
 - canonical rule-catalog SHA-256;
 - whether its output is eligible for promotion.
 
-The initial kernel is always `promotion_eligible = false`. Models trained from
+The kernel is always `promotion_eligible = false`. Models trained from
 it may become candidates, but no future command may promote one based solely on
 this curriculum. Adding a live rule, changing a distribution, discounting a
 return, or allowing simulator-only promotion requires an explicit version and

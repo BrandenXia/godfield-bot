@@ -16,9 +16,9 @@ inline constexpr std::size_t kHandSlots = 9;
 inline constexpr std::size_t kActionCount = 21;
 inline constexpr std::size_t kGlobalFeatureCount = 4;
 inline constexpr std::size_t kPlayerFeatureCount = 4;
-inline constexpr std::uint32_t kKernelSchemaVersion = 1;
+inline constexpr std::uint32_t kKernelSchemaVersion = 2;
 inline constexpr std::uint32_t kObservationSchemaVersion = 1;
-inline constexpr const char *kRulesetId = "plain-attack-duel-v0";
+inline constexpr const char *kRulesetId = "plain-attack-redraw-duel-v1";
 
 using TokenInput = nb::ndarray<const std::uint32_t, nb::numpy, nb::shape<-1>,
                                nb::c_contig, nb::device::cpu>;
@@ -78,9 +78,10 @@ private:
                                         std::size_t player,
                                         std::size_t slot) const noexcept;
   [[nodiscard]] std::uint64_t next_random(std::size_t environment) noexcept;
+  void draw_into_slot(std::size_t environment, std::size_t player,
+                      std::size_t slot);
   void reset_environment(std::size_t environment);
   void refresh_environment_views(std::size_t environment);
-  [[nodiscard]] bool hands_empty(std::size_t environment) const noexcept;
 
   std::size_t batch_size_;
   std::uint64_t base_seed_;

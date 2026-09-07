@@ -28,6 +28,7 @@ from godfield_bot.api_game import (
     ApiActionExecutionResult,
     ApiActionKind,
     ApiGameState,
+    ApiGameStateError,
     ApiLegalAction,
     ApiLegalActionSet,
     ApiPhase,
@@ -188,7 +189,7 @@ def _lobby_digest(observation: dict[str, JsonValue]) -> str:
 
 
 def _safe_runtime_error_reason(error: Exception) -> str:
-    if isinstance(error, (ApiRuntimeError, ApiAccountError)):
+    if isinstance(error, (ApiRuntimeError, ApiAccountError, ApiGameStateError)):
         return str(error).splitlines()[0]
     return "pygodfield private-room operation failed"
 

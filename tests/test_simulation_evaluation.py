@@ -2,6 +2,7 @@ import json
 import stat
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from godfield_bot.domain.reference import BibleSnapshot
@@ -12,6 +13,7 @@ from godfield_bot.simulation_evaluation import (
     SimulationEvaluationConfig,
     SimulationEvaluationReport,
     evaluate_simulation_candidate,
+    paired_score_statistics,
     wilson_lower_bound,
 )
 
@@ -50,6 +52,20 @@ def test_wilson_lower_bound_is_conservative() -> None:
     assert wilson_lower_bound(100, 100, 1.96) < 1.0
 
 
+def test_paired_score_statistics_use_seed_pairs_as_samples() -> None:
+    scores = np.array([1.0, 0.5, 0.0, 0.5], dtype=np.float64)
+
+    mean, standard_error, lower_bound = paired_score_statistics(scores, 1.96)
+
+    assert mean == 0.5
+    assert standard_error == pytest.approx(0.204124)
+    assert lower_bound == pytest.approx(0.099917, abs=1e-6)
+
+
+def test_single_pair_is_inconclusive() -> None:
+    assert paired_score_statistics(np.array([1.0]), 1.96) == (1.0, 0.0, 0.0)
+
+
 def test_paired_evaluation_persists_a_non_promoting_report(tmp_path) -> None:
     candidate_directory, parent_id = unchanged_candidate(tmp_path)
 
@@ -82,9 +98,32 @@ def test_paired_evaluation_persists_a_non_promoting_report(tmp_path) -> None:
     assert parent_matchup.candidate_split_pairs == 8
     assert parent_matchup.candidate_won_both_pairs == 0
     assert parent_matchup.candidate_lost_both_pairs == 0
+    assert parent_matchup.gate_kind == "paired-superiority"
+    assert parent_matchup.paired_score == 0.5
+    assert parent_matchup.paired_score_lower_bound == 0.5
+    assert parent_matchup.required_paired_score == 0.0
     assert heuristic_matchup.opponent_id == HEURISTIC_POLICY_ID
+    assert heuristic_matchup.gate_kind == "paired-noninferiority"
+    assert heuristic_matchup.required_paired_score == 0.0
     assert heuristic_matchup.completed_games == 16
     assert stat.S_IMODE(report_path.stat().st_mode) == 0o600
+
+
+def test_unchanged_candidate_fails_strict_parent_superiority(tmp_path) -> None:
+    candidate_directory, _ = unchanged_candidate(tmp_path)
+
+    stored = evaluate_simulation_candidate(
+        candidate_model_directory=candidate_directory,
+        snapshot_path=SNAPSHOT,
+        evaluation_directory=tmp_path / "evaluations",
+        config=SimulationEvaluationConfig(games_per_seat=8, seed=67),
+    )
+
+    parent_matchup = stored.report.matchups[0]
+    assert parent_matchup.paired_score_lower_bound == 0.5
+    assert parent_matchup.passed is False
+    assert stored.report.passed is False
+    assert "does not exceed 0.5000" in stored.report.gate_reasons[0]
 
 
 def test_evaluation_rejects_a_mismatched_parent_identity(tmp_path) -> None:

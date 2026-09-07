@@ -70,7 +70,8 @@ uv run godfield-bot models train-outcomes models/<base-model-id> runs/outcomes.j
 uv run godfield-bot models train-simulation models/<base-model-id> \
   --batch-size 256 --rollout-steps 32 --updates 10
 uv run godfield-bot models evaluate-simulation models/<candidate-model-id> \
-  --games-per-seat 512 --minimum-score 0.5
+  --games-per-seat 512 --minimum-score 0.5 \
+  --heuristic-noninferiority-margin 0.025
 uv run godfield-bot simulation benchmark --ruleset attack-defense \
   --batch-size 4096 --batch-steps 1000
 ```
@@ -209,8 +210,10 @@ fingerprints. Native training never promotes a model; see
 candidate's frozen parent and a versioned max-attack/conservative-defense
 heuristic. Every initial deal is evaluated twice with candidate and opponent
 seats swapped. The gate requires every game to finish within its decision
-horizon and the Wilson lower confidence bound of the candidate's score to meet
-`--minimum-score` in both matchups. It writes an owner-only report containing
+horizon. Its paired lower confidence bound must strictly exceed
+`--minimum-score` against the parent and remain within
+`--heuristic-noninferiority-margin` of that score against the heuristic. The
+aggregate Wilson bound remains diagnostic only. It writes an owner-only report containing
 model, simulator, configuration, pairing, and confidence evidence. A passing
 report is curriculum evidence only: its `promotion_eligible` field is always
 false and it does not change any model manifest or authorize live play. See

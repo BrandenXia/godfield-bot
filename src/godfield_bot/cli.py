@@ -1080,11 +1080,23 @@ def models_evaluate_simulation(
     ] = 512,
     minimum_score: Annotated[
         float,
-        typer.Option(min=0.0, max=1.0, help="Required Wilson lower score bound."),
+        typer.Option(
+            min=0.0,
+            max=1.0,
+            help="Parent score to exceed with a paired lower confidence bound.",
+        ),
     ] = 0.5,
+    heuristic_noninferiority_margin: Annotated[
+        float,
+        typer.Option(
+            min=0.0,
+            max=1.0,
+            help="Allowed paired-score deficit versus the frozen heuristic.",
+        ),
+    ] = 0.025,
     confidence_z: Annotated[
         float,
-        typer.Option(min=1e-8, max=10.0, help="Normal critical value for Wilson bound."),
+        typer.Option(min=1e-8, max=10.0, help="Normal critical value for confidence bounds."),
     ] = 1.96,
     seed: Annotated[int, typer.Option(min=0, max=18_446_744_073_709_551_615)] = 67,
     device: Annotated[
@@ -1111,6 +1123,7 @@ def models_evaluate_simulation(
                 games_per_seat=games_per_seat,
                 max_decisions_per_game=max_decisions_per_game,
                 minimum_score=minimum_score,
+                heuristic_noninferiority_margin=heuristic_noninferiority_margin,
                 confidence_z=confidence_z,
                 seed=seed,
                 device=device,

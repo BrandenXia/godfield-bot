@@ -42,6 +42,7 @@ class SimulationEvaluationConfig(BaseModel):
     games_per_seat: int = Field(default=512, ge=1, le=100_000)
     max_decisions_per_game: int = Field(default=512, ge=2, le=100_000)
     minimum_score: float = Field(default=0.5, ge=0, le=1)
+    heuristic_noninferiority_margin: float = Field(default=0.025, ge=0, le=1)
     confidence_z: float = Field(default=1.96, gt=0, le=10)
     seed: int = Field(default=67, ge=0, le=18_446_744_073_709_551_615)
     device: Literal["cpu", "mps", "cuda"] = "cpu"
@@ -50,6 +51,7 @@ class SimulationEvaluationConfig(BaseModel):
 class SimulationMatchupEvaluation(BaseModel):
     opponent_kind: Literal["model", "heuristic"]
     opponent_id: str
+    gate_kind: Literal["paired-superiority", "paired-noninferiority"]
     games_per_seat: int = Field(gt=0)
     completed_games: int = Field(ge=0)
     incomplete_games: int = Field(ge=0)
@@ -58,6 +60,10 @@ class SimulationMatchupEvaluation(BaseModel):
     candidate_draws: int = Field(ge=0)
     candidate_score: float = Field(ge=0, le=1)
     wilson_lower_bound: float = Field(ge=0, le=1)
+    paired_score: float = Field(ge=0, le=1)
+    paired_score_standard_error: float = Field(ge=0)
+    paired_score_lower_bound: float = Field(ge=0, le=1)
+    required_paired_score: float = Field(ge=0, le=1)
     mean_decisions_per_completed_game: float = Field(ge=0)
     candidate_won_both_pairs: int = Field(ge=0)
     candidate_split_pairs: int = Field(ge=0)
@@ -68,7 +74,7 @@ class SimulationMatchupEvaluation(BaseModel):
 
 
 class SimulationEvaluationReport(BaseModel):
-    schema_version: int = 1
+    schema_version: int = 2
     evaluation_id: str
     created_at: datetime
     candidate_model_id: str
@@ -117,6 +123,21 @@ def wilson_lower_bound(successes: float, trials: int, z: float) -> float:
         probability * (1.0 - probability) / trials + z_squared / (4.0 * trials * trials)
     )
     return max(0.0, (center - radius) / denominator)
+
+
+def paired_score_statistics(
+    scores: npt.NDArray[np.float64],
+    z: float,
+) -> tuple[float, float, float]:
+    """Return the mean, standard error, and normal lower bound of paired scores."""
+
+    if scores.size == 0:
+        return 0.0, 0.0, 0.0
+    mean = float(scores.mean())
+    if scores.size == 1:
+        return mean, 0.0, 0.0
+    standard_error = float(scores.std(ddof=1) / math.sqrt(scores.size))
+    return mean, standard_error, max(0.0, mean - z * standard_error)
 
 
 def _model_actions(
@@ -266,6 +287,27 @@ def _summarize_matchup(
     won_both = int(np.count_nonzero(paired_complete & (paired_wins == 2)))
     lost_both = int(np.count_nonzero(paired_complete & (paired_wins == -2)))
     split = int(np.count_nonzero(paired_complete)) - won_both - lost_both
+    paired_scores = (
+        candidate_as_seat_zero.outcomes[paired_complete].astype(np.float64)
+        + candidate_as_seat_one.outcomes[paired_complete].astype(np.float64)
+        + 2.0
+    ) / 4.0
+    paired_score, paired_standard_error, paired_lower_bound = paired_score_statistics(
+        paired_scores,
+        config.confidence_z,
+    )
+    gate_kind: Literal["paired-superiority", "paired-noninferiority"]
+    if opponent_kind == "model":
+        gate_kind = "paired-superiority"
+        required_paired_score = config.minimum_score
+        confidence_passed = paired_lower_bound > required_paired_score
+    else:
+        gate_kind = "paired-noninferiority"
+        required_paired_score = max(
+            0.0,
+            config.minimum_score - config.heuristic_noninferiority_margin,
+        )
+        confidence_passed = paired_lower_bound >= required_paired_score
     completed_decisions = np.concatenate([side.decisions[side.completed] for side in sides])
     mean_decisions = (
         float(completed_decisions.astype(np.float64).mean()) if completed_decisions.size else 0.0
@@ -273,6 +315,7 @@ def _summarize_matchup(
     return SimulationMatchupEvaluation(
         opponent_kind=opponent_kind,
         opponent_id=opponent_id,
+        gate_kind=gate_kind,
         games_per_seat=config.games_per_seat,
         completed_games=completed_games,
         incomplete_games=incomplete_games,
@@ -281,13 +324,17 @@ def _summarize_matchup(
         candidate_draws=candidate_draws,
         candidate_score=score,
         wilson_lower_bound=lower_bound,
+        paired_score=paired_score,
+        paired_score_standard_error=paired_standard_error,
+        paired_score_lower_bound=paired_lower_bound,
+        required_paired_score=required_paired_score,
         mean_decisions_per_completed_game=mean_decisions,
         candidate_won_both_pairs=won_both,
         candidate_split_pairs=split,
         candidate_lost_both_pairs=lost_both,
         incomplete_pairs=config.games_per_seat - int(np.count_nonzero(paired_complete)),
         kernel_transitions=sum(side.kernel_transitions for side in sides),
-        passed=incomplete_games == 0 and lower_bound >= config.minimum_score,
+        passed=incomplete_games == 0 and confidence_passed,
     )
 
 
@@ -299,7 +346,7 @@ def _input_digest(
     config: SimulationEvaluationConfig,
 ) -> str:
     value = {
-        "schema_version": 1,
+        "schema_version": 2,
         "candidate_model_id": candidate.model_id,
         "candidate_weights_sha256": candidate.weights_sha256,
         "parent_model_id": parent.model_id,
@@ -426,19 +473,27 @@ def evaluate_simulation_candidate(
             config=config,
         ),
     )
-    gate_reasons = tuple(
-        f"{matchup.opponent_id}: "
-        + (
-            f"{matchup.incomplete_games} games exceeded the decision limit"
-            if matchup.incomplete_games
-            else (
-                f"Wilson lower bound {matchup.wilson_lower_bound:.4f} is below "
-                f"{config.minimum_score:.4f}"
+    gate_reasons: list[str] = []
+    for matchup in matchups:
+        if matchup.passed:
+            continue
+        if matchup.incomplete_games:
+            gate_reasons.append(
+                f"{matchup.opponent_id}: {matchup.incomplete_games} games exceeded "
+                "the decision limit"
             )
-        )
-        for matchup in matchups
-        if not matchup.passed
-    )
+        elif matchup.gate_kind == "paired-superiority":
+            gate_reasons.append(
+                f"{matchup.opponent_id}: paired lower bound "
+                f"{matchup.paired_score_lower_bound:.4f} does not exceed "
+                f"{matchup.required_paired_score:.4f}"
+            )
+        else:
+            gate_reasons.append(
+                f"{matchup.opponent_id}: paired lower bound "
+                f"{matchup.paired_score_lower_bound:.4f} is below non-inferiority "
+                f"threshold {matchup.required_paired_score:.4f}"
+            )
     report = SimulationEvaluationReport(
         evaluation_id=str(uuid4()),
         created_at=datetime.now(UTC),
@@ -456,7 +511,7 @@ def evaluate_simulation_candidate(
         config=config,
         matchups=matchups,
         passed=not gate_reasons,
-        gate_reasons=gate_reasons,
+        gate_reasons=tuple(gate_reasons),
     )
     destination = _write_report(report, evaluation_directory)
     return StoredSimulationEvaluation(report_path=str(destination), report=report)

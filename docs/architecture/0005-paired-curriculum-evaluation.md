@@ -31,12 +31,21 @@ same simulator seed, so each indexed environment receives the same initial
 deal with seat ownership swapped. Report win-both, split, lose-both, and
 incomplete pair counts in addition to aggregate results.
 
-Score a win as one, a draw as one half, and a loss as zero. A matchup passes
-only when every game terminates within the configured decision horizon and the
-Wilson lower confidence bound on candidate score is at least the configured
-minimum. The overall gate is the conjunction of the parent and heuristic
-matchups. Defaults are 512 paired seeds per seat, a 512-decision horizon, a
-minimum lower bound of 0.5, and `z = 1.96`.
+Score a win as one, a draw as one half, and a loss as zero. Average the two
+seat-swapped game scores for each seed, then compute a normal lower confidence
+bound over those paired scores. The parent matchup requires strict superiority:
+its paired lower bound must exceed the configured reference score. The
+heuristic matchup is a retention check: its paired lower bound must be at least
+the reference score minus the configured non-inferiority margin. The overall
+gate is the conjunction of both matchups and every game must terminate within
+the decision horizon. Defaults are 512 paired seeds per seat, a 512-decision
+horizon, a reference score of 0.5, a heuristic margin of 0.025, and `z = 1.96`.
+
+The aggregate game-level Wilson bound remains in the report as a diagnostic;
+it is not used for gating because seat-swapped games from one seed are not
+independent samples. A single completed pair is treated as statistically
+inconclusive. An unchanged candidate therefore fails the strict parent gate
+even when every pair splits exactly.
 
 Write each result as a new owner-only JSON report. The report binds candidate
 and parent IDs and weight hashes, exact simulator metadata, heuristic version,
@@ -52,9 +61,10 @@ separate work.
 
 Seat swapping removes the largest known curriculum confound and makes an
 unchanged candidate produce complementary paired outcomes against its parent.
+Treating the seed pair as the statistical sample avoids overstating confidence.
 The frozen heuristic prevents a candidate from appearing improved solely
-because it co-adapted with its parent lineage. Wilson bounds make small samples
-visibly inconclusive instead of silently passing on a point estimate.
+because it co-adapted with its parent lineage, while its non-inferiority margin
+allows ordinary sampling noise without turning it into the improvement target.
 
 Evaluation costs four batched simulator runs and uses deterministic policy
 actions, so it measures current exploitation rather than stochastic training

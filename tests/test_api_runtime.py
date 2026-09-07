@@ -45,7 +45,7 @@ def catalog_snapshot() -> ApiCatalogSnapshot:
         observed_at=datetime.now(UTC),
         source_url="https://godfield.net/i18n/en.json",
         language="en",
-        upstream_revision="679527115909cf9b516e6365b28c3221a33f3855",
+        upstream_revision="b33a31276b7e4dbaea962ff0df3ad3d1089a719d",
         content_sha256=api_catalog_digest(items),
         total_items=len(items),
         items=items,

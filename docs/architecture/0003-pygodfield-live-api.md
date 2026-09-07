@@ -22,10 +22,18 @@ scope.
 ## Decision
 
 Depend on package `godfield==0.1.0` at exact Git revision
-`679527115909cf9b516e6365b28c3221a33f3855`, resolved and locked by uv. Do not
+`b33a31276b7e4dbaea962ff0df3ad3d1089a719d`, resolved and locked by uv. Do not
 track a moving branch. An upgrade requires review of its protocol behavior,
 offline test suite, state schema, command construction, and credential
 handling.
+
+The 2026-09-07 upgrade from `6795271` to `b33a312` was reviewed as a
+rule-correctness update. It excludes blank placeholders from upstream usable
+items, preserves performed miracles for reuse, permits the documented
+Dazzled/Flash single-card defense, and recognizes zero-static-attack weapons.
+The project-owned normalizer remains tolerant of transient partial items, and
+the project-owned action layer still refuses to submit any item without both
+validated instance and model IDs.
 
 Use pygodfield as the transport and wire-model layer for private live games.
 Keep these project-owned boundaries around it:

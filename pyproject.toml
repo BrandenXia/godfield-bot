@@ -29,7 +29,7 @@ training = [
 ]
 
 [tool.uv.sources]
-godfield = { git = "https://github.com/xu-shawn/pygodfield.git", rev = "679527115909cf9b516e6365b28c3221a33f3855" }
+godfield = { git = "https://github.com/xu-shawn/pygodfield.git", rev = "b33a31276b7e4dbaea962ff0df3ad3d1089a719d" }
 godfield-sim = { path = "native/godfield_sim" }
 
 [project.scripts]

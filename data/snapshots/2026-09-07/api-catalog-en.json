@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
-  "observed_at": "2026-09-07T06:02:52.710554Z",
+  "observed_at": "2026-09-07T07:46:12.982449Z",
   "source_url": "https://godfield.net/i18n/en.json",
   "language": "en",
-  "upstream_revision": "679527115909cf9b516e6365b28c3221a33f3855",
+  "upstream_revision": "b33a31276b7e4dbaea962ff0df3ad3d1089a719d",
   "content_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
   "total_items": 296,
   "items": [

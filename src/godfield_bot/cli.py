@@ -1032,6 +1032,84 @@ def models_train_simulation(
     typer.echo(manifest.model_dump_json(indent=2))
 
 
+@models_app.command("evaluate-simulation")
+def models_evaluate_simulation(
+    candidate_model: Annotated[
+        Path,
+        typer.Argument(exists=True, file_okay=False, readable=True),
+    ],
+    snapshot: Annotated[
+        Path,
+        typer.Option(exists=True, dir_okay=False, readable=True),
+    ] = Path("data", "snapshots", "2026-09-07", "bible.json"),
+    evaluation_directory: Annotated[
+        Path,
+        typer.Option(help="Owner-only directory for immutable evaluation reports."),
+    ] = Path("models", "evaluations"),
+    games_per_seat: Annotated[
+        int,
+        typer.Option(min=1, max=100_000, help="Paired initial deals per seat assignment."),
+    ] = 512,
+    max_decisions_per_game: Annotated[
+        int,
+        typer.Option(min=2, max=100_000, help="Fail incomplete games after this horizon."),
+    ] = 512,
+    minimum_score: Annotated[
+        float,
+        typer.Option(min=0.0, max=1.0, help="Required Wilson lower score bound."),
+    ] = 0.5,
+    confidence_z: Annotated[
+        float,
+        typer.Option(min=1e-8, max=10.0, help="Normal critical value for Wilson bound."),
+    ] = 1.96,
+    seed: Annotated[int, typer.Option(min=0, max=18_446_744_073_709_551_615)] = 67,
+    device: Annotated[
+        Literal["cpu", "mps", "cuda"],
+        typer.Option(help="PyTorch evaluation device; native simulation remains on CPU."),
+    ] = "cpu",
+) -> None:
+    """Run a paired, non-promoting curriculum gate for one candidate."""
+
+    try:
+        from godfield_bot.simulation import SimulationUnavailableError
+        from godfield_bot.simulation_evaluation import (
+            SimulationEvaluationConfig,
+            SimulationEvaluationError,
+            evaluate_simulation_candidate,
+        )
+
+        result = evaluate_simulation_candidate(
+            candidate_model_directory=candidate_model,
+            snapshot_path=snapshot,
+            evaluation_directory=evaluation_directory,
+            config=SimulationEvaluationConfig(
+                games_per_seat=games_per_seat,
+                max_decisions_per_game=max_decisions_per_game,
+                minimum_score=minimum_score,
+                confidence_z=confidence_z,
+                seed=seed,
+                device=device,
+            ),
+        )
+    except KeyboardInterrupt:
+        typer.echo("Simulation evaluation interrupted; no report was written", err=True)
+        raise typer.Exit(code=130) from None
+    except (
+        ImportError,
+        OSError,
+        ValueError,
+        SimulationUnavailableError,
+        SimulationEvaluationError,
+    ) as error:
+        structlog.get_logger().error(
+            "simulation_evaluation_failed",
+            error_type=type(error).__name__,
+            reason=str(error).splitlines()[0],
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(result.model_dump_json(indent=2))
+
+
 @simulation_app.command("benchmark")
 def simulation_benchmark(
     snapshot: Annotated[

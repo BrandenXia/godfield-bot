@@ -69,6 +69,8 @@ uv run godfield-bot models train-replay models/<base-model-id> runs/replay.jsonl
 uv run godfield-bot models train-outcomes models/<base-model-id> runs/outcomes.jsonl
 uv run godfield-bot models train-simulation models/<base-model-id> \
   --batch-size 256 --rollout-steps 32 --updates 10
+uv run godfield-bot models evaluate-simulation models/<candidate-model-id> \
+  --games-per-seat 512 --minimum-score 0.5
 uv run godfield-bot simulation benchmark --ruleset attack-defense \
   --batch-size 4096 --batch-steps 1000
 ```
@@ -190,3 +192,14 @@ gradient norm, completed episodes, and armor-selection rate. The candidate
 manifest retains the complete optimizer configuration and simulator
 fingerprints. Native training never promotes a model; see
 [ADR 0004](docs/architecture/0004-native-self-play-ppo.md).
+
+`models evaluate-simulation` runs deterministic argmax play against both the
+candidate's frozen parent and a versioned max-attack/conservative-defense
+heuristic. Every initial deal is evaluated twice with candidate and opponent
+seats swapped. The gate requires every game to finish within its decision
+horizon and the Wilson lower confidence bound of the candidate's score to meet
+`--minimum-score` in both matchups. It writes an owner-only report containing
+model, simulator, configuration, pairing, and confidence evidence. A passing
+report is curriculum evidence only: its `promotion_eligible` field is always
+false and it does not change any model manifest or authorize live play. See
+[ADR 0005](docs/architecture/0005-paired-curriculum-evaluation.md).

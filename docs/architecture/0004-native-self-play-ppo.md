@@ -1,6 +1,6 @@
 # ADR 0004: Recurrent PPO for native self-play
 
-- Status: **Accepted**
+- Status: **Superseded by ADR 0006**
 - Date: 2026-09-07
 
 ## Context

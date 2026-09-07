@@ -133,6 +133,40 @@ def test_recurrent_policy_rejects_legacy_global_feature_shape() -> None:
         )
 
 
+def test_slot_aware_policy_moves_card_scores_with_the_cards() -> None:
+    torch.manual_seed(67)
+    model = RecurrentPolicyValueNet(vocabulary_size=8, action_count=21)
+    global_features = torch.zeros((1, 6))
+    player_features = torch.zeros((1, 2, 4))
+    player_mask = torch.ones((1, 2), dtype=torch.bool)
+    hand_mask = torch.tensor([[True, True, False, False, False, False, False, False, False]])
+    action_mask = torch.zeros((1, 21), dtype=torch.bool)
+    action_mask[:, 1:3] = True
+    first_hand = torch.tensor([[2, 3, 0, 0, 0, 0, 0, 0, 0]])
+    swapped_hand = torch.tensor([[3, 2, 0, 0, 0, 0, 0, 0, 0]])
+
+    first_logits, _, _ = model(
+        global_features,
+        player_features,
+        player_mask,
+        first_hand,
+        hand_mask,
+        action_mask,
+    )
+    swapped_logits, _, _ = model(
+        global_features,
+        player_features,
+        player_mask,
+        swapped_hand,
+        hand_mask,
+        action_mask,
+    )
+
+    assert first_logits[0, 1] != first_logits[0, 2]
+    torch.testing.assert_close(first_logits[0, 1], swapped_logits[0, 2])
+    torch.testing.assert_close(first_logits[0, 2], swapped_logits[0, 1])
+
+
 def test_target_action_uses_player_segment_of_action_head() -> None:
     vocabulary = load_vocabulary(SNAPSHOT)
     game_state = state()

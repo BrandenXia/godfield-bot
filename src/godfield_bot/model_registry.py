@@ -15,7 +15,12 @@ from godfield_bot.features import (
     PLAYER_FEATURE_COUNT,
     ArtifactVocabulary,
 )
-from godfield_bot.neural import RecurrentPolicyValueNet
+from godfield_bot.neural import (
+    POOLED_HAND_POLICY,
+    SLOT_AWARE_POLICY,
+    PolicyArchitecture,
+    RecurrentPolicyValueNet,
+)
 
 
 class ModelStatus(StrEnum):
@@ -32,10 +37,12 @@ class ModelArchitecture(BaseModel):
     player_feature_count: int = Field(default=PLAYER_FEATURE_COUNT, gt=0)
     embedding_size: int = Field(default=32, gt=0)
     hidden_size: int = Field(default=128, gt=0)
+    # Missing means a schema-v2 pooled-hand checkpoint.
+    policy_architecture: PolicyArchitecture = POOLED_HAND_POLICY
 
 
 class ModelManifest(BaseModel):
-    schema_version: int = 2
+    schema_version: int = 3
     # Missing means a legacy v1 manifest; new writers always set this explicitly.
     feature_schema_version: int = 1
     model_id: str
@@ -92,6 +99,7 @@ def initialize_model(
     architecture = ModelArchitecture(
         vocabulary_size=len(vocabulary.tokens),
         action_count=3 + max_hand_slots + max_players,
+        policy_architecture=SLOT_AWARE_POLICY,
     )
     torch.manual_seed(seed)
     model = _build_model(architecture)
@@ -126,7 +134,12 @@ def load_model(model_directory: Path) -> tuple[ModelManifest, RecurrentPolicyVal
         (model_directory / "manifest.json").read_text(encoding="utf-8")
     )
     if (
-        manifest.schema_version != 2
+        manifest.schema_version == 3
+        and "policy_architecture" not in manifest.architecture.model_fields_set
+    ):
+        raise ValueError("model schema v3 requires an explicit policy architecture")
+    if (
+        manifest.schema_version not in (2, 3)
         or manifest.feature_schema_version != FEATURE_SCHEMA_VERSION
         or manifest.architecture.global_feature_count != GLOBAL_FEATURE_COUNT
         or manifest.architecture.player_feature_count != PLAYER_FEATURE_COUNT
@@ -175,6 +188,7 @@ def save_candidate(
     os.chmod(temporary_weights, 0o600)
     os.replace(temporary_weights, weights_path)
     manifest = ModelManifest(
+        schema_version=parent.schema_version,
         feature_schema_version=parent.feature_schema_version,
         model_id=model_id,
         created_at=datetime.now(UTC),

@@ -22,14 +22,19 @@ from godfield_bot.model_registry import (
     save_candidate,
     vocabulary_digest,
 )
-from godfield_bot.neural import RecurrentPolicyValueNet
+from godfield_bot.neural import SLOT_AWARE_POLICY, RecurrentPolicyValueNet
 from godfield_bot.simulation import (
     AttackDefenseSimulation,
     create_attack_defense_simulation,
     simulation_feature_tensors,
 )
+from godfield_bot.simulation_policy import (
+    CurriculumHeuristic,
+    build_curriculum_heuristic,
+    curriculum_heuristic_actions,
+)
 
-ALGORITHM = "recurrent-ppo-self-play-v0"
+ALGORITHM = "heuristic-warmstart-recurrent-ppo-self-play-v1"
 MAX_ROLLOUT_TRANSITIONS = 2_000_000
 
 
@@ -43,6 +48,10 @@ class SimulationTrainingConfig(BaseModel):
     updates: int = Field(default=10, ge=1, le=100_000)
     ppo_epochs: int = Field(default=2, ge=1, le=100)
     environment_minibatch_size: int = Field(default=128, ge=1, le=1_000_000)
+    teacher_updates: int = Field(default=16, ge=0, le=10_000)
+    teacher_epochs: int = Field(default=2, ge=1, le=100)
+    teacher_learning_rate: float = Field(default=1e-3, gt=0, le=1)
+    heuristic_opponent_fraction: float = Field(default=0.5, ge=0, le=1)
     learning_rate: float = Field(default=3e-4, gt=0, le=1)
     gamma: float = Field(default=0.99, gt=0, le=1)
     gae_lambda: float = Field(default=0.95, ge=0, le=1)
@@ -74,6 +83,44 @@ class PpoTrainingMetrics(BaseModel):
     gradient_norm: float
 
 
+class TeacherTrainingMetrics(BaseModel):
+    loss: float
+    accuracy: float
+    gradient_norm: float
+
+
+@dataclass(frozen=True)
+class TeacherRollout:
+    global_features: Tensor
+    player_features: Tensor
+    player_mask: Tensor
+    hand_token_ids: Tensor
+    hand_mask: Tensor
+    action_mask: Tensor
+    actors: Tensor
+    actions: Tensor
+    terminated: Tensor
+    completed_episodes: int
+
+    @property
+    def steps(self) -> int:
+        return int(self.actions.shape[0])
+
+    @property
+    def batch_size(self) -> int:
+        return int(self.actions.shape[1])
+
+    def observations_at(self, step: int, environments: Tensor) -> tuple[Tensor, ...]:
+        return (
+            self.global_features[step].index_select(0, environments),
+            self.player_features[step].index_select(0, environments),
+            self.player_mask[step].index_select(0, environments),
+            self.hand_token_ids[step].index_select(0, environments),
+            self.hand_mask[step].index_select(0, environments),
+            self.action_mask[step].index_select(0, environments),
+        )
+
+
 @dataclass(frozen=True)
 class SelfPlayRollout:
     global_features: Tensor
@@ -84,6 +131,7 @@ class SelfPlayRollout:
     action_mask: Tensor
     actors: Tensor
     actions: Tensor
+    policy_trainable: Tensor
     old_log_probabilities: Tensor
     old_values: Tensor
     rewards: Tensor
@@ -132,6 +180,136 @@ def _replace_active_seat_states(
 ) -> Tensor:
     seat_selector = functional.one_hot(actors, num_classes=2).unsqueeze(-1).to(seat_states.dtype)
     return seat_states * (1.0 - seat_selector) + active_states.unsqueeze(1) * seat_selector
+
+
+def collect_heuristic_rollout(
+    simulation: AttackDefenseSimulation,
+    heuristic: CurriculumHeuristic,
+    *,
+    rollout_steps: int,
+    device: torch.device,
+) -> TeacherRollout:
+    """Collect recurrent imitation sequences from the versioned curriculum teacher."""
+
+    if rollout_steps < 2:
+        raise SimulationTrainingError("rollout_steps must be at least two")
+    batch = simulation.batch
+    batch.reset()
+    observation_rows: list[list[Tensor]] = [[] for _ in range(6)]
+    actor_rows: list[Tensor] = []
+    action_rows: list[Tensor] = []
+    terminated_rows: list[Tensor] = []
+    completed_episodes = 0
+    environments = np.arange(batch.batch_size, dtype=np.int64)
+
+    for step in range(rollout_steps):
+        if step > 0 and bool(terminated_rows[-1].any()):
+            batch.reset_done()
+        observation = simulation_feature_tensors(simulation, device=str(device))
+        actors = torch.from_numpy(np.array(batch.active_players, copy=True)).to(
+            device=device,
+            dtype=torch.long,
+        )
+        actions_array = curriculum_heuristic_actions(simulation, environments, heuristic)
+        actions = torch.from_numpy(actions_array).to(device=device, dtype=torch.long)
+        for rows, tensor in zip(observation_rows, observation, strict=True):
+            rows.append(tensor.detach().clone())
+        actor_rows.append(actors)
+        action_rows.append(actions)
+
+        batch.step(actions_array)
+        terminated = torch.from_numpy(np.array(batch.terminated, copy=True)).to(device=device)
+        terminated_rows.append(terminated)
+        completed_episodes += int(terminated.sum().item())
+
+    stacked_observations = tuple(torch.stack(rows) for rows in observation_rows)
+    return TeacherRollout(
+        global_features=stacked_observations[0],
+        player_features=stacked_observations[1],
+        player_mask=stacked_observations[2],
+        hand_token_ids=stacked_observations[3],
+        hand_mask=stacked_observations[4],
+        action_mask=stacked_observations[5],
+        actors=torch.stack(actor_rows),
+        actions=torch.stack(action_rows),
+        terminated=torch.stack(terminated_rows),
+        completed_episodes=completed_episodes,
+    )
+
+
+def train_teacher_rollout(
+    model: RecurrentPolicyValueNet,
+    optimizer: torch.optim.Optimizer,
+    rollout: TeacherRollout,
+    config: SimulationTrainingConfig,
+) -> TeacherTrainingMetrics:
+    """Imitate teacher sequences while preserving independent memory per seat."""
+
+    model.train()
+    loss_sum = 0.0
+    correct = 0
+    gradient_norm_sum = 0.0
+    measured_samples = 0
+    device = rollout.actions.device
+
+    for _ in range(config.teacher_epochs):
+        permutation = torch.randperm(rollout.batch_size, device=device)
+        for start in range(0, rollout.batch_size, config.environment_minibatch_size):
+            environments = permutation[start : start + config.environment_minibatch_size]
+            minibatch_size = int(environments.shape[0])
+            seat_states = torch.zeros(
+                (minibatch_size, 2, model.hidden_size),
+                dtype=torch.float32,
+                device=device,
+            )
+            logits_rows: list[Tensor] = []
+            action_rows: list[Tensor] = []
+            for step in range(rollout.steps):
+                if step > 0:
+                    continuing = (~rollout.terminated[step - 1].index_select(0, environments)).to(
+                        seat_states.dtype
+                    )
+                    seat_states = seat_states * continuing[:, None, None]
+                actors = rollout.actors[step].index_select(0, environments)
+                active_states = _active_seat_states(seat_states, actors)
+                logits, _, next_active_states = model(
+                    *rollout.observations_at(step, environments),
+                    recurrent_state=active_states,
+                )
+                logits_rows.append(logits)
+                action_rows.append(rollout.actions[step].index_select(0, environments))
+                seat_states = _replace_active_seat_states(
+                    seat_states,
+                    actors,
+                    next_active_states,
+                )
+
+            logits = torch.cat(logits_rows)
+            actions = torch.cat(action_rows)
+            loss = functional.cross_entropy(logits, actions)
+            if not bool(torch.isfinite(loss)):
+                raise SimulationTrainingError("teacher warm-start produced a non-finite loss")
+            optimizer.zero_grad(set_to_none=True)
+            loss.backward()  # type: ignore[no-untyped-call]
+            gradient_norm = nn.utils.clip_grad_norm_(
+                model.parameters(),
+                config.max_gradient_norm,
+            )
+            optimizer.step()
+
+            sample_count = rollout.steps * minibatch_size
+            measured_samples += sample_count
+            loss_sum += float(loss.detach()) * sample_count
+            correct += int((logits.detach().argmax(dim=1) == actions).sum().item())
+            gradient_norm_sum += float(gradient_norm.detach()) * sample_count
+
+    if measured_samples == 0:
+        raise SimulationTrainingError("teacher warm-start received an empty rollout")
+    return TeacherTrainingMetrics(
+        loss=loss_sum / measured_samples,
+        accuracy=correct / measured_samples,
+        gradient_norm=gradient_norm_sum / measured_samples,
+    )
 
 
 def signed_generalized_advantages(
@@ -185,6 +363,8 @@ def collect_self_play_rollout(
     gamma: float,
     gae_lambda: float,
     device: torch.device,
+    heuristic: CurriculumHeuristic | None = None,
+    heuristic_opponent_fraction: float = 0.0,
 ) -> SelfPlayRollout:
     """Collect one bounded rollout with independent recurrent memory per seat."""
 
@@ -200,11 +380,23 @@ def collect_self_play_rollout(
     observation_rows: list[list[Tensor]] = [[] for _ in range(6)]
     actor_rows: list[Tensor] = []
     action_rows: list[Tensor] = []
+    policy_trainable_rows: list[Tensor] = []
     log_probability_rows: list[Tensor] = []
     value_rows: list[Tensor] = []
     reward_rows: list[Tensor] = []
     terminated_rows: list[Tensor] = []
     completed_episodes = 0
+
+    if not 0.0 <= heuristic_opponent_fraction <= 1.0:
+        raise SimulationTrainingError("heuristic opponent fraction must be between zero and one")
+    heuristic_environment_count = round(batch.batch_size * heuristic_opponent_fraction)
+    if heuristic_environment_count and heuristic is None:
+        raise SimulationTrainingError("heuristic opponent fraction requires a heuristic policy")
+    heuristic_environments = torch.zeros(batch.batch_size, dtype=torch.bool, device=device)
+    if heuristic_environment_count:
+        selected = torch.randperm(batch.batch_size, device=device)[:heuristic_environment_count]
+        heuristic_environments[selected] = True
+    learner_seats = torch.arange(batch.batch_size, device=device, dtype=torch.long) % 2
 
     model.eval()
     for step in range(rollout_steps):
@@ -227,6 +419,19 @@ def collect_self_play_rollout(
             )
             distribution = torch.distributions.Categorical(logits=logits)
             actions = distribution.sample()  # type: ignore[no-untyped-call]
+            policy_trainable = ~(heuristic_environments & (actors != learner_seats))
+            heuristic_rows = (~policy_trainable).nonzero(as_tuple=False).squeeze(1)
+            if heuristic_rows.numel() > 0 and heuristic is not None:
+                heuristic_rows_array = np.ascontiguousarray(
+                    heuristic_rows.cpu().numpy(),
+                    dtype=np.int64,
+                )
+                heuristic_actions = curriculum_heuristic_actions(
+                    simulation,
+                    heuristic_rows_array,
+                    heuristic,
+                )
+                actions[heuristic_rows] = torch.from_numpy(heuristic_actions).to(device=device)
             log_probabilities = distribution.log_prob(actions)  # type: ignore[no-untyped-call]
         seat_states = _replace_active_seat_states(
             seat_states,
@@ -238,6 +443,7 @@ def collect_self_play_rollout(
             rows.append(tensor.detach().clone())
         actor_rows.append(actors)
         action_rows.append(actions)
+        policy_trainable_rows.append(policy_trainable)
         log_probability_rows.append(log_probabilities)
         value_rows.append(values)
 
@@ -298,6 +504,7 @@ def collect_self_play_rollout(
         action_mask=stacked_observations[5],
         actors=actors,
         actions=torch.stack(action_rows),
+        policy_trainable=torch.stack(policy_trainable_rows),
         old_log_probabilities=torch.stack(log_probability_rows),
         old_values=values,
         rewards=rewards,
@@ -317,8 +524,12 @@ def train_ppo_rollout(
     """Replay a rollout by environment, preserving two independent seat memories."""
 
     model.train()
-    advantages = rollout.advantages
-    advantages = (advantages - advantages.mean()) / advantages.std(unbiased=False).clamp_min(1e-8)
+    learner_advantages = rollout.advantages[rollout.policy_trainable]
+    if learner_advantages.numel() == 0:
+        raise SimulationTrainingError("PPO rollout contains no learner decisions")
+    advantages = (rollout.advantages - learner_advantages.mean()) / learner_advantages.std(
+        unbiased=False
+    ).clamp_min(1e-8)
     metric_totals = {
         "total_loss": 0.0,
         "policy_loss": 0.0,
@@ -371,20 +582,26 @@ def train_ppo_rollout(
 
             new_log_probabilities = torch.cat(log_probability_rows)
             new_values = torch.cat(value_rows)
-            entropy = torch.cat(entropy_rows).mean()
+            entropies = torch.cat(entropy_rows)
             old_log_probabilities = rollout.old_log_probabilities[:, environments].reshape(-1)
             old_values = rollout.old_values[:, environments].reshape(-1)
             target_advantages = advantages[:, environments].reshape(-1)
             target_returns = rollout.returns[:, environments].reshape(-1)
+            policy_trainable = rollout.policy_trainable[:, environments].reshape(-1)
+            if not bool(policy_trainable.any()):
+                raise SimulationTrainingError("PPO minibatch contains no learner decisions")
 
             log_ratio = new_log_probabilities - old_log_probabilities
             ratio = log_ratio.exp()
-            unclipped_policy_loss = -target_advantages * ratio
-            clipped_policy_loss = -target_advantages * ratio.clamp(
+            learner_ratio = ratio[policy_trainable]
+            learner_advantages = target_advantages[policy_trainable]
+            unclipped_policy_loss = -learner_advantages * learner_ratio
+            clipped_policy_loss = -learner_advantages * learner_ratio.clamp(
                 1.0 - config.clip_range,
                 1.0 + config.clip_range,
             )
             policy_loss = torch.maximum(unclipped_policy_loss, clipped_policy_loss).mean()
+            entropy = entropies[policy_trainable].mean()
             clipped_values = old_values + (new_values - old_values).clamp(
                 -config.clip_range,
                 config.clip_range,
@@ -411,8 +628,9 @@ def train_ppo_rollout(
             optimizer.step()
 
             with torch.no_grad():
-                approximate_kl = ((ratio - 1.0) - log_ratio).mean()
-                clip_fraction = ((ratio - 1.0).abs() > config.clip_range).float().mean()
+                learner_log_ratio = log_ratio[policy_trainable]
+                approximate_kl = ((learner_ratio - 1.0) - learner_log_ratio).mean()
+                clip_fraction = ((learner_ratio - 1.0).abs() > config.clip_range).float().mean()
             sample_count = rollout.steps * minibatch_size
             measured_samples += sample_count
             values_to_add = {
@@ -445,7 +663,7 @@ def _source_digest(
 ) -> str:
     value = {
         "schema_version": 1,
-        "source_kind": "native-on-policy-self-play",
+        "source_kind": "native-heuristic-warmstart-on-policy-self-play",
         "parent_model_id": parent.model_id,
         "parent_weights_sha256": parent.weights_sha256,
         "simulation": simulation.metadata.model_dump(mode="json"),
@@ -471,6 +689,8 @@ def train_simulation_candidate(
         raise ValueError("base model client fingerprint differs from the Bible snapshot")
     if parent.vocabulary_sha256 != vocabulary_digest(vocabulary):
         raise ValueError("base model vocabulary differs from the Bible snapshot")
+    if parent.architecture.policy_architecture != SLOT_AWARE_POLICY:
+        raise ValueError("simulation training requires a new slot-aware-v1 base model")
 
     simulation = create_attack_defense_simulation(
         snapshot_path,
@@ -485,30 +705,70 @@ def train_simulation_candidate(
     device = _resolve_device(config.device)
     torch.manual_seed(config.seed)
     model.to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
     log = structlog.get_logger()
+    heuristic = build_curriculum_heuristic(snapshot, vocabulary)
+    teacher_metrics: list[TeacherTrainingMetrics] = []
+    teacher_completed_episodes = 0
+    teacher_transitions = 0
+    if config.teacher_updates:
+        teacher_optimizer = torch.optim.Adam(
+            model.parameters(),
+            lr=config.teacher_learning_rate,
+        )
+        for update in range(1, config.teacher_updates + 1):
+            teacher_rollout = collect_heuristic_rollout(
+                simulation,
+                heuristic,
+                rollout_steps=config.rollout_steps,
+                device=device,
+            )
+            teacher_update_metrics = train_teacher_rollout(
+                model,
+                teacher_optimizer,
+                teacher_rollout,
+                config,
+            )
+            teacher_metrics.append(teacher_update_metrics)
+            teacher_completed_episodes += teacher_rollout.completed_episodes
+            teacher_transitions += teacher_rollout.steps * teacher_rollout.batch_size
+            log.info(
+                "simulation_teacher_update",
+                update=update,
+                updates=config.teacher_updates,
+                transitions=teacher_transitions,
+                completed_episodes=teacher_completed_episodes,
+                **teacher_update_metrics.model_dump(),
+            )
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
     metric_sums = {name: 0.0 for name in PpoTrainingMetrics.model_fields}
     armor_selection_rate_sum = 0.0
     absolute_advantage_sum = 0.0
     completed_episodes = 0
-    transitions = 0
+    ppo_transitions = 0
     for update in range(1, config.updates + 1):
-        rollout = collect_self_play_rollout(
+        self_play_rollout = collect_self_play_rollout(
             model,
             simulation,
             rollout_steps=config.rollout_steps,
             gamma=config.gamma,
             gae_lambda=config.gae_lambda,
             device=device,
+            heuristic=heuristic,
+            heuristic_opponent_fraction=config.heuristic_opponent_fraction,
         )
-        metrics = train_ppo_rollout(model, optimizer, rollout, config)
-        completed_episodes += rollout.completed_episodes
-        transitions += rollout.steps * rollout.batch_size
-        defense_decisions = rollout.global_features[:, :, 4] > 0.5
+        metrics = train_ppo_rollout(model, optimizer, self_play_rollout, config)
+        completed_episodes += self_play_rollout.completed_episodes
+        ppo_transitions += self_play_rollout.steps * self_play_rollout.batch_size
+        defense_decisions = self_play_rollout.global_features[:, :, 4] > 0.5
         defense_count = int(defense_decisions.sum().item())
         armor_selection_rate = (
             float(
-                (defense_decisions & (rollout.actions >= 1) & (rollout.actions <= 9))
+                (
+                    defense_decisions
+                    & (self_play_rollout.actions >= 1)
+                    & (self_play_rollout.actions <= 9)
+                )
                 .float()
                 .sum()
                 .item()
@@ -517,7 +777,7 @@ def train_simulation_candidate(
             if defense_count
             else 0.0
         )
-        mean_absolute_advantage = float(rollout.advantages.abs().mean().item())
+        mean_absolute_advantage = float(self_play_rollout.advantages.abs().mean().item())
         armor_selection_rate_sum += armor_selection_rate
         absolute_advantage_sum += mean_absolute_advantage
         for name, value in metrics.model_dump().items():
@@ -526,8 +786,11 @@ def train_simulation_candidate(
             "simulation_training_update",
             update=update,
             updates=config.updates,
-            transitions=transitions,
+            transitions=ppo_transitions,
             completed_episodes=completed_episodes,
+            heuristic_opponent_action_fraction=float(
+                (~self_play_rollout.policy_trainable).float().mean().item()
+            ),
             armor_selection_rate=armor_selection_rate,
             mean_absolute_advantage=mean_absolute_advantage,
             **metrics.model_dump(),
@@ -549,7 +812,16 @@ def train_simulation_candidate(
         training_dataset_sha256=source_sha256,
         training_run_ids=(),
         metrics={
-            "training_transitions": float(transitions),
+            "training_transitions": float(teacher_transitions + ppo_transitions),
+            "teacher_transitions": float(teacher_transitions),
+            "teacher_completed_episodes": float(teacher_completed_episodes),
+            "teacher_updates": float(config.teacher_updates),
+            "teacher_loss_initial": teacher_metrics[0].loss if teacher_metrics else 0.0,
+            "teacher_loss_final": teacher_metrics[-1].loss if teacher_metrics else 0.0,
+            "teacher_accuracy_initial": teacher_metrics[0].accuracy if teacher_metrics else 0.0,
+            "teacher_accuracy_final": teacher_metrics[-1].accuracy if teacher_metrics else 0.0,
+            "ppo_transitions": float(ppo_transitions),
+            "heuristic_opponent_fraction": config.heuristic_opponent_fraction,
             "training_completed_episodes": float(completed_episodes),
             "training_updates": float(config.updates),
             "training_ppo_epochs": float(config.ppo_epochs),
@@ -559,7 +831,7 @@ def train_simulation_candidate(
             **{f"mean_{name}": value / config.updates for name, value in metric_sums.items()},
         },
         training_context={
-            "source_kind": "native-on-policy-self-play",
+            "source_kind": "native-heuristic-warmstart-on-policy-self-play",
             "simulation": simulation.metadata.model_dump(mode="json"),
             "config": config.model_dump(mode="json"),
         },

@@ -963,6 +963,26 @@ def models_train_simulation(
         int,
         typer.Option(min=1, max=1_000_000, help="Whole recurrent games per minibatch."),
     ] = 128,
+    teacher_updates: Annotated[
+        int,
+        typer.Option(min=0, max=10_000, help="Heuristic imitation batches before PPO."),
+    ] = 16,
+    teacher_epochs: Annotated[
+        int,
+        typer.Option(min=1, max=100, help="Optimization passes per teacher batch."),
+    ] = 2,
+    teacher_learning_rate: Annotated[
+        float,
+        typer.Option(min=1e-8, max=1.0),
+    ] = 1e-3,
+    heuristic_opponent_fraction: Annotated[
+        float,
+        typer.Option(
+            min=0.0,
+            max=1.0,
+            help="Share of PPO games assigning one seat to the frozen heuristic.",
+        ),
+    ] = 0.5,
     learning_rate: Annotated[
         float,
         typer.Option(min=1e-8, max=1.0),
@@ -1002,6 +1022,10 @@ def models_train_simulation(
                 updates=updates,
                 ppo_epochs=ppo_epochs,
                 environment_minibatch_size=environment_minibatch_size,
+                teacher_updates=teacher_updates,
+                teacher_epochs=teacher_epochs,
+                teacher_learning_rate=teacher_learning_rate,
+                heuristic_opponent_fraction=heuristic_opponent_fraction,
                 learning_rate=learning_rate,
                 gamma=gamma,
                 gae_lambda=gae_lambda,
@@ -1077,6 +1101,7 @@ def models_evaluate_simulation(
             SimulationEvaluationError,
             evaluate_simulation_candidate,
         )
+        from godfield_bot.simulation_policy import SimulationPolicyError
 
         result = evaluate_simulation_candidate(
             candidate_model_directory=candidate_model,
@@ -1100,6 +1125,7 @@ def models_evaluate_simulation(
         ValueError,
         SimulationUnavailableError,
         SimulationEvaluationError,
+        SimulationPolicyError,
     ) as error:
         structlog.get_logger().error(
             "simulation_evaluation_failed",

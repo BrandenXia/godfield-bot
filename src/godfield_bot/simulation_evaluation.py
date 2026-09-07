@@ -21,15 +21,17 @@ from godfield_bot.domain.reference import BibleSnapshot
 from godfield_bot.features import ArtifactVocabulary
 from godfield_bot.model_registry import ModelManifest, ModelStatus, load_model, vocabulary_digest
 from godfield_bot.neural import RecurrentPolicyValueNet
-from godfield_bot.reference import plain_attack_weapon_values, plain_defense_armor_values
 from godfield_bot.simulation import (
-    AttackDefenseSimulation,
     SimulationMetadata,
     create_attack_defense_simulation,
     simulation_feature_tensors,
 )
-
-HEURISTIC_POLICY_ID = "plain-max-attack-conservative-defense-v0"
+from godfield_bot.simulation_policy import (
+    HEURISTIC_POLICY_ID,
+    CurriculumHeuristic,
+    build_curriculum_heuristic,
+    curriculum_heuristic_actions,
+)
 
 
 class SimulationEvaluationError(RuntimeError):
@@ -95,12 +97,6 @@ class _SideEvaluation:
     kernel_transitions: int
 
 
-@dataclass(frozen=True)
-class _HeuristicCatalog:
-    attacks: dict[int, int]
-    defenses: dict[int, int]
-
-
 def _resolve_device(name: str) -> torch.device:
     device = torch.device(name)
     if device.type == "cuda" and not torch.cuda.is_available():
@@ -143,48 +139,11 @@ def _model_actions(
     return actions
 
 
-def _heuristic_actions(
-    simulation: AttackDefenseSimulation,
-    rows: npt.NDArray[np.int64],
-    catalog: _HeuristicCatalog,
-) -> npt.NDArray[np.int64]:
-    batch = simulation.batch
-    actions = np.empty(rows.size, dtype=np.int64)
-    for output_index, environment in enumerate(rows):
-        hand = batch.hand_token_ids[environment]
-        legal = batch.action_mask[environment]
-        if batch.phases[environment] == 0:
-            candidates = [
-                (catalog.attacks[int(hand[action - 1])], action)
-                for action in range(1, 10)
-                if legal[action] and int(hand[action - 1]) in catalog.attacks
-            ]
-            if not candidates:
-                raise SimulationEvaluationError("heuristic found no known legal attack")
-            actions[output_index] = max(candidates, key=lambda item: (item[0], -item[1]))[1]
-            continue
-
-        pending_attack = int(batch.pending_attacks[environment])
-        candidates = [
-            (catalog.defenses[int(hand[action - 1])], action)
-            for action in range(1, 10)
-            if legal[action] and int(hand[action - 1]) in catalog.defenses
-        ]
-        if not candidates:
-            raise SimulationEvaluationError("heuristic found no known legal defense")
-        sufficient = [item for item in candidates if item[0] >= pending_attack]
-        if sufficient:
-            actions[output_index] = min(sufficient, key=lambda item: (item[0], item[1]))[1]
-        else:
-            actions[output_index] = max(candidates, key=lambda item: (item[0], -item[1]))[1]
-    return actions
-
-
 def _evaluate_side(
     *,
     candidate: RecurrentPolicyValueNet,
     opponent: RecurrentPolicyValueNet | None,
-    heuristic: _HeuristicCatalog | None,
+    heuristic: CurriculumHeuristic | None,
     snapshot_path: Path,
     games: int,
     seed: int,
@@ -247,7 +206,7 @@ def _evaluate_side(
                 device,
             )
         elif heuristic is not None:
-            actions[opponent_rows] = _heuristic_actions(
+            actions[opponent_rows] = curriculum_heuristic_actions(
                 simulation,
                 opponent_rows,
                 heuristic,
@@ -332,22 +291,6 @@ def _summarize_matchup(
     )
 
 
-def _heuristic_catalog(
-    snapshot: BibleSnapshot,
-    vocabulary: ArtifactVocabulary,
-) -> _HeuristicCatalog:
-    return _HeuristicCatalog(
-        attacks={
-            vocabulary.token_id("weapons", slug): attack
-            for slug, attack in plain_attack_weapon_values(snapshot).items()
-        },
-        defenses={
-            vocabulary.token_id("armor", slug): defense
-            for slug, defense in plain_defense_armor_values(snapshot).items()
-        },
-    )
-
-
 def _input_digest(
     *,
     candidate: ModelManifest,
@@ -417,7 +360,7 @@ def evaluate_simulation_candidate(
     device = _resolve_device(config.device)
     candidate.to(device).eval()
     parent.to(device).eval()
-    heuristic = _heuristic_catalog(snapshot, vocabulary)
+    heuristic = build_curriculum_heuristic(snapshot, vocabulary)
 
     parent_sides = (
         _evaluate_side(

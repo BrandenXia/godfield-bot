@@ -178,20 +178,29 @@ damage is `max(ATK - DEF, 0)`. Phase, pending ATK, and card role are explicit
 native views. Observation schema v2 appends the response-phase flag and pending
 ATK to the same global feature vector used for live browser states, allowing
 the recurrent network to consume either source. Existing four-feature model
-checkpoints are deliberately incompatible; run `models init` to create a v2
-base model. Both rulesets are fingerprinted against the accepted client,
+checkpoints are deliberately incompatible. `models init` now creates a
+schema-v3, slot-aware policy checkpoint; schema-v2 pooled-hand checkpoints
+remain readable for historical evaluation but cannot continue simulator
+training. Both rulesets are fingerprinted against the accepted client,
 artifact vocabulary, and exact rule catalog, and neither is
 promotion-eligible.
 
-`models train-simulation` creates a bounded `recurrent-ppo-self-play-v0`
-candidate using one shared policy for both seats and independent recurrent
-memory per seat. Zero-sum GAE flips the bootstrapped perspective when control
-passes to the opponent and preserves it when a defender begins their next
-attack. Structured logs expose each update's loss, entropy, approximate KL,
-gradient norm, completed episodes, and armor-selection rate. The candidate
-manifest retains the complete optimizer configuration and simulator
+`models train-simulation` creates a bounded
+`heuristic-warmstart-recurrent-ppo-self-play-v1` candidate. The slot-aware
+artifact scorer binds each visible card embedding to its corresponding action
+logit. Before PPO, recurrent behavior cloning teaches the versioned
+max-attack/conservative-defense policy. PPO then mixes self-play with games
+where one alternating seat is controlled by that frozen heuristic; policy
+loss excludes frozen actions while the value function still learns from the
+complete trajectory. `--teacher-updates` and
+`--heuristic-opponent-fraction` control the mix. Zero-sum GAE flips the
+bootstrapped perspective when control passes to the opponent and preserves it
+when a defender begins their next attack. Structured logs expose teacher
+accuracy, losses, entropy, approximate KL, gradient norm, completed episodes,
+armor-selection rate, and the actual fraction of frozen-opponent actions. The
+candidate manifest retains the complete optimizer configuration and simulator
 fingerprints. Native training never promotes a model; see
-[ADR 0004](docs/architecture/0004-native-self-play-ppo.md).
+[ADR 0006](docs/architecture/0006-slot-aware-curriculum-training.md).
 
 `models evaluate-simulation` runs deterministic argmax play against both the
 candidate's frozen parent and a versioned max-attack/conservative-defense

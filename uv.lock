@@ -171,6 +171,10 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+simulation = [
+    { name = "godfield-sim" },
+    { name = "numpy" },
+]
 training = [
     { name = "numpy" },
     { name = "torch" },
@@ -187,6 +191,8 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "filelock", specifier = ">=3.18,<4" },
+    { name = "godfield-sim", marker = "extra == 'simulation'", directory = "native/godfield_sim" },
+    { name = "numpy", marker = "extra == 'simulation'", specifier = ">=2.2,<3" },
     { name = "numpy", marker = "extra == 'training'", specifier = ">=2.2,<3" },
     { name = "platformdirs", specifier = ">=4.3,<5" },
     { name = "playwright", specifier = ">=1.50,<2" },
@@ -195,7 +201,7 @@ requires-dist = [
     { name = "torch", marker = "extra == 'training'", specifier = ">=2.6,<3" },
     { name = "typer", specifier = ">=0.15,<1" },
 ]
-provides-extras = ["training"]
+provides-extras = ["simulation", "training"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -204,6 +210,17 @@ dev = [
     { name = "pytest-cov", specifier = ">=6,<8" },
     { name = "ruff", specifier = ">=0.11,<1" },
 ]
+
+[[package]]
+name = "godfield-sim"
+version = "0.1.0"
+source = { directory = "native/godfield_sim" }
+dependencies = [
+    { name = "numpy" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "numpy", specifier = ">=2.2,<3" }]
 
 [[package]]
 name = "greenlet"

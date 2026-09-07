@@ -61,9 +61,14 @@ uv run godfield-bot runs export-outcomes runs/outcomes.jsonl
 uv run godfield-bot models init
 uv run godfield-bot models train-replay models/<base-model-id> runs/replay.jsonl
 uv run godfield-bot models train-outcomes models/<base-model-id> runs/outcomes.jsonl
+uv run godfield-bot simulation benchmark --batch-size 4096 --batch-steps 1000
 ```
 
 Install the optional learning stack with `uv sync --extra training --group dev`.
+Install the native C++ curriculum simulator with
+`uv sync --extra simulation --extra training --group dev`. Its batch-first
+interface and strict fidelity boundary are documented in
+[ADR 0002](docs/architecture/0002-native-simulator.md).
 `models init` creates a checksum-protected, ignored model directory whose
 manifest is tied to the current Bible client hash and artifact vocabulary. Its
 status is `initialized`; evaluation and explicit promotion are required before
@@ -134,3 +139,9 @@ separate evaluation and promotion gate exists.
 
 Training and operator-owned private rooms are the only approved early play
 scope. Learning will be simulator-first with real-game fine-tuning.
+
+The initial native `plain-attack-duel-v0` ruleset is a fast, deterministic
+curriculum and integration harness. It uses only effect-free neutral attacks,
+but intentionally omits defense and most game rules and samples synthetic
+hands uniformly. Its metadata is fingerprinted against the accepted client,
+artifact vocabulary, and rule catalog, and it is never promotion-eligible.

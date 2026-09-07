@@ -1,0 +1,78 @@
+# ADR 0002: Native batched simulator boundary
+
+- Status: **Accepted**
+- Date: 2026-09-07
+
+## Context
+
+Browser games are too slow and scarce to be the main source of reinforcement-
+learning experience. The simulator must step many independent games without a
+Python call per game, but the policy, training algorithm, replay format, and
+browser integration are still changing quickly.
+
+The current live client does not expose a public rules API. A fast simulator is
+therefore also a model of observed rules, not an authority. It must identify its
+rules and source-data fingerprints so that synthetic trajectories cannot be
+mistaken for verified browser trajectories.
+
+## Decision
+
+Use a C++20 simulation kernel exposed to Python through nanobind. CMake and
+scikit-build-core build the extension; uv resolves, locks, and installs it as
+the optional local `godfield-sim` dependency.
+
+C++ owns:
+
+- deterministic environment state and pseudorandom streams;
+- batched reset and step operations;
+- legal-action masks and transition validation;
+- contiguous observation, terminal-return, and episode metadata buffers.
+
+Python owns:
+
+- snapshot parsing and rule-catalog construction;
+- PyTorch inference and optimization;
+- rollout collection, replay persistence, evaluation, and model lineage;
+- browser fine-tuning and every deployment gate.
+
+The hot interface is batch-first. One `step(int64[batch])` advances every live
+environment. Observation and result properties are read-only NumPy views into
+C++-owned buffers, avoiding a copy across the binding. `reset_done()` recycles
+only terminal rows after Python has consumed their final result.
+The Python adapter converts these views to PyTorch through DLPack without a CPU
+copy. They are explicitly ephemeral: collectors clone or copy a state only when
+it must survive the next native step.
+
+The initial `plain-attack-duel-v0` kernel is deliberately narrow. It samples
+uniform synthetic nine-card hands from the 18 effect-free, neutral, fixed-ATK
+weapons in an accepted Bible snapshot. Two players begin at the observed 40 HP;
+one selected hand slot atomically deals its fixed ATK, and there are no armor,
+elements, resources, status effects, trades, or card effects. Empty hands draw.
+This is a curriculum abstraction and performance harness, not a complete God
+Field implementation.
+
+The kernel's slot selection is a macro action using action-head indices 1-9.
+Browser confirmation actions remain separate and must continue to be learned
+from real transition evidence. Simulator field numbers count macro turns and
+must not be assumed to prove the live client's exact G.F. timing semantics.
+
+## Compatibility and safety
+
+Every simulator instance reports:
+
+- kernel and observation schema versions;
+- ruleset ID;
+- accepted client SHA-256;
+- canonical rule-catalog SHA-256;
+- whether its output is eligible for promotion.
+
+The initial kernel is always `promotion_eligible = false`. Models trained from
+it may become candidates, but no future command may promote one based solely on
+this curriculum. Adding a live rule, changing a distribution, discounting a
+return, or allowing simulator-only promotion requires an explicit version and
+evaluation decision.
+
+PyTorch is intentionally not linked into C++. Keeping inference in Python
+avoids a libtorch ABI and packaging boundary while batched calls remove the
+dominant interpreter overhead. C++ inference should be reconsidered only after
+profiling shows the binding or Python rollout orchestration is the bottleneck.

@@ -1,0 +1,20 @@
+[build-system]
+requires = [
+  "nanobind>=2.9,<3",
+  "scikit-build-core>=0.11,<1",
+]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "godfield-sim"
+version = "0.1.0"
+description = "Native batched curriculum simulator for the God Field bot"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+  "numpy>=2.2,<3",
+]
+
+[tool.scikit-build]
+cmake.build-type = "Release"
+minimum-version = "build-system.requires"
+wheel.packages = ["src/godfield_sim"]

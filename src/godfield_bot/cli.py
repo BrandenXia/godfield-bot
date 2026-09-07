@@ -53,11 +53,13 @@ account_app = typer.Typer(no_args_is_help=True, help="Manage the persistent ãƒ­ã
 state_app = typer.Typer(no_args_is_help=True, help="Normalize saved browser observations.")
 runs_app = typer.Typer(no_args_is_help=True, help="Inspect the local trajectory store.")
 models_app = typer.Typer(no_args_is_help=True, help="Manage local neural policy candidates.")
+simulation_app = typer.Typer(no_args_is_help=True, help="Run local batched curriculum games.")
 app.add_typer(data_app, name="data")
 app.add_typer(account_app, name="account")
 app.add_typer(state_app, name="state")
 app.add_typer(runs_app, name="runs")
 app.add_typer(models_app, name="models")
+app.add_typer(simulation_app, name="simulation")
 
 
 def _version_callback(value: bool) -> None:
@@ -635,6 +637,46 @@ def models_train_outcomes(
         )
         raise typer.Exit(code=1) from None
     typer.echo(manifest.model_dump_json(indent=2))
+
+
+@simulation_app.command("benchmark")
+def simulation_benchmark(
+    snapshot: Annotated[
+        Path,
+        typer.Option(exists=True, dir_okay=False, readable=True),
+    ] = Path("data", "snapshots", "2026-09-07", "bible.json"),
+    batch_size: Annotated[
+        int,
+        typer.Option(min=1, max=1_000_000, help="Parallel native curriculum games."),
+    ] = 4096,
+    batch_steps: Annotated[
+        int,
+        typer.Option(min=1, max=1_000_000, help="Batched simulator calls to measure."),
+    ] = 1000,
+    seed: Annotated[int, typer.Option(min=0)] = 67,
+) -> None:
+    """Benchmark native transition collection without neural inference."""
+
+    try:
+        from godfield_bot.simulation import (
+            SimulationUnavailableError,
+            benchmark_fixed_attack_simulation,
+        )
+
+        result = benchmark_fixed_attack_simulation(
+            snapshot,
+            batch_size=batch_size,
+            batch_steps=batch_steps,
+            seed=seed,
+        )
+    except (ImportError, OSError, ValueError, SimulationUnavailableError) as error:
+        structlog.get_logger().error(
+            "simulation_benchmark_failed",
+            error_type=type(error).__name__,
+            reason=str(error).splitlines()[0],
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(result.model_dump_json(indent=2))
 
 
 @data_app.command("refresh")

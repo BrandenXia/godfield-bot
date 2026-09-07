@@ -18,10 +18,17 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+simulation = [
+  "godfield-sim==0.1.0",
+  "numpy>=2.2,<3",
+]
 training = [
   "numpy>=2.2,<3",
   "torch>=2.6,<3",
 ]
+
+[tool.uv.sources]
+godfield-sim = { path = "native/godfield_sim" }
 
 [project.scripts]
 godfield-bot = "godfield_bot.cli:app"

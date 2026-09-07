@@ -90,6 +90,8 @@ def test_normalization_keeps_only_self_hand_card_identities() -> None:
     assert state.phase is ApiPhase.TURN
     assert state.observed_at == observed_at
     assert state.self_player_id == 1
+    assert state.schema_version == 2
+    assert state.has_active_curses is False
     assert [item.instance_id for item in state.hand] == [11, 12]
     assert state.players[1].hand_count == 1
     serialized = state.model_dump_json()
@@ -197,13 +199,19 @@ def test_empty_transient_hand_placeholder_is_preserved_as_unknown() -> None:
     assert state.hand[0].name is None
 
 
-def test_unknown_curse_state_blocks_pass_and_attack_actions() -> None:
+def test_unknown_curse_state_preserves_a_safe_progress_action() -> None:
+    state = normalize_api_game_state(
+        room_state(self_curses=["future-curse"]),
+        user_id="loki-user",
+    )
     actions = verified_api_actions(
         room_state(self_curses=["future-curse"]),
         user_id="loki-user",
     )
 
-    assert actions.actions == ()
+    assert state.has_active_curses is True
+    assert [action.action_id for action in actions.actions] == ["pass"]
+    assert command_for_api_action(actions.actions[0]).to_dict() == {}
 
 
 def test_cursed_turn_can_use_reviewed_untargeted_curse_removal() -> None:
@@ -218,8 +226,11 @@ def test_cursed_turn_can_use_reviewed_untargeted_curse_removal() -> None:
         user_id="loki-user",
     )
 
-    assert [action.action_id for action in actions.actions] == ["use:14:4:untargeted"]
-    assert command_for_api_action(actions.actions[0]).to_dict() == {"itemIds": [14]}
+    assert [action.action_id for action in actions.actions] == [
+        "pass",
+        "use:14:4:untargeted",
+    ]
+    assert command_for_api_action(actions.actions[1]).to_dict() == {"itemIds": [14]}
 
 
 def test_defense_actions_delegate_element_legality_to_pygodfield() -> None:

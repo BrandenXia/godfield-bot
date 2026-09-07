@@ -13,6 +13,11 @@ from godfield_bot.api_catalog import (
     api_catalog_digest,
     write_api_catalog_snapshot,
 )
+from godfield_bot.api_game import (
+    ApiActionKind,
+    normalize_api_game_state,
+    verified_api_actions,
+)
 from godfield_bot.api_runtime import (
     ApiPolicyName,
     ApiRuntimeError,
@@ -20,6 +25,7 @@ from godfield_bot.api_runtime import (
     _read_password_file,
     _within_wall_clock_limit,
     api_environment_fingerprint,
+    decide_api_action,
     run_private_api_observer,
 )
 from godfield_bot.config import AppSettings
@@ -31,8 +37,14 @@ def catalog() -> ItemCatalog:
     return ItemCatalog(
         [
             {"name": "Club", "category": "weapons", "atk": 5},
-            {"name": "Shield", "category": "armor", "def": 5},
+            {"name": "Shield", "category": "armor", "def": 8},
             {"name": "Hidden", "category": "miracles", "atk": 99},
+            {"name": "Strong Shield", "category": "armor", "def": 12},
+            {
+                "name": "Cleanser",
+                "category": "sundries",
+                "ability": "removeAllCurses",
+            },
         ]
     )
 
@@ -95,6 +107,71 @@ def active_room(*, opponent_hp: int = 35, update_count: int = 12) -> RoomState:
     room.raw["game"]["updateCount"] = update_count
     room.raw["game"]["isOver"] = False
     return room
+
+
+def test_private_api_heuristic_passes_an_unsupported_cursed_turn() -> None:
+    room = active_room()
+    room.raw["game"]["players"][0]["curses"] = ["dream"]
+    state = normalize_api_game_state(room, user_id="loki-user")
+    legal_actions = verified_api_actions(room, user_id="loki-user")
+
+    decision, chosen = decide_api_action(
+        ApiPolicyName.HEURISTIC,
+        state,
+        legal_actions,
+    )
+
+    assert state.has_active_curses is True
+    assert chosen is not None
+    assert chosen.kind is ApiActionKind.PASS
+    assert decision.executable is True
+    assert decision.rationale == "pass to advance an unsupported cursed turn"
+
+
+def test_private_api_heuristic_prefers_a_verified_curse_cleanser() -> None:
+    room = active_room()
+    room.raw["game"]["players"][0]["curses"] = ["dream"]
+    room.raw["game"]["players"][0]["items"] = [{"id": 22, "modelId": 5}]
+    state = normalize_api_game_state(room, user_id="loki-user")
+    legal_actions = verified_api_actions(room, user_id="loki-user")
+
+    decision, chosen = decide_api_action(
+        ApiPolicyName.HEURISTIC,
+        state,
+        legal_actions,
+    )
+
+    assert chosen is not None
+    assert chosen.item_instance_ids == (22,)
+    assert decision.rationale == "remove active curses with a verified cleanser"
+
+
+def test_private_api_heuristic_preserves_excess_defense() -> None:
+    room = active_room()
+    room.raw["game"]["players"][0]["items"] = [
+        {"id": 20, "modelId": 2},
+        {"id": 21, "modelId": 4},
+    ]
+    room.raw["game"]["attacks"] = [
+        {
+            "playerId": 2,
+            "targetPlayerId": 1,
+            "itemModelIds": [1],
+            "atk": 7,
+        }
+    ]
+    state = normalize_api_game_state(room, user_id="loki-user")
+    legal_actions = verified_api_actions(room, user_id="loki-user")
+
+    decision, chosen = decide_api_action(
+        ApiPolicyName.HEURISTIC,
+        state,
+        legal_actions,
+    )
+
+    assert chosen is not None
+    assert chosen.item_instance_ids == (20,)
+    assert decision.rationale == "use the weakest sufficient conservative defense"
 
 
 def empty_lobby() -> RoomState:
@@ -408,6 +485,60 @@ def test_private_api_heuristic_enters_lobby_and_records_accepted_action(
     assert transitions[0].payload["player_hp_deltas"] == {"2": -35}
 
 
+def test_private_api_heuristic_dispatches_progress_pass_for_cursed_turn(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    snapshot_path = tmp_path / "catalog.json"
+    write_api_catalog_snapshot(catalog_snapshot(), snapshot_path)
+    cursed_room = active_room()
+    cursed_room.raw["game"]["players"][0]["curses"] = ["dream"]
+
+    class FakeCursedClient(FakeClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.states = iter([cursed_room, terminal_room()])
+            self.commands: list[dict[str, object]] = []
+
+        def state(self) -> RoomState:
+            return next(self.states)
+
+        def submit(self, command) -> None:
+            self.commands.append(command.to_dict())
+
+    client = FakeCursedClient()
+
+    @contextmanager
+    def fake_open_api_client(*args, **kwargs):
+        yield client
+
+    monkeypatch.setattr("godfield_bot.api_runtime.open_api_client", fake_open_api_client)
+    monkeypatch.setattr(
+        "godfield_bot.api_runtime.validate_api_credentials",
+        lambda settings: SimpleNamespace(user_id="loki-user"),
+    )
+    monkeypatch.setattr("godfield_bot.api_runtime.time.sleep", lambda seconds: None)
+
+    run = run_private_api_observer(
+        AppSettings(state_root=tmp_path / "state"),
+        PrivateApiRunConfig(
+            database=tmp_path / "runs" / "api.sqlite",
+            catalog_snapshot=snapshot_path,
+            room_id="private-room",
+            enter_match=True,
+            policy=ApiPolicyName.HEURISTIC,
+            max_in_match_actions=5,
+            max_seconds=10,
+            no_progress_seconds=10,
+        ),
+    )
+
+    assert run.status is RunStatus.COMPLETED
+    assert run.outcome is not None
+    assert run.outcome["in_match_actions"] == 1
+    assert client.commands == [{}]
+
+
 def test_private_api_heuristic_enters_selected_multiplayer_team(tmp_path, monkeypatch) -> None:
     snapshot_path = tmp_path / "catalog.json"
     write_api_catalog_snapshot(catalog_snapshot(), snapshot_path)
@@ -455,8 +586,7 @@ def test_private_api_heuristic_enters_selected_multiplayer_team(tmp_path, monkey
     requested = [
         event.payload
         for event in RunStore(database).events(run.run_id)
-        if event.kind is EventKind.OBSERVATION
-        and event.payload.get("phase") == "entry_requested"
+        if event.kind is EventKind.OBSERVATION and event.payload.get("phase") == "entry_requested"
     ]
     assert requested == [
         {

@@ -240,11 +240,7 @@ def _identity_entry_team(room: Any, *, user_id: str) -> int | None:
     raw_team = matching_entries[0].get("team")
     if raw_team is None:
         return 0
-    if (
-        not isinstance(raw_team, int)
-        or isinstance(raw_team, bool)
-        or not 0 <= raw_team <= 4
-    ):
+    if not isinstance(raw_team, int) or isinstance(raw_team, bool) or not 0 <= raw_team <= 4:
         raise ApiRuntimeError("the API identity has an invalid lobby team")
     return raw_team
 
@@ -299,7 +295,23 @@ def decide_api_action(
             value = item.attack if state.phase is ApiPhase.TURN else item.defense
             return (value, -action.item_instance_ids[0])
 
-        if candidates:
+        if candidates and state.phase is ApiPhase.DEFENSE:
+            pending_attack = state.pending_attack.attack if state.pending_attack is not None else 0
+            sufficient = [
+                action for action in candidates if action_value(action)[0] >= pending_attack
+            ]
+            chosen = (
+                min(
+                    sufficient,
+                    key=lambda action: (
+                        action_value(action)[0],
+                        action.item_instance_ids[0],
+                    ),
+                )
+                if sufficient
+                else max(candidates, key=action_value)
+            )
+        elif candidates:
             chosen = max(candidates, key=action_value)
         else:
             chosen = next(
@@ -307,15 +319,29 @@ def decide_api_action(
                 None,
             )
     executable = chosen is not None
-    rationale = (
-        "decline an unmodeled purchase"
-        if chosen is not None and chosen.kind is ApiActionKind.DECLINE_PURCHASE
-        else "use the strongest conservative single-card action"
-        if chosen is not None and chosen.kind is ApiActionKind.USE_ITEM
-        else "pass because no conservative card action is available"
-        if chosen is not None
-        else "the server is not awaiting an action from ロキ-67"
-    )
+    if chosen is None:
+        rationale = "the server is not awaiting an action from ロキ-67"
+    elif chosen.kind is ApiActionKind.DECLINE_PURCHASE:
+        rationale = "decline an unmodeled purchase"
+    elif chosen.kind is ApiActionKind.PASS and state.has_active_curses:
+        rationale = "pass to advance an unsupported cursed turn"
+    elif chosen.kind is ApiActionKind.PASS:
+        rationale = "pass because no conservative card action is available"
+    elif state.has_active_curses:
+        rationale = "remove active curses with a verified cleanser"
+    elif state.phase is ApiPhase.DEFENSE:
+        chosen_item = next(
+            (item for item in state.hand if item.instance_id == chosen.item_instance_ids[0]),
+            None,
+        )
+        pending_attack = state.pending_attack.attack if state.pending_attack is not None else 0
+        rationale = (
+            "use the weakest sufficient conservative defense"
+            if chosen_item is not None and chosen_item.defense >= pending_attack
+            else "use the strongest available conservative defense"
+        )
+    else:
+        rationale = "use the strongest conservative single-card action"
     return (
         ApiPolicyDecision(
             decided_at=datetime.now(UTC),

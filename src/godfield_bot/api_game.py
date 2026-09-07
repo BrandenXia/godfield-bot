@@ -64,7 +64,7 @@ class ApiAttackState(BaseModel):
 
 
 class ApiGameState(BaseModel):
-    schema_version: int = 1
+    schema_version: int = 2
     observed_at: datetime
     mode: str = "private"
     update_count: int = Field(ge=0)
@@ -74,6 +74,7 @@ class ApiGameState(BaseModel):
     phase: ApiPhase
     players: tuple[ApiPlayerState, ...]
     hand: tuple[ApiItemState, ...]
+    has_active_curses: bool = False
     pending_attack: ApiAttackState | None = None
     buying_item_model_id: int | None = Field(default=None, gt=0)
 
@@ -257,6 +258,7 @@ def normalize_api_game_state(
         phase=phase,
         players=players,
         hand=tuple(_item_state(item) for item in me.items),
+        has_active_curses=bool(me.raw.get("curses")),
         pending_attack=_attack_state(pending) if pending is not None else None,
         buying_item_model_id=buying_item_model_id,
     )
@@ -274,7 +276,7 @@ def verified_api_actions(room: RoomState, *, user_id: str) -> ApiLegalActionSet:
         raise ApiGameStateError("the API identity has no active player")
 
     actions: list[ApiLegalAction] = []
-    has_curses = bool(me.raw.get("curses"))
+    has_curses = state.has_active_curses
     if state.phase is ApiPhase.PURCHASE:
         actions.append(
             ApiLegalAction(
@@ -283,7 +285,7 @@ def verified_api_actions(room: RoomState, *, user_id: str) -> ApiLegalActionSet:
                 label="Decline the purchase",
             )
         )
-    elif state.phase is ApiPhase.DEFENSE or (state.phase is ApiPhase.TURN and not has_curses):
+    elif state.phase in {ApiPhase.TURN, ApiPhase.DEFENSE}:
         actions.append(
             ApiLegalAction(
                 action_id="pass",
@@ -377,7 +379,7 @@ def verified_api_actions(room: RoomState, *, user_id: str) -> ApiLegalActionSet:
         coverage_complete=False,
         blocked_reason=(
             "pygodfield verifies conservative single-card attacks, defenses, and "
-            "curse removal; passing a cursed attack turn, "
+            "curse removal; a cursed attack turn may always pass to preserve progress, while "
             "multi-card combinations, purchases, and unknown future effects remain excluded"
         ),
     )

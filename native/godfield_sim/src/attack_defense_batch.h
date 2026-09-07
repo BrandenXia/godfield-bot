@@ -10,7 +10,7 @@
 namespace godfield_sim {
 
 inline constexpr std::uint32_t kAttackDefenseKernelSchemaVersion = 1;
-inline constexpr std::uint32_t kAttackDefenseObservationSchemaVersion = 1;
+inline constexpr std::uint32_t kAttackDefenseObservationSchemaVersion = 2;
 inline constexpr const char *kAttackDefenseRulesetId =
     "plain-attack-defense-redraw-duel-v1";
 inline constexpr std::size_t kWeaponSlots = 5;

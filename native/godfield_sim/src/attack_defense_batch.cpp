@@ -260,6 +260,11 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
       normalized(hit_points_[environment * kPlayerCount + perspective]);
   global_features_[global_offset + 2U] = 0.0F;
   global_features_[global_offset + 3U] = 0.0F;
+  const auto phase = static_cast<TurnPhase>(phases_[environment]);
+  global_features_[global_offset + 4U] =
+      phase == TurnPhase::Defense ? 1.0F : 0.0F;
+  global_features_[global_offset + 5U] =
+      normalized(pending_attacks_[environment]);
 
   const auto player_offset = environment * kPlayerCount * kPlayerFeatureCount;
   const std::size_t ordered_players[kPlayerCount] = {perspective, opponent};

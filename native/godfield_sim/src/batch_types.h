@@ -13,7 +13,7 @@ inline constexpr std::size_t kPlayerCount = 2;
 inline constexpr std::size_t kHandSlots = 9;
 inline constexpr std::size_t kActionCount = 21;
 inline constexpr std::size_t kForgiveActionIndex = 19;
-inline constexpr std::size_t kGlobalFeatureCount = 4;
+inline constexpr std::size_t kGlobalFeatureCount = 6;
 inline constexpr std::size_t kPlayerFeatureCount = 4;
 
 using TokenInput = nb::ndarray<const std::uint32_t, nb::numpy, nb::shape<-1>,

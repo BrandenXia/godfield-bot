@@ -49,6 +49,7 @@ def test_snapshot_factory_fingerprints_non_promotable_curriculum() -> None:
     simulation = create_fixed_attack_simulation(SNAPSHOT_PATH, batch_size=8)
 
     assert simulation.metadata.kernel_schema_version == 2
+    assert simulation.metadata.observation_schema_version == 2
     assert simulation.metadata.ruleset_id == "plain-attack-redraw-duel-v1"
     assert simulation.metadata.rule_catalog_size == 18
     assert simulation.metadata.action_count == 21
@@ -62,7 +63,7 @@ def test_defense_factory_fingerprints_neutral_role_catalogs() -> None:
     simulation = create_attack_defense_simulation(SNAPSHOT_PATH, batch_size=8)
 
     assert simulation.metadata.kernel_schema_version == 1
-    assert simulation.metadata.observation_schema_version == 1
+    assert simulation.metadata.observation_schema_version == 2
     assert simulation.metadata.ruleset_id == "plain-attack-defense-redraw-duel-v1"
     assert simulation.metadata.rule_catalog_size == 33
     assert simulation.metadata.sampling_distribution == (
@@ -82,6 +83,8 @@ def test_defense_views_expose_phase_pending_attack_and_fixed_card_roles() -> Non
     assert not batch.pending_attacks.flags.writeable
     assert np.all(batch.phases == godfield_sim.PHASE_ATTACK)
     assert np.all(batch.pending_attacks == 0)
+    assert batch.global_features.shape == (4, 6)
+    assert np.all(batch.global_features[:, 4:] == 0)
     assert np.all(batch.hand_card_kinds[:, :5] == godfield_sim.CARD_KIND_WEAPON)
     assert np.all(batch.hand_card_kinds[:, 5:] == godfield_sim.CARD_KIND_ARMOR)
     assert np.all(batch.action_mask[:, 1:6])
@@ -97,6 +100,8 @@ def test_attack_then_armor_resolves_damage_and_hands_turn_to_defender() -> None:
 
     assert np.all(batch.phases == godfield_sim.PHASE_DEFENSE)
     assert np.all(batch.pending_attacks == 13)
+    assert np.all(batch.global_features[:, 4] == 1)
+    assert np.allclose(batch.global_features[:, 5], 0.13)
     assert np.all(batch.turn_numbers == 0)
     np.testing.assert_array_equal(batch.active_players, 1 - attackers)
     assert np.all(batch.action_mask[:, godfield_sim.FORGIVE_ACTION_INDEX])
@@ -107,6 +112,7 @@ def test_attack_then_armor_resolves_damage_and_hands_turn_to_defender() -> None:
 
     assert np.all(batch.phases == godfield_sim.PHASE_ATTACK)
     assert np.all(batch.pending_attacks == 0)
+    assert np.all(batch.global_features[:, 4:] == 0)
     assert np.all(batch.turn_numbers == 1)
     assert np.allclose(batch.global_features[:, 1], 0.31)
     assert np.all(batch.action_mask[:, 1:6])
@@ -119,9 +125,7 @@ def test_defense_pass_and_full_block_have_expected_hp_effects() -> None:
     passing.step(attack_actions)
     blocking.step(attack_actions.copy())
 
-    passing.step(
-        np.full(passing.batch_size, godfield_sim.FORGIVE_ACTION_INDEX, dtype=np.int64)
-    )
+    passing.step(np.full(passing.batch_size, godfield_sim.FORGIVE_ACTION_INDEX, dtype=np.int64))
     blocking.step(np.full(blocking.batch_size, 6, dtype=np.int64))
 
     assert np.allclose(passing.global_features[:, 1], 0.27)
@@ -134,9 +138,7 @@ def test_lethal_attack_terminates_only_after_defense_resolution() -> None:
 
     batch.step(np.ones(batch.batch_size, dtype=np.int64))
     assert not np.any(batch.terminated)
-    batch.step(
-        np.full(batch.batch_size, godfield_sim.FORGIVE_ACTION_INDEX, dtype=np.int64)
-    )
+    batch.step(np.full(batch.batch_size, godfield_sim.FORGIVE_ACTION_INDEX, dtype=np.int64))
 
     assert np.all(batch.terminated)
     assert np.all(batch.phases == godfield_sim.PHASE_TERMINAL)
@@ -174,7 +176,7 @@ def test_defense_catalogs_reject_cross_role_token_aliases() -> None:
 def test_native_views_match_policy_shapes_and_are_read_only() -> None:
     batch = native_batch()
 
-    assert batch.global_features.shape == (4, 4)
+    assert batch.global_features.shape == (4, 6)
     assert batch.player_features.shape == (4, 2, 4)
     assert batch.player_mask.shape == (4, 2)
     assert batch.hand_token_ids.shape == (4, 9)
@@ -283,7 +285,7 @@ def test_view_keeps_native_owner_alive() -> None:
     del batch
     gc.collect()
 
-    assert view.shape == (2, 4)
+    assert view.shape == (2, 6)
     assert np.isfinite(view).all()
 
 
@@ -310,6 +312,23 @@ def test_pytorch_inference_views_share_native_buffers() -> None:
     assert logits.shape == (8, 21)
     assert values.shape == (8,)
     assert recurrent_state.shape == (8, 128)
+
+
+def test_defense_pytorch_views_include_live_compatible_response_features() -> None:
+    simulation = create_attack_defense_simulation(SNAPSHOT_PATH, batch_size=8)
+    tensors = simulation_feature_tensors(simulation)
+
+    assert tensors[0].shape == (8, 6)
+    assert tensors[0].data_ptr() == simulation.batch.global_features.__array_interface__["data"][0]
+    assert not tensors[0][:, 4:].any()
+
+    simulation.batch.step(np.ones(8, dtype=np.int64))
+
+    assert tensors[0][:, 4].eq(1).all()
+    np.testing.assert_allclose(
+        tensors[0][:, 5].numpy(),
+        simulation.batch.pending_attacks / 100.0,
+    )
 
 
 def test_benchmark_collects_full_batches() -> None:

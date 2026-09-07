@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
 import torch
 
 from godfield_bot.domain.action import ActionKind, LegalAction, LegalActionSet
@@ -44,12 +45,51 @@ def test_snapshot_vocabulary_and_feature_shapes() -> None:
     )
 
     assert len(vocabulary.tokens) == 296
+    assert features.schema_version == 2
+    assert features.global_features == (0.0, 0.4, 0.1, 0.2, 0.0, 0.0)
     assert len(features.player_features) == 9
     assert len(features.hand_token_ids) == 9
     assert features.hand_token_ids[0] > 1
     assert len(features.action_mask) == 21
     assert features.action_mask[0] is True
     assert not any(features.action_mask[1:])
+
+
+def test_live_response_features_encode_phase_and_pending_attack() -> None:
+    vocabulary = load_vocabulary(SNAPSHOT)
+    response_state = state().model_copy(
+        update={
+            "action_actor": "CPU",
+            "action_target": "ロキ-67",
+            "action_display": "ATK13",
+            "phase_control": "Forgive",
+        }
+    )
+
+    features = StateFeatureEncoder(vocabulary).encode(
+        response_state,
+        observation_only_actions(response_state),
+    )
+
+    assert features.global_features == (0.0, 0.4, 0.1, 0.2, 1.0, 0.13)
+
+
+def test_outgoing_attack_is_not_encoded_as_a_defense_response() -> None:
+    vocabulary = load_vocabulary(SNAPSHOT)
+    attack_state = state().model_copy(
+        update={
+            "action_actor": "ロキ-67",
+            "action_target": "CPU",
+            "action_display": "ATK13",
+        }
+    )
+
+    features = StateFeatureEncoder(vocabulary).encode(
+        attack_state,
+        observation_only_actions(attack_state),
+    )
+
+    assert features.global_features[4:] == (0.0, 0.0)
 
 
 def test_recurrent_policy_masks_actions_and_backpropagates() -> None:
@@ -76,6 +116,21 @@ def test_recurrent_policy_masks_actions_and_backpropagates() -> None:
     assert logits[0, 0].isfinite()
     assert logits[0, 1] == torch.finfo(logits.dtype).min
     assert model.policy_head.weight.grad is not None
+
+
+def test_recurrent_policy_rejects_legacy_global_feature_shape() -> None:
+    vocabulary = load_vocabulary(SNAPSHOT)
+    model = RecurrentPolicyValueNet(vocabulary_size=len(vocabulary.tokens), action_count=21)
+
+    with torch.no_grad(), pytest.raises(ValueError, match="global feature shape"):
+        model(
+            torch.zeros((1, 4)),
+            torch.zeros((1, 9, 4)),
+            torch.ones((1, 9), dtype=torch.bool),
+            torch.zeros((1, 9), dtype=torch.long),
+            torch.ones((1, 9), dtype=torch.bool),
+            torch.ones((1, 21), dtype=torch.bool),
+        )
 
 
 def test_target_action_uses_player_segment_of_action_head() -> None:

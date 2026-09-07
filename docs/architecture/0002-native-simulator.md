@@ -71,13 +71,15 @@ chooses one armor slot (actions 6-9); damage is `max(ATK - DEF, 0)`. The
 defender begins the next attack after resolution. Returns remain sparse seat
 results only.
 
-Defense observations expose `phases`, `pending_attacks`, and
-`hand_card_kinds` as separate read-only arrays. They are not smuggled into the
-four global features, whose positions retain the live feature meanings. The
-existing `simulation_feature_tensors()` adapter therefore remains restricted
-to attack-only v1. Connecting defense rollouts to the neural policy requires a
-deliberate observation-schema and model-architecture decision shared with the
-live state encoder.
+Observation schema v2 appends two global values after the original field, HP,
+MP, and money positions: a response-phase flag and normalized pending ATK.
+The live browser encoder derives the same values from the opponent-to-self
+action panel. Defense observations also retain `phases`, `pending_attacks`, and
+`hand_card_kinds` as separate read-only diagnostic arrays. The shared
+`simulation_feature_tensors()` adapter now accepts either native curriculum,
+so one six-global-input model can consume live and simulated states. Model
+manifests record feature schema v2; legacy four-global checkpoints are rejected
+instead of being loaded into an incompatible observation contract.
 
 ## Compatibility and safety
 

@@ -9,7 +9,12 @@ import torch
 from pydantic import BaseModel, Field
 
 from godfield_bot.browser.profile import prepare_private_directory
-from godfield_bot.features import ArtifactVocabulary
+from godfield_bot.features import (
+    FEATURE_SCHEMA_VERSION,
+    GLOBAL_FEATURE_COUNT,
+    PLAYER_FEATURE_COUNT,
+    ArtifactVocabulary,
+)
 from godfield_bot.neural import RecurrentPolicyValueNet
 
 
@@ -23,14 +28,16 @@ class ModelStatus(StrEnum):
 class ModelArchitecture(BaseModel):
     vocabulary_size: int = Field(gt=1)
     action_count: int = Field(gt=0)
-    global_feature_count: int = Field(default=4, gt=0)
-    player_feature_count: int = Field(default=4, gt=0)
+    global_feature_count: int = Field(default=GLOBAL_FEATURE_COUNT, gt=0)
+    player_feature_count: int = Field(default=PLAYER_FEATURE_COUNT, gt=0)
     embedding_size: int = Field(default=32, gt=0)
     hidden_size: int = Field(default=128, gt=0)
 
 
 class ModelManifest(BaseModel):
-    schema_version: int = 1
+    schema_version: int = 2
+    # Missing means a legacy v1 manifest; new writers always set this explicitly.
+    feature_schema_version: int = 1
     model_id: str
     created_at: datetime
     status: ModelStatus
@@ -94,6 +101,7 @@ def initialize_model(
     os.chmod(temporary_weights, 0o600)
     os.replace(temporary_weights, weights_path)
     manifest = ModelManifest(
+        feature_schema_version=FEATURE_SCHEMA_VERSION,
         model_id=model_id,
         created_at=datetime.now(UTC),
         status=ModelStatus.INITIALIZED,
@@ -116,6 +124,15 @@ def load_model(model_directory: Path) -> tuple[ModelManifest, RecurrentPolicyVal
     manifest = ModelManifest.model_validate_json(
         (model_directory / "manifest.json").read_text(encoding="utf-8")
     )
+    if (
+        manifest.schema_version != 2
+        or manifest.feature_schema_version != FEATURE_SCHEMA_VERSION
+        or manifest.architecture.global_feature_count != GLOBAL_FEATURE_COUNT
+        or manifest.architecture.player_feature_count != PLAYER_FEATURE_COUNT
+    ):
+        raise ValueError(
+            "model uses the legacy observation architecture; initialize a feature-schema-v2 model"
+        )
     weights_path = model_directory / manifest.weights_file
     if _file_digest(weights_path) != manifest.weights_sha256:
         raise ValueError("model weight checksum does not match manifest")
@@ -156,6 +173,7 @@ def save_candidate(
     os.chmod(temporary_weights, 0o600)
     os.replace(temporary_weights, weights_path)
     manifest = ModelManifest(
+        feature_schema_version=parent.feature_schema_version,
         model_id=model_id,
         created_at=datetime.now(UTC),
         status=ModelStatus.CANDIDATE,

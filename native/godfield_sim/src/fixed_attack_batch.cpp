@@ -206,6 +206,8 @@ void FixedAttackBatch::refresh_environment_views(std::size_t environment) {
       normalized(hit_points_[environment * kPlayerCount + perspective]);
   global_features_[global_offset + 2U] = 0.0F;
   global_features_[global_offset + 3U] = 0.0F;
+  global_features_[global_offset + 4U] = 0.0F;
+  global_features_[global_offset + 5U] = 0.0F;
 
   const auto player_offset = environment * kPlayerCount * kPlayerFeatureCount;
   const std::size_t ordered_players[kPlayerCount] = {perspective, opponent};

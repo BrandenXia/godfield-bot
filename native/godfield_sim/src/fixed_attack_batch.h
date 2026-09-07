@@ -10,7 +10,7 @@
 namespace godfield_sim {
 
 inline constexpr std::uint32_t kKernelSchemaVersion = 2;
-inline constexpr std::uint32_t kObservationSchemaVersion = 1;
+inline constexpr std::uint32_t kObservationSchemaVersion = 2;
 inline constexpr const char *kRulesetId = "plain-attack-redraw-duel-v1";
 
 class FixedAttackBatch final {

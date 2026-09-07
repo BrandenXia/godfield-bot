@@ -19,6 +19,7 @@ PHASE_TERMINAL: Final[int]
 CARD_KIND_WEAPON: Final[int]
 CARD_KIND_ARMOR: Final[int]
 FORGIVE_ACTION_INDEX: Final[int]
+GLOBAL_FEATURE_COUNT: Final[int]
 
 class FixedAttackBatch:
     def __init__(

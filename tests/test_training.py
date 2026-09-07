@@ -109,8 +109,35 @@ def test_initialized_model_round_trips_with_checksums(tmp_path) -> None:
     loaded_manifest, loaded_model = load_model(model_directory)
 
     assert loaded_manifest == manifest
+    assert manifest.schema_version == 2
+    assert manifest.feature_schema_version == 2
+    assert manifest.architecture.global_feature_count == 6
     assert loaded_model.policy_head.out_features == 21
     assert stat.S_IMODE((model_directory / "weights.pt").stat().st_mode) == 0o600
+
+
+def test_legacy_four_feature_model_is_rejected_with_migration_message(tmp_path) -> None:
+    vocabulary = load_vocabulary(SNAPSHOT)
+    manifest = initialize_model(
+        tmp_path / "models",
+        vocabulary,
+        client_sha256="a" * 64,
+    )
+    model_directory = tmp_path / "models" / manifest.model_id
+    legacy = manifest.model_copy(
+        update={
+            "schema_version": 1,
+            "feature_schema_version": 1,
+            "architecture": manifest.architecture.model_copy(update={"global_feature_count": 4}),
+        }
+    )
+    (model_directory / "manifest.json").write_text(
+        legacy.model_dump_json(indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="initialize a feature-schema-v2 model"):
+        load_model(model_directory)
 
 
 def imitation_sample() -> ReplaySample:

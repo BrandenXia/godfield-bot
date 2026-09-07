@@ -171,6 +171,10 @@ default `plain-attack-defense-redraw-duel-v1` benchmark adds a separate defense
 decision: five weapon slots and four armor slots redraw within their own
 categories, defense may pass or consume one neutral plain armor card, and
 damage is `max(ATK - DEF, 0)`. Phase, pending ATK, and card role are explicit
-native views; they are not yet connected to the neural feature encoder. Both
-rulesets are fingerprinted against the accepted client, artifact vocabulary,
-and exact rule catalog, and neither is promotion-eligible.
+native views. Observation schema v2 appends the response-phase flag and pending
+ATK to the same global feature vector used for live browser states, allowing
+the recurrent network to consume either source. Existing four-feature model
+checkpoints are deliberately incompatible; run `models init` to create a v2
+base model. Both rulesets are fingerprinted against the accepted client,
+artifact vocabulary, and exact rule catalog, and neither is
+promotion-eligible.

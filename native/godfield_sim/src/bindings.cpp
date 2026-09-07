@@ -15,6 +15,7 @@ NB_MODULE(_native, module) {
   module.attr("RULESET_ID") = godfield_sim::kRulesetId;
   module.attr("ACTION_COUNT") = godfield_sim::kActionCount;
   module.attr("HAND_SLOTS") = godfield_sim::kHandSlots;
+  module.attr("GLOBAL_FEATURE_COUNT") = godfield_sim::kGlobalFeatureCount;
   module.attr("FORGIVE_ACTION_INDEX") = godfield_sim::kForgiveActionIndex;
   module.attr("ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION") =
       godfield_sim::kAttackDefenseKernelSchemaVersion;

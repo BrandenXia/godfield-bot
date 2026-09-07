@@ -3,7 +3,7 @@ from collections.abc import Sequence
 import torch
 from torch import Tensor, nn
 
-from godfield_bot.features import StateFeatures
+from godfield_bot.features import GLOBAL_FEATURE_COUNT, PLAYER_FEATURE_COUNT, StateFeatures
 
 
 class RecurrentPolicyValueNet(nn.Module):
@@ -14,13 +14,15 @@ class RecurrentPolicyValueNet(nn.Module):
         *,
         vocabulary_size: int,
         action_count: int,
-        global_feature_count: int = 4,
-        player_feature_count: int = 4,
+        global_feature_count: int = GLOBAL_FEATURE_COUNT,
+        player_feature_count: int = PLAYER_FEATURE_COUNT,
         embedding_size: int = 32,
         hidden_size: int = 128,
     ) -> None:
         super().__init__()
         self.hidden_size = hidden_size
+        self.global_feature_count = global_feature_count
+        self.player_feature_count = player_feature_count
         self.artifact_embedding = nn.Embedding(
             vocabulary_size,
             embedding_size,
@@ -52,6 +54,10 @@ class RecurrentPolicyValueNet(nn.Module):
         action_mask: Tensor,
         recurrent_state: Tensor | None = None,
     ) -> tuple[Tensor, Tensor, Tensor]:
+        if global_features.ndim != 2 or global_features.shape[1] != self.global_feature_count:
+            raise ValueError("global feature shape does not match policy architecture")
+        if player_features.ndim != 3 or player_features.shape[2] != self.player_feature_count:
+            raise ValueError("player feature shape does not match policy architecture")
         batch_size = global_features.shape[0]
         if recurrent_state is None:
             recurrent_state = global_features.new_zeros((batch_size, self.hidden_size))

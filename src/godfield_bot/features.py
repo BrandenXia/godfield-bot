@@ -1,4 +1,6 @@
+import re
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, model_validator
 
@@ -11,6 +13,10 @@ PAD_TOKEN = "<PAD>"
 UNKNOWN_TOKEN = "<UNKNOWN>"
 TRADE_TOKENS = ("trade/buy", "trade/exchange", "trade/sell")
 ARTIFACT_ACTION_OFFSET = 1
+FEATURE_SCHEMA_VERSION = 2
+GLOBAL_FEATURE_COUNT = 6
+PLAYER_FEATURE_COUNT = 4
+ATTACK_DISPLAY_PATTERN = re.compile(r"^ATK(\d+)$")
 
 
 def action_index(
@@ -76,7 +82,7 @@ class ArtifactVocabulary(BaseModel):
 
 
 class StateFeatures(BaseModel):
-    schema_version: int = 1
+    schema_version: Literal[2] = 2
     global_features: tuple[float, ...]
     player_features: tuple[tuple[float, ...], ...]
     player_mask: tuple[bool, ...]
@@ -86,8 +92,8 @@ class StateFeatures(BaseModel):
 
 
 class StateFeatureEncoder:
-    global_feature_count = 4
-    player_feature_count = 4
+    global_feature_count = GLOBAL_FEATURE_COUNT
+    player_feature_count = PLAYER_FEATURE_COUNT
 
     def __init__(
         self,
@@ -111,11 +117,25 @@ class StateFeatureEncoder:
             raise FeatureEncodingError("hand size exceeds model capacity")
 
         self_player = state.players[state.self_player_index]
+        is_response_phase = (
+            state.action_actor is not None
+            and state.action_actor != self_player.name
+            and state.action_target == self_player.name
+            and state.phase_control is not None
+        )
+        pending_attack_match = (
+            ATTACK_DISPLAY_PATTERN.fullmatch(state.action_display)
+            if is_response_phase and state.action_display is not None
+            else None
+        )
+        pending_attack = int(pending_attack_match.group(1)) if pending_attack_match else 0
         global_features = (
             min(state.field_number, 100) / 100.0,
             min(self_player.hp, 100) / 100.0,
             min(self_player.mp, 100) / 100.0,
             min(self_player.money, 100) / 100.0,
+            float(is_response_phase),
+            min(pending_attack, 100) / 100.0,
         )
         players: list[tuple[float, ...]] = [
             (

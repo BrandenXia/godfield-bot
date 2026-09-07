@@ -82,11 +82,11 @@ class AttackDefenseSimulation:
 
 
 def simulation_feature_tensors(
-    simulation: FixedAttackSimulation,
+    simulation: FixedAttackSimulation | AttackDefenseSimulation,
     *,
     device: str = "cpu",
 ) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
-    """Expose the current native observation to PyTorch without a CPU copy.
+    """Expose a schema-v2 native observation to PyTorch without a CPU copy.
 
     These tensors are ephemeral views. A simulator step updates their backing
     buffers, so rollout storage must clone any observation it needs to retain.

@@ -98,3 +98,21 @@ def write_api_catalog_snapshot(snapshot: ApiCatalogSnapshot, output: Path) -> No
     temporary = output.with_suffix(f"{output.suffix}.tmp")
     temporary.write_text(snapshot.model_dump_json(indent=2) + "\n", encoding="utf-8")
     os.replace(temporary, output)
+
+
+def read_api_catalog_snapshot(path: Path) -> ApiCatalogSnapshot:
+    try:
+        return ApiCatalogSnapshot.model_validate_json(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise ApiCatalogError("the API catalog snapshot is unreadable or invalid") from error
+
+
+def item_catalog_from_snapshot(snapshot: ApiCatalogSnapshot) -> object:
+    """Build pygodfield's catalog without an unversioned network or home-cache read."""
+
+    from godfield import ItemCatalog
+
+    return ItemCatalog(
+        [item.raw for item in snapshot.items],
+        lang=snapshot.language,
+    )

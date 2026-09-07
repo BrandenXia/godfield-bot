@@ -50,12 +50,14 @@ from godfield_bot.runner import (
 app = typer.Typer(no_args_is_help=True, help="Control and train the ロキ-67 God Field bot.")
 data_app = typer.Typer(no_args_is_help=True, help="Refresh versioned public game data.")
 account_app = typer.Typer(no_args_is_help=True, help="Manage the persistent ロキ-67 identity.")
+api_app = typer.Typer(no_args_is_help=True, help="Observe operator-owned private API games.")
 state_app = typer.Typer(no_args_is_help=True, help="Normalize saved browser observations.")
 runs_app = typer.Typer(no_args_is_help=True, help="Inspect the local trajectory store.")
 models_app = typer.Typer(no_args_is_help=True, help="Manage local neural policy candidates.")
 simulation_app = typer.Typer(no_args_is_help=True, help="Run local batched curriculum games.")
 app.add_typer(data_app, name="data")
 app.add_typer(account_app, name="account")
+app.add_typer(api_app, name="api")
 app.add_typer(state_app, name="state")
 app.add_typer(runs_app, name="runs")
 app.add_typer(models_app, name="models")
@@ -183,6 +185,100 @@ def enable_protocol_api(
         )
         raise typer.Exit(code=1) from None
     typer.echo(result.model_dump_json(indent=2))
+
+
+@api_app.command("observe-private")
+def observe_private_api_game(
+    room_id: Annotated[
+        str,
+        typer.Option(help="Existing operator-owned private room ID."),
+    ],
+    password_file: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            help="Optional owner-only file containing the private-room password.",
+        ),
+    ] = None,
+    catalog_snapshot: Annotated[
+        Path,
+        typer.Option(exists=True, dir_okay=False, readable=True),
+    ] = Path("data", "snapshots", "2026-09-07", "api-catalog-en.json"),
+    database: Annotated[
+        Path,
+        typer.Option(help="Ignored local SQLite trajectory database."),
+    ] = Path("runs", "godfield.sqlite"),
+    max_seconds: Annotated[
+        float,
+        typer.Option(min=10.0, max=3600.0, help="Maximum room observation time."),
+    ] = 90.0,
+    poll_seconds: Annotated[
+        float,
+        typer.Option(min=0.25, max=10.0, help="Seconds between room reads."),
+    ] = 1.0,
+    no_progress_seconds: Annotated[
+        float,
+        typer.Option(
+            min=10.0,
+            max=600.0,
+            help="Stop after this many seconds without a normalized state change.",
+        ),
+    ] = 60.0,
+    request_timeout_seconds: Annotated[
+        float,
+        typer.Option(min=1.0, max=120.0, help="Per-request API timeout."),
+    ] = 20.0,
+) -> None:
+    """Join an existing private room and record state without playing cards."""
+
+    from godfield_bot.api_runtime import (
+        ApiRuntimeError,
+        PrivateApiRunConfig,
+        run_private_api_observer,
+    )
+
+    try:
+        result = run_private_api_observer(
+            AppSettings(),
+            PrivateApiRunConfig(
+                database=database,
+                catalog_snapshot=catalog_snapshot,
+                room_id=room_id,
+                password_file=password_file,
+                max_seconds=max_seconds,
+                poll_seconds=poll_seconds,
+                no_progress_seconds=no_progress_seconds,
+                request_timeout_seconds=request_timeout_seconds,
+            ),
+        )
+    except (ApiRuntimeError, RunStoreError, ValueError) as error:
+        structlog.get_logger().error(
+            "api_private_observer_failed",
+            error_type=type(error).__name__,
+            reason=str(error).splitlines()[0],
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(result.model_dump_json(indent=2))
+
+
+@api_app.command("verify")
+def verify_protocol_api() -> None:
+    """Verify the stored identity with one authenticated, read-only API request."""
+
+    from godfield_bot.api_account import ApiAccountError, verify_api_connection
+
+    try:
+        status = verify_api_connection(AppSettings())
+    except ApiAccountError as error:
+        structlog.get_logger().error(
+            "api_connection_verification_failed",
+            error_type=type(error).__name__,
+            reason=str(error).splitlines()[0],
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(status.model_dump_json(indent=2))
 
 
 @app.command()

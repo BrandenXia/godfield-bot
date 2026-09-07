@@ -52,6 +52,7 @@ the explicit `--confirm-create` flag:
 PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot account status
 PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot account create --confirm-create
 PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot account enable-api --confirm-enable
+uv run godfield-bot api verify
 uv run godfield-bot data refresh-api-catalog
 PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot observe
 PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot run --max-seconds 90 \
@@ -68,6 +69,12 @@ uv run godfield-bot models train-replay models/<base-model-id> runs/replay.jsonl
 uv run godfield-bot models train-outcomes models/<base-model-id> runs/outcomes.jsonl
 uv run godfield-bot simulation benchmark --batch-size 4096 --batch-steps 1000
 ```
+
+`api observe-private --room-id <room-id>` joins and enters an existing
+operator-owned private room, then records bounded state without playing cards.
+If the room is password protected, supply an owner-only (`0600`)
+`--password-file`; passwords are never accepted as ordinary CLI values or
+stored in the run database.
 
 Install the optional learning stack with `uv sync --extra training --group dev`.
 Install the native C++ curriculum simulator with

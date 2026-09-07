@@ -5,6 +5,7 @@ import os
 import stat
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -38,6 +39,15 @@ class ApiAccountEnableResult(BaseModel):
     enabled: bool
     identity_continuity_verified: bool
     upstream_revision: str = PYGODFIELD_REVISION
+
+
+class ApiConnectionStatus(BaseModel):
+    identity: str
+    observed_at: datetime
+    authenticated: bool = True
+    identity_continuity_verified: bool = True
+    upstream_revision: str = PYGODFIELD_REVISION
+    online_by_mode: dict[str, int]
 
 
 def api_token_path(settings: AppSettings) -> Path:
@@ -219,7 +229,12 @@ def api_account_status(settings: AppSettings) -> dict[str, object]:
     }
 
 
-def create_api_client(settings: AppSettings, *, timeout_seconds: float = 20) -> GodfieldClient:
+def create_api_client(
+    settings: AppSettings,
+    *,
+    timeout_seconds: float = 20,
+    catalog: object | bool = False,
+) -> GodfieldClient:
     """Create a side-effect-free client after validating the existing identity."""
 
     validate_api_credentials(settings)
@@ -229,6 +244,7 @@ def create_api_client(settings: AppSettings, *, timeout_seconds: float = 20) -> 
         name=None,
         token_file=str(api_token_path(settings)),
         timeout=timeout_seconds,
+        catalog=catalog,
     )
     client.name = settings.identity
     return client
@@ -239,6 +255,7 @@ def open_api_client(
     settings: AppSettings,
     *,
     timeout_seconds: float = 20,
+    catalog: object | bool = False,
 ) -> Iterator[GodfieldClient]:
     """Exclusively open the shared ロキ-67 identity for protocol control."""
 
@@ -247,10 +264,42 @@ def open_api_client(
     try:
         with lock:
             os.chmod(settings.identity_lock_file, 0o600)
-            client = create_api_client(settings, timeout_seconds=timeout_seconds)
+            client = create_api_client(
+                settings,
+                timeout_seconds=timeout_seconds,
+                catalog=catalog,
+            )
             try:
                 yield client
             finally:
                 client.close()
     except Timeout as error:
         raise ApiAccountError("the ロキ-67 identity is already in use") from error
+
+
+def verify_api_connection(settings: AppSettings) -> ApiConnectionStatus:
+    """Perform a read-only authenticated request without exposing account credentials."""
+
+    from godfield import GodfieldError
+
+    try:
+        with open_api_client(settings, catalog=False) as client:
+            user_id = client.user_id
+            refreshed = validate_api_credentials(settings)
+            if user_id != refreshed.user_id:
+                raise ApiAccountError("the refreshed API identity failed its continuity check")
+            raw_counts = client.user_count()
+    except GodfieldError as error:
+        raise ApiAccountError("pygodfield could not complete its authenticated read") from error
+    counts = {
+        mode: value
+        for mode in ("training", "private", "duel")
+        if isinstance((value := raw_counts.get(mode)), int)
+        and not isinstance(value, bool)
+        and value >= 0
+    }
+    return ApiConnectionStatus(
+        identity=settings.identity,
+        observed_at=datetime.now(UTC),
+        online_by_mode=counts,
+    )

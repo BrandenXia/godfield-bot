@@ -2,7 +2,9 @@ import asyncio
 import hashlib
 import json
 import stat
+from contextlib import contextmanager
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
@@ -18,6 +20,7 @@ from godfield_bot.api_account import (
     enable_api_account,
     read_api_credentials,
     validate_api_credentials,
+    verify_api_connection,
 )
 from godfield_bot.config import AppSettings
 
@@ -117,3 +120,33 @@ def test_browser_credential_shape_is_normalized_without_logging_secrets() -> Non
     assert result == credentials()
     assert "id-token-secret" not in repr(result)
     assert "refresh-token-secret" not in repr(result)
+
+
+def test_connection_verification_redacts_identity_and_validates_counts(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    settings = settings_with_account(tmp_path)
+
+    class FakeClient:
+        user_id = "stable-user"
+
+        @staticmethod
+        def user_count():
+            return {"training": 3, "private": 2, "duel": 1, "future": 999}
+
+    @contextmanager
+    def fake_open_api_client(*args, **kwargs):
+        yield FakeClient()
+
+    monkeypatch.setattr("godfield_bot.api_account.open_api_client", fake_open_api_client)
+    monkeypatch.setattr(
+        "godfield_bot.api_account.validate_api_credentials",
+        lambda value: SimpleNamespace(user_id="stable-user"),
+    )
+
+    result = verify_api_connection(settings)
+    serialized = result.model_dump_json()
+
+    assert result.online_by_mode == {"training": 3, "private": 2, "duel": 1}
+    assert "stable-user" not in serialized

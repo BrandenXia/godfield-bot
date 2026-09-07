@@ -14,6 +14,7 @@ class ArtifactRecord(BaseModel):
     asset: str = Field(pattern=r"^[a-z0-9-]+$")
     image_path: str
     detail: tuple[str, ...]
+    element_image_paths: tuple[str, ...] = ()
 
 
 class ArtifactCategory(BaseModel):
@@ -29,7 +30,7 @@ class ArtifactCategory(BaseModel):
 
 
 class BibleSnapshot(BaseModel):
-    schema_version: int = 1
+    schema_version: int = 2
     observed_at: datetime
     source_url: str
     language: str

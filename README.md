@@ -5,10 +5,11 @@ keeps a stable in-game identity and improves from completed games.
 
 The architecture is accepted and implementation is underway. The dedicated
 `ロキ-67` browser identity has been created and used only in bounded Training probes. The current
-official client and its in-game reference data were surveyed on 2026-09-06; see
+official client and its in-game reference data were surveyed on 2026-09-06 and
+revalidated with element metadata on 2026-09-07; see
 [the research snapshot](docs/research/2026-09-06-godfield.md) and the
 [architecture decision](docs/architecture/0001-proposed-system.md). The
-[complete extracted Bible](data/snapshots/2026-09-06/bible.json) contains all
+[complete extracted Bible](data/snapshots/2026-09-07/bible.json) contains all
 291 current artifact records.
 
 ## Working principles
@@ -76,10 +77,11 @@ candidate instead of guessing whether the match was won or lost.
 The default `safe-observer-v0` remains observation-only. The explicitly chosen
 `heuristic-v0` path can select the strongest Bible-verified fixed-attack weapon
 and confirm it against an already named sole opponent. The attack allowlist
-includes plain weapons, six weapons whose only extra effect is passive Bounce,
-Reflect, or Block behavior, and the live-verified neutral Legendary Scabbard.
-It can also Forgive a fully
-identified incoming effect, and select plain armor during a verified neutral
+contains 25 icon-verified neutral weapons: 18 plain weapons, six whose only
+extra effect is passive Bounce, Reflect, or Block behavior, and the
+live-verified neutral Legendary Scabbard.
+It can also Forgive a targeted incoming interaction after revalidating every
+visible context artifact, and select plain armor during a verified neutral
 defense before confirming that armor in its response panel. Every browser
 interaction counts against `--max-actions`; unknown,
 elemental-defense, multi-target, discard, and other phases remain blocked.

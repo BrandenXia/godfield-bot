@@ -5,6 +5,7 @@ from godfield_bot.domain.observation import (
     Bounds,
     ScreenKind,
     ScreenObservation,
+    VisibleImage,
 )
 from godfield_bot.legal_actions import (
     game_state_digest,
@@ -249,6 +250,53 @@ def test_heuristic_forgives_identified_incoming_non_attack_effect() -> None:
     ).decide(game_state, actions)
 
     assert [action.action_id for action in actions.actions] == ["wait", "forgive"]
+    assert decision.chosen_action_id == "forgive"
+
+
+def test_heuristic_forgives_targeted_interaction_with_multiple_context_artifacts() -> None:
+    initial = state()
+    game_state = initial.model_copy(
+        update={
+            "action_actor": "CPU",
+            "action_target": "ロキ-67",
+            "phase_control": "Forgive",
+            "phase_control_hit_target_bounds": Bounds(x=455, y=93, width=310, height=300),
+        }
+    )
+    observation = ScreenObservation(
+        observed_at=game_state.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.3", "Sell", "Dreaming Hat", "Forgive", "HP"),
+        text_elements=(),
+        controls=(),
+        images=(
+            VisibleImage(
+                path="/images/items/trade/sell.webp",
+                bounds=Bounds(x=125, y=103, width=80, height=80),
+            ),
+            VisibleImage(
+                path="/images/items/armor/dreaming-hat.webp",
+                bounds=Bounds(x=125, y=203, width=80, height=80),
+            ),
+        ),
+    )
+
+    actions = verified_browser_actions(game_state, observation)
+    decision = HeuristicV0Policy(
+        {"bronze-club": 1},
+        {"iron-shield": 4},
+    ).decide(game_state, actions)
+
+    assert [action.action_id for action in actions.actions] == ["wait", "forgive"]
+    assert actions.actions[1].artifact_asset_path is None
+    assert actions.actions[1].context_asset_paths == (
+        "/images/items/trade/sell.webp",
+        "/images/items/armor/dreaming-hat.webp",
+    )
     assert decision.chosen_action_id == "forgive"
 
 

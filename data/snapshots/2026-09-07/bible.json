@@ -1,0 +1,3743 @@
+{
+  "schema_version": 2,
+  "observed_at": "2026-09-07T04:52:07.454282Z",
+  "source_url": "https://godfield.net/",
+  "language": "en",
+  "client": {
+    "url": "https://godfield.net/main.dart.js",
+    "sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+    "etag": "2a2f9f9759840e21fb6391029ca2638e4a2ce6fa99e0869251eed00b6344374f-br",
+    "last_modified": "Tue, 11 Aug 2026 01:40:09 GMT"
+  },
+  "reference_sections": {
+    "elements": [
+      "Attacks of Non-element (NE) can be defended by any elements.",
+      "Attacks of Fire can be defended by Water.",
+      "Attacks of Water can be defended by Fire.",
+      "Attacks of Wood can be defended by Stone.",
+      "Attacks of Stone can be defended by Wood.",
+      "Attacks of Light can not be defended by any elements.",
+      "Attacks of Darkness can be defended by any elements,",
+      "but the HP becomes 0 if damaged.",
+      "If different elements are used together, they become Non-element (NE).",
+      "Light can be substituted for Fire, Water, Wood, or Stone element."
+    ],
+    "curses": [
+      "Cold",
+      "1 damage per turn",
+      "(Fever if worsened)",
+      "Fever",
+      "2 damage per turn",
+      "(Hell if worsened)",
+      "Hell",
+      "5 damage per turn",
+      "(Heaven if worsened)",
+      "Heaven",
+      "HP+5 per turn",
+      "(HP0 if worsened)",
+      "Fog",
+      "Surroundings",
+      "become hidden",
+      "Flash",
+      "Only one artifact can",
+      "be used for defense",
+      "Dream",
+      "Given artifacts look",
+      "false by 50% chance",
+      "Dark Cloud",
+      "Received %ATK attacks",
+      "hit certainly",
+      "Diseases get worse naturally per turn by 5% chance.",
+      "Diseases get worse when catched another disease.",
+      "When using artifacts to an enemy from Fog, the target is selected at random."
+    ],
+    "trade": [
+      "Weapons, Sun Amulet, and Dangerous Mortar can not be discarded.",
+      "After the Apocalypse, Discard is replaced into Sacrifice."
+    ]
+  },
+  "catalog": {
+    "weapons": {
+      "notes": [],
+      "items": [
+        {
+          "asset": "bronze-club",
+          "image_path": "/images/items/weapons/bronze-club.webp",
+          "detail": [
+            "Bronze Club",
+            "ATK1",
+            "$1",
+            "Gift Rate: 3/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "silver-club",
+          "image_path": "/images/items/weapons/silver-club.webp",
+          "detail": [
+            "Silver Club",
+            "ATK1",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "gold-club",
+          "image_path": "/images/items/weapons/gold-club.webp",
+          "detail": [
+            "Gold Club",
+            "ATK1",
+            "$25",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "blowgun",
+          "image_path": "/images/items/weapons/blowgun.webp",
+          "detail": [
+            "Blowgun",
+            "+ATK1",
+            "$1",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "whip",
+          "image_path": "/images/items/weapons/whip.webp",
+          "detail": [
+            "Whip",
+            "ATK2",
+            "$1",
+            "Gift Rate: 4/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "saver-rod",
+          "image_path": "/images/items/weapons/saver-rod.webp",
+          "detail": [
+            "Saver Rod",
+            "ATK2",
+            "DEF6",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "crossbow",
+          "image_path": "/images/items/weapons/crossbow.webp",
+          "detail": [
+            "Crossbow",
+            "+ATK2",
+            "$2",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "punch",
+          "image_path": "/images/items/weapons/punch.webp",
+          "detail": [
+            "Punch",
+            "ATK3",
+            "$1",
+            "Gift Rate: 5/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "saw-boom-boom",
+          "image_path": "/images/items/weapons/saw-boom-boom.webp",
+          "detail": [
+            "Saw Boom Boom",
+            "ATK3",
+            "Attack twice",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "boomerang",
+          "image_path": "/images/items/weapons/boomerang.webp",
+          "detail": [
+            "Boomerang",
+            "+ATK3",
+            "$3",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "hatchet",
+          "image_path": "/images/items/weapons/hatchet.webp",
+          "detail": [
+            "Hatchet",
+            "ATK4",
+            "$2",
+            "Gift Rate: 6/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "spiked-belt",
+          "image_path": "/images/items/weapons/spiked-belt.webp",
+          "detail": [
+            "Spiked Belt",
+            "ATK4",
+            "DEF2",
+            "$3",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "battle-ball",
+          "image_path": "/images/items/weapons/battle-ball.webp",
+          "detail": [
+            "Battle Ball",
+            "+ATK4",
+            "$4",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "chain-sickle",
+          "image_path": "/images/items/weapons/chain-sickle.webp",
+          "detail": [
+            "Chain Sickle",
+            "ATK5",
+            "$2",
+            "Gift Rate: 7/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "plate-of-strike",
+          "image_path": "/images/items/weapons/plate-of-strike.webp",
+          "detail": [
+            "Plate of Strike",
+            "ATK5",
+            "DEF7",
+            "$3",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "bouncing-sword",
+          "image_path": "/images/items/weapons/bouncing-sword.webp",
+          "detail": [
+            "Bouncing Sword",
+            "ATK5",
+            "Bounce a NE weapon",
+            "$10",
+            "Gift Rate: 7/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "warrior-s-bow",
+          "image_path": "/images/items/weapons/warrior-s-bow.webp",
+          "detail": [
+            "Warrior's Bow",
+            "+ATK5",
+            "$5",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "hard-hammer",
+          "image_path": "/images/items/weapons/hard-hammer.webp",
+          "detail": [
+            "Hard Hammer",
+            "ATK6",
+            "$2",
+            "Gift Rate: 8/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "elbow-sack",
+          "image_path": "/images/items/weapons/elbow-sack.webp",
+          "detail": [
+            "Elbow Sack",
+            "ATK6",
+            "DEF3",
+            "$3",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "jet-yo-yo",
+          "image_path": "/images/items/weapons/jet-yo-yo.webp",
+          "detail": [
+            "Jet Yo-yo",
+            "+ATK6",
+            "$6",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "glaive-classic",
+          "image_path": "/images/items/weapons/glaive-classic.webp",
+          "detail": [
+            "Glaive Classic",
+            "ATK7",
+            "$3",
+            "Gift Rate: 8/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "ghost-sword",
+          "image_path": "/images/items/weapons/ghost-sword.webp",
+          "detail": [
+            "Ghost Sword",
+            "ATK7",
+            "Absorb HP",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "unknown-feather",
+          "image_path": "/images/items/weapons/unknown-feather.webp",
+          "detail": [
+            "Unknown Feather",
+            "+ATK7",
+            "$7",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "final-tusk",
+          "image_path": "/images/items/weapons/final-tusk.webp",
+          "detail": [
+            "Final Tusk",
+            "ATK8",
+            "$3",
+            "Gift Rate: 8/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "hell-scissors",
+          "image_path": "/images/items/weapons/hell-scissors.webp",
+          "detail": [
+            "Hell Scissors",
+            "ATK8",
+            "Hell on damage",
+            "$15",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "psychic-card",
+          "image_path": "/images/items/weapons/psychic-card.webp",
+          "detail": [
+            "Psychic Card",
+            "+ATK8",
+            "$8",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "power-halberd",
+          "image_path": "/images/items/weapons/power-halberd.webp",
+          "detail": [
+            "Power Halberd",
+            "ATK9",
+            "$3",
+            "Gift Rate: 7/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "gale-sword",
+          "image_path": "/images/items/weapons/gale-sword.webp",
+          "detail": [
+            "Gale Sword",
+            "ATK9",
+            "Cold on damage",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "sky-harpoon",
+          "image_path": "/images/items/weapons/sky-harpoon.webp",
+          "detail": [
+            "Sky Harpoon",
+            "+ATK9",
+            "Bounce a miracle",
+            "$5",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "wonder-sword",
+          "image_path": "/images/items/weapons/wonder-sword.webp",
+          "detail": [
+            "Wonder Sword",
+            "ATK10",
+            "$4",
+            "Gift Rate: 7/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "bogus-spear",
+          "image_path": "/images/items/weapons/bogus-spear.webp",
+          "detail": [
+            "Bogus Spear",
+            "ATK10",
+            "Dream on damage",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "sword-shield",
+          "image_path": "/images/items/weapons/sword-shield.webp",
+          "detail": [
+            "Sword Shield",
+            "ATK10",
+            "DEF10",
+            "$15",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "reflection-sword",
+          "image_path": "/images/items/weapons/reflection-sword.webp",
+          "detail": [
+            "Reflection Sword",
+            "ATK10",
+            "Reflect a NE weapon",
+            "$5",
+            "Gift Rate: 3/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "moonlight-axe",
+          "image_path": "/images/items/weapons/moonlight-axe.webp",
+          "detail": [
+            "Moonlight Axe",
+            "ATK10",
+            "Reflect a miracle",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "gravity-mace",
+          "image_path": "/images/items/weapons/gravity-mace.webp",
+          "detail": [
+            "Gravity Mace",
+            "ATK11",
+            "$4",
+            "Gift Rate: 4/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "hexagon-doom",
+          "image_path": "/images/items/weapons/hexagon-doom.webp",
+          "detail": [
+            "Hexagon Doom",
+            "ATK11",
+            "Dark Cloud on damage",
+            "$15",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "angel-knife",
+          "image_path": "/images/items/weapons/angel-knife.webp",
+          "detail": [
+            "Angel Knife",
+            "ATK11",
+            "Block a miracle",
+            "$15",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "horror-wheel",
+          "image_path": "/images/items/weapons/horror-wheel.webp",
+          "detail": [
+            "Horror Wheel",
+            "+ATK11",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "direct-smash-axe",
+          "image_path": "/images/items/weapons/direct-smash-axe.webp",
+          "detail": [
+            "Direct Smash Axe",
+            "ATK12",
+            "$4",
+            "Gift Rate: 4/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "real-ghost-sword",
+          "image_path": "/images/items/weapons/real-ghost-sword.webp",
+          "detail": [
+            "Real Ghost Sword",
+            "ATK12",
+            "Absorb HP",
+            "$15",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "spiritual-staff",
+          "image_path": "/images/items/weapons/spiritual-staff.webp",
+          "detail": [
+            "Spiritual Staff",
+            "ATK12",
+            "Do a miracle w/o cost",
+            "$20",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "spear-in-fine-view",
+          "image_path": "/images/items/weapons/spear-in-fine-view.webp",
+          "detail": [
+            "Spear in Fine View",
+            "ATK13",
+            "$5",
+            "Gift Rate: 4/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "severe-gale-sword",
+          "image_path": "/images/items/weapons/severe-gale-sword.webp",
+          "detail": [
+            "Severe Gale Sword",
+            "ATK13",
+            "Cold on damage",
+            "$15",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "legendary-scabbard",
+          "image_path": "/images/items/weapons/legendary-scabbard.webp",
+          "detail": [
+            "Legendary Scabbard",
+            "ATK13",
+            "DEF1",
+            "$3",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "angel-sword",
+          "image_path": "/images/items/weapons/angel-sword.webp",
+          "detail": [
+            "Angel Sword",
+            "ATK13",
+            "Block a miracle",
+            "$15",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "top-of-combat",
+          "image_path": "/images/items/weapons/top-of-combat.webp",
+          "detail": [
+            "Top of Combat",
+            "+ATK13",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "violent-flail",
+          "image_path": "/images/items/weapons/violent-flail.webp",
+          "detail": [
+            "Violent Flail",
+            "ATK14",
+            "$5",
+            "Gift Rate: 3/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "evil-broadsword",
+          "image_path": "/images/items/weapons/evil-broadsword.webp",
+          "detail": [
+            "Evil Broadsword",
+            "ATK14",
+            "Get the same damage",
+            "$1",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "dragon-claws",
+          "image_path": "/images/items/weapons/dragon-claws.webp",
+          "detail": [
+            "Dragon Claws",
+            "ATK15",
+            "$5",
+            "Gift Rate: 3/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "angel-axe",
+          "image_path": "/images/items/weapons/angel-axe.webp",
+          "detail": [
+            "Angel Axe",
+            "ATK15",
+            "Block a miracle",
+            "$15",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "angel-bow",
+          "image_path": "/images/items/weapons/angel-bow.webp",
+          "detail": [
+            "Angel Bow",
+            "+ATK15",
+            "Block a miracle",
+            "$15",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "god-sword",
+          "image_path": "/images/items/weapons/god-sword.webp",
+          "detail": [
+            "God Sword",
+            "ATK30",
+            "$30",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "magical-stick",
+          "image_path": "/images/items/weapons/magical-stick.webp",
+          "detail": [
+            "Magical Stick",
+            "ATK{2×MP}",
+            "Consume all the MP",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "torch",
+          "image_path": "/images/items/weapons/torch.webp",
+          "detail": [
+            "Torch",
+            "ATK1",
+            "$1",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "icicle",
+          "image_path": "/images/items/weapons/icicle.webp",
+          "detail": [
+            "Icicle",
+            "ATK1",
+            "$1",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/water.webp"
+          ]
+        },
+        {
+          "asset": "wooden-sword",
+          "image_path": "/images/items/weapons/wooden-sword.webp",
+          "detail": [
+            "Wooden Sword",
+            "ATK1",
+            "$1",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/wood.webp"
+          ]
+        },
+        {
+          "asset": "wind-talons",
+          "image_path": "/images/items/weapons/wind-talons.webp",
+          "detail": [
+            "Wind Talons",
+            "ATK1",
+            "Cold on damage",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/stone.webp"
+          ]
+        },
+        {
+          "asset": "piece-of-brightness",
+          "image_path": "/images/items/weapons/piece-of-brightness.webp",
+          "detail": [
+            "Piece of Brightness",
+            "+ATK1",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/light.webp"
+          ]
+        },
+        {
+          "asset": "pri-pri-pricker",
+          "image_path": "/images/items/weapons/pri-pri-pricker.webp",
+          "detail": [
+            "Pri Pri Pricker",
+            "ATK1",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/darkness.webp"
+          ]
+        },
+        {
+          "asset": "ouch-knife",
+          "image_path": "/images/items/weapons/ouch-knife.webp",
+          "detail": [
+            "Ouch Knife",
+            "ATK2",
+            "$2",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "wand-of-ignition",
+          "image_path": "/images/items/weapons/wand-of-ignition.webp",
+          "detail": [
+            "Wand of Ignition",
+            "+ATK2",
+            "Set Fire element",
+            "$15",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "thorn-whip",
+          "image_path": "/images/items/weapons/thorn-whip.webp",
+          "detail": [
+            "Thorn Whip",
+            "ATK2",
+            "$2",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/wood.webp"
+          ]
+        },
+        {
+          "asset": "leaf-shuriken",
+          "image_path": "/images/items/weapons/leaf-shuriken.webp",
+          "detail": [
+            "Leaf Shuriken",
+            "+ATK2",
+            "$4",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/wood.webp"
+          ]
+        },
+        {
+          "asset": "sword-ware",
+          "image_path": "/images/items/weapons/sword-ware.webp",
+          "detail": [
+            "Sword Ware",
+            "ATK2",
+            "$2",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/stone.webp"
+          ]
+        },
+        {
+          "asset": "flash-dagger",
+          "image_path": "/images/items/weapons/flash-dagger.webp",
+          "detail": [
+            "Flash Dagger",
+            "ATK2",
+            "Flash on damage",
+            "$15",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/light.webp"
+          ]
+        },
+        {
+          "asset": "fire-whip",
+          "image_path": "/images/items/weapons/fire-whip.webp",
+          "detail": [
+            "Fire Whip",
+            "ATK3",
+            "$3",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "fog-gun",
+          "image_path": "/images/items/weapons/fog-gun.webp",
+          "detail": [
+            "Fog Gun",
+            "ATK3",
+            "Fog on damage",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/water.webp"
+          ]
+        },
+        {
+          "asset": "bur-nut",
+          "image_path": "/images/items/weapons/bur-nut.webp",
+          "detail": [
+            "Bur Nut",
+            "ATK3",
+            "$3",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/wood.webp"
+          ]
+        },
+        {
+          "asset": "mature-rubber-bow",
+          "image_path": "/images/items/weapons/mature-rubber-bow.webp",
+          "detail": [
+            "Mature Rubber Bow",
+            "+ATK3",
+            "$6",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/wood.webp"
+          ]
+        },
+        {
+          "asset": "star-staff",
+          "image_path": "/images/items/weapons/star-staff.webp",
+          "detail": [
+            "Star Staff",
+            "ATK3",
+            "$3",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/light.webp"
+          ]
+        },
+        {
+          "asset": "cobra",
+          "image_path": "/images/items/weapons/cobra.webp",
+          "detail": [
+            "Cobra",
+            "ATK3",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/darkness.webp"
+          ]
+        },
+        {
+          "asset": "flaming-roll",
+          "image_path": "/images/items/weapons/flaming-roll.webp",
+          "detail": [
+            "Flaming Roll",
+            "ATK4",
+            "DEF4",
+            "$8",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "fire-crossbow",
+          "image_path": "/images/items/weapons/fire-crossbow.webp",
+          "detail": [
+            "Fire Crossbow",
+            "+ATK4",
+            "$8",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "frozen-hammer",
+          "image_path": "/images/items/weapons/frozen-hammer.webp",
+          "detail": [
+            "Frozen Hammer",
+            "ATK4",
+            "$4",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/water.webp"
+          ]
+        },
+        {
+          "asset": "dream-mallet",
+          "image_path": "/images/items/weapons/dream-mallet.webp",
+          "detail": [
+            "Dream Mallet",
+            "ATK4",
+            "Dream on damage",
+            "$15",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/wood.webp"
+          ]
+        },
+        {
+          "asset": "goodbye-sword",
+          "image_path": "/images/items/weapons/goodbye-sword.webp",
+          "detail": [
+            "Goodbye Sword",
+            "ATK4",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/darkness.webp"
+          ]
+        },
+        {
+          "asset": "blaze-blade",
+          "image_path": "/images/items/weapons/blaze-blade.webp",
+          "detail": [
+            "Blaze Blade",
+            "ATK5",
+            "$5",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "wand-of-mystic-water",
+          "image_path": "/images/items/weapons/wand-of-mystic-water.webp",
+          "detail": [
+            "Wand of Mystic Water",
+            "+ATK5",
+            "Set Water element",
+            "$15",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/water.webp"
+          ]
+        },
+        {
+          "asset": "paleolithic-javelin",
+          "image_path": "/images/items/weapons/paleolithic-javelin.webp",
+          "detail": [
+            "Paleolithic Javelin",
+            "+ATK5",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/stone.webp"
+          ]
+        },
+        {
+          "asset": "justice-lance",
+          "image_path": "/images/items/weapons/justice-lance.webp",
+          "detail": [
+            "Justice Lance",
+            "ATK5",
+            "$5",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/light.webp"
+          ]
+        },
+        {
+          "asset": "killer-fork",
+          "image_path": "/images/items/weapons/killer-fork.webp",
+          "detail": [
+            "Killer Fork",
+            "ATK5",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/darkness.webp"
+          ]
+        },
+        {
+          "asset": "abyss-dart",
+          "image_path": "/images/items/weapons/abyss-dart.webp",
+          "detail": [
+            "Abyss Dart",
+            "+ATK5",
+            "$15",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/darkness.webp"
+          ]
+        },
+        {
+          "asset": "neolithic-tomahawk",
+          "image_path": "/images/items/weapons/neolithic-tomahawk.webp",
+          "detail": [
+            "Neolithic Tomahawk",
+            "+ATK7",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/stone.webp"
+          ]
+        },
+        {
+          "asset": "fire-dragon-s-horn",
+          "image_path": "/images/items/weapons/fire-dragon-s-horn.webp",
+          "detail": [
+            "Fire Dragon's Horn",
+            "ATK8",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "water-dragon-s-horn",
+          "image_path": "/images/items/weapons/water-dragon-s-horn.webp",
+          "detail": [
+            "Water Dragon's Horn",
+            "ATK8",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/water.webp"
+          ]
+        },
+        {
+          "asset": "holy-sword",
+          "image_path": "/images/items/weapons/holy-sword.webp",
+          "detail": [
+            "Holy Sword",
+            "ATK9",
+            "$15",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/light.webp"
+          ]
+        },
+        {
+          "asset": "death-s-scythe",
+          "image_path": "/images/items/weapons/death-s-scythe.webp",
+          "detail": [
+            "Death's Scythe",
+            "ATK10",
+            "$20",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/darkness.webp"
+          ]
+        },
+        {
+          "asset": "diamond-sword",
+          "image_path": "/images/items/weapons/diamond-sword.webp",
+          "detail": [
+            "Diamond Sword",
+            "ATK13",
+            "$25",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/stone.webp"
+          ]
+        },
+        {
+          "asset": "dangerous-pestle",
+          "image_path": "/images/items/weapons/dangerous-pestle.webp",
+          "detail": [
+            "Dangerous Pestle",
+            "ATK30",
+            "Attack somebody",
+            "$5",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/light.webp"
+          ]
+        },
+        {
+          "asset": "spark-bag",
+          "image_path": "/images/items/weapons/spark-bag.webp",
+          "detail": [
+            "Spark Bag",
+            "75%ATK1",
+            "$2",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "shadow-hand",
+          "image_path": "/images/items/weapons/shadow-hand.webp",
+          "detail": [
+            "Shadow Hand",
+            "50%ATK2",
+            "$8",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/darkness.webp"
+          ]
+        },
+        {
+          "asset": "fog-fan",
+          "image_path": "/images/items/weapons/fog-fan.webp",
+          "detail": [
+            "Fog Fan",
+            "50%ATK3",
+            "Fog on damage",
+            "$8",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/water.webp"
+          ]
+        },
+        {
+          "asset": "vine-shoot",
+          "image_path": "/images/items/weapons/vine-shoot.webp",
+          "detail": [
+            "Vine Shoot",
+            "75%ATK3",
+            "Absorb HP",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/wood.webp"
+          ]
+        },
+        {
+          "asset": "lightning-kids",
+          "image_path": "/images/items/weapons/lightning-kids.webp",
+          "detail": [
+            "Lightning Kids",
+            "25%ATK3",
+            "$2",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/light.webp"
+          ]
+        },
+        {
+          "asset": "flame-cup",
+          "image_path": "/images/items/weapons/flame-cup.webp",
+          "detail": [
+            "Flame Cup",
+            "75%ATK4",
+            "$6",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "chill-cup",
+          "image_path": "/images/items/weapons/chill-cup.webp",
+          "detail": [
+            "Chill Cup",
+            "75%ATK4",
+            "$6",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/water.webp"
+          ]
+        },
+        {
+          "asset": "plant-cup",
+          "image_path": "/images/items/weapons/plant-cup.webp",
+          "detail": [
+            "Plant Cup",
+            "75%ATK4",
+            "$6",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/wood.webp"
+          ]
+        },
+        {
+          "asset": "rock-cup",
+          "image_path": "/images/items/weapons/rock-cup.webp",
+          "detail": [
+            "Rock Cup",
+            "75%ATK4",
+            "$6",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/stone.webp"
+          ]
+        },
+        {
+          "asset": "oversize-snowball",
+          "image_path": "/images/items/weapons/oversize-snowball.webp",
+          "detail": [
+            "Oversize Snowball",
+            "50%ATK5",
+            "$5",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/water.webp"
+          ]
+        },
+        {
+          "asset": "cliff-hammer",
+          "image_path": "/images/items/weapons/cliff-hammer.webp",
+          "detail": [
+            "Cliff Hammer",
+            "25%ATK6",
+            "$4",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/stone.webp"
+          ]
+        },
+        {
+          "asset": "light-orb",
+          "image_path": "/images/items/weapons/light-orb.webp",
+          "detail": [
+            "Light Orb",
+            "75%ATK6",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/light.webp"
+          ]
+        },
+        {
+          "asset": "fire-shower",
+          "image_path": "/images/items/weapons/fire-shower.webp",
+          "detail": [
+            "Fire Shower",
+            "75%ATK7",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "jinn-s-rocking-horse",
+          "image_path": "/images/items/weapons/jinn-s-rocking-horse.webp",
+          "detail": [
+            "Jinn's Rocking Horse",
+            "75%ATK8",
+            "DEF6",
+            "$15",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/wood.webp"
+          ]
+        },
+        {
+          "asset": "rain-deity-s-saber",
+          "image_path": "/images/items/weapons/rain-deity-s-saber.webp",
+          "detail": [
+            "Rain Deity's Saber",
+            "50%ATK9",
+            "$9",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/water.webp"
+          ]
+        },
+        {
+          "asset": "flare-axe",
+          "image_path": "/images/items/weapons/flare-axe.webp",
+          "detail": [
+            "Flare Axe",
+            "50%ATK10",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "petit-saturn",
+          "image_path": "/images/items/weapons/petit-saturn.webp",
+          "detail": [
+            "Petit Saturn",
+            "25%ATK20",
+            "$15",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/stone.webp"
+          ]
+        },
+        {
+          "asset": "ascension-bow",
+          "image_path": "/images/items/weapons/ascension-bow.webp",
+          "detail": [
+            "Ascension Bow",
+            "25%ATK1",
+            "75%ATK30 at Ascension",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/light.webp"
+          ]
+        }
+      ]
+    },
+    "armor": {
+      "notes": [
+        "When an attack is bounced, it goes to somebody."
+      ],
+      "items": [
+        {
+          "asset": "leather-cap",
+          "image_path": "/images/items/armor/leather-cap.webp",
+          "detail": [
+            "Leather Cap",
+            "DEF1",
+            "$1",
+            "Gift Rate: 10/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "sky-boots",
+          "image_path": "/images/items/armor/sky-boots.webp",
+          "detail": [
+            "Sky Boots",
+            "DEF1",
+            "Bounce a miracle",
+            "$5",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "aqua-shoes",
+          "image_path": "/images/items/armor/aqua-shoes.webp",
+          "detail": [
+            "Aqua Shoes",
+            "DEF1",
+            "$2",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/water.webp"
+          ]
+        },
+        {
+          "asset": "laurel-wreath",
+          "image_path": "/images/items/armor/laurel-wreath.webp",
+          "detail": [
+            "Laurel Wreath",
+            "DEF1",
+            "$2",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/wood.webp"
+          ]
+        },
+        {
+          "asset": "slate",
+          "image_path": "/images/items/armor/slate.webp",
+          "detail": [
+            "Slate",
+            "DEF1",
+            "$2",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/stone.webp"
+          ]
+        },
+        {
+          "asset": "leather-clothes",
+          "image_path": "/images/items/armor/leather-clothes.webp",
+          "detail": [
+            "Leather Clothes",
+            "DEF2",
+            "$2",
+            "Gift Rate: 10/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "sparkle-glove",
+          "image_path": "/images/items/armor/sparkle-glove.webp",
+          "detail": [
+            "Sparkle Glove",
+            "DEF2",
+            "$4",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "aqua-glove",
+          "image_path": "/images/items/armor/aqua-glove.webp",
+          "detail": [
+            "Aqua Glove",
+            "DEF2",
+            "$4",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/water.webp"
+          ]
+        },
+        {
+          "asset": "wood-shield",
+          "image_path": "/images/items/armor/wood-shield.webp",
+          "detail": [
+            "Wood Shield",
+            "DEF2",
+            "$4",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/wood.webp"
+          ]
+        },
+        {
+          "asset": "bedrock",
+          "image_path": "/images/items/armor/bedrock.webp",
+          "detail": [
+            "Bedrock",
+            "DEF2",
+            "$4",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/stone.webp"
+          ]
+        },
+        {
+          "asset": "iron-gauntlet",
+          "image_path": "/images/items/armor/iron-gauntlet.webp",
+          "detail": [
+            "Iron Gauntlet",
+            "DEF3",
+            "$3",
+            "Gift Rate: 8/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "ogre-s-shoes",
+          "image_path": "/images/items/armor/ogre-s-shoes.webp",
+          "detail": [
+            "Ogre's Shoes",
+            "DEF3",
+            "+ATK5",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "sky-gauntlet",
+          "image_path": "/images/items/armor/sky-gauntlet.webp",
+          "detail": [
+            "Sky Gauntlet",
+            "DEF3",
+            "Bounce a miracle",
+            "$5",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "flame-boots",
+          "image_path": "/images/items/armor/flame-boots.webp",
+          "detail": [
+            "Flame Boots",
+            "DEF3",
+            "$6",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "ice-boots",
+          "image_path": "/images/items/armor/ice-boots.webp",
+          "detail": [
+            "Ice Boots",
+            "DEF3",
+            "$6",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/water.webp"
+          ]
+        },
+        {
+          "asset": "sacred-tree-gauntlet",
+          "image_path": "/images/items/armor/sacred-tree-gauntlet.webp",
+          "detail": [
+            "Sacred Tree Gauntlet",
+            "DEF3",
+            "$6",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/wood.webp"
+          ]
+        },
+        {
+          "asset": "crystal-board",
+          "image_path": "/images/items/armor/crystal-board.webp",
+          "detail": [
+            "Crystal Board",
+            "DEF3",
+            "$6",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/stone.webp"
+          ]
+        },
+        {
+          "asset": "iron-shield",
+          "image_path": "/images/items/armor/iron-shield.webp",
+          "detail": [
+            "Iron Shield",
+            "DEF4",
+            "$4",
+            "Gift Rate: 8/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "flame-helm",
+          "image_path": "/images/items/armor/flame-helm.webp",
+          "detail": [
+            "Flame Helm",
+            "DEF4",
+            "$8",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "ice-helm",
+          "image_path": "/images/items/armor/ice-helm.webp",
+          "detail": [
+            "Ice Helm",
+            "DEF4",
+            "$8",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/water.webp"
+          ]
+        },
+        {
+          "asset": "grove-shield",
+          "image_path": "/images/items/armor/grove-shield.webp",
+          "detail": [
+            "Grove Shield",
+            "DEF4",
+            "$8",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/wood.webp"
+          ]
+        },
+        {
+          "asset": "terra-shoes",
+          "image_path": "/images/items/armor/terra-shoes.webp",
+          "detail": [
+            "Terra Shoes",
+            "DEF4",
+            "$8",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/stone.webp"
+          ]
+        },
+        {
+          "asset": "iron-armor",
+          "image_path": "/images/items/armor/iron-armor.webp",
+          "detail": [
+            "Iron Armor",
+            "DEF5",
+            "$5",
+            "Gift Rate: 8/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "ogre-s-gauntlet",
+          "image_path": "/images/items/armor/ogre-s-gauntlet.webp",
+          "detail": [
+            "Ogre's Gauntlet",
+            "DEF5",
+            "+ATK10",
+            "$15",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "sky-helm",
+          "image_path": "/images/items/armor/sky-helm.webp",
+          "detail": [
+            "Sky Helm",
+            "DEF5",
+            "Bounce a miracle",
+            "$5",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "flame-shield",
+          "image_path": "/images/items/armor/flame-shield.webp",
+          "detail": [
+            "Flame Shield",
+            "DEF5",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "ice-shield",
+          "image_path": "/images/items/armor/ice-shield.webp",
+          "detail": [
+            "Ice Shield",
+            "DEF5",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/water.webp"
+          ]
+        },
+        {
+          "asset": "resin-knit-robe",
+          "image_path": "/images/items/armor/resin-knit-robe.webp",
+          "detail": [
+            "Resin Knit Robe",
+            "DEF5",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/wood.webp"
+          ]
+        },
+        {
+          "asset": "terra-gauntlet",
+          "image_path": "/images/items/armor/terra-gauntlet.webp",
+          "detail": [
+            "Terra Gauntlet",
+            "DEF5",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/stone.webp"
+          ]
+        },
+        {
+          "asset": "steel-gauntlet",
+          "image_path": "/images/items/armor/steel-gauntlet.webp",
+          "detail": [
+            "Steel Gauntlet",
+            "DEF6",
+            "$6",
+            "Gift Rate: 6/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "spiritual-socks",
+          "image_path": "/images/items/armor/spiritual-socks.webp",
+          "detail": [
+            "Spiritual Socks",
+            "DEF6",
+            "Do a miracle w/o cost",
+            "$20",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "flame-mail",
+          "image_path": "/images/items/armor/flame-mail.webp",
+          "detail": [
+            "Flame Mail",
+            "DEF6",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "ice-armor",
+          "image_path": "/images/items/armor/ice-armor.webp",
+          "detail": [
+            "Ice Armor",
+            "DEF6",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/water.webp"
+          ]
+        },
+        {
+          "asset": "forest-shield",
+          "image_path": "/images/items/armor/forest-shield.webp",
+          "detail": [
+            "Forest Shield",
+            "DEF6",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/wood.webp"
+          ]
+        },
+        {
+          "asset": "terra-helm",
+          "image_path": "/images/items/armor/terra-helm.webp",
+          "detail": [
+            "Terra Helm",
+            "DEF6",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/stone.webp"
+          ]
+        },
+        {
+          "asset": "shining-high-heels",
+          "image_path": "/images/items/armor/shining-high-heels.webp",
+          "detail": [
+            "Shining High Heels",
+            "DEF6",
+            "$15",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/light.webp"
+          ]
+        },
+        {
+          "asset": "steel-helm",
+          "image_path": "/images/items/armor/steel-helm.webp",
+          "detail": [
+            "Steel Helm",
+            "DEF7",
+            "$7",
+            "Gift Rate: 6/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "ogre-s-helm",
+          "image_path": "/images/items/armor/ogre-s-helm.webp",
+          "detail": [
+            "Ogre's Helm",
+            "DEF7",
+            "+ATK10",
+            "$15",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "sky-shield",
+          "image_path": "/images/items/armor/sky-shield.webp",
+          "detail": [
+            "Sky Shield",
+            "DEF7",
+            "Bounce a miracle",
+            "$5",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "burning-shield",
+          "image_path": "/images/items/armor/burning-shield.webp",
+          "detail": [
+            "Burning Shield",
+            "DEF7",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "snow-mitten",
+          "image_path": "/images/items/armor/snow-mitten.webp",
+          "detail": [
+            "Snow Mitten",
+            "DEF7",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/water.webp"
+          ]
+        },
+        {
+          "asset": "steel-shield",
+          "image_path": "/images/items/armor/steel-shield.webp",
+          "detail": [
+            "Steel Shield",
+            "DEF8",
+            "$8",
+            "Gift Rate: 6/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "beautiful-glasswork",
+          "image_path": "/images/items/armor/beautiful-glasswork.webp",
+          "detail": [
+            "Beautiful Glasswork",
+            "DEF8",
+            "$20",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "moonlight-helm",
+          "image_path": "/images/items/armor/moonlight-helm.webp",
+          "detail": [
+            "Moonlight Helm",
+            "DEF8",
+            "Reflect a miracle",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "burning-jacket",
+          "image_path": "/images/items/armor/burning-jacket.webp",
+          "detail": [
+            "Burning Jacket",
+            "DEF8",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "snow-mask",
+          "image_path": "/images/items/armor/snow-mask.webp",
+          "detail": [
+            "Snow Mask",
+            "DEF8",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/water.webp"
+          ]
+        },
+        {
+          "asset": "amber-breastplate",
+          "image_path": "/images/items/armor/amber-breastplate.webp",
+          "detail": [
+            "Amber Breastplate",
+            "DEF8",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/wood.webp"
+          ]
+        },
+        {
+          "asset": "terra-armor",
+          "image_path": "/images/items/armor/terra-armor.webp",
+          "detail": [
+            "Terra Armor",
+            "DEF8",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/stone.webp"
+          ]
+        },
+        {
+          "asset": "steel-armor",
+          "image_path": "/images/items/armor/steel-armor.webp",
+          "detail": [
+            "Steel Armor",
+            "DEF9",
+            "$9",
+            "Gift Rate: 6/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "ogre-s-armor",
+          "image_path": "/images/items/armor/ogre-s-armor.webp",
+          "detail": [
+            "Ogre's Armor",
+            "DEF9",
+            "+ATK15",
+            "$20",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "spiritual-hood",
+          "image_path": "/images/items/armor/spiritual-hood.webp",
+          "detail": [
+            "Spiritual Hood",
+            "DEF9",
+            "Do a miracle w/o cost",
+            "$20",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "sky-armor",
+          "image_path": "/images/items/armor/sky-armor.webp",
+          "detail": [
+            "Sky Armor",
+            "DEF9",
+            "Bounce a miracle",
+            "$5",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "angel-gauntlet",
+          "image_path": "/images/items/armor/angel-gauntlet.webp",
+          "detail": [
+            "Angel Gauntlet",
+            "DEF9",
+            "Block a miracle",
+            "$15",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "energy-helm",
+          "image_path": "/images/items/armor/energy-helm.webp",
+          "detail": [
+            "Energy Helm",
+            "DEF10",
+            "$10",
+            "Gift Rate: 4/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "moonlight-shield",
+          "image_path": "/images/items/armor/moonlight-shield.webp",
+          "detail": [
+            "Moonlight Shield",
+            "DEF10",
+            "Reflect a miracle",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "fever-mask",
+          "image_path": "/images/items/armor/fever-mask.webp",
+          "detail": [
+            "Fever Mask",
+            "DEF10",
+            "Catch Fever",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "glittering-dress",
+          "image_path": "/images/items/armor/glittering-dress.webp",
+          "detail": [
+            "Glittering Dress",
+            "DEF10",
+            "$15",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/light.webp"
+          ]
+        },
+        {
+          "asset": "energy-armor",
+          "image_path": "/images/items/armor/energy-armor.webp",
+          "detail": [
+            "Energy Armor",
+            "DEF11",
+            "$10",
+            "Gift Rate: 4/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "angel-cap",
+          "image_path": "/images/items/armor/angel-cap.webp",
+          "detail": [
+            "Angel Cap",
+            "DEF11",
+            "Block a miracle",
+            "$15",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "core-barrier",
+          "image_path": "/images/items/armor/core-barrier.webp",
+          "detail": [
+            "Core Barrier",
+            "DEF12",
+            "$10",
+            "Gift Rate: 2/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "spiritual-sash",
+          "image_path": "/images/items/armor/spiritual-sash.webp",
+          "detail": [
+            "Spiritual Sash",
+            "DEF12",
+            "Do a miracle w/o cost",
+            "$20",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "moonlight-armor",
+          "image_path": "/images/items/armor/moonlight-armor.webp",
+          "detail": [
+            "Moonlight Armor",
+            "DEF12",
+            "Reflect a miracle",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "heat-haze-armor",
+          "image_path": "/images/items/armor/heat-haze-armor.webp",
+          "detail": [
+            "Heat Haze Armor",
+            "DEF12",
+            "$15",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "core-protector",
+          "image_path": "/images/items/armor/core-protector.webp",
+          "detail": [
+            "Core Protector",
+            "DEF13",
+            "$10",
+            "Gift Rate: 2/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "angel-shield",
+          "image_path": "/images/items/armor/angel-shield.webp",
+          "detail": [
+            "Angel Shield",
+            "DEF13",
+            "Block a miracle",
+            "$15",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "dreaming-hat",
+          "image_path": "/images/items/armor/dreaming-hat.webp",
+          "detail": [
+            "Dreaming Hat",
+            "DEF14",
+            "Catch Dream & Redraw",
+            "$15",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/wood.webp"
+          ]
+        },
+        {
+          "asset": "angel-armor",
+          "image_path": "/images/items/armor/angel-armor.webp",
+          "detail": [
+            "Angel Armor",
+            "DEF15",
+            "Block a miracle",
+            "$15",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "god-shield",
+          "image_path": "/images/items/armor/god-shield.webp",
+          "detail": [
+            "God Shield",
+            "DEF30",
+            "$30",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "mars-ring",
+          "image_path": "/images/items/armor/mars-ring.webp",
+          "detail": [
+            "Mars Ring",
+            "Counterattack",
+            "75%ATK{damage}",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "mercury-ring",
+          "image_path": "/images/items/armor/mercury-ring.webp",
+          "detail": [
+            "Mercury Ring",
+            "Counterattack",
+            "Fog",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/water.webp"
+          ]
+        },
+        {
+          "asset": "jupiter-ring",
+          "image_path": "/images/items/armor/jupiter-ring.webp",
+          "detail": [
+            "Jupiter Ring",
+            "Counterattack",
+            "Dream",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/wood.webp"
+          ]
+        },
+        {
+          "asset": "saturn-ring",
+          "image_path": "/images/items/armor/saturn-ring.webp",
+          "detail": [
+            "Saturn Ring",
+            "Counterattack",
+            "ATK{2×damage}",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/stone.webp"
+          ]
+        },
+        {
+          "asset": "uranus-ring",
+          "image_path": "/images/items/armor/uranus-ring.webp",
+          "detail": [
+            "Uranus Ring",
+            "Counterattack",
+            "Flash",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/light.webp"
+          ]
+        },
+        {
+          "asset": "pluto-ring",
+          "image_path": "/images/items/armor/pluto-ring.webp",
+          "detail": [
+            "Pluto Ring",
+            "Counterattack",
+            "Dark Cloud",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/darkness.webp"
+          ]
+        },
+        {
+          "asset": "neptune-ring",
+          "image_path": "/images/items/armor/neptune-ring.webp",
+          "detail": [
+            "Neptune Ring",
+            "Counterattack",
+            "MP+{2×damage}",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "venus-ring",
+          "image_path": "/images/items/armor/venus-ring.webp",
+          "detail": [
+            "Venus Ring",
+            "Counterattack",
+            "Levy ${damage}",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "rainbow-curtain",
+          "image_path": "/images/items/armor/rainbow-curtain.webp",
+          "detail": [
+            "Rainbow Curtain",
+            "Filter the attack",
+            "element",
+            "$15",
+            "Gift Rate: 3/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "super-mirror",
+          "image_path": "/images/items/armor/super-mirror.webp",
+          "detail": [
+            "Super Mirror",
+            "Reflect anything",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        }
+      ]
+    },
+    "sundries": {
+      "notes": [],
+      "items": [
+        {
+          "asset": "smile-dew",
+          "image_path": "/images/items/sundries/smile-dew.webp",
+          "detail": [
+            "Smile Dew",
+            "HP+5",
+            "$1",
+            "Gift Rate: 12/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "heart-dew",
+          "image_path": "/images/items/sundries/heart-dew.webp",
+          "detail": [
+            "Heart Dew",
+            "HP+10",
+            "$3",
+            "Gift Rate: 8/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "romance-water",
+          "image_path": "/images/items/sundries/romance-water.webp",
+          "detail": [
+            "Romance Water",
+            "HP+15",
+            "$5",
+            "Gift Rate: 4/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "galaxy-geyser",
+          "image_path": "/images/items/sundries/galaxy-geyser.webp",
+          "detail": [
+            "Galaxy Geyser",
+            "HP+20",
+            "$20",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "smile-flower",
+          "image_path": "/images/items/sundries/smile-flower.webp",
+          "detail": [
+            "Smile Flower",
+            "MP+5",
+            "$1",
+            "Gift Rate: 12/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "heart-flower",
+          "image_path": "/images/items/sundries/heart-flower.webp",
+          "detail": [
+            "Heart Flower",
+            "MP+10",
+            "$3",
+            "Gift Rate: 8/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "romance-fragrance",
+          "image_path": "/images/items/sundries/romance-fragrance.webp",
+          "detail": [
+            "Romance Fragrance",
+            "MP+15",
+            "$5",
+            "Gift Rate: 4/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "heaven-herb",
+          "image_path": "/images/items/sundries/heaven-herb.webp",
+          "detail": [
+            "Heaven Herb",
+            "MP+20",
+            "Heaven",
+            "$20",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "smile-shell",
+          "image_path": "/images/items/sundries/smile-shell.webp",
+          "detail": [
+            "Smile Shell",
+            "Erase Cold, Fever,",
+            "Fog, and Flash",
+            "$5",
+            "Gift Rate: 12/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "heart-shell",
+          "image_path": "/images/items/sundries/heart-shell.webp",
+          "detail": [
+            "Heart Shell",
+            "Erase",
+            "all the curses",
+            "$15",
+            "Gift Rate: 6/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "guardian-pot",
+          "image_path": "/images/items/sundries/guardian-pot.webp",
+          "detail": [
+            "Guardian Pot",
+            "Summon",
+            "a guardian",
+            "$10",
+            "Gift Rate: 3/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "thump-thump-tear",
+          "image_path": "/images/items/sundries/thump-thump-tear.webp",
+          "detail": [
+            "Thump-thump Tear",
+            "HP+10",
+            "or 10 damage",
+            "$1",
+            "Gift Rate: 2/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "strength-powder",
+          "image_path": "/images/items/sundries/strength-powder.webp",
+          "detail": [
+            "Strength Powder",
+            "+ATK10",
+            "$15",
+            "Gift Rate: 2/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "spiritual-doll",
+          "image_path": "/images/items/sundries/spiritual-doll.webp",
+          "detail": [
+            "Spiritual Doll",
+            "Do a miracle w/o cost",
+            "$5",
+            "Gift Rate: 2/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "nocturnal-broom",
+          "image_path": "/images/items/sundries/nocturnal-broom.webp",
+          "detail": [
+            "Nocturnal Broom",
+            "Sweep away",
+            "3 artifacts",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "goddess-s-soap",
+          "image_path": "/images/items/sundries/goddess-s-soap.webp",
+          "detail": [
+            "Goddess's Soap",
+            "Wash away 2",
+            "performed miracles",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "string-of-fate",
+          "image_path": "/images/items/sundries/string-of-fate.webp",
+          "detail": [
+            "String of Fate",
+            "Cause",
+            "a phenomenon",
+            "$3",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "sun-amulet",
+          "image_path": "/images/items/sundries/sun-amulet.webp",
+          "detail": [
+            "Sun Amulet",
+            "HP+10 when the",
+            "HP becomes 0",
+            "$10",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "dangerous-mortar",
+          "image_path": "/images/items/sundries/dangerous-mortar.webp",
+          "detail": [
+            "Dangerous Mortar",
+            "99 damage by a",
+            "Dangerous Pestle",
+            "$1",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        }
+      ]
+    },
+    "miracles": {
+      "notes": [
+        "Miracles costs MP but can be used repeatedly.",
+        "Performed miracles are not subject to Sell, Buy, and Nocturnal Broom."
+      ],
+      "items": [
+        {
+          "asset": "fireball",
+          "image_path": "/images/items/miracles/fireball.webp",
+          "detail": [
+            "<Fireball>",
+            "+ATK2",
+            "Cost",
+            "2MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "ice",
+          "image_path": "/images/items/miracles/ice.webp",
+          "detail": [
+            "<Ice>",
+            "ATK4",
+            "Cost",
+            "2MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/water.webp"
+          ]
+        },
+        {
+          "asset": "darkness",
+          "image_path": "/images/items/miracles/darkness.webp",
+          "detail": [
+            "<Darkness>",
+            "ATK5",
+            "Cost",
+            "5MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/darkness.webp"
+          ]
+        },
+        {
+          "asset": "big-tree",
+          "image_path": "/images/items/miracles/big-tree.webp",
+          "detail": [
+            "<Big Tree>",
+            "ATK6",
+            "Cost",
+            "3MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/wood.webp"
+          ]
+        },
+        {
+          "asset": "rock",
+          "image_path": "/images/items/miracles/rock.webp",
+          "detail": [
+            "<Rock>",
+            "ATK8",
+            "Cost",
+            "4MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/stone.webp"
+          ]
+        },
+        {
+          "asset": "flame",
+          "image_path": "/images/items/miracles/flame.webp",
+          "detail": [
+            "<Flame>",
+            "ATK10",
+            "Cost",
+            "5MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "absorption",
+          "image_path": "/images/items/miracles/absorption.webp",
+          "detail": [
+            "<Absorption>",
+            "ATK10",
+            "Absorb HP",
+            "Cost",
+            "10MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/light.webp"
+          ]
+        },
+        {
+          "asset": "meteor",
+          "image_path": "/images/items/miracles/meteor.webp",
+          "detail": [
+            "<Meteor>",
+            "+ATK10",
+            "Cost",
+            "7MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/light.webp"
+          ]
+        },
+        {
+          "asset": "waterfall",
+          "image_path": "/images/items/miracles/waterfall.webp",
+          "detail": [
+            "<Waterfall>",
+            "ATK25",
+            "Cost",
+            "12MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/water.webp"
+          ]
+        },
+        {
+          "asset": "wind",
+          "image_path": "/images/items/miracles/wind.webp",
+          "detail": [
+            "<Wind>",
+            "Cold",
+            "Cost",
+            "6MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "heaven-wind",
+          "image_path": "/images/items/miracles/heaven-wind.webp",
+          "detail": [
+            "<Heaven Wind>",
+            "Heaven",
+            "Cost",
+            "15MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "fog",
+          "image_path": "/images/items/miracles/fog.webp",
+          "detail": [
+            "<Fog>",
+            "Fog",
+            "Cost",
+            "3MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/water.webp"
+          ]
+        },
+        {
+          "asset": "dream",
+          "image_path": "/images/items/miracles/dream.webp",
+          "detail": [
+            "<Dream>",
+            "Dream",
+            "Cost",
+            "6MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/wood.webp"
+          ]
+        },
+        {
+          "asset": "dark-cloud",
+          "image_path": "/images/items/miracles/dark-cloud.webp",
+          "detail": [
+            "<Dark Cloud>",
+            "Dark Cloud",
+            "Cost",
+            "5MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/darkness.webp"
+          ]
+        },
+        {
+          "asset": "flash",
+          "image_path": "/images/items/miracles/flash.webp",
+          "detail": [
+            "<Flash>",
+            "25%ATK1",
+            "Flash on damage",
+            "Cost",
+            "3MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/light.webp"
+          ]
+        },
+        {
+          "asset": "smoke",
+          "image_path": "/images/items/miracles/smoke.webp",
+          "detail": [
+            "<Smoke>",
+            "75%ATK5",
+            "Cost",
+            "4MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "avalanche",
+          "image_path": "/images/items/miracles/avalanche.webp",
+          "detail": [
+            "<Avalanche>",
+            "75%ATK8",
+            "Cost",
+            "6MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/water.webp"
+          ]
+        },
+        {
+          "asset": "thunder",
+          "image_path": "/images/items/miracles/thunder.webp",
+          "detail": [
+            "<Thunder>",
+            "25%ATK10",
+            "Cost",
+            "4MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/light.webp"
+          ]
+        },
+        {
+          "asset": "mudflow",
+          "image_path": "/images/items/miracles/mudflow.webp",
+          "detail": [
+            "<Mudflow>",
+            "50%ATK12",
+            "Cost",
+            "6MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/stone.webp"
+          ]
+        },
+        {
+          "asset": "magma",
+          "image_path": "/images/items/miracles/magma.webp",
+          "detail": [
+            "<Magma>",
+            "75%ATK15",
+            "Cost",
+            "10MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "ice-age",
+          "image_path": "/images/items/miracles/ice-age.webp",
+          "detail": [
+            "<Ice Age>",
+            "75%ATK30",
+            "Cost",
+            "30MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": [
+            "/images/elements/water.webp"
+          ]
+        },
+        {
+          "asset": "aura",
+          "image_path": "/images/items/miracles/aura.webp",
+          "detail": [
+            "<Aura>",
+            "Double the ATK",
+            "Cost",
+            "6MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "mirage",
+          "image_path": "/images/items/miracles/mirage.webp",
+          "detail": [
+            "<Mirage>",
+            "Attack",
+            "all the enemies",
+            "Cost",
+            "5MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "wall",
+          "image_path": "/images/items/miracles/wall.webp",
+          "detail": [
+            "<Wall>",
+            "Block a NE weapon",
+            "Cost",
+            "6MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "turbulence",
+          "image_path": "/images/items/miracles/turbulence.webp",
+          "detail": [
+            "<Turbulence>",
+            "Bounce a miracle",
+            "Cost",
+            "5MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "spring",
+          "image_path": "/images/items/miracles/spring.webp",
+          "detail": [
+            "<Spring>",
+            "HP+10",
+            "Cost",
+            "7MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "treasure",
+          "image_path": "/images/items/miracles/treasure.webp",
+          "detail": [
+            "<Treasure>",
+            "$+10",
+            "Cost",
+            "5MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "tone",
+          "image_path": "/images/items/miracles/tone.webp",
+          "detail": [
+            "<Tone>",
+            "Erase Cold, Fever,",
+            "Fog, and Flash",
+            "Cost",
+            "2MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "song",
+          "image_path": "/images/items/miracles/song.webp",
+          "detail": [
+            "<Song>",
+            "Erase",
+            "all the curses",
+            "Cost",
+            "5MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "release",
+          "image_path": "/images/items/miracles/release.webp",
+          "detail": [
+            "<Release>",
+            "Summon",
+            "a guardian",
+            "Cost",
+            "15MP",
+            "Gift Rate: 1/500"
+          ],
+          "element_image_paths": []
+        }
+      ]
+    },
+    "devils": {
+      "notes": [
+        "After the Apocalypse, a devil appears by 25% each time an artifact given."
+      ],
+      "items": [
+        {
+          "asset": "small-devil",
+          "image_path": "/images/items/devils/small-devil.webp",
+          "detail": [
+            "Small Devil",
+            "10 damage",
+            "Appearance: 7%"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "medium-devil",
+          "image_path": "/images/items/devils/medium-devil.webp",
+          "detail": [
+            "Medium Devil",
+            "20 damage",
+            "Appearance: 5%"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "large-devil",
+          "image_path": "/images/items/devils/large-devil.webp",
+          "detail": [
+            "Large Devil",
+            "30 damage",
+            "Appearance: 3%"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "trickster",
+          "image_path": "/images/items/devils/trickster.webp",
+          "detail": [
+            "Trickster",
+            "Steal 2 artifacts or",
+            "performed miracles",
+            "Appearance: 5%"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "charity-fairy",
+          "image_path": "/images/items/devils/charity-fairy.webp",
+          "detail": [
+            "Charity Fairy",
+            "HP+10, MP+10, or $+10",
+            "Appearance: 5%"
+          ],
+          "element_image_paths": []
+        }
+      ]
+    },
+    "guardians": {
+      "notes": [
+        "Earth God uses trade, weapons, armor, and sundries.",
+        "Moon God uses miracles.",
+        "Guardians act after enemy's turn by 25% chance.",
+        "Guardians leave by 10% chance when damaged."
+      ],
+      "items": [
+        {
+          "asset": "fire-whisper",
+          "image_path": "/images/items/guardians/fire-whisper.webp",
+          "detail": [
+            "Fire Whisper",
+            "75%ATK3",
+            "Action: 30%",
+            "Mars God",
+            "Governs Fire"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "fire-tweet",
+          "image_path": "/images/items/guardians/fire-tweet.webp",
+          "detail": [
+            "Fire Tweet",
+            "75%ATK4",
+            "Action: 25%",
+            "Mars God",
+            "Governs Fire"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "fire-buzz",
+          "image_path": "/images/items/guardians/fire-buzz.webp",
+          "detail": [
+            "Fire Buzz",
+            "75%ATK5",
+            "Action: 20%",
+            "Mars God",
+            "Governs Fire"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "fire-roar",
+          "image_path": "/images/items/guardians/fire-roar.webp",
+          "detail": [
+            "Fire Roar",
+            "75%ATK6",
+            "Action: 15%",
+            "Mars God",
+            "Governs Fire"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "fire-shout",
+          "image_path": "/images/items/guardians/fire-shout.webp",
+          "detail": [
+            "Fire Shout",
+            "75%ATK7",
+            "Action: 10%",
+            "Mars God",
+            "Governs Fire"
+          ],
+          "element_image_paths": [
+            "/images/elements/fire.webp"
+          ]
+        },
+        {
+          "asset": "drizzle",
+          "image_path": "/images/items/guardians/drizzle.webp",
+          "detail": [
+            "Drizzle",
+            "50%ATK1",
+            "Fog on damage",
+            "Action: 30%",
+            "Mercury God",
+            "Governs Water"
+          ],
+          "element_image_paths": [
+            "/images/elements/water.webp"
+          ]
+        },
+        {
+          "asset": "misty-breath",
+          "image_path": "/images/items/guardians/misty-breath.webp",
+          "detail": [
+            "Misty Breath",
+            "ATK2",
+            "Fog on damage",
+            "Action: 25%",
+            "Mercury God",
+            "Governs Water"
+          ],
+          "element_image_paths": [
+            "/images/elements/water.webp"
+          ]
+        },
+        {
+          "asset": "splash",
+          "image_path": "/images/items/guardians/splash.webp",
+          "detail": [
+            "Splash",
+            "50%ATK3",
+            "Action: 20%",
+            "Mercury God",
+            "Governs Water"
+          ],
+          "element_image_paths": [
+            "/images/elements/water.webp"
+          ]
+        },
+        {
+          "asset": "bubbles",
+          "image_path": "/images/items/guardians/bubbles.webp",
+          "detail": [
+            "Bubbles",
+            "ATK3",
+            "Action: 15%",
+            "Mercury God",
+            "Governs Water"
+          ],
+          "element_image_paths": [
+            "/images/elements/water.webp"
+          ]
+        },
+        {
+          "asset": "hail",
+          "image_path": "/images/items/guardians/hail.webp",
+          "detail": [
+            "Hail",
+            "50%ATK6",
+            "Action: 10%",
+            "Mercury God",
+            "Governs Water"
+          ],
+          "element_image_paths": [
+            "/images/elements/water.webp"
+          ]
+        },
+        {
+          "asset": "branch",
+          "image_path": "/images/items/guardians/branch.webp",
+          "detail": [
+            "Branch",
+            "ATK1",
+            "Action: 30%",
+            "Jupiter God",
+            "Governs Wood"
+          ],
+          "element_image_paths": [
+            "/images/elements/wood.webp"
+          ]
+        },
+        {
+          "asset": "root",
+          "image_path": "/images/items/guardians/root.webp",
+          "detail": [
+            "Root",
+            "ATK2",
+            "Action: 25%",
+            "Jupiter God",
+            "Governs Wood"
+          ],
+          "element_image_paths": [
+            "/images/elements/wood.webp"
+          ]
+        },
+        {
+          "asset": "tentacles",
+          "image_path": "/images/items/guardians/tentacles.webp",
+          "detail": [
+            "Tentacles",
+            "75%ATK1",
+            "Absorb HP",
+            "Action: 20%",
+            "Jupiter God",
+            "Governs Wood"
+          ],
+          "element_image_paths": [
+            "/images/elements/wood.webp"
+          ]
+        },
+        {
+          "asset": "colored-leaves",
+          "image_path": "/images/items/guardians/colored-leaves.webp",
+          "detail": [
+            "Colored Leaves",
+            "Dream",
+            "Action: 15%",
+            "Jupiter God",
+            "Governs Wood"
+          ],
+          "element_image_paths": [
+            "/images/elements/wood.webp"
+          ]
+        },
+        {
+          "asset": "dance-of-fallen-leaves",
+          "image_path": "/images/items/guardians/dance-of-fallen-leaves.webp",
+          "detail": [
+            "Dance of Fallen Leaves",
+            "75%ATK2",
+            "Dream on damage",
+            "Action: 10%",
+            "Jupiter God",
+            "Governs Wood"
+          ],
+          "element_image_paths": [
+            "/images/elements/wood.webp"
+          ]
+        },
+        {
+          "asset": "pebble",
+          "image_path": "/images/items/guardians/pebble.webp",
+          "detail": [
+            "Pebble",
+            "ATK2",
+            "Action: 30%",
+            "Saturn God",
+            "Governs Stone"
+          ],
+          "element_image_paths": [
+            "/images/elements/stone.webp"
+          ]
+        },
+        {
+          "asset": "stone",
+          "image_path": "/images/items/guardians/stone.webp",
+          "detail": [
+            "Stone",
+            "ATK4",
+            "Action: 25%",
+            "Saturn God",
+            "Governs Stone"
+          ],
+          "element_image_paths": [
+            "/images/elements/stone.webp"
+          ]
+        },
+        {
+          "asset": "boulder",
+          "image_path": "/images/items/guardians/boulder.webp",
+          "detail": [
+            "Boulder",
+            "ATK6",
+            "Action: 20%",
+            "Saturn God",
+            "Governs Stone"
+          ],
+          "element_image_paths": [
+            "/images/elements/stone.webp"
+          ]
+        },
+        {
+          "asset": "body-press",
+          "image_path": "/images/items/guardians/body-press.webp",
+          "detail": [
+            "Body Press",
+            "ATK9",
+            "Action: 15%",
+            "Saturn God",
+            "Governs Stone"
+          ],
+          "element_image_paths": [
+            "/images/elements/stone.webp"
+          ]
+        },
+        {
+          "asset": "diamond-axe",
+          "image_path": "/images/items/guardians/diamond-axe.webp",
+          "detail": [
+            "Diamond Axe",
+            "ATK15",
+            "Action: 10%",
+            "Saturn God",
+            "Governs Stone"
+          ],
+          "element_image_paths": [
+            "/images/elements/stone.webp"
+          ]
+        },
+        {
+          "asset": "twinkle",
+          "image_path": "/images/items/guardians/twinkle.webp",
+          "detail": [
+            "Twinkle",
+            "ATK2",
+            "Action: 30%",
+            "Uranus God",
+            "Governs Light"
+          ],
+          "element_image_paths": [
+            "/images/elements/light.webp"
+          ]
+        },
+        {
+          "asset": "electric-shock",
+          "image_path": "/images/items/guardians/electric-shock.webp",
+          "detail": [
+            "Electric Shock",
+            "25%ATK4",
+            "Action: 25%",
+            "Uranus God",
+            "Governs Light"
+          ],
+          "element_image_paths": [
+            "/images/elements/light.webp"
+          ]
+        },
+        {
+          "asset": "halo",
+          "image_path": "/images/items/guardians/halo.webp",
+          "detail": [
+            "Halo",
+            "Flash",
+            "Action: 20%",
+            "Uranus God",
+            "Governs Light"
+          ],
+          "element_image_paths": [
+            "/images/elements/light.webp"
+          ]
+        },
+        {
+          "asset": "blessing",
+          "image_path": "/images/items/guardians/blessing.webp",
+          "detail": [
+            "Blessing",
+            "ATK5",
+            "Absorb HP",
+            "Action: 15%",
+            "Uranus God",
+            "Governs Light"
+          ],
+          "element_image_paths": [
+            "/images/elements/light.webp"
+          ]
+        },
+        {
+          "asset": "laser-beam",
+          "image_path": "/images/items/guardians/laser-beam.webp",
+          "detail": [
+            "Laser Beam",
+            "75%ATK10",
+            "Action: 10%",
+            "Uranus God",
+            "Governs Light"
+          ],
+          "element_image_paths": [
+            "/images/elements/light.webp"
+          ]
+        },
+        {
+          "asset": "thinking",
+          "image_path": "/images/items/guardians/thinking.webp",
+          "detail": [
+            "Thinking",
+            "25%ATK1",
+            "Action: 30%",
+            "Pluto God",
+            "Governs Darkness"
+          ],
+          "element_image_paths": [
+            "/images/elements/darkness.webp"
+          ]
+        },
+        {
+          "asset": "wink",
+          "image_path": "/images/items/guardians/wink.webp",
+          "detail": [
+            "Wink",
+            "ATK2",
+            "Action: 25%",
+            "Pluto God",
+            "Governs Darkness"
+          ],
+          "element_image_paths": [
+            "/images/elements/darkness.webp"
+          ]
+        },
+        {
+          "asset": "ominous-premonition",
+          "image_path": "/images/items/guardians/ominous-premonition.webp",
+          "detail": [
+            "Ominous Premonition",
+            "Dark Cloud",
+            "Action: 20%",
+            "Pluto God",
+            "Governs Darkness"
+          ],
+          "element_image_paths": [
+            "/images/elements/darkness.webp"
+          ]
+        },
+        {
+          "asset": "cough",
+          "image_path": "/images/items/guardians/cough.webp",
+          "detail": [
+            "Cough",
+            "ATK4",
+            "Action: 15%",
+            "Pluto God",
+            "Governs Darkness"
+          ],
+          "element_image_paths": [
+            "/images/elements/darkness.webp"
+          ]
+        },
+        {
+          "asset": "hand-raising",
+          "image_path": "/images/items/guardians/hand-raising.webp",
+          "detail": [
+            "Hand Raising",
+            "ATK8",
+            "Action: 10%",
+            "Pluto God",
+            "Governs Darkness"
+          ],
+          "element_image_paths": [
+            "/images/elements/darkness.webp"
+          ]
+        },
+        {
+          "asset": "sound-of-ripples",
+          "image_path": "/images/items/guardians/sound-of-ripples.webp",
+          "detail": [
+            "Sound of Ripples",
+            "Erase",
+            "all the curses",
+            "Action: 30%",
+            "Neptune God",
+            "Governs Healing"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "seafood-soup",
+          "image_path": "/images/items/guardians/seafood-soup.webp",
+          "detail": [
+            "Seafood Soup",
+            "HP+5",
+            "Action: 25%",
+            "Neptune God",
+            "Governs Healing"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "beach-aroma",
+          "image_path": "/images/items/guardians/beach-aroma.webp",
+          "detail": [
+            "Beach Aroma",
+            "MP+5",
+            "Action: 20%",
+            "Neptune God",
+            "Governs Healing"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "healthy-seafood-soup",
+          "image_path": "/images/items/guardians/healthy-seafood-soup.webp",
+          "detail": [
+            "Healthy Seafood Soup",
+            "HP+10",
+            "Action: 15%",
+            "Neptune God",
+            "Governs Healing"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "fresh-beach-aroma",
+          "image_path": "/images/items/guardians/fresh-beach-aroma.webp",
+          "detail": [
+            "Fresh Beach Aroma",
+            "MP+10",
+            "Action: 10%",
+            "Neptune God",
+            "Governs Healing"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "coin-scattering",
+          "image_path": "/images/items/guardians/coin-scattering.webp",
+          "detail": [
+            "Coin Scattering",
+            "$+1",
+            "to everybody",
+            "Action: 30%",
+            "Venus God",
+            "Governs Money"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "bribe",
+          "image_path": "/images/items/guardians/bribe.webp",
+          "detail": [
+            "Bribe",
+            "$+5",
+            "to some enemy",
+            "Action: 25%",
+            "Venus God",
+            "Governs Money"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "fine",
+          "image_path": "/images/items/guardians/fine.webp",
+          "detail": [
+            "Fine",
+            "Levy $3",
+            "Action: 20%",
+            "Venus God",
+            "Governs Money"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "little-something",
+          "image_path": "/images/items/guardians/little-something.webp",
+          "detail": [
+            "Little Something",
+            "$+8",
+            "Action: 15%",
+            "Venus God",
+            "Governs Money"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "luxury-accessory",
+          "image_path": "/images/items/guardians/luxury-accessory.webp",
+          "detail": [
+            "Luxury Accessory",
+            "$+20",
+            "Action: 10%",
+            "Venus God",
+            "Governs Money"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "drop",
+          "image_path": "/images/items/guardians/drop.webp",
+          "detail": [
+            "Drop",
+            "Drop an artifact",
+            "Earth God",
+            "Governs Artifacts"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "full-moon-blade",
+          "image_path": "/images/items/guardians/full-moon-blade.webp",
+          "detail": [
+            "Full Moon Blade",
+            "ATK10",
+            "Moon God",
+            "Governs Miracles"
+          ],
+          "element_image_paths": []
+        }
+      ]
+    },
+    "phenomena": {
+      "notes": [],
+      "items": [
+        {
+          "asset": "afterglow",
+          "image_path": "/images/items/phenomena/afterglow.webp",
+          "detail": [
+            "Afterglow",
+            "Set everybody at Fever"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "dense-fog",
+          "image_path": "/images/items/phenomena/dense-fog.webp",
+          "detail": [
+            "Dense Fog",
+            "Set everybody at Fog"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "mushroom-outbreak",
+          "image_path": "/images/items/phenomena/mushroom-outbreak.webp",
+          "detail": [
+            "Mushroom Outbreak",
+            "Make everybody lose",
+            "control for 3 turns"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "tornado",
+          "image_path": "/images/items/phenomena/tornado.webp",
+          "detail": [
+            "Tornado",
+            "Change everybody's HP",
+            "into 1"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "gigantic-tub",
+          "image_path": "/images/items/phenomena/gigantic-tub.webp",
+          "detail": [
+            "Gigantic Tub",
+            "ATK50",
+            "Attack somebody"
+          ],
+          "element_image_paths": [
+            "/images/elements/light.webp"
+          ]
+        },
+        {
+          "asset": "black-hole",
+          "image_path": "/images/items/phenomena/black-hole.webp",
+          "detail": [
+            "Black Hole",
+            "75%ATK30"
+          ],
+          "element_image_paths": [
+            "/images/elements/darkness.webp"
+          ]
+        },
+        {
+          "asset": "warm-current",
+          "image_path": "/images/items/phenomena/warm-current.webp",
+          "detail": [
+            "Warm Current",
+            "HP+50"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "gold-mountain",
+          "image_path": "/images/items/phenomena/gold-mountain.webp",
+          "detail": [
+            "Gold Mountain",
+            "Collect everybody's",
+            "money to somebody"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "magnetic-storm",
+          "image_path": "/images/items/phenomena/magnetic-storm.webp",
+          "detail": [
+            "Magnetic Storm",
+            "Shuffle everybody's",
+            "artifacts"
+          ],
+          "element_image_paths": []
+        },
+        {
+          "asset": "solar-eclipse",
+          "image_path": "/images/items/phenomena/solar-eclipse.webp",
+          "detail": [
+            "Solar Eclipse",
+            "Summon guardians",
+            "to everybody"
+          ],
+          "element_image_paths": []
+        }
+      ]
+    }
+  },
+  "total_artifacts": 291
+}

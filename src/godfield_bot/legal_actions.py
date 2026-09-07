@@ -9,6 +9,7 @@ from godfield_bot.domain.observation import ScreenKind, ScreenObservation
 NEUTRAL_TEXT_COLOR = "rgb(79, 79, 79)"
 WEAPON_ASSET_PATTERN = re.compile(r"^/images/items/weapons/([^/]+)\.(?:png|svg|webp)$")
 ARMOR_ASSET_PATTERN = re.compile(r"^/images/items/armor/([^/]+)\.(?:png|svg|webp)$")
+ITEM_ASSET_PATTERN = re.compile(r"^/images/items/[^/]+/[^/]+\.(?:png|svg|webp)$")
 
 
 def game_state_digest(state: GameState) -> str:
@@ -52,17 +53,36 @@ def verified_browser_actions(
         )
     ]
     self_player = state.players[state.self_player_index]
+    observed_action_assets = tuple(
+        image.path
+        for image in observation.images
+        if ITEM_ASSET_PATTERN.fullmatch(image.path) is not None
+        and 100 <= image.bounds.x <= 450
+        and 80 <= image.bounds.y <= 300
+        and 60 <= image.bounds.width <= 100
+        and 60 <= image.bounds.height <= 100
+        and image.hit_target_bounds is None
+    )
+    incoming_context_assets = observed_action_assets or (
+        (state.action_artifact_asset_path,)
+        if state.action_artifact_asset_path is not None
+        else ()
+    )
     self_attack_selection = (
         state.action_actor == self_player.name and state.action_display == "Pray"
     )
-    self_incoming_targeted_effect = (
+    self_targeted_interaction = (
         state.action_actor is not None
         and state.action_actor != self_player.name
         and state.action_target == self_player.name
+    )
+    self_incoming_targeted_effect = (
+        self_targeted_interaction
         and state.action_artifact_asset_path is not None
     )
     self_incoming_response = (
-        self_incoming_targeted_effect
+        self_targeted_interaction
+        and bool(incoming_context_assets)
         and state.phase_control == "Forgive"
         and state.phase_control_hit_target_bounds is not None
     )
@@ -162,11 +182,12 @@ def verified_browser_actions(
             LegalAction(
                 action_id="forgive",
                 kind=ActionKind.FORGIVE,
-                label="Forgive the incoming attack without defending",
+                label="Forgive the incoming targeted interaction",
                 artifact_asset_path=state.action_artifact_asset_path,
                 target_player_index=state.self_player_index,
                 target_player_name=self_player.name,
                 control_panel="right",
+                context_asset_paths=incoming_context_assets,
             )
         )
     return LegalActionSet(
@@ -175,6 +196,7 @@ def verified_browser_actions(
         coverage_complete=False,
         blocked_reason=(
             "only verified fixed-attack weapon selection and confirmation, incoming-effect "
-            "Forgive, and neutral plain-armor selection and confirmation are supported"
+            "or targeted-interaction Forgive, and neutral plain-armor selection and "
+            "confirmation are supported"
         ),
     )

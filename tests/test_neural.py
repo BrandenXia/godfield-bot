@@ -10,7 +10,7 @@ from godfield_bot.features import StateFeatureEncoder, action_index, load_vocabu
 from godfield_bot.legal_actions import game_state_digest, observation_only_actions
 from godfield_bot.neural import RecurrentPolicyValueNet, features_to_tensors
 
-SNAPSHOT = Path("data/snapshots/2026-09-06/bible.json")
+SNAPSHOT = Path("data/snapshots/2026-09-07/bible.json")
 
 
 def state() -> GameState:

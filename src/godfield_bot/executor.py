@@ -45,16 +45,20 @@ async def execute_action(
         )
     elif action.kind is ActionKind.FORGIVE:
         if (
-            action.artifact_asset_path is None
-            or action.target_player_name is None
+            action.target_player_name is None
             or action.control_panel != "right"
         ):
             raise ActionExecutionError("Forgive is missing its verified identities")
+        context_asset_paths = action.context_asset_paths or (
+            (action.artifact_asset_path,) if action.artifact_asset_path is not None else ()
+        )
+        if not context_asset_paths:
+            raise ActionExecutionError("Forgive has no verified action context")
         await click_phase_control(
             page,
             text="Forgive",
             panel=action.control_panel,
-            asset_path=action.artifact_asset_path,
+            context_asset_paths=context_asset_paths,
             target_name=action.target_player_name,
         )
     elif action.kind is ActionKind.CONFIRM:

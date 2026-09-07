@@ -4,7 +4,7 @@ from pathlib import Path
 from godfield_bot.domain.reference import BibleSnapshot
 from godfield_bot.reference import diff_bible_snapshots
 
-SNAPSHOT = Path("data/snapshots/2026-09-06/bible.json")
+SNAPSHOT = Path("data/snapshots/2026-09-07/bible.json")
 
 
 def load_snapshot() -> BibleSnapshot:

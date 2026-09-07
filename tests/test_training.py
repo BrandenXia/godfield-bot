@@ -29,7 +29,7 @@ from godfield_bot.training import (
     train_step,
 )
 
-SNAPSHOT = Path("data/snapshots/2026-09-06/bible.json")
+SNAPSHOT = Path("data/snapshots/2026-09-07/bible.json")
 
 
 def state() -> GameState:

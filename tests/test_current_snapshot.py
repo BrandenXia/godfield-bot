@@ -9,7 +9,7 @@ from godfield_bot.reference import (
     verified_attack_weapon_values,
 )
 
-SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-06" / "bible.json"
+SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-07" / "bible.json"
 
 
 def test_committed_snapshot_matches_validated_live_catalog() -> None:
@@ -29,7 +29,8 @@ def test_committed_snapshot_matches_validated_live_catalog() -> None:
         "phenomena": 10,
     }
     plain_attacks = plain_attack_weapon_values(snapshot)
-    assert len(plain_attacks) == 39
+    assert snapshot.schema_version == 2
+    assert len(plain_attacks) == 18
     assert plain_attacks["bronze-club"] == 1
     assert plain_attacks["gravity-mace"] == 11
     plain_defenses = plain_defense_armor_values(snapshot)
@@ -37,9 +38,16 @@ def test_committed_snapshot_matches_validated_live_catalog() -> None:
     assert plain_defenses["iron-shield"] == 4
     assert plain_defenses["steel-shield"] == 8
     verified_attacks = verified_attack_weapon_values(snapshot)
-    assert len(verified_attacks) == 46
+    assert len(verified_attacks) == 25
     assert verified_attacks["bouncing-sword"] == 5
     assert verified_attacks["reflection-sword"] == 10
     assert verified_attacks["moonlight-axe"] == 10
     assert verified_attacks["angel-sword"] == 13
     assert verified_attacks["legendary-scabbard"] == 13
+    assert "frozen-hammer" not in verified_attacks
+    frozen_hammer = next(
+        artifact
+        for artifact in snapshot.catalog["weapons"].items
+        if artifact.asset == "frozen-hammer"
+    )
+    assert frozen_hammer.element_image_paths == ("/images/elements/water.webp",)

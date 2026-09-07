@@ -218,10 +218,10 @@ async def click_phase_control(
     *,
     text: str,
     panel: str,
-    asset_path: str,
+    context_asset_paths: tuple[str, ...],
     target_name: str,
 ) -> None:
-    """Click a phase label's separately rendered transparent action panel."""
+    """Click a phase panel after revalidating its label, target, and context assets."""
 
     if panel == "left":
         panel_min_x, panel_max_x = 100, 150
@@ -238,7 +238,7 @@ async def click_phase_control(
         dict[str, Any] | None,
         await page.evaluate(
             """
-            ({wantedText, wantedPath, wantedTarget, panelMinX, panelMaxX,
+            ({wantedText, wantedPaths, wantedTarget, panelMinX, panelMaxX,
               labelMinX, labelMaxX, assetMinX, assetMaxX}) => {
               const rendered = (element) => {
                 const style = getComputedStyle(element);
@@ -254,16 +254,19 @@ async def click_phase_control(
               });
               if (labels.length !== 1) return null;
               const selectedImages = [...document.querySelectorAll('img')].filter((element) => {
-                if (!rendered(element) || new URL(element.src).pathname !== wantedPath) {
-                  return false;
-                }
+                if (!rendered(element)) return false;
                 const rect = element.getBoundingClientRect();
                 return rect.x >= assetMinX && rect.x <= assetMaxX &&
-                  rect.y >= 80 && rect.y <= 200 &&
+                  rect.y >= 80 && rect.y <= 300 &&
                   rect.width >= 60 && rect.width <= 100 &&
                   rect.height >= 60 && rect.height <= 100;
               });
-              if (selectedImages.length !== 1) return null;
+              const actualPaths = selectedImages
+                .map((element) => new URL(element.src).pathname)
+                .sort();
+              const expectedPaths = [...wantedPaths].sort();
+              if (actualPaths.length !== expectedPaths.length ||
+                  actualPaths.some((value, index) => value !== expectedPaths[index])) return null;
               const targets = [...document.querySelectorAll('span')].filter((element) => {
                 if (!rendered(element) || element.innerText.trim() !== wantedTarget) return false;
                 const rect = element.getBoundingClientRect();
@@ -291,7 +294,7 @@ async def click_phase_control(
             """,
             {
                 "wantedText": text,
-                "wantedPath": asset_path,
+                "wantedPaths": list(context_asset_paths),
                 "wantedTarget": target_name,
                 "panelMinX": panel_min_x,
                 "panelMaxX": panel_max_x,

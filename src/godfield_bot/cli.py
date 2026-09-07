@@ -202,7 +202,7 @@ def run_bot(
     snapshot: Annotated[
         Path,
         typer.Option(exists=True, dir_okay=False, readable=True),
-    ] = Path("data", "snapshots", "2026-09-06", "bible.json"),
+    ] = Path("data", "snapshots", "2026-09-07", "bible.json"),
     database: Annotated[
         Path,
         typer.Option(help="Ignored local SQLite trajectory database."),
@@ -456,7 +456,7 @@ def models_init(
     snapshot: Annotated[
         Path,
         typer.Option(exists=True, dir_okay=False, readable=True),
-    ] = Path("data", "snapshots", "2026-09-06", "bible.json"),
+    ] = Path("data", "snapshots", "2026-09-07", "bible.json"),
     root_directory: Annotated[
         Path,
         typer.Option(help="Ignored root directory for model artifacts."),
@@ -501,7 +501,7 @@ def models_train_replay(
     snapshot: Annotated[
         Path,
         typer.Option(exists=True, dir_okay=False, readable=True),
-    ] = Path("data", "snapshots", "2026-09-06", "bible.json"),
+    ] = Path("data", "snapshots", "2026-09-07", "bible.json"),
     root_directory: Annotated[
         Path,
         typer.Option(help="Ignored root directory for the new candidate."),

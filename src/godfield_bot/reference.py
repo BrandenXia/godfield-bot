@@ -4,7 +4,7 @@ import re
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal, cast
 
 import structlog
 from playwright.async_api import BrowserContext, Page, async_playwright
@@ -128,19 +128,33 @@ async def _artifact_sources(page: Page, category_slug: str) -> tuple[str, ...]:
     return tuple(sources)
 
 
-async def _selected_detail(page: Page, image_path: str) -> tuple[str, ...]:
-    text: str = await page.evaluate(
-        """
-        (wanted) => {
-          const images = [...document.querySelectorAll(`img[src="${wanted}"]`)];
-          const detailImage = images.find((image) => image.parentElement?.querySelector('span'));
-          const panel = detailImage?.parentElement?.parentElement;
-          return panel?.innerText ?? '';
-        }
-        """,
-        image_path,
+async def _selected_detail(
+    page: Page, image_path: str
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    result = cast(
+        dict[str, Any],
+        await page.evaluate(
+            """
+            (wanted) => {
+              const images = [...document.querySelectorAll(`img[src="${wanted}"]`)];
+              const detailImage = images.find(
+                (image) => image.parentElement?.querySelector('span')
+              );
+              const panel = detailImage?.parentElement?.parentElement;
+              if (!panel) return {text: '', elementImagePaths: []};
+              const elementImagePaths = [...panel.querySelectorAll('img')]
+                .map((image) => new URL(image.src).pathname)
+                .filter((path) => path.startsWith('/images/elements/'));
+              return {text: panel.innerText, elementImagePaths};
+            }
+            """,
+            image_path,
+        ),
     )
-    return _clean_lines(text)
+    return (
+        _clean_lines(cast(str, result["text"])),
+        tuple(dict.fromkeys(cast(list[str], result["elementImagePaths"]))),
+    )
 
 
 async def _extract_category(page: Page, category: str, *, timeout_ms: float) -> ArtifactCategory:
@@ -152,7 +166,7 @@ async def _extract_category(page: Page, category: str, *, timeout_ms: float) -> 
     if not sources:
         raise ReferenceExtractionError(f"no artifact images found for {category}")
 
-    raw_items: list[tuple[str, tuple[str, ...]]] = []
+    raw_items: list[tuple[str, tuple[str, ...], tuple[str, ...]]] = []
     for image_path in sources:
         target = page.locator(f'img[src="{image_path}"] + div')
         if await target.count() != 1:
@@ -160,19 +174,20 @@ async def _extract_category(page: Page, category: str, *, timeout_ms: float) -> 
                 f"expected one click target for {image_path}, found {await target.count()}"
             )
         await target.click(timeout=timeout_ms)
-        detail = await _selected_detail(page, image_path)
+        detail, element_image_paths = await _selected_detail(page, image_path)
         if not detail:
             raise ReferenceExtractionError(f"empty detail panel for {image_path}")
-        raw_items.append((image_path, detail))
+        raw_items.append((image_path, detail, element_image_paths))
 
-    notes = longest_common_prefix([detail for _, detail in raw_items])
+    notes = longest_common_prefix([detail for _, detail, _ in raw_items])
     items = tuple(
         ArtifactRecord(
             asset=Path(image_path).stem,
             image_path=image_path,
             detail=without_prefix(detail, notes),
+            element_image_paths=element_image_paths,
         )
-        for image_path, detail in raw_items
+        for image_path, detail, element_image_paths in raw_items
     )
     log.info("reference_category_extracted", category=category_slug, count=len(items))
     return ArtifactCategory(notes=notes, items=items)
@@ -313,7 +328,7 @@ def plain_attack_weapon_values(snapshot: BibleSnapshot) -> dict[str, int]:
 
     result: dict[str, int] = {}
     for artifact in snapshot.catalog["weapons"].items:
-        if len(artifact.detail) != 4:
+        if artifact.element_image_paths or len(artifact.detail) != 4:
             continue
         attack = PLAIN_ATTACK_PATTERN.fullmatch(artifact.detail[1])
         if (
@@ -330,7 +345,7 @@ def verified_attack_weapon_values(snapshot: BibleSnapshot) -> dict[str, int]:
 
     result = plain_attack_weapon_values(snapshot)
     for artifact in snapshot.catalog["weapons"].items:
-        if len(artifact.detail) != 5:
+        if artifact.element_image_paths or len(artifact.detail) != 5:
             continue
         attack = PLAIN_ATTACK_PATTERN.fullmatch(artifact.detail[1])
         if (

@@ -25,6 +25,7 @@ class LegalAction(BaseModel):
     target_player_index: int | None = Field(default=None, ge=0)
     target_player_name: str | None = None
     control_panel: Literal["left", "right"] | None = None
+    context_asset_paths: tuple[str, ...] = ()
 
     @model_validator(mode="after")
     def artifact_selection_has_identity(self) -> "LegalAction":
@@ -44,7 +45,7 @@ class LegalAction(BaseModel):
         ):
             raise ValueError("confirmation requires artifact, target, and panel identities")
         if self.kind is ActionKind.FORGIVE and (
-            self.artifact_asset_path is None
+            (self.artifact_asset_path is None and not self.context_asset_paths)
             or self.target_player_index is None
             or not self.target_player_name
             or self.control_panel is None

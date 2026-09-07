@@ -1,0 +1,60 @@
+{
+  "schema_version": 2,
+  "observed_at": "2026-09-07T04:52:07.454282Z",
+  "source": {
+    "bible_url": "https://godfield.net/",
+    "language": "en",
+    "web_bundle_url": "https://godfield.net/main.dart.js",
+    "web_bundle_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+    "web_bundle_etag": "2a2f9f9759840e21fb6391029ca2638e4a2ce6fa99e0869251eed00b6344374f-br",
+    "web_bundle_last_modified": "2026-08-11T01:40:09Z"
+  },
+  "catalog": {
+    "total": 291,
+    "detail_records_validated": 291,
+    "records_with_element_icons": 145,
+    "weapons_with_element_icons": 54,
+    "categories": {
+      "weapons": 107,
+      "armor": 78,
+      "sundries": 19,
+      "miracles": 30,
+      "devils": 5,
+      "guardians": 42,
+      "phenomena": 10
+    },
+    "element_icon_counts": {
+      "darkness": 16,
+      "fire": 31,
+      "light": 22,
+      "stone": 23,
+      "water": 28,
+      "wood": 25
+    }
+  },
+  "neutral_attack_allowlist": {
+    "plain_fixed_attack_count": 18,
+    "verified_total_count": 25,
+    "requires_no_element_icons": true
+  },
+  "representative_records": [
+    {
+      "category": "weapons",
+      "asset": "bronze-club",
+      "detail": ["Bronze Club", "ATK1", "$1", "Gift Rate: 3/500"],
+      "element_image_paths": []
+    },
+    {
+      "category": "weapons",
+      "asset": "frozen-hammer",
+      "detail": ["Frozen Hammer", "ATK4", "$4", "Gift Rate: 1/500"],
+      "element_image_paths": ["/images/elements/water.webp"]
+    },
+    {
+      "category": "armor",
+      "asset": "god-shield",
+      "detail": ["God Shield", "DEF30", "$30", "Gift Rate: 1/500"],
+      "element_image_paths": []
+    }
+  ]
+}

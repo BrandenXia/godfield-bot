@@ -67,6 +67,8 @@ uv run godfield-bot runs export-outcomes runs/outcomes.jsonl
 uv run godfield-bot models init
 uv run godfield-bot models train-replay models/<base-model-id> runs/replay.jsonl
 uv run godfield-bot models train-outcomes models/<base-model-id> runs/outcomes.jsonl
+uv run godfield-bot models train-simulation models/<base-model-id> \
+  --batch-size 256 --rollout-steps 32 --updates 10
 uv run godfield-bot simulation benchmark --ruleset attack-defense \
   --batch-size 4096 --batch-steps 1000
 ```
@@ -178,3 +180,13 @@ checkpoints are deliberately incompatible; run `models init` to create a v2
 base model. Both rulesets are fingerprinted against the accepted client,
 artifact vocabulary, and exact rule catalog, and neither is
 promotion-eligible.
+
+`models train-simulation` creates a bounded `recurrent-ppo-self-play-v0`
+candidate using one shared policy for both seats and independent recurrent
+memory per seat. Zero-sum GAE flips the bootstrapped perspective when control
+passes to the opponent and preserves it when a defender begins their next
+attack. Structured logs expose each update's loss, entropy, approximate KL,
+gradient norm, completed episodes, and armor-selection rate. The candidate
+manifest retains the complete optimizer configuration and simulator
+fingerprints. Native training never promotes a model; see
+[ADR 0004](docs/architecture/0004-native-self-play-ppo.md).

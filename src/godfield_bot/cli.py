@@ -929,6 +929,109 @@ def models_train_outcomes(
     typer.echo(manifest.model_dump_json(indent=2))
 
 
+@models_app.command("train-simulation")
+def models_train_simulation(
+    base_model: Annotated[
+        Path,
+        typer.Argument(exists=True, file_okay=False, readable=True),
+    ],
+    snapshot: Annotated[
+        Path,
+        typer.Option(exists=True, dir_okay=False, readable=True),
+    ] = Path("data", "snapshots", "2026-09-07", "bible.json"),
+    root_directory: Annotated[
+        Path,
+        typer.Option(help="Ignored root directory for the new candidate."),
+    ] = Path("models"),
+    batch_size: Annotated[
+        int,
+        typer.Option(min=1, max=1_000_000, help="Parallel native self-play games."),
+    ] = 256,
+    rollout_steps: Annotated[
+        int,
+        typer.Option(min=2, max=4096, help="Decisions collected per game and update."),
+    ] = 32,
+    updates: Annotated[
+        int,
+        typer.Option(min=1, max=100_000, help="On-policy rollout/update cycles."),
+    ] = 10,
+    ppo_epochs: Annotated[
+        int,
+        typer.Option(min=1, max=100, help="Optimization passes over each rollout."),
+    ] = 2,
+    environment_minibatch_size: Annotated[
+        int,
+        typer.Option(min=1, max=1_000_000, help="Whole recurrent games per minibatch."),
+    ] = 128,
+    learning_rate: Annotated[
+        float,
+        typer.Option(min=1e-8, max=1.0),
+    ] = 3e-4,
+    gamma: Annotated[float, typer.Option(min=1e-8, max=1.0)] = 0.99,
+    gae_lambda: Annotated[float, typer.Option(min=0.0, max=1.0)] = 0.95,
+    clip_range: Annotated[float, typer.Option(min=1e-8, max=1.0)] = 0.2,
+    value_weight: Annotated[float, typer.Option(min=0.0, max=100.0)] = 0.5,
+    entropy_weight: Annotated[float, typer.Option(min=0.0, max=100.0)] = 0.01,
+    max_gradient_norm: Annotated[
+        float,
+        typer.Option(min=1e-8, max=100.0),
+    ] = 0.5,
+    seed: Annotated[int, typer.Option(min=0)] = 67,
+    device: Annotated[
+        Literal["cpu", "mps", "cuda"],
+        typer.Option(help="PyTorch training device; native simulation remains on CPU."),
+    ] = "cpu",
+) -> None:
+    """Create a non-deployable recurrent PPO candidate from native self-play."""
+
+    try:
+        from godfield_bot.simulation import SimulationUnavailableError
+        from godfield_bot.simulation_training import (
+            SimulationTrainingConfig,
+            SimulationTrainingError,
+            train_simulation_candidate,
+        )
+
+        manifest = train_simulation_candidate(
+            base_model_directory=base_model,
+            model_root=root_directory,
+            snapshot_path=snapshot,
+            config=SimulationTrainingConfig(
+                batch_size=batch_size,
+                rollout_steps=rollout_steps,
+                updates=updates,
+                ppo_epochs=ppo_epochs,
+                environment_minibatch_size=environment_minibatch_size,
+                learning_rate=learning_rate,
+                gamma=gamma,
+                gae_lambda=gae_lambda,
+                clip_range=clip_range,
+                value_weight=value_weight,
+                entropy_weight=entropy_weight,
+                max_gradient_norm=max_gradient_norm,
+                seed=seed,
+                device=device,
+            ),
+        )
+    except KeyboardInterrupt:
+        typer.echo("Simulation training interrupted; no candidate was written", err=True)
+        raise typer.Exit(code=130) from None
+    except (
+        ImportError,
+        OSError,
+        ValueError,
+        SimulationUnavailableError,
+        SimulationTrainingError,
+    ) as error:
+        structlog.get_logger().error(
+            "simulation_training_failed",
+            error_type=type(error).__name__,
+            reason=str(error).splitlines()[0],
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(manifest.model_dump_json(indent=2))
+
+
 @simulation_app.command("benchmark")
 def simulation_benchmark(
     snapshot: Annotated[

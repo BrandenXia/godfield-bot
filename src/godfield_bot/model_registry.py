@@ -6,7 +6,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import torch
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, JsonValue
 
 from godfield_bot.browser.profile import prepare_private_directory
 from godfield_bot.features import (
@@ -56,6 +56,7 @@ class ModelManifest(BaseModel):
         pattern=r"^[0-9a-f]{64}$",
     )
     training_run_ids: tuple[str, ...] = ()
+    training_context: dict[str, JsonValue] = Field(default_factory=dict)
     metrics: dict[str, float] = Field(default_factory=dict)
 
 
@@ -153,6 +154,7 @@ def save_candidate(
     training_dataset_sha256: str,
     training_run_ids: tuple[str, ...],
     metrics: dict[str, float],
+    training_context: dict[str, JsonValue] | None = None,
 ) -> ModelManifest:
     """Persist trained weights as a new immutable, non-promoted candidate."""
 
@@ -187,6 +189,7 @@ def save_candidate(
         training_algorithm=training_algorithm,
         training_dataset_sha256=training_dataset_sha256,
         training_run_ids=tuple(dict.fromkeys(training_run_ids)),
+        training_context=training_context or {},
         metrics=metrics,
     )
     temporary_manifest = model_directory / "manifest.json.tmp"

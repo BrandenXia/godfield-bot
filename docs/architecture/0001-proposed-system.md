@@ -145,5 +145,9 @@ not be baked into browser or storage interfaces.
 2. **Learning route.** Simulator-first self-play plus real-game fine-tuning.
 3. **Environment management.** Use uv for Python selection, dependency
    locking, virtual environments, and command execution.
+4. **Reward design.** Emit one sparse reward only from a confidently observed
+   two-player terminal state: win `+1`, loss `-1`, and draw `0`. HP, resource,
+   and field deltas remain diagnostics; aborted or unclassified exits receive
+   no reward label. Any future reward shaping requires a separate decision.
 
 Account creation remains an explicit operator-confirmed action.

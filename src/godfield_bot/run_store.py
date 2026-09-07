@@ -122,10 +122,31 @@ class RunStore:
         *,
         occurred_at: datetime | None = None,
     ) -> RunEvent:
-        serialized_payload = (
-            cast(dict[str, JsonValue], payload.model_dump(mode="json"))
-            if isinstance(payload, BaseModel)
-            else payload
+        return self.append_events(
+            run_id,
+            ((kind, payload),),
+            occurred_at=occurred_at,
+        )[0]
+
+    def append_events(
+        self,
+        run_id: str,
+        events: tuple[tuple[EventKind, BaseModel | dict[str, JsonValue]], ...],
+        *,
+        occurred_at: datetime | None = None,
+    ) -> tuple[RunEvent, ...]:
+        """Append a related event group in one transaction."""
+
+        if not events:
+            raise RunStoreError("cannot append an empty event group")
+        serialized = tuple(
+            (
+                kind,
+                cast(dict[str, JsonValue], payload.model_dump(mode="json"))
+                if isinstance(payload, BaseModel)
+                else payload,
+            )
+            for kind, payload in events
         )
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
@@ -137,35 +158,41 @@ class RunStore:
                 raise RunStoreError("cannot append an event to an unknown run")
             if run["status"] != RunStatus.RUNNING.value:
                 raise RunStoreError("cannot append an event to a finished run")
-            sequence = cast(
+            first_sequence = cast(
                 int,
                 connection.execute(
                     "SELECT COALESCE(MAX(sequence), -1) + 1 FROM events WHERE run_id = ?",
                     (run_id,),
                 ).fetchone()[0],
             )
-            event = RunEvent(
-                run_id=run_id,
-                sequence=sequence,
-                occurred_at=occurred_at or datetime.now(UTC),
-                kind=kind,
-                payload=serialized_payload,
+            recorded_events = tuple(
+                RunEvent(
+                    run_id=run_id,
+                    sequence=first_sequence + offset,
+                    occurred_at=occurred_at or datetime.now(UTC),
+                    kind=kind,
+                    payload=payload,
+                )
+                for offset, (kind, payload) in enumerate(serialized)
             )
-            connection.execute(
+            connection.executemany(
                 """
                 INSERT INTO events (run_id, sequence, occurred_at, kind, payload_json)
                 VALUES (?, ?, ?, ?, ?)
                 """,
                 (
-                    event.run_id,
-                    event.sequence,
-                    event.occurred_at.isoformat(),
-                    event.kind.value,
-                    _json(event.payload),
+                    (
+                        event.run_id,
+                        event.sequence,
+                        event.occurred_at.isoformat(),
+                        event.kind.value,
+                        _json(event.payload),
+                    )
+                    for event in recorded_events
                 ),
             )
             connection.commit()
-        return event
+        return recorded_events
 
     def finish_run(
         self,

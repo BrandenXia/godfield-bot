@@ -17,11 +17,13 @@ from godfield_bot.config import AppSettings
 from godfield_bot.domain.action import ActionTransition, LegalAction, PolicyDecision
 from godfield_bot.domain.game import GameState
 from godfield_bot.domain.observation import ScreenKind, ScreenObservation
+from godfield_bot.domain.outcome import MatchOutcome, SparseTerminalReward
 from godfield_bot.domain.run import EventKind, RunMode, RunRecord, RunSpec, RunStatus
 from godfield_bot.executor import execute_action
 from godfield_bot.game_state import GameStateParseError, parse_game_state
 from godfield_bot.legal_actions import game_state_digest, verified_browser_actions
 from godfield_bot.observer import capture_screen
+from godfield_bot.outcomes import append_sparse_terminal_events
 from godfield_bot.policy import HeuristicV0Policy, Policy, SafeObserverPolicy
 from godfield_bot.reference import fingerprint_client
 from godfield_bot.run_store import RunStore
@@ -223,6 +225,10 @@ async def run_training_observer(
     store = RunStore(config.database)
     started = datetime.now(UTC)
     run: RunRecord | None = None
+    terminal_outcome: MatchOutcome | None = None
+    terminal_reward: SparseTerminalReward | None = None
+    in_match_actions = 0
+    outcome_reason = "wall_clock_limit"
     try:
         async with open_account_context(settings, headed=config.headed) as context:
             client = await fingerprint_client(context)
@@ -257,8 +263,6 @@ async def run_training_observer(
             )
             previous_digest: str | None = None
             previous_parse_error_digest: str | None = None
-            in_match_actions = 0
-            outcome_reason = "wall_clock_limit"
             loop = asyncio.get_running_loop()
             deadline = loop.time() + config.max_seconds
             last_progress_at = loop.time()
@@ -287,6 +291,21 @@ async def run_training_observer(
                     )
                     if previous_digest != prior_digest:
                         last_progress_at = loop.time()
+                    terminal = append_sparse_terminal_events(
+                        store,
+                        run.run_id,
+                        before_state,
+                    )
+                    if terminal is not None:
+                        terminal_outcome, terminal_reward = terminal
+                        outcome_reason = "classified_terminal"
+                        log.info(
+                            "terminal_outcome_recorded",
+                            run_id=run.run_id,
+                            result=terminal_outcome.result.value,
+                            reward=terminal_reward.value,
+                        )
+                        break
                     if config.screenshot_directory is not None and previous_digest != prior_digest:
                         prepare_private_directory(config.screenshot_directory)
                         screenshot_path = (
@@ -330,6 +349,22 @@ async def run_training_observer(
                             EventKind.TRANSITION,
                             transition,
                         )
+                        if post_state is not None:
+                            terminal = append_sparse_terminal_events(
+                                store,
+                                run.run_id,
+                                post_state,
+                            )
+                            if terminal is not None:
+                                terminal_outcome, terminal_reward = terminal
+                                outcome_reason = "classified_terminal"
+                                log.info(
+                                    "terminal_outcome_recorded",
+                                    run_id=run.run_id,
+                                    result=terminal_outcome.result.value,
+                                    reward=terminal_reward.value,
+                                )
+                                break
                         if config.screenshot_directory is not None:
                             post_action_path = (
                                 config.screenshot_directory
@@ -387,7 +422,10 @@ async def run_training_observer(
             store.finish_run(
                 run.run_id,
                 RunStatus.ABORTED,
-                outcome={"reason": "operator_interrupt", "in_match_actions": 0},
+                outcome={
+                    "reason": "operator_interrupt",
+                    "in_match_actions": in_match_actions,
+                },
             )
         raise
     except Exception as error:
@@ -402,6 +440,18 @@ async def run_training_observer(
 
     if run is None:  # pragma: no cover - run is created before browser play
         raise RunnerError("runner exited before creating a run")
+    if terminal_outcome is not None and terminal_reward is not None:
+        return store.finish_run(
+            run.run_id,
+            RunStatus.COMPLETED,
+            outcome={
+                "reason": outcome_reason,
+                "result": terminal_outcome.result.value,
+                "reward": terminal_reward.value,
+                "terminal_state_digest": terminal_outcome.terminal_state_digest,
+                "in_match_actions": in_match_actions,
+            },
+        )
     return store.finish_run(
         run.run_id,
         RunStatus.ABORTED,

@@ -72,7 +72,11 @@ checks the live client bundle against the accepted snapshot, permits one
 Training game, and records only changed states. Its room wait, gameplay
 duration, no-progress interval, and in-match click count are independently
 bounded. If gameplay leaves the known screen, the runner records a terminal
-candidate instead of guessing whether the match was won or lost.
+candidate instead of guessing whether the match was won or lost. Only an
+explicit two-player Training state with at least one player at zero HP is
+classified as complete. It emits exactly one outcome-only reward: win `+1`,
+loss `-1`, or draw `0`. Intermediate HP, resource, and field deltas remain
+diagnostics and never become shaped rewards.
 
 The default `safe-observer-v0` remains observation-only. The explicitly chosen
 `heuristic-v0` path can select the strongest Bible-verified fixed-attack weapon
@@ -103,7 +107,7 @@ not silently treated as accepted transitions.
 only fully evidenced, dispatched actions that changed normalized state. Each
 sample preserves the before and after states, legal action set, chosen action,
 policy decision, execution result, client fingerprint, and raw transition
-deltas. Rewards are deliberately not inferred during export.
+deltas. Rewards are deliberately not inferred from those deltas during export.
 
 `models train-replay` performs behavior cloning over each run as a recurrent
 sequence and writes a new immutable candidate rather than modifying its base

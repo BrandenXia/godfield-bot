@@ -845,6 +845,46 @@ def models_migrate_element_features(
     typer.echo(manifest.model_dump_json(indent=2))
 
 
+@models_app.command("migrate-combo-features")
+def models_migrate_combo_features(
+    source_model: Annotated[
+        Path,
+        typer.Argument(exists=True, file_okay=False, readable=True),
+    ],
+    snapshot: Annotated[
+        Path,
+        typer.Option(exists=True, dir_okay=False, readable=True),
+    ] = Path("data", "snapshots", "2026-09-07", "bible.json"),
+    root_directory: Annotated[
+        Path,
+        typer.Option(help="Ignored root directory for the migrated model."),
+    ] = Path("models"),
+) -> None:
+    """Version an elemental checkpoint for sequential combo observations."""
+
+    try:
+        from godfield_bot.domain.reference import BibleSnapshot
+        from godfield_bot.features import ArtifactVocabulary
+        from godfield_bot.model_registry import migrate_combo_features
+
+        bible = BibleSnapshot.model_validate_json(snapshot.read_text(encoding="utf-8"))
+        vocabulary = ArtifactVocabulary.from_snapshot(bible)
+        manifest = migrate_combo_features(
+            source_model,
+            root_directory,
+            vocabulary,
+            client_sha256=bible.client.sha256,
+        )
+    except (ImportError, OSError, ValueError) as error:
+        structlog.get_logger().error(
+            "model_combo_migration_failed",
+            error_type=type(error).__name__,
+            reason=str(error).splitlines()[0],
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(manifest.model_dump_json(indent=2))
+
+
 @models_app.command("train-replay")
 def models_train_replay(
     base_model: Annotated[
@@ -984,7 +1024,7 @@ def models_train_simulation(
         typer.Option(help="Ignored root directory for the new candidate."),
     ] = Path("models"),
     ruleset: Annotated[
-        Literal["fixed-role", "mixed-hand", "elemental-hand"],
+        Literal["fixed-role", "mixed-hand", "elemental-hand", "combo-hand"],
         typer.Option(help="Attack/defense hand-distribution curriculum."),
     ] = "fixed-role",
     batch_size: Annotated[
@@ -1116,7 +1156,7 @@ def models_evaluate_simulation(
         typer.Option(help="Owner-only directory for immutable evaluation reports."),
     ] = Path("models", "evaluations"),
     ruleset: Annotated[
-        Literal["fixed-role", "mixed-hand", "elemental-hand"],
+        Literal["fixed-role", "mixed-hand", "elemental-hand", "combo-hand"],
         typer.Option(help="Attack/defense hand-distribution curriculum."),
     ] = "fixed-role",
     games_per_seat: Annotated[
@@ -1220,6 +1260,7 @@ def simulation_benchmark(
             "attack-defense",
             "mixed-attack-defense",
             "elemental-attack-defense",
+            "combo-attack-defense",
         ],
         typer.Option(help="Native curriculum ruleset to benchmark."),
     ] = "attack-defense",
@@ -1242,9 +1283,11 @@ def simulation_benchmark(
             )
         else:
             attack_defense_ruleset: Literal[
-                "fixed-role", "mixed-hand", "elemental-hand"
+                "fixed-role", "mixed-hand", "elemental-hand", "combo-hand"
             ]
-            if ruleset == "elemental-attack-defense":
+            if ruleset == "combo-attack-defense":
+                attack_defense_ruleset = "combo-hand"
+            elif ruleset == "elemental-attack-defense":
                 attack_defense_ruleset = "elemental-hand"
             elif ruleset == "mixed-attack-defense":
                 attack_defense_ruleset = "mixed-hand"

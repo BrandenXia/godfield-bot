@@ -22,8 +22,15 @@ inline constexpr std::uint32_t kElementalAttackDefenseObservationSchemaVersion =
     3;
 inline constexpr const char *kElementalAttackDefenseRulesetId =
     "plain-elemental-mixed-hand-attack-defense-redraw-duel-v1";
+inline constexpr std::uint32_t kComboAttackDefenseKernelSchemaVersion = 1;
+inline constexpr std::uint32_t kComboAttackDefenseObservationSchemaVersion = 4;
+inline constexpr const char *kComboAttackDefenseRulesetId =
+    "plain-elemental-combo-attack-defense-redraw-duel-v1";
 inline constexpr std::size_t kWeaponSlots = 5;
 inline constexpr std::size_t kArmorSlots = kHandSlots - kWeaponSlots;
+inline constexpr std::size_t kComboWeaponSlots = 4;
+inline constexpr std::size_t kComboBoosterSlots = 2;
+inline constexpr std::size_t kComboArmorSlots = 3;
 
 enum class TurnPhase : std::uint8_t {
   Attack = 0,
@@ -55,6 +62,7 @@ public:
   }
   [[nodiscard]] bool mixed_hands() const noexcept { return mixed_hands_; }
   [[nodiscard]] bool elemental() const noexcept { return elemental_; }
+  [[nodiscard]] bool combo() const noexcept { return combo_; }
   [[nodiscard]] std::size_t global_feature_count() const noexcept {
     return global_feature_count_;
   }
@@ -75,6 +83,10 @@ public:
   [[nodiscard]] UInt8_1D phases_view() const;
   [[nodiscard]] UInt16_1D pending_attacks_view() const;
   [[nodiscard]] UInt8_1D pending_elements_view() const;
+  [[nodiscard]] Bool2D selected_hand_mask_view() const;
+  [[nodiscard]] UInt8_1D selected_counts_view() const;
+  [[nodiscard]] UInt16_1D selected_values_view() const;
+  [[nodiscard]] UInt8_1D selected_elements_view() const;
   [[nodiscard]] Float2D terminal_returns_view() const;
   [[nodiscard]] Bool1D terminated_view() const;
   [[nodiscard]] UInt64_1D episode_ids_view() const;
@@ -84,10 +96,12 @@ protected:
   AttackDefenseBatch(std::size_t batch_size, TokenInput weapon_token_ids,
                      ValueInput attack_values,
                      std::vector<std::uint8_t> weapon_elements,
+                     TokenInput booster_token_ids, ValueInput booster_values,
+                     std::vector<std::uint8_t> booster_elements,
                      TokenInput armor_token_ids, ValueInput defense_values,
                      std::vector<std::uint8_t> armor_elements,
                      std::uint64_t seed, std::uint16_t initial_hp,
-                     bool mixed_hands, bool elemental);
+                     bool mixed_hands, bool elemental, bool combo);
 
 private:
   static constexpr std::size_t kMaximumBatchSize = 1'000'000;
@@ -100,13 +114,24 @@ private:
                    std::size_t slot);
   void draw_armor(std::size_t environment, std::size_t player,
                   std::size_t slot);
+  void draw_booster(std::size_t environment, std::size_t player,
+                    std::size_t slot);
   void draw_mixed(std::size_t environment, std::size_t player,
+                  std::size_t slot);
+  void draw_combo(std::size_t environment, std::size_t player,
                   std::size_t slot);
   [[nodiscard]] bool has_weapon(std::size_t environment,
                                 std::size_t player) const noexcept;
   void redraw_consumed(std::size_t environment, std::size_t player,
                        std::size_t slot, std::uint8_t consumed_kind);
   void reset_environment(std::size_t environment);
+  void clear_selection(std::size_t environment) noexcept;
+  void consume_selection(std::size_t environment, std::size_t player);
+  void resolve_defense(std::size_t environment, std::size_t defender,
+                       std::uint16_t defense);
+  [[nodiscard]] std::uint8_t
+  combine_attack_elements(std::uint8_t existing,
+                          std::uint8_t added) const noexcept;
   void refresh_environment_views(std::size_t environment);
   [[nodiscard]] bool
   defense_element_is_compatible(std::uint8_t attack_element,
@@ -117,10 +142,14 @@ private:
   std::uint16_t initial_hp_;
   bool mixed_hands_;
   bool elemental_;
+  bool combo_;
   std::size_t global_feature_count_;
   std::vector<std::uint32_t> weapon_token_ids_;
   std::vector<std::uint16_t> attack_values_;
   std::vector<std::uint8_t> weapon_elements_;
+  std::vector<std::uint32_t> booster_token_ids_;
+  std::vector<std::uint16_t> booster_values_;
+  std::vector<std::uint8_t> booster_elements_;
   std::vector<std::uint32_t> armor_token_ids_;
   std::vector<std::uint16_t> defense_values_;
   std::vector<std::uint8_t> armor_elements_;
@@ -136,6 +165,10 @@ private:
   std::vector<std::uint8_t> pending_attackers_;
   std::vector<std::uint16_t> pending_attacks_;
   std::vector<std::uint8_t> pending_elements_;
+  std::unique_ptr<bool[]> selected_hand_mask_;
+  std::vector<std::uint8_t> selected_counts_;
+  std::vector<std::uint16_t> selected_values_;
+  std::vector<std::uint8_t> selected_elements_;
   std::vector<std::uint16_t> turn_numbers_;
   std::unique_ptr<bool[]> terminated_;
   std::vector<float> terminal_returns_;
@@ -160,6 +193,19 @@ public:
                               ValueInput defense_values,
                               ElementInput armor_elements, std::uint64_t seed,
                               std::uint16_t initial_hp);
+};
+
+class ComboAttackDefenseBatch final : public AttackDefenseBatch {
+public:
+  ComboAttackDefenseBatch(std::size_t batch_size, TokenInput weapon_token_ids,
+                          ValueInput attack_values,
+                          ElementInput weapon_elements,
+                          TokenInput booster_token_ids,
+                          ValueInput booster_values,
+                          ElementInput booster_elements,
+                          TokenInput armor_token_ids, ValueInput defense_values,
+                          ElementInput armor_elements, std::uint64_t seed,
+                          std::uint16_t initial_hp);
 };
 
 } // namespace godfield_sim

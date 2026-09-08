@@ -13,6 +13,7 @@ from godfield_bot.domain.reference import BibleSnapshot
 from godfield_bot.elements import COMBAT_ELEMENT_IDS
 from godfield_bot.features import ArtifactVocabulary
 from godfield_bot.reference import (
+    plain_attack_booster_cards,
     plain_attack_weapon_cards,
     plain_attack_weapon_values,
     plain_defense_armor_cards,
@@ -23,7 +24,9 @@ if TYPE_CHECKING:
     from godfield_sim import AttackDefenseBatch, FixedAttackBatch
     from torch import Tensor
 
-AttackDefenseRuleset = Literal["fixed-role", "mixed-hand", "elemental-hand"]
+AttackDefenseRuleset = Literal[
+    "fixed-role", "mixed-hand", "elemental-hand", "combo-hand"
+]
 
 
 class SimulationUnavailableError(RuntimeError):
@@ -53,12 +56,14 @@ class SimulationMetadata(BaseModel):
     action_semantics: Literal[
         "atomic-hand-slot-macro",
         "atomic-attack-defense-macro",
+        "sequential-combo-selection",
     ] = "atomic-hand-slot-macro"
     sampling_distribution: Literal[
         "uniform-redraw-with-replacement",
         "fixed-role-uniform-redraw-with-replacement",
         "mixed-role-uniform-redraw-with-attack-liveness",
         "elemental-mixed-role-uniform-redraw-with-attack-liveness",
+        "elemental-combo-4-2-3-initial-uniform-redraw-with-base-liveness",
     ] = "uniform-redraw-with-replacement"
     promotion_eligible: Literal[False] = False
 
@@ -205,6 +210,9 @@ def create_attack_defense_simulation(
             ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
             ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
             ATTACK_DEFENSE_RULESET_ID,
+            COMBO_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
+            COMBO_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
+            COMBO_ATTACK_DEFENSE_RULESET_ID,
             ELEMENTAL_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
             ELEMENTAL_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
             ELEMENTAL_ATTACK_DEFENSE_RULESET_ID,
@@ -214,6 +222,7 @@ def create_attack_defense_simulation(
             MIXED_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
             MIXED_ATTACK_DEFENSE_RULESET_ID,
             AttackDefenseBatch,
+            ComboAttackDefenseBatch,
             ElementalAttackDefenseBatch,
         )
     except ImportError as error:
@@ -223,7 +232,7 @@ def create_attack_defense_simulation(
 
     snapshot = BibleSnapshot.model_validate_json(snapshot_path.read_text(encoding="utf-8"))
     vocabulary = ArtifactVocabulary.from_snapshot(snapshot)
-    if ruleset == "elemental-hand":
+    if ruleset in {"elemental-hand", "combo-hand"}:
         attacks = plain_attack_weapon_cards(snapshot)
         defenses = plain_defense_armor_cards(snapshot)
     else:
@@ -248,7 +257,7 @@ def create_attack_defense_simulation(
             "token_id": vocabulary.token_id("weapons", slug),
             **(
                 {"element": element, "element_id": COMBAT_ELEMENT_IDS[element]}
-                if ruleset == "elemental-hand"
+                if ruleset in {"elemental-hand", "combo-hand"}
                 else {}
             ),
         }
@@ -262,7 +271,7 @@ def create_attack_defense_simulation(
             "token_id": vocabulary.token_id("armor", slug),
             **(
                 {"element": element, "element_id": COMBAT_ELEMENT_IDS[element]}
-                if ruleset == "elemental-hand"
+                if ruleset in {"elemental-hand", "combo-hand"}
                 else {}
             ),
         }
@@ -272,8 +281,49 @@ def create_attack_defense_simulation(
     attack_values = np.asarray([row["attack"] for row in weapon_catalog], dtype=np.uint16)
     armor_token_ids = np.asarray([row["token_id"] for row in armor_catalog], dtype=np.uint32)
     defense_values = np.asarray([row["defense"] for row in armor_catalog], dtype=np.uint16)
+    booster_catalog: list[dict[str, object]] = []
     batch: AttackDefenseBatch
-    if ruleset == "elemental-hand":
+    if ruleset == "combo-hand":
+        boosters = plain_attack_booster_cards(snapshot)
+        if not boosters:
+            raise ValueError("accepted snapshot contains no effect-free attack boosters")
+        booster_catalog = [
+            {
+                "attack_boost": boost,
+                "kind": "attack-booster",
+                "slug": slug,
+                "token_id": vocabulary.token_id("weapons", slug),
+                "element": element,
+                "element_id": COMBAT_ELEMENT_IDS[element],
+            }
+            for slug, (boost, element) in sorted(boosters.items())
+        ]
+        weapon_elements = np.asarray([row["element_id"] for row in weapon_catalog], dtype=np.uint8)
+        booster_token_ids = np.asarray(
+            [row["token_id"] for row in booster_catalog], dtype=np.uint32
+        )
+        booster_values = np.asarray(
+            [row["attack_boost"] for row in booster_catalog], dtype=np.uint16
+        )
+        booster_elements = np.asarray(
+            [row["element_id"] for row in booster_catalog], dtype=np.uint8
+        )
+        armor_elements = np.asarray([row["element_id"] for row in armor_catalog], dtype=np.uint8)
+        batch = ComboAttackDefenseBatch(
+            batch_size,
+            weapon_token_ids,
+            attack_values,
+            weapon_elements,
+            booster_token_ids,
+            booster_values,
+            booster_elements,
+            armor_token_ids,
+            defense_values,
+            armor_elements,
+            seed,
+            initial_hp,
+        )
+    elif ruleset == "elemental-hand":
         weapon_elements = np.asarray([row["element_id"] for row in weapon_catalog], dtype=np.uint8)
         armor_elements = np.asarray([row["element_id"] for row in armor_catalog], dtype=np.uint8)
         batch = ElementalAttackDefenseBatch(
@@ -298,13 +348,26 @@ def create_attack_defense_simulation(
             initial_hp,
             ruleset == "mixed-hand",
         )
-    catalog = weapon_catalog + armor_catalog
+    catalog = weapon_catalog + booster_catalog + armor_catalog
     sampling_distribution: Literal[
         "fixed-role-uniform-redraw-with-replacement",
         "mixed-role-uniform-redraw-with-attack-liveness",
         "elemental-mixed-role-uniform-redraw-with-attack-liveness",
+        "elemental-combo-4-2-3-initial-uniform-redraw-with-base-liveness",
     ]
-    if ruleset == "elemental-hand":
+    action_semantics: Literal[
+        "atomic-attack-defense-macro", "sequential-combo-selection"
+    ] = "atomic-attack-defense-macro"
+    if ruleset == "combo-hand":
+        kernel_schema_version = COMBO_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION
+        observation_schema_version = COMBO_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION
+        ruleset_id = COMBO_ATTACK_DEFENSE_RULESET_ID
+        global_feature_count = ELEMENTAL_GLOBAL_FEATURE_COUNT
+        sampling_distribution = (
+            "elemental-combo-4-2-3-initial-uniform-redraw-with-base-liveness"
+        )
+        action_semantics = "sequential-combo-selection"
+    elif ruleset == "elemental-hand":
         kernel_schema_version = ELEMENTAL_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION
         observation_schema_version = ELEMENTAL_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION
         ruleset_id = ELEMENTAL_ATTACK_DEFENSE_RULESET_ID
@@ -335,7 +398,7 @@ def create_attack_defense_simulation(
             action_count=ACTION_COUNT,
             hand_slots=HAND_SLOTS,
             global_feature_count=global_feature_count,
-            action_semantics="atomic-attack-defense-macro",
+            action_semantics=action_semantics,
             sampling_distribution=sampling_distribution,
         ),
     )

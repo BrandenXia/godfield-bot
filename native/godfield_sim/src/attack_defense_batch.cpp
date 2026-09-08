@@ -14,6 +14,7 @@ namespace {
 constexpr std::uint64_t kSplitMixIncrement = 0x9E3779B97F4A7C15ULL;
 constexpr std::uint8_t kWeaponCardKind = 1U;
 constexpr std::uint8_t kArmorCardKind = 2U;
+constexpr std::uint8_t kAttackBoosterCardKind = 3U;
 
 std::uint64_t mix64(std::uint64_t value) noexcept {
   value = (value ^ (value >> 30U)) * 0xBF58476D1CE4E5B9ULL;
@@ -49,8 +50,7 @@ void append_catalog(TokenInput token_ids, ValueInput values,
                                   " values must be between 1 and 100");
     }
     if (!unique_token_ids.insert(token_id).second) {
-      throw std::invalid_argument(
-          "weapon and armor catalog token IDs must be unique");
+      throw std::invalid_argument("card catalog token IDs must be unique");
     }
     output_tokens.push_back(token_id);
     output_values.push_back(value);
@@ -84,18 +84,20 @@ AttackDefenseBatch::AttackDefenseBatch(
     ValueInput attack_values, TokenInput armor_token_ids,
     ValueInput defense_values, std::uint64_t seed, std::uint16_t initial_hp,
     bool mixed_hands)
-    : AttackDefenseBatch(batch_size, weapon_token_ids, attack_values, {},
-                         armor_token_ids, defense_values, {}, seed, initial_hp,
-                         mixed_hands, false) {}
+    : AttackDefenseBatch(batch_size, weapon_token_ids, attack_values, {}, {},
+                         {}, {}, armor_token_ids, defense_values, {}, seed,
+                         initial_hp, mixed_hands, false, false) {}
 
 AttackDefenseBatch::AttackDefenseBatch(
     std::size_t batch_size, TokenInput weapon_token_ids,
     ValueInput attack_values, std::vector<std::uint8_t> weapon_elements,
-    TokenInput armor_token_ids, ValueInput defense_values,
-    std::vector<std::uint8_t> armor_elements, std::uint64_t seed,
-    std::uint16_t initial_hp, bool mixed_hands, bool elemental)
+    TokenInput booster_token_ids, ValueInput booster_values,
+    std::vector<std::uint8_t> booster_elements, TokenInput armor_token_ids,
+    ValueInput defense_values, std::vector<std::uint8_t> armor_elements,
+    std::uint64_t seed, std::uint16_t initial_hp, bool mixed_hands,
+    bool elemental, bool combo)
     : batch_size_(batch_size), base_seed_(seed), initial_hp_(initial_hp),
-      mixed_hands_(mixed_hands), elemental_(elemental),
+      mixed_hands_(mixed_hands), elemental_(elemental), combo_(combo),
       global_feature_count_(elemental ? kElementalGlobalFeatureCount
                                       : kGlobalFeatureCount) {
   if (batch_size_ == 0 || batch_size_ > kMaximumBatchSize) {
@@ -106,23 +108,33 @@ AttackDefenseBatch::AttackDefenseBatch(
   }
 
   std::unordered_set<std::uint32_t> unique_token_ids;
-  unique_token_ids.reserve(weapon_token_ids.shape(0) +
+  const auto booster_catalog_size = combo_ ? booster_token_ids.shape(0) : 0U;
+  unique_token_ids.reserve(weapon_token_ids.shape(0) + booster_catalog_size +
                            armor_token_ids.shape(0));
   append_catalog(weapon_token_ids, attack_values, "attack", unique_token_ids,
                  weapon_token_ids_, attack_values_);
+  if (combo_) {
+    append_catalog(booster_token_ids, booster_values, "attack booster",
+                   unique_token_ids, booster_token_ids_, booster_values_);
+  }
   append_catalog(armor_token_ids, defense_values, "defense", unique_token_ids,
                  armor_token_ids_, defense_values_);
   if (elemental_) {
     if (weapon_elements.size() != weapon_token_ids_.size() ||
+        booster_elements.size() != booster_token_ids_.size() ||
         armor_elements.size() != armor_token_ids_.size()) {
       throw std::invalid_argument(
           "element catalogs must align with card catalogs");
     }
     weapon_elements_ = std::move(weapon_elements);
+    booster_elements_ = std::move(booster_elements);
     armor_elements_ = std::move(armor_elements);
   } else {
     weapon_elements_.assign(
         weapon_token_ids_.size(),
+        static_cast<std::uint8_t>(CombatElement::NonElement));
+    booster_elements_.assign(
+        booster_token_ids_.size(),
         static_cast<std::uint8_t>(CombatElement::NonElement));
     armor_elements_.assign(
         armor_token_ids_.size(),
@@ -133,6 +145,7 @@ AttackDefenseBatch::AttackDefenseBatch(
   player_mask_ = std::make_unique<bool[]>(batch_size_ * kPlayerCount);
   hand_mask_ = std::make_unique<bool[]>(batch_size_ * kHandSlots);
   action_mask_ = std::make_unique<bool[]>(batch_size_ * kActionCount);
+  selected_hand_mask_ = std::make_unique<bool[]>(batch_size_ * kHandSlots);
   rng_states_.resize(batch_size_);
   episode_ids_.assign(batch_size_, 0U);
   hit_points_.resize(batch_size_ * kPlayerCount);
@@ -145,6 +158,9 @@ AttackDefenseBatch::AttackDefenseBatch(
   pending_attackers_.resize(batch_size_);
   pending_attacks_.resize(batch_size_);
   pending_elements_.resize(batch_size_);
+  selected_counts_.resize(batch_size_);
+  selected_values_.resize(batch_size_);
+  selected_elements_.resize(batch_size_);
   turn_numbers_.resize(batch_size_);
   terminal_returns_.resize(batch_size_ * kPlayerCount);
   global_features_.resize(batch_size_ * global_feature_count_);
@@ -199,6 +215,19 @@ void AttackDefenseBatch::draw_armor(std::size_t environment, std::size_t player,
   hand_elements_by_player_[offset] = armor_elements_[catalog_index];
 }
 
+void AttackDefenseBatch::draw_booster(std::size_t environment,
+                                      std::size_t player, std::size_t slot) {
+  const auto catalog_index = static_cast<std::size_t>(
+      next_random(environment) %
+      static_cast<std::uint64_t>(booster_token_ids_.size()));
+  const auto offset = hand_offset(environment, player, slot);
+  hand_token_ids_by_player_[offset] =
+      static_cast<std::int64_t>(booster_token_ids_[catalog_index]);
+  hand_values_[offset] = booster_values_[catalog_index];
+  hand_card_kinds_by_player_[offset] = kAttackBoosterCardKind;
+  hand_elements_by_player_[offset] = booster_elements_[catalog_index];
+}
+
 void AttackDefenseBatch::draw_mixed(std::size_t environment, std::size_t player,
                                     std::size_t slot) {
   const auto catalog_size = weapon_token_ids_.size() + armor_token_ids_.size();
@@ -219,6 +248,23 @@ void AttackDefenseBatch::draw_mixed(std::size_t environment, std::size_t player,
   hand_values_[offset] = defense_values_[armor_index];
   hand_card_kinds_by_player_[offset] = kArmorCardKind;
   hand_elements_by_player_[offset] = armor_elements_[armor_index];
+}
+
+void AttackDefenseBatch::draw_combo(std::size_t environment, std::size_t player,
+                                    std::size_t slot) {
+  const auto catalog_size = weapon_token_ids_.size() +
+                            booster_token_ids_.size() + armor_token_ids_.size();
+  const auto catalog_index = static_cast<std::size_t>(
+      next_random(environment) % static_cast<std::uint64_t>(catalog_size));
+  if (catalog_index < weapon_token_ids_.size()) {
+    draw_weapon(environment, player, slot);
+    return;
+  }
+  if (catalog_index < weapon_token_ids_.size() + booster_token_ids_.size()) {
+    draw_booster(environment, player, slot);
+    return;
+  }
+  draw_armor(environment, player, slot);
 }
 
 bool AttackDefenseBatch::has_weapon(std::size_t environment,
@@ -243,6 +289,13 @@ void AttackDefenseBatch::redraw_consumed(std::size_t environment,
     }
     return;
   }
+  if (combo_) {
+    draw_combo(environment, player, slot);
+    if (!has_weapon(environment, player)) {
+      draw_weapon(environment, player, slot);
+    }
+    return;
+  }
   draw_mixed(environment, player, slot);
   if (!has_weapon(environment, player)) {
     draw_weapon(environment, player, slot);
@@ -264,6 +317,7 @@ void AttackDefenseBatch::reset_environment(std::size_t environment) {
   terminated_[environment] = false;
   terminal_returns_[environment * kPlayerCount] = 0.0F;
   terminal_returns_[environment * kPlayerCount + 1U] = 0.0F;
+  clear_selection(environment);
 
   for (std::size_t player = 0; player < kPlayerCount; ++player) {
     if (!mixed_hands_) {
@@ -277,9 +331,20 @@ void AttackDefenseBatch::reset_environment(std::size_t environment) {
     }
 
     std::array<std::uint8_t, kHandSlots> card_kinds{};
-    std::fill_n(card_kinds.begin(), kWeaponSlots, kWeaponCardKind);
-    std::fill(card_kinds.begin() + static_cast<std::ptrdiff_t>(kWeaponSlots),
-              card_kinds.end(), kArmorCardKind);
+    if (combo_) {
+      std::fill_n(card_kinds.begin(), kComboWeaponSlots, kWeaponCardKind);
+      std::fill_n(card_kinds.begin() +
+                      static_cast<std::ptrdiff_t>(kComboWeaponSlots),
+                  kComboBoosterSlots, kAttackBoosterCardKind);
+      std::fill(card_kinds.begin() +
+                    static_cast<std::ptrdiff_t>(kComboWeaponSlots +
+                                                kComboBoosterSlots),
+                card_kinds.end(), kArmorCardKind);
+    } else {
+      std::fill_n(card_kinds.begin(), kWeaponSlots, kWeaponCardKind);
+      std::fill(card_kinds.begin() + static_cast<std::ptrdiff_t>(kWeaponSlots),
+                card_kinds.end(), kArmorCardKind);
+    }
     for (std::size_t remaining = kHandSlots; remaining > 1U; --remaining) {
       const auto swap_index = static_cast<std::size_t>(
           next_random(environment) % static_cast<std::uint64_t>(remaining));
@@ -288,6 +353,8 @@ void AttackDefenseBatch::reset_environment(std::size_t environment) {
     for (std::size_t slot = 0; slot < kHandSlots; ++slot) {
       if (card_kinds[slot] == kWeaponCardKind) {
         draw_weapon(environment, player, slot);
+      } else if (card_kinds[slot] == kAttackBoosterCardKind) {
+        draw_booster(environment, player, slot);
       } else {
         draw_armor(environment, player, slot);
       }
@@ -311,6 +378,79 @@ std::size_t AttackDefenseBatch::reset_done() {
     }
   }
   return reset_count;
+}
+
+void AttackDefenseBatch::clear_selection(std::size_t environment) noexcept {
+  std::fill_n(selected_hand_mask_.get() + environment * kHandSlots, kHandSlots,
+              false);
+  selected_counts_[environment] = 0U;
+  selected_values_[environment] = 0U;
+  selected_elements_[environment] =
+      static_cast<std::uint8_t>(CombatElement::NonElement);
+}
+
+void AttackDefenseBatch::consume_selection(std::size_t environment,
+                                           std::size_t player) {
+  for (std::size_t slot = 0; slot < kHandSlots; ++slot) {
+    if (!selected_hand_mask_[environment * kHandSlots + slot]) {
+      continue;
+    }
+    const auto card_offset = hand_offset(environment, player, slot);
+    redraw_consumed(environment, player, slot,
+                    hand_card_kinds_by_player_[card_offset]);
+  }
+}
+
+std::uint8_t
+AttackDefenseBatch::combine_attack_elements(std::uint8_t existing,
+                                            std::uint8_t added) const noexcept {
+  if (existing == added) {
+    return existing;
+  }
+  const auto light = static_cast<std::uint8_t>(CombatElement::Light);
+  const auto ordinary_element = [](std::uint8_t element) {
+    return element >= static_cast<std::uint8_t>(CombatElement::Fire) &&
+           element <= static_cast<std::uint8_t>(CombatElement::Stone);
+  };
+  if (existing == light && ordinary_element(added)) {
+    return added;
+  }
+  if (added == light && ordinary_element(existing)) {
+    return existing;
+  }
+  return static_cast<std::uint8_t>(CombatElement::NonElement);
+}
+
+void AttackDefenseBatch::resolve_defense(std::size_t environment,
+                                         std::size_t defender,
+                                         std::uint16_t defense) {
+  const auto attack = pending_attacks_[environment];
+  auto damage =
+      attack > defense ? static_cast<std::uint16_t>(attack - defense) : 0U;
+  auto &defender_hp = hit_points_[environment * kPlayerCount + defender];
+  if (pending_elements_[environment] ==
+          static_cast<std::uint8_t>(CombatElement::Darkness) &&
+      damage > 0U) {
+    damage = defender_hp;
+  }
+  defender_hp = damage >= defender_hp
+                    ? 0U
+                    : static_cast<std::uint16_t>(defender_hp - damage);
+  ++turn_numbers_[environment];
+
+  if (defender_hp == 0U) {
+    const auto attacker =
+        static_cast<std::size_t>(pending_attackers_[environment]);
+    terminated_[environment] = true;
+    phases_[environment] = static_cast<std::uint8_t>(TurnPhase::Terminal);
+    terminal_returns_[environment * kPlayerCount + attacker] = 1.0F;
+    terminal_returns_[environment * kPlayerCount + defender] = -1.0F;
+    return;
+  }
+  pending_attacks_[environment] = 0U;
+  pending_elements_[environment] =
+      static_cast<std::uint8_t>(CombatElement::NonElement);
+  phases_[environment] = static_cast<std::uint8_t>(TurnPhase::Attack);
 }
 
 void AttackDefenseBatch::step(ActionInput actions) {
@@ -340,6 +480,52 @@ void AttackDefenseBatch::step(ActionInput actions) {
     const auto action = static_cast<std::size_t>(actions(environment));
     const auto actor = static_cast<std::size_t>(active_players_[environment]);
     const auto phase = static_cast<TurnPhase>(phases_[environment]);
+    if (combo_) {
+      if (phase == TurnPhase::Attack) {
+        if (action == kConfirmActionIndex) {
+          pending_attackers_[environment] = static_cast<std::uint8_t>(actor);
+          pending_attacks_[environment] = selected_values_[environment];
+          pending_elements_[environment] = selected_elements_[environment];
+          consume_selection(environment, actor);
+          clear_selection(environment);
+          active_players_[environment] = static_cast<std::uint8_t>(1U - actor);
+          phases_[environment] = static_cast<std::uint8_t>(TurnPhase::Defense);
+        } else {
+          const auto slot = action - 1U;
+          const auto card_offset = hand_offset(environment, actor, slot);
+          selected_hand_mask_[environment * kHandSlots + slot] = true;
+          if (selected_counts_[environment] == 0U) {
+            selected_values_[environment] = hand_values_[card_offset];
+            selected_elements_[environment] =
+                hand_elements_by_player_[card_offset];
+          } else {
+            selected_values_[environment] = static_cast<std::uint16_t>(
+                selected_values_[environment] + hand_values_[card_offset]);
+            selected_elements_[environment] =
+                combine_attack_elements(selected_elements_[environment],
+                                        hand_elements_by_player_[card_offset]);
+          }
+          ++selected_counts_[environment];
+        }
+      } else if (action == kForgiveActionIndex) {
+        resolve_defense(environment, actor, 0U);
+      } else if (action == kConfirmActionIndex) {
+        const auto defense = selected_values_[environment];
+        consume_selection(environment, actor);
+        clear_selection(environment);
+        resolve_defense(environment, actor, defense);
+      } else {
+        const auto slot = action - 1U;
+        const auto card_offset = hand_offset(environment, actor, slot);
+        selected_hand_mask_[environment * kHandSlots + slot] = true;
+        selected_values_[environment] = static_cast<std::uint16_t>(
+            selected_values_[environment] + hand_values_[card_offset]);
+        selected_elements_[environment] = hand_elements_by_player_[card_offset];
+        ++selected_counts_[environment];
+      }
+      refresh_environment_views(environment);
+      continue;
+    }
     if (phase == TurnPhase::Attack) {
       const auto slot = action - 1U;
       const auto card_offset = hand_offset(environment, actor, slot);
@@ -360,33 +546,7 @@ void AttackDefenseBatch::step(ActionInput actions) {
         redraw_consumed(environment, actor, slot, consumed_kind);
       }
 
-      const auto attack = pending_attacks_[environment];
-      auto damage =
-          attack > defense ? static_cast<std::uint16_t>(attack - defense) : 0U;
-      auto &defender_hp = hit_points_[environment * kPlayerCount + actor];
-      if (pending_elements_[environment] ==
-              static_cast<std::uint8_t>(CombatElement::Darkness) &&
-          damage > 0U) {
-        damage = defender_hp;
-      }
-      defender_hp = damage >= defender_hp
-                        ? 0U
-                        : static_cast<std::uint16_t>(defender_hp - damage);
-      ++turn_numbers_[environment];
-
-      if (defender_hp == 0U) {
-        const auto attacker =
-            static_cast<std::size_t>(pending_attackers_[environment]);
-        terminated_[environment] = true;
-        phases_[environment] = static_cast<std::uint8_t>(TurnPhase::Terminal);
-        terminal_returns_[environment * kPlayerCount + attacker] = 1.0F;
-        terminal_returns_[environment * kPlayerCount + actor] = -1.0F;
-      } else {
-        pending_attacks_[environment] = 0U;
-        pending_elements_[environment] =
-            static_cast<std::uint8_t>(CombatElement::NonElement);
-        phases_[environment] = static_cast<std::uint8_t>(TurnPhase::Attack);
-      }
+      resolve_defense(environment, actor, defense);
     }
     refresh_environment_views(environment);
   }
@@ -405,14 +565,19 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
   const auto phase = static_cast<TurnPhase>(phases_[environment]);
   global_features_[global_offset + 4U] =
       phase == TurnPhase::Defense ? 1.0F : 0.0F;
-  global_features_[global_offset + 5U] =
-      normalized(pending_attacks_[environment]);
+  global_features_[global_offset + 5U] = normalized(
+      combo_ && phase == TurnPhase::Attack ? selected_values_[environment]
+                                           : pending_attacks_[environment]);
   if (elemental_) {
     std::fill_n(global_features_.data() + global_offset + kGlobalFeatureCount,
                 kElementCount, 0.0F);
-    if (phase == TurnPhase::Defense) {
-      global_features_[global_offset + kGlobalFeatureCount +
-                       pending_elements_[environment]] = 1.0F;
+    if (phase == TurnPhase::Defense ||
+        (combo_ && selected_counts_[environment] > 0U)) {
+      const auto visible_element = phase == TurnPhase::Defense
+                                       ? pending_elements_[environment]
+                                       : selected_elements_[environment];
+      global_features_[global_offset + kGlobalFeatureCount + visible_element] =
+          1.0F;
     }
   }
 
@@ -430,19 +595,51 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
 
   const auto visible_hand_offset = environment * kHandSlots;
   for (std::size_t slot = 0; slot < kHandSlots; ++slot) {
-    const auto token =
-        hand_token_ids_by_player_[hand_offset(environment, perspective, slot)];
+    const auto selected =
+        combo_ && selected_hand_mask_[environment * kHandSlots + slot];
+    const auto source = hand_offset(environment, perspective, slot);
+    const auto token = selected ? 0 : hand_token_ids_by_player_[source];
     visible_hand_token_ids_[visible_hand_offset + slot] = token;
     hand_mask_[visible_hand_offset + slot] = token != 0;
     visible_hand_card_kinds_[visible_hand_offset + slot] =
-        hand_card_kinds_by_player_[hand_offset(environment, perspective, slot)];
+        selected ? 0U : hand_card_kinds_by_player_[source];
     visible_hand_elements_[visible_hand_offset + slot] =
-        hand_elements_by_player_[hand_offset(environment, perspective, slot)];
+        selected ? 0U : hand_elements_by_player_[source];
   }
 
   const auto action_offset = environment * kActionCount;
   std::fill_n(action_mask_.get() + action_offset, kActionCount, false);
   if (terminated_[environment]) {
+    return;
+  }
+  if (combo_) {
+    if (phase == TurnPhase::Attack) {
+      const auto has_base = selected_counts_[environment] > 0U;
+      for (std::size_t slot = 0; slot < kHandSlots; ++slot) {
+        if (selected_hand_mask_[environment * kHandSlots + slot]) {
+          continue;
+        }
+        const auto kind = hand_card_kinds_by_player_[hand_offset(
+            environment, perspective, slot)];
+        action_mask_[action_offset + slot + 1U] =
+            has_base ? kind == kAttackBoosterCardKind : kind == kWeaponCardKind;
+      }
+      action_mask_[action_offset + kConfirmActionIndex] = has_base;
+      return;
+    }
+    const auto has_defense = selected_counts_[environment] > 0U;
+    action_mask_[action_offset + kForgiveActionIndex] = !has_defense;
+    action_mask_[action_offset + kConfirmActionIndex] = has_defense;
+    for (std::size_t slot = 0; slot < kHandSlots; ++slot) {
+      if (selected_hand_mask_[environment * kHandSlots + slot]) {
+        continue;
+      }
+      const auto card_offset = hand_offset(environment, perspective, slot);
+      action_mask_[action_offset + slot + 1U] =
+          hand_card_kinds_by_player_[card_offset] == kArmorCardKind &&
+          defense_element_is_compatible(pending_elements_[environment],
+                                        hand_elements_by_player_[card_offset]);
+    }
     return;
   }
   if (static_cast<TurnPhase>(phases_[environment]) == TurnPhase::Attack) {
@@ -537,6 +734,22 @@ UInt8_1D AttackDefenseBatch::pending_elements_view() const {
   return UInt8_1D(pending_elements_.data(), {batch_size_});
 }
 
+Bool2D AttackDefenseBatch::selected_hand_mask_view() const {
+  return Bool2D(selected_hand_mask_.get(), {batch_size_, kHandSlots});
+}
+
+UInt8_1D AttackDefenseBatch::selected_counts_view() const {
+  return UInt8_1D(selected_counts_.data(), {batch_size_});
+}
+
+UInt16_1D AttackDefenseBatch::selected_values_view() const {
+  return UInt16_1D(selected_values_.data(), {batch_size_});
+}
+
+UInt8_1D AttackDefenseBatch::selected_elements_view() const {
+  return UInt8_1D(selected_elements_.data(), {batch_size_});
+}
+
 Float2D AttackDefenseBatch::terminal_returns_view() const {
   return Float2D(terminal_returns_.data(), {batch_size_, kPlayerCount});
 }
@@ -561,8 +774,25 @@ ElementalAttackDefenseBatch::ElementalAttackDefenseBatch(
     : AttackDefenseBatch(
           batch_size, weapon_token_ids, attack_values,
           copy_elements(weapon_elements, weapon_token_ids.shape(0), "weapon"),
+          {}, {}, {}, armor_token_ids, defense_values,
+          copy_elements(armor_elements, armor_token_ids.shape(0), "armor"),
+          seed, initial_hp, true, true, false) {}
+
+ComboAttackDefenseBatch::ComboAttackDefenseBatch(
+    std::size_t batch_size, TokenInput weapon_token_ids,
+    ValueInput attack_values, ElementInput weapon_elements,
+    TokenInput booster_token_ids, ValueInput booster_values,
+    ElementInput booster_elements, TokenInput armor_token_ids,
+    ValueInput defense_values, ElementInput armor_elements, std::uint64_t seed,
+    std::uint16_t initial_hp)
+    : AttackDefenseBatch(
+          batch_size, weapon_token_ids, attack_values,
+          copy_elements(weapon_elements, weapon_token_ids.shape(0), "weapon"),
+          booster_token_ids, booster_values,
+          copy_elements(booster_elements, booster_token_ids.shape(0),
+                        "attack booster"),
           armor_token_ids, defense_values,
           copy_elements(armor_elements, armor_token_ids.shape(0), "armor"),
-          seed, initial_hp, true, true) {}
+          seed, initial_hp, true, true, true) {}
 
 } // namespace godfield_sim

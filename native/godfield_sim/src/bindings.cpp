@@ -5,6 +5,7 @@
 
 namespace nb = nanobind;
 using godfield_sim::AttackDefenseBatch;
+using godfield_sim::ComboAttackDefenseBatch;
 using godfield_sim::ElementalAttackDefenseBatch;
 using godfield_sim::FixedAttackBatch;
 
@@ -18,6 +19,7 @@ NB_MODULE(_native, module) {
   module.attr("HAND_SLOTS") = godfield_sim::kHandSlots;
   module.attr("GLOBAL_FEATURE_COUNT") = godfield_sim::kGlobalFeatureCount;
   module.attr("FORGIVE_ACTION_INDEX") = godfield_sim::kForgiveActionIndex;
+  module.attr("CONFIRM_ACTION_INDEX") = godfield_sim::kConfirmActionIndex;
   module.attr("ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION") =
       godfield_sim::kAttackDefenseKernelSchemaVersion;
   module.attr("ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION") =
@@ -36,6 +38,12 @@ NB_MODULE(_native, module) {
       godfield_sim::kElementalAttackDefenseObservationSchemaVersion;
   module.attr("ELEMENTAL_ATTACK_DEFENSE_RULESET_ID") =
       godfield_sim::kElementalAttackDefenseRulesetId;
+  module.attr("COMBO_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION") =
+      godfield_sim::kComboAttackDefenseKernelSchemaVersion;
+  module.attr("COMBO_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION") =
+      godfield_sim::kComboAttackDefenseObservationSchemaVersion;
+  module.attr("COMBO_ATTACK_DEFENSE_RULESET_ID") =
+      godfield_sim::kComboAttackDefenseRulesetId;
   module.attr("ELEMENT_COUNT") = godfield_sim::kElementCount;
   module.attr("ELEMENTAL_GLOBAL_FEATURE_COUNT") =
       godfield_sim::kElementalGlobalFeatureCount;
@@ -63,6 +71,7 @@ NB_MODULE(_native, module) {
       static_cast<std::uint8_t>(godfield_sim::TurnPhase::Terminal);
   module.attr("CARD_KIND_WEAPON") = std::uint8_t{1U};
   module.attr("CARD_KIND_ARMOR") = std::uint8_t{2U};
+  module.attr("CARD_KIND_ATTACK_BOOSTER") = std::uint8_t{3U};
 
   nb::class_<FixedAttackBatch>(module, "FixedAttackBatch")
       .def(nb::init<std::size_t, godfield_sim::TokenInput,
@@ -116,6 +125,7 @@ NB_MODULE(_native, module) {
       .def_prop_ro("initial_hp", &AttackDefenseBatch::initial_hp)
       .def_prop_ro("mixed_hands", &AttackDefenseBatch::mixed_hands)
       .def_prop_ro("elemental", &AttackDefenseBatch::elemental)
+      .def_prop_ro("combo", &AttackDefenseBatch::combo)
       .def_prop_ro("global_feature_count",
                    &AttackDefenseBatch::global_feature_count)
       .def_prop_ro("global_features", &AttackDefenseBatch::global_features_view,
@@ -142,6 +152,16 @@ NB_MODULE(_native, module) {
                    nb::rv_policy::reference_internal)
       .def_prop_ro("pending_elements",
                    &AttackDefenseBatch::pending_elements_view,
+                   nb::rv_policy::reference_internal)
+      .def_prop_ro("selected_hand_mask",
+                   &AttackDefenseBatch::selected_hand_mask_view,
+                   nb::rv_policy::reference_internal)
+      .def_prop_ro("selected_counts", &AttackDefenseBatch::selected_counts_view,
+                   nb::rv_policy::reference_internal)
+      .def_prop_ro("selected_values", &AttackDefenseBatch::selected_values_view,
+                   nb::rv_policy::reference_internal)
+      .def_prop_ro("selected_elements",
+                   &AttackDefenseBatch::selected_elements_view,
                    nb::rv_policy::reference_internal)
       .def_prop_ro("terminal_returns",
                    &AttackDefenseBatch::terminal_returns_view,
@@ -170,4 +190,19 @@ NB_MODULE(_native, module) {
            nb::arg("armor_token_ids"), nb::arg("defense_values"),
            nb::arg("armor_elements"), nb::arg("seed") = 67U,
            nb::arg("initial_hp") = 40U);
+
+  nb::class_<ComboAttackDefenseBatch, AttackDefenseBatch>(
+      module, "ComboAttackDefenseBatch")
+      .def(nb::init<std::size_t, godfield_sim::TokenInput,
+                    godfield_sim::ValueInput, godfield_sim::ElementInput,
+                    godfield_sim::TokenInput, godfield_sim::ValueInput,
+                    godfield_sim::ElementInput, godfield_sim::TokenInput,
+                    godfield_sim::ValueInput, godfield_sim::ElementInput,
+                    std::uint64_t, std::uint16_t>(),
+           nb::arg("batch_size"), nb::arg("weapon_token_ids"),
+           nb::arg("attack_values"), nb::arg("weapon_elements"),
+           nb::arg("booster_token_ids"), nb::arg("booster_values"),
+           nb::arg("booster_elements"), nb::arg("armor_token_ids"),
+           nb::arg("defense_values"), nb::arg("armor_elements"),
+           nb::arg("seed") = 67U, nb::arg("initial_hp") = 40U);
 }

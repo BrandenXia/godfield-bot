@@ -11,6 +11,9 @@ HAND_SLOTS: Final[int]
 ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION: Final[int]
 ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION: Final[int]
 ATTACK_DEFENSE_RULESET_ID: Final[str]
+COMBO_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION: Final[int]
+COMBO_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION: Final[int]
+COMBO_ATTACK_DEFENSE_RULESET_ID: Final[str]
 MIXED_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION: Final[int]
 MIXED_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION: Final[int]
 MIXED_ATTACK_DEFENSE_RULESET_ID: Final[str]
@@ -33,7 +36,9 @@ PHASE_DEFENSE: Final[int]
 PHASE_TERMINAL: Final[int]
 CARD_KIND_WEAPON: Final[int]
 CARD_KIND_ARMOR: Final[int]
+CARD_KIND_ATTACK_BOOSTER: Final[int]
 FORGIVE_ACTION_INDEX: Final[int]
+CONFIRM_ACTION_INDEX: Final[int]
 GLOBAL_FEATURE_COUNT: Final[int]
 
 class FixedAttackBatch:
@@ -100,6 +105,8 @@ class AttackDefenseBatch:
     @property
     def elemental(self) -> bool: ...
     @property
+    def combo(self) -> bool: ...
+    @property
     def global_feature_count(self) -> int: ...
     @property
     def global_features(self) -> npt.NDArray[np.float32]: ...
@@ -126,6 +133,14 @@ class AttackDefenseBatch:
     @property
     def pending_elements(self) -> npt.NDArray[np.uint8]: ...
     @property
+    def selected_hand_mask(self) -> npt.NDArray[np.bool_]: ...
+    @property
+    def selected_counts(self) -> npt.NDArray[np.uint8]: ...
+    @property
+    def selected_values(self) -> npt.NDArray[np.uint16]: ...
+    @property
+    def selected_elements(self) -> npt.NDArray[np.uint8]: ...
+    @property
     def terminal_returns(self) -> npt.NDArray[np.float32]: ...
     @property
     def terminated(self) -> npt.NDArray[np.bool_]: ...
@@ -144,6 +159,23 @@ class ElementalAttackDefenseBatch(AttackDefenseBatch):
         weapon_token_ids: npt.NDArray[np.uint32],
         attack_values: npt.NDArray[np.uint16],
         weapon_elements: npt.NDArray[np.uint8],
+        armor_token_ids: npt.NDArray[np.uint32],
+        defense_values: npt.NDArray[np.uint16],
+        armor_elements: npt.NDArray[np.uint8],
+        seed: int = ...,
+        initial_hp: int = ...,
+    ) -> None: ...
+
+class ComboAttackDefenseBatch(AttackDefenseBatch):
+    def __init__(
+        self,
+        batch_size: int,
+        weapon_token_ids: npt.NDArray[np.uint32],
+        attack_values: npt.NDArray[np.uint16],
+        weapon_elements: npt.NDArray[np.uint8],
+        booster_token_ids: npt.NDArray[np.uint32],
+        booster_values: npt.NDArray[np.uint16],
+        booster_elements: npt.NDArray[np.uint8],
         armor_token_ids: npt.NDArray[np.uint32],
         defense_values: npt.NDArray[np.uint16],
         armor_elements: npt.NDArray[np.uint8],

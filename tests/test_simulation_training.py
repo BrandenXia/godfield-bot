@@ -6,6 +6,7 @@ import torch
 
 from godfield_bot.domain.reference import BibleSnapshot
 from godfield_bot.features import (
+    ELEMENT_FEATURE_SCHEMA_VERSION,
     LEGACY_FEATURE_SCHEMA_VERSION,
     LEGACY_GLOBAL_FEATURE_COUNT,
     ArtifactVocabulary,
@@ -31,6 +32,7 @@ SNAPSHOT = Path("data/snapshots/2026-09-07/bible.json")
 def test_training_config_selects_versioned_mixed_hand_ruleset() -> None:
     assert SimulationTrainingConfig(ruleset="mixed-hand").ruleset == "mixed-hand"
     assert SimulationTrainingConfig(ruleset="elemental-hand").ruleset == "elemental-hand"
+    assert SimulationTrainingConfig(ruleset="combo-hand").ruleset == "combo-hand"
 
 
 def initialize_fixed_simulation_model(
@@ -260,6 +262,8 @@ def test_elemental_self_play_uses_expanded_observation_and_heuristic(tmp_path) -
         model_root,
         vocabulary,
         client_sha256=snapshot.client.sha256,
+        feature_schema_version=ELEMENT_FEATURE_SCHEMA_VERSION,
+        global_feature_count=13,
     )
 
     candidate = train_simulation_candidate(
@@ -290,3 +294,39 @@ def test_elemental_self_play_uses_expanded_observation_and_heuristic(tmp_path) -
         "plain-element-aware-max-attack-conservative-defense-v1"
     )
     assert loaded_model.global_feature_count == 13
+
+
+def test_combo_self_play_uses_sequential_schema_and_heuristic(tmp_path) -> None:
+    snapshot = BibleSnapshot.model_validate_json(SNAPSHOT.read_text(encoding="utf-8"))
+    vocabulary = ArtifactVocabulary.from_snapshot(snapshot)
+    model_root = tmp_path / "models"
+    parent = initialize_model(
+        model_root,
+        vocabulary,
+        client_sha256=snapshot.client.sha256,
+    )
+
+    candidate = train_simulation_candidate(
+        base_model_directory=model_root / parent.model_id,
+        model_root=model_root,
+        snapshot_path=SNAPSHOT,
+        config=SimulationTrainingConfig(
+            ruleset="combo-hand",
+            batch_size=8,
+            rollout_steps=6,
+            updates=1,
+            ppo_epochs=1,
+            environment_minibatch_size=4,
+            teacher_updates=1,
+            teacher_epochs=1,
+            seed=67,
+        ),
+    )
+    simulation_context = candidate.training_context["simulation"]
+
+    assert isinstance(simulation_context, dict)
+    assert simulation_context["observation_schema_version"] == 4
+    assert simulation_context["action_semantics"] == "sequential-combo-selection"
+    assert candidate.training_context["heuristic_policy_id"] == (
+        "plain-elemental-greedy-combo-v2"
+    )

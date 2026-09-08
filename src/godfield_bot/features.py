@@ -16,7 +16,8 @@ TRADE_TOKENS = ("trade/buy", "trade/exchange", "trade/sell")
 ARTIFACT_ACTION_OFFSET = 1
 LEGACY_FEATURE_SCHEMA_VERSION = 2
 LEGACY_GLOBAL_FEATURE_COUNT = 6
-FEATURE_SCHEMA_VERSION = 3
+ELEMENT_FEATURE_SCHEMA_VERSION = 3
+FEATURE_SCHEMA_VERSION = 4
 GLOBAL_FEATURE_COUNT = LEGACY_GLOBAL_FEATURE_COUNT + len(COMBAT_ELEMENTS)
 PLAYER_FEATURE_COUNT = 4
 ATTACK_DISPLAY_PATTERN = re.compile(r"^ATK(\d+)$")
@@ -85,7 +86,7 @@ class ArtifactVocabulary(BaseModel):
 
 
 class StateFeatures(BaseModel):
-    schema_version: Literal[3] = 3
+    schema_version: Literal[4] = 4
     global_features: tuple[float, ...]
     player_features: tuple[tuple[float, ...], ...]
     player_mask: tuple[bool, ...]
@@ -136,14 +137,18 @@ class StateFeatureEncoder:
             and state.action_target == self_player.name
             and state.phase_control is not None
         )
+        is_outgoing_selection = (
+            state.action_actor == self_player.name and state.phase_control is not None
+        )
         pending_attack_match = (
             ATTACK_DISPLAY_PATTERN.fullmatch(state.action_display)
-            if is_response_phase and state.action_display is not None
+            if (is_response_phase or is_outgoing_selection)
+            and state.action_display is not None
             else None
         )
         pending_attack = int(pending_attack_match.group(1)) if pending_attack_match else 0
         pending_element_features = [0.0] * len(COMBAT_ELEMENTS)
-        if is_response_phase:
+        if is_response_phase or is_outgoing_selection:
             if state.action_artifact_asset_path is None:
                 pending_element_features[COMBAT_ELEMENT_IDS["non-element"]] = 1.0
             elif (

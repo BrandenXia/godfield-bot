@@ -43,7 +43,9 @@ class SimulationTrainingError(RuntimeError):
 
 
 class SimulationTrainingConfig(BaseModel):
-    ruleset: Literal["fixed-role", "mixed-hand", "elemental-hand"] = "fixed-role"
+    ruleset: Literal["fixed-role", "mixed-hand", "elemental-hand", "combo-hand"] = (
+        "fixed-role"
+    )
     batch_size: int = Field(default=256, ge=1, le=1_000_000)
     rollout_steps: int = Field(default=32, ge=2, le=4096)
     updates: int = Field(default=10, ge=1, le=100_000)
@@ -703,6 +705,8 @@ def train_simulation_candidate(
         raise ValueError("base model action head differs from the simulator")
     if parent.architecture.global_feature_count != simulation.metadata.global_feature_count:
         raise ValueError("base model global features differ from the simulator")
+    if parent.feature_schema_version != simulation.metadata.observation_schema_version:
+        raise ValueError("base model feature schema differs from the simulator observation schema")
     if parent.vocabulary_sha256 != simulation.metadata.vocabulary_sha256:
         raise ValueError("base model vocabulary fingerprint differs from the simulator")
 

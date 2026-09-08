@@ -22,10 +22,12 @@ from godfield_bot.features import StateFeatureEncoder, action_index, load_vocabu
 from godfield_bot.imitation import ImitationTrainingConfig, train_imitation_candidate
 from godfield_bot.legal_actions import game_state_digest, observation_only_actions
 from godfield_bot.model_registry import (
+    COMBO_FEATURE_MIGRATION,
     ELEMENT_FEATURE_MIGRATION,
     ModelStatus,
     initialize_model,
     load_model,
+    migrate_combo_features,
     migrate_element_features,
 )
 from godfield_bot.neural import RecurrentPolicyValueNet, features_to_tensors
@@ -118,7 +120,7 @@ def test_initialized_model_round_trips_with_checksums(tmp_path) -> None:
 
     assert loaded_manifest == manifest
     assert manifest.schema_version == 3
-    assert manifest.feature_schema_version == 3
+    assert manifest.feature_schema_version == 4
     assert manifest.architecture.global_feature_count == 13
     assert manifest.architecture.policy_architecture == "slot-aware-v1"
     assert loaded_model.policy_head.out_features == 21
@@ -202,6 +204,39 @@ def test_element_feature_migration_preserves_neutral_outputs(tmp_path) -> None:
     assert migrated.architecture.global_feature_count == 13
     for source_output, migrated_output in zip(source_outputs, migrated_outputs, strict=True):
         torch.testing.assert_close(source_output, migrated_output)
+
+
+def test_combo_feature_migration_preserves_weights_exactly(tmp_path) -> None:
+    snapshot = BibleSnapshot.model_validate_json(SNAPSHOT.read_text(encoding="utf-8"))
+    vocabulary = load_vocabulary(SNAPSHOT)
+    root = tmp_path / "models"
+    legacy = initialize_model(
+        root,
+        vocabulary,
+        client_sha256=snapshot.client.sha256,
+        feature_schema_version=2,
+        global_feature_count=6,
+    )
+    elemental = migrate_element_features(
+        root / legacy.model_id,
+        root,
+        vocabulary,
+        client_sha256=snapshot.client.sha256,
+    )
+    combo = migrate_combo_features(
+        root / elemental.model_id,
+        root,
+        vocabulary,
+        client_sha256=snapshot.client.sha256,
+    )
+    _, elemental_model = load_model(root / elemental.model_id)
+    _, combo_model = load_model(root / combo.model_id)
+
+    assert combo.feature_schema_version == 4
+    assert combo.parent_model_id == elemental.model_id
+    assert combo.training_algorithm == COMBO_FEATURE_MIGRATION
+    for name, value in elemental_model.state_dict().items():
+        torch.testing.assert_close(value, combo_model.state_dict()[name], rtol=0, atol=0)
 
 
 def test_schema_v3_model_requires_explicit_policy_architecture(tmp_path) -> None:

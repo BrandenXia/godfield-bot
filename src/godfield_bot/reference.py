@@ -50,6 +50,7 @@ IGNORED_REFERENCE_LINES = {
 }
 
 PLAIN_ATTACK_PATTERN = re.compile(r"^ATK(\d+)$")
+PLAIN_ATTACK_BOOST_PATTERN = re.compile(r"^\+ATK(\d+)$")
 PLAIN_DEFENSE_PATTERN = re.compile(r"^DEF(\d+)$")
 VERIFIED_PASSIVE_ATTACK_EFFECTS = frozenset(
     {
@@ -365,6 +366,26 @@ def plain_attack_weapon_values(snapshot: BibleSnapshot) -> dict[str, int]:
         for slug, (attack, element) in plain_attack_weapon_cards(snapshot).items()
         if element == "non-element"
     }
+
+
+def plain_attack_booster_cards(
+    snapshot: BibleSnapshot,
+) -> dict[str, tuple[int, CombatElement]]:
+    """Return effect-free additive attacks and their single combat element."""
+
+    result: dict[str, tuple[int, CombatElement]] = {}
+    for artifact in snapshot.catalog["weapons"].items:
+        element = _combat_element(artifact)
+        if element is None or len(artifact.detail) != 4:
+            continue
+        boost = PLAIN_ATTACK_BOOST_PATTERN.fullmatch(artifact.detail[1])
+        if (
+            boost is not None
+            and re.fullmatch(r"\$\d+", artifact.detail[2]) is not None
+            and artifact.detail[3].startswith("Gift Rate:")
+        ):
+            result[artifact.asset] = (int(boost.group(1)), element)
+    return result
 
 
 def verified_attack_weapon_values(snapshot: BibleSnapshot) -> dict[str, int]:

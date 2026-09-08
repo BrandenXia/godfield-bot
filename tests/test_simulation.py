@@ -16,6 +16,7 @@ godfield_sim = pytest.importorskip("godfield_sim")
 FixedAttackBatch = godfield_sim.FixedAttackBatch
 AttackDefenseBatch = godfield_sim.AttackDefenseBatch
 ElementalAttackDefenseBatch = godfield_sim.ElementalAttackDefenseBatch
+ComboAttackDefenseBatch = godfield_sim.ComboAttackDefenseBatch
 
 SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-07" / "bible.json"
 
@@ -56,6 +57,31 @@ def elemental_batch(
         np.asarray([attack], dtype=np.uint16),
         np.asarray([attack_element], dtype=np.uint8),
         np.asarray([3], dtype=np.uint32),
+        np.asarray([defense], dtype=np.uint16),
+        np.asarray([defense_element], dtype=np.uint8),
+        67,
+        40,
+    )
+
+
+def combo_batch(
+    *,
+    attack: int = 10,
+    boost: int = 3,
+    defense: int = 8,
+    attack_element: int = 1,
+    booster_element: int = 5,
+    defense_element: int = 2,
+) -> ComboAttackDefenseBatch:
+    return ComboAttackDefenseBatch(
+        1,
+        np.asarray([2], dtype=np.uint32),
+        np.asarray([attack], dtype=np.uint16),
+        np.asarray([attack_element], dtype=np.uint8),
+        np.asarray([3], dtype=np.uint32),
+        np.asarray([boost], dtype=np.uint16),
+        np.asarray([booster_element], dtype=np.uint8),
+        np.asarray([4], dtype=np.uint32),
         np.asarray([defense], dtype=np.uint16),
         np.asarray([defense_element], dtype=np.uint8),
         67,
@@ -143,6 +169,112 @@ def test_elemental_factory_versions_expanded_catalog_and_observation() -> None:
     assert simulation.batch.global_features.shape == (128, 13)
     assert simulation.batch.hand_elements.shape == (128, 9)
     assert int(simulation.batch.hand_elements.max()) == godfield_sim.ELEMENT_DARKNESS
+
+
+def test_combo_factory_versions_catalog_and_sequential_action_contract() -> None:
+    simulation = create_attack_defense_simulation(
+        SNAPSHOT_PATH,
+        batch_size=128,
+        ruleset="combo-hand",
+    )
+    kinds = simulation.batch.hand_card_kinds
+
+    assert simulation.metadata.observation_schema_version == 4
+    assert simulation.metadata.ruleset_id == (
+        "plain-elemental-combo-attack-defense-redraw-duel-v1"
+    )
+    assert simulation.metadata.rule_catalog_size == 103
+    assert simulation.metadata.action_semantics == "sequential-combo-selection"
+    assert simulation.metadata.sampling_distribution == (
+        "elemental-combo-4-2-3-initial-uniform-redraw-with-base-liveness"
+    )
+    assert simulation.batch.combo is True
+    assert np.all(np.count_nonzero(kinds == godfield_sim.CARD_KIND_WEAPON, axis=1) == 4)
+    assert np.all(
+        np.count_nonzero(kinds == godfield_sim.CARD_KIND_ATTACK_BOOSTER, axis=1) == 2
+    )
+    assert np.all(np.count_nonzero(kinds == godfield_sim.CARD_KIND_ARMOR, axis=1) == 3)
+
+
+def test_combo_selection_aggregates_attack_and_defense_before_consuming() -> None:
+    batch = combo_batch()
+    base_action = (
+        int(
+            np.flatnonzero(
+                batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_WEAPON
+            )[0]
+        )
+        + 1
+    )
+    batch.step(np.asarray([base_action], dtype=np.int64))
+
+    assert batch.selected_counts[0] == 1
+    assert batch.selected_values[0] == 10
+    assert batch.selected_elements[0] == godfield_sim.ELEMENT_FIRE
+    assert batch.selected_hand_mask[0, base_action - 1]
+    assert batch.hand_token_ids[0, base_action - 1] == 0
+    assert batch.global_features[0, 5] == pytest.approx(0.10)
+    assert batch.global_features[0, 6 + godfield_sim.ELEMENT_FIRE] == 1.0
+    assert batch.action_mask[0, godfield_sim.CONFIRM_ACTION_INDEX]
+
+    booster_action = (
+        int(
+            np.flatnonzero(
+                batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_ATTACK_BOOSTER
+            )[0]
+        )
+        + 1
+    )
+    batch.step(np.asarray([booster_action], dtype=np.int64))
+    assert batch.selected_values[0] == 13
+    assert batch.selected_elements[0] == godfield_sim.ELEMENT_FIRE
+    np.testing.assert_array_equal(batch.hand_token_ids[0] == 0, batch.selected_hand_mask[0])
+
+    batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+    assert batch.phases[0] == godfield_sim.PHASE_DEFENSE
+    assert batch.pending_attacks[0] == 13
+    assert batch.pending_elements[0] == godfield_sim.ELEMENT_FIRE
+    assert batch.selected_counts[0] == 0
+    assert batch.action_mask[0, godfield_sim.FORGIVE_ACTION_INDEX]
+
+    armor_actions = np.flatnonzero(
+        batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_ARMOR
+    )[:2] + 1
+    batch.step(np.asarray([armor_actions[0]], dtype=np.int64))
+    assert not batch.action_mask[0, godfield_sim.FORGIVE_ACTION_INDEX]
+    assert batch.action_mask[0, godfield_sim.CONFIRM_ACTION_INDEX]
+    batch.step(np.asarray([armor_actions[1]], dtype=np.int64))
+    assert batch.selected_values[0] == 16
+    batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+
+    assert batch.phases[0] == godfield_sim.PHASE_ATTACK
+    assert batch.turn_numbers[0] == 1
+    assert batch.global_features[0, 1] == pytest.approx(0.40)
+
+
+def test_combo_mixed_non_light_elements_collapse_to_non_element() -> None:
+    batch = combo_batch(booster_element=godfield_sim.ELEMENT_DARKNESS)
+    base_action = (
+        int(
+            np.flatnonzero(
+                batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_WEAPON
+            )[0]
+        )
+        + 1
+    )
+    batch.step(np.asarray([base_action], dtype=np.int64))
+    booster_action = (
+        int(
+            np.flatnonzero(
+                batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_ATTACK_BOOSTER
+            )[0]
+        )
+        + 1
+    )
+    batch.step(np.asarray([booster_action], dtype=np.int64))
+    batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+
+    assert batch.pending_elements[0] == godfield_sim.ELEMENT_NON_ELEMENT
 
 
 @pytest.mark.parametrize(

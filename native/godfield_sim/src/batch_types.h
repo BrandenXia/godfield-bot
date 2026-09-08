@@ -13,6 +13,7 @@ inline constexpr std::size_t kPlayerCount = 2;
 inline constexpr std::size_t kHandSlots = 9;
 inline constexpr std::size_t kActionCount = 21;
 inline constexpr std::size_t kForgiveActionIndex = 19;
+inline constexpr std::size_t kConfirmActionIndex = 20;
 inline constexpr std::size_t kGlobalFeatureCount = 6;
 inline constexpr std::size_t kElementCount = 7;
 inline constexpr std::size_t kElementalGlobalFeatureCount =

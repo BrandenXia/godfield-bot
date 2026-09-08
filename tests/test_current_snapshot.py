@@ -4,6 +4,7 @@ from pathlib import Path
 from godfield_bot.domain.reference import BibleSnapshot
 from godfield_bot.reference import (
     category_counts,
+    plain_attack_booster_cards,
     plain_attack_weapon_cards,
     plain_attack_weapon_values,
     plain_defense_armor_cards,
@@ -45,6 +46,11 @@ def test_committed_snapshot_matches_validated_live_catalog() -> None:
     assert elemental_attacks["bronze-club"] == (1, "non-element")
     assert elemental_attacks["torch"] == (1, "fire")
     assert elemental_attacks["pri-pri-pricker"] == (1, "darkness")
+    attack_boosters = plain_attack_booster_cards(snapshot)
+    assert len(attack_boosters) == 17
+    assert attack_boosters["blowgun"] == (1, "non-element")
+    assert attack_boosters["piece-of-brightness"] == (1, "light")
+    assert attack_boosters["abyss-dart"] == (5, "darkness")
     elemental_defenses = plain_defense_armor_cards(snapshot)
     assert len(elemental_defenses) == 47
     assert elemental_defenses["iron-shield"] == (4, "non-element")

@@ -47,7 +47,7 @@ def test_snapshot_vocabulary_and_feature_shapes() -> None:
     )
 
     assert len(vocabulary.tokens) == 296
-    assert features.schema_version == 3
+    assert features.schema_version == 4
     assert features.global_features == (0.0, 0.4, 0.1, 0.2, 0.0, 0.0, *([0.0] * 7))
     assert len(features.player_features) == 9
     assert len(features.hand_token_ids) == 9
@@ -88,6 +88,27 @@ def test_live_response_features_encode_phase_and_pending_attack() -> None:
         0.0,
         0.0,
     )
+
+
+def test_outgoing_combo_features_encode_selected_attack() -> None:
+    vocabulary = load_vocabulary(SNAPSHOT)
+    selection_state = state().model_copy(
+        update={
+            "action_actor": "ロキ-67",
+            "action_display": "ATK17",
+            "action_artifact_asset_path": "/images/items/weapons/torch.webp",
+            "phase_control": "Attack",
+        }
+    )
+
+    features = StateFeatureEncoder(vocabulary, BIBLE).encode(
+        selection_state,
+        observation_only_actions(selection_state),
+    )
+
+    assert features.global_features[4] == 0.0
+    assert features.global_features[5] == 0.17
+    assert features.global_features[7] == 1.0
 
 
 def test_live_response_features_encode_pending_attack_element() -> None:

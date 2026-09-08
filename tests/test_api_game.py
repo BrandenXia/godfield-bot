@@ -66,6 +66,14 @@ def catalog() -> ItemCatalog:
                 "cost": 5,
                 "element": "fire",
             },
+            {
+                "name": "Dream",
+                "imageName": "dream",
+                "category": "miracles",
+                "ability": "addCurse",
+                "cost": 6,
+                "element": "wood",
+            },
         ]
     )
 
@@ -340,6 +348,25 @@ def test_tactical_actions_exclude_unaffordable_or_disguised_cards() -> None:
     )
 
     assert [action.action_id for action in actions.actions] == ["pass"]
+
+
+def test_tactical_actions_expose_targeted_curse_on_a_cursed_turn() -> None:
+    room = room_state(
+        self_items=[{"id": 19, "modelId": 9}],
+        self_curses=["dream"],
+    )
+
+    actions = verified_api_tactical_actions(
+        room,
+        user_id="loki-user",
+        bible_snapshot=combo_bible(),
+    )
+
+    assert [action.action_id for action in actions.actions] == ["miracle-curse:19:9:2"]
+    assert command_for_api_action(actions.actions[0]).to_dict() == {
+        "itemIds": [19],
+        "targetPlayerId": 2,
+    }
 
 
 def test_turn_actions_never_target_a_member_of_the_selected_team() -> None:

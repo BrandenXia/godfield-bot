@@ -86,6 +86,21 @@ def catalog() -> ItemCatalog:
                 "ability": "boostMP",
                 "abilityValue": 5,
             },
+            {
+                "name": "Dream",
+                "imageName": "dream",
+                "category": "miracles",
+                "ability": "addCurse",
+                "cost": 6,
+                "element": "wood",
+            },
+            {
+                "name": "Wall",
+                "imageName": "wall",
+                "category": "miracles",
+                "ability": "blockWeapon",
+                "cost": 6,
+            },
         ]
     )
 
@@ -402,6 +417,62 @@ def test_tactical_heuristic_focuses_the_weakest_multiplayer_opponent() -> None:
 
     assert chosen is not None
     assert chosen.target_player_id == 3
+
+
+def test_tactical_heuristic_uses_targeted_curse_instead_of_stalling() -> None:
+    room = active_room(opponent_hp=7)
+    room.raw["game"]["players"][0]["curses"] = ["dream"]
+    room.raw["game"]["players"][0]["mp"] = 10
+    room.raw["game"]["players"][0]["items"] = [{"id": 19, "modelId": 9}]
+    state = normalize_api_game_state(room, user_id="loki-user")
+    legal_actions = verified_api_tactical_actions(
+        room,
+        user_id="loki-user",
+        bible_snapshot=combo_bible(),
+    )
+
+    decision, chosen = decide_api_action(
+        ApiPolicyName.TACTICAL_HEURISTIC,
+        state,
+        legal_actions,
+    )
+
+    assert chosen is not None
+    assert chosen.action_id == "miracle-curse:19:9:2"
+    assert decision.rationale == "use a deterministic targeted curse instead of stalling"
+
+
+def test_tactical_heuristic_values_verified_special_block_as_full_defense() -> None:
+    room = active_room()
+    room.raw["game"]["players"][0]["items"] = [
+        {"id": 20, "modelId": 2},
+        {"id": 30, "modelId": 10},
+    ]
+    room.raw["game"]["players"][0]["mp"] = 10
+    room.raw["game"]["attacks"] = [
+        {
+            "playerId": 2,
+            "targetPlayerId": 1,
+            "itemModelIds": [1],
+            "atk": 10,
+        }
+    ]
+    state = normalize_api_game_state(room, user_id="loki-user")
+    legal_actions = verified_api_tactical_actions(
+        room,
+        user_id="loki-user",
+        bible_snapshot=combo_bible(),
+    )
+
+    decision, chosen = decide_api_action(
+        ApiPolicyName.TACTICAL_HEURISTIC,
+        state,
+        legal_actions,
+    )
+
+    assert chosen is not None
+    assert chosen.item_instance_ids == (30,)
+    assert decision.rationale == "use the least excessive verified defense that prevents all damage"
 
 
 def test_private_api_heuristic_preserves_excess_defense() -> None:
@@ -844,6 +915,73 @@ def test_private_api_tactical_policy_dispatches_verified_combo(tmp_path, monkeyp
     assert run.status is RunStatus.COMPLETED
     assert run.policy_id == ApiPolicyName.TACTICAL_HEURISTIC.value
     assert client.commands == [{"itemIds": [11, 16], "targetPlayerId": 2}]
+
+
+def test_private_api_tactical_policy_aborts_immediately_on_unsupported_self_turn(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    snapshot_path = tmp_path / "catalog.json"
+    write_api_catalog_snapshot(catalog_snapshot(), snapshot_path)
+    bible_path = tmp_path / "bible.json"
+    bible_path.write_text(combo_bible().model_dump_json(), encoding="utf-8")
+    unsupported_room = active_room()
+    unsupported_room.raw["game"]["players"][0]["curses"] = ["dream"]
+    unsupported_room.raw["game"]["players"][0]["items"] = [
+        {"id": 31, "modelId": None, "fakeModelId": 1}
+    ]
+
+    class FakeUnsupportedClient(FakeClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.state_calls = 0
+            self.commands: list[dict[str, object]] = []
+
+        def state(self) -> RoomState:
+            self.state_calls += 1
+            return unsupported_room
+
+        def submit(self, command) -> None:
+            self.commands.append(command.to_dict())
+
+    client = FakeUnsupportedClient()
+
+    @contextmanager
+    def fake_open_api_client(*args, **kwargs):
+        yield client
+
+    monkeypatch.setattr("godfield_bot.api_runtime.open_api_client", fake_open_api_client)
+    monkeypatch.setattr(
+        "godfield_bot.api_runtime.validate_api_credentials",
+        lambda settings: SimpleNamespace(user_id="loki-user"),
+    )
+    database = tmp_path / "runs" / "api.sqlite"
+
+    run = run_private_api_observer(
+        AppSettings(state_root=tmp_path / "state"),
+        PrivateApiRunConfig(
+            database=database,
+            catalog_snapshot=snapshot_path,
+            bible_snapshot=bible_path,
+            room_id="private-room",
+            enter_match=True,
+            policy=ApiPolicyName.TACTICAL_HEURISTIC,
+            max_in_match_actions=5,
+            max_seconds=10,
+            no_progress_seconds=10,
+        ),
+    )
+
+    assert run.status is RunStatus.ABORTED
+    assert run.outcome is not None
+    assert run.outcome["reason"] == "unsupported_self_turn"
+    assert run.outcome["states_recorded"] == 1
+    assert client.state_calls == 1
+    assert client.commands == []
+    events = RunStore(database).events(run.run_id)
+    decisions = [event for event in events if event.kind is EventKind.DECISION]
+    assert len(decisions) == 1
+    assert decisions[0].payload["executable"] is False
 
 
 def test_private_api_neural_shadow_records_proposal_but_dispatches_heuristic(

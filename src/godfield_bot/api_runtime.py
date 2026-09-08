@@ -298,7 +298,22 @@ def _decide_tactical_api_action(
         return value
 
     def defense_value(action: ApiLegalAction) -> int:
-        return sum(item.defense for item in action_items(action))
+        items = action_items(action)
+        if any(
+            item.ability
+            in {
+                "blockWeapon",
+                "bounceWeapon",
+                "reflectWeapon",
+                "blockMiracle",
+                "bounceMiracle",
+                "reflectMiracle",
+                "reflectAnything",
+            }
+            for item in items
+        ):
+            return state.pending_attack.attack if state.pending_attack is not None else 0
+        return sum(item.defense for item in items)
 
     def action_cost(action: ApiLegalAction) -> int:
         return sum(item.cost for item in action_items(action))
@@ -393,6 +408,9 @@ def _decide_tactical_api_action(
         attacks = [action for action in candidates if attack_value(action) > 0]
         heals = [action for action in candidates if action_items(action)[0].ability == "boostHP"]
         mana = [action for action in candidates if action_items(action)[0].ability == "boostMP"]
+        curse_attacks = [
+            action for action in candidates if action_items(action)[0].ability == "addCurse"
+        ]
         lethal = [
             action
             for action in attacks
@@ -437,6 +455,16 @@ def _decide_tactical_api_action(
                 if len(chosen.item_instance_ids) > 1
                 else "use the strongest verified attack"
             )
+        elif curse_attacks:
+            chosen = min(
+                curse_attacks,
+                key=lambda action: (
+                    target_hp(action),
+                    action_cost(action),
+                    action.item_instance_ids,
+                ),
+            )
+            rationale = "use a deterministic targeted curse instead of stalling"
         elif me.mp <= 5 and (chosen := best_utility(mana)) is not None:
             rationale = "restore MP while no verified attack is available"
         elif (chosen := best_utility(heals)) is not None:
@@ -1050,6 +1078,20 @@ def run_private_api_observer(
                                     action=chosen_action.action_id,
                                     action_count=in_match_actions,
                                 )
+                            elif (
+                                config.policy is not ApiPolicyName.OBSERVER
+                                and state.phase
+                                in {ApiPhase.TURN, ApiPhase.DEFENSE, ApiPhase.PURCHASE}
+                                and state.awaiting_player_id == state.self_player_id
+                            ):
+                                outcome_reason = "unsupported_self_turn"
+                                log.warning(
+                                    "api_private_unsupported_self_turn",
+                                    run_id=run.run_id,
+                                    phase=state.phase.value,
+                                    field_number=state.field_number,
+                                )
+                                break
                     if time.monotonic() - last_progress_at >= config.no_progress_seconds:
                         outcome_reason = "no_progress_limit"
                         break

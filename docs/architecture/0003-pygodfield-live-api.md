@@ -96,12 +96,13 @@ presence is explicit in API game-state schema v3 (introduced in v2) and
 therefore participates in state digests. A cursed attack turn prefers the
 cleanser, then exposes only weapons whose displayed identity is reliable. It
 does not expose pass: live evidence shows that the service rejects an empty
-command in this state. With no verified action, the policy abstains locally and
-lets the no-progress safeguard terminate the run instead of dispatching a
-known-invalid command. It submits at most once per observed state and never
+command in this state. With no verified action, the policy abstains locally
+instead of dispatching a known-invalid command. Executable policies now end
+that run immediately with `unsupported_self_turn`; observer mode may continue
+until its ordinary limit. It submits at most once per observed state and never
 retries an ambiguous turn-consuming request. Every decision, dispatch result,
-and observed transition is recorded. This policy is a data-collection
-baseline, not a learned or promotion-eligible policy.
+and observed transition is recorded. This policy is a data-collection baseline,
+not a learned or promotion-eligible policy.
 
 ADR 0011 makes `api-combo-utility-heuristic-v1` the default executable private
 policy. The v0 identifier remains available for reproducibility; its behavior

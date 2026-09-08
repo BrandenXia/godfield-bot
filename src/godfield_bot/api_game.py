@@ -682,6 +682,22 @@ def verified_api_tactical_actions(
                     if action.action_id not in existing_action_ids:
                         actions.append(action)
                         existing_action_ids.add(action.action_id)
+            elif (
+                model.category == "miracles" and model.ability == "addCurse" and model.needs_target
+            ):
+                for target in game.opponents_of(me):
+                    target_id = _required_positive_int(target.id, "target player ID")
+                    action = ApiLegalAction(
+                        action_id=f"miracle-curse:{instance_id}:{model_id}:{target_id}",
+                        kind=ApiActionKind.USE_ITEM,
+                        label=f"Use {item.name or f'model {model_id}'}",
+                        item_instance_ids=(instance_id,),
+                        item_model_ids=(model_id,),
+                        target_player_id=target_id,
+                    )
+                    if action.action_id not in existing_action_ids:
+                        actions.append(action)
+                        existing_action_ids.add(action.action_id)
 
     return ApiLegalActionSet(
         state_digest=combo_actions.state_digest,
@@ -689,8 +705,8 @@ def verified_api_tactical_actions(
         coverage_complete=False,
         blocked_reason=(
             "the tactical surface includes verified single cards, strict plain combinations, "
-            "deterministic HP/MP utility, and targeted fixed-damage miracles; random effects, "
-            "trades, purchases, and unmodeled choices remain excluded"
+            "deterministic HP/MP utility, targeted fixed-damage miracles, and targeted curse "
+            "miracles; random effects, trades, purchases, and unmodeled choices remain excluded"
         ),
     )
 

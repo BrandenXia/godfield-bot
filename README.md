@@ -96,13 +96,16 @@ for allied teams A through D. The selected team is retained across automatic
 entry into subsequent matches. Active curse presence is recorded in the
 normalized API state. `api-combo-utility-heuristic-v1` uses strict
 base-plus-booster attacks, compatible multi-armor defenses, affordable
-targeted fixed-damage miracles, and deterministic HP/MP recovery. It takes an
+targeted fixed-damage and curse miracles, special block/bounce/reflect
+defenses admitted by the API, and deterministic HP/MP recovery. It takes an
 attack with potentially lethal power before healing and otherwise restores HP
 at 25 or less.
 On a cursed turn, it prefers a verified all-curse cleanser and otherwise uses
 only individually reliable, undisguised actions. If none are available it
 abstains locally; it does not submit an empty turn command, which the live
-service rejects in this state.
+service rejects in this state. An executable run now stops immediately with an
+`unsupported_self_turn` outcome when such an unmodeled self-turn is reached,
+instead of waiting for the generic no-progress timer.
 
 Pass `--shadow-model models/<combo-candidate-id>` to `api play-private` to run
 the schema-v4 combo network on each covered two-player state without giving it

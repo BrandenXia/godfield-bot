@@ -29,7 +29,10 @@ The v1 legal-action surface is the union of:
 - Bible/API-cross-checked plain base-plus-booster attacks;
 - Bible/API-cross-checked compatible armor combinations;
 - untargeted `boostHP` and `boostMP` sundries or miracles with known values;
-- affordable, targeted, fixed-attack miracles with no additional ability.
+- affordable, targeted, fixed-attack miracles with no additional ability;
+- affordable, targeted `addCurse` miracles;
+- special block, bounce, and reflect defenses already admitted as compatible
+  by pygodfield's defense validator.
 
 The policy removes all curses first when a verified cleanser is present. It
 then takes the least expensive attack with potentially lethal power, heals at
@@ -37,6 +40,11 @@ then takes the least expensive attack with potentially lethal power, heals at
 otherwise idle, and passes only as a final verified fallback. Defense selects
 the smallest total DEF that prevents all damage, otherwise the largest
 available total DEF.
+
+If this executable surface still yields no action while the server is awaiting
+the bot, the runtime records the decision and stops immediately with
+`unsupported_self_turn`. It does not wait for the generic no-progress limit or
+submit a speculative command. Observer-only runs retain their prior behavior.
 
 API game state schema v4 adds `ability_value` and `is_plus_attack` to each
 private hand item. All decisions, legal sets, commands, and transitions remain
@@ -52,7 +60,7 @@ unused. The policy also becomes a stronger behavior-cloning teacher and a more
 meaningful baseline for a future live neural gate.
 
 This is still not full God Field. Mild-curse classification, random attacks,
-trades, purchases, guardians, phenomena, discretionary miracle effects, and
-learned resource timing remain outside the executable surface. The next native
-curriculum should model HP/MP utility and miracle costs before the network can
-control those actions.
+trades, purchases, guardians, phenomena, most discretionary miracle effects,
+and learned resource timing remain outside the executable surface. The next
+native curriculum should model HP/MP utility and miracle costs before the
+network can control those actions.

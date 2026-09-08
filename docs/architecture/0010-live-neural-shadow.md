@@ -48,8 +48,9 @@ can be represented as one `Command.use([...])`. Selection indices,
 probabilities, value estimates, model ID, and weight checksum are written to
 the append-only decision event.
 
-Shadow proposals are always marked non-executable. `api-heuristic-v0` remains
-the behavior policy and submits only its conservative single-card action. Both
+Shadow proposals are always marked non-executable.
+`api-combo-utility-heuristic-v1` is the behavior policy and submits only an
+action admitted by the reviewed tactical surface. Both
 decisions share the same state digest and are recorded in order. Recurrent
 memory is retained only when proposal and behavior are identical; otherwise it
 is cleared so a counterfactual combo does not contaminate the next live

@@ -87,21 +87,26 @@ matchmaking, then records bounded state without playing cards. An owner-only
 may instead be supplied with `--room-id`. Matchmaking keys are never accepted
 as ordinary CLI values or stored in the run database. The observer always stays
 a spectator. `api play-private --confirm-play --password-stdin` explicitly
-enters the next match with the bounded conservative API policy. For an
+enters the next match with the bounded tactical API policy. For an
 unlimited wall-clock session that remains available for subsequent matches,
 pass `--max-seconds 0`; the independent no-progress and action-count safeguards
 remain active.
 Use `--team 0` for solo/free-for-all entry, or `--team 1` through `--team 4`
 for allied teams A through D. The selected team is retained across automatic
 entry into subsequent matches. Active curse presence is recorded in the
-normalized API state. On a cursed turn, the policy prefers a verified curse
-cleanser and otherwise uses only individually reliable, undisguised weapons.
-If none are available it abstains locally; it does not submit an empty turn
-command, which the live service rejects in this state.
+normalized API state. `api-combo-utility-heuristic-v1` uses strict
+base-plus-booster attacks, compatible multi-armor defenses, affordable
+targeted fixed-damage miracles, and deterministic HP/MP recovery. It takes an
+attack with potentially lethal power before healing and otherwise restores HP
+at 25 or less.
+On a cursed turn, it prefers a verified all-curse cleanser and otherwise uses
+only individually reliable, undisguised actions. If none are available it
+abstains locally; it does not submit an empty turn command, which the live
+service rejects in this state.
 
 Pass `--shadow-model models/<combo-candidate-id>` to `api play-private` to run
 the schema-v4 combo network on each covered two-player state without giving it
-live control. The conservative heuristic still submits every command. The run
+live control. The tactical heuristic still submits every command. The run
 records the candidate's proposed card sequence, probabilities, value estimates,
 model checksum, behavior decision, accepted transition, and terminal reward:
 
@@ -114,8 +119,11 @@ uv run godfield-bot api play-private --confirm-play --password-stdin \
 Shadow inference accepts only candidate or champion models tied to the accepted
 Bible client and exact combo curriculum. It abstains on multiplayer, cursed,
 unknown-phase, or out-of-curriculum states and clears counterfactual recurrent
-memory whenever the conservative behavior differs from its proposal. See
-[ADR 0010](docs/architecture/0010-live-neural-shadow.md).
+memory whenever the tactical behavior differs from its proposal. Utility and
+miracle actions remain behavior-only until the native learning curriculum
+models their state transitions. See
+[ADR 0010](docs/architecture/0010-live-neural-shadow.md) and
+[ADR 0011](docs/architecture/0011-live-tactical-behavior.md).
 
 Install the optional learning stack with `uv sync --extra training --group dev`.
 Install the native C++ curriculum simulator with

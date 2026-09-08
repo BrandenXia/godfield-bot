@@ -418,7 +418,7 @@ class ApiComboShadowPolicy:
                     for action in legal_actions.actions
                 },
                 rationale=(
-                    "non-executable learned combo proposal; the conservative heuristic "
+                    "non-executable learned combo proposal; the tactical heuristic "
                     "remains the live behavior policy"
                 ),
                 executable=False,

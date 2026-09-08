@@ -44,6 +44,8 @@ class ApiItemState(BaseModel):
     defense: int = Field(ge=0)
     cost: int = Field(ge=0)
     ability: str | None = None
+    ability_value: int = Field(default=0, ge=0)
+    is_plus_attack: bool = False
     used: bool
     identity_reliable: bool = True
 
@@ -70,7 +72,7 @@ class ApiAttackState(BaseModel):
 
 
 class ApiGameState(BaseModel):
-    schema_version: int = 3
+    schema_version: int = 4
     observed_at: datetime
     mode: str = "private"
     update_count: int = Field(ge=0)
@@ -222,6 +224,11 @@ def _item_state(item: Any) -> ApiItemState:
         defense=_nonnegative_int(model.def_ if model is not None else 0, "item defense"),
         cost=_nonnegative_int(model.cost if model is not None else 0, "item cost"),
         ability=model.ability if model is not None and isinstance(model.ability, str) else None,
+        ability_value=_nonnegative_int(
+            model.ability_value if model is not None else 0,
+            "item ability value",
+        ),
+        is_plus_attack=bool(model.is_plus_atk) if model is not None else False,
         used=bool(item.used),
         identity_reliable=not bool(item.fake_model_id),
     )
@@ -599,6 +606,91 @@ def verified_api_combo_actions(
             "strict plain base-plus-booster attacks or compatible armor combinations; "
             "purchases, cursed combinations, resource prompts, and special effects remain "
             "excluded"
+        ),
+    )
+
+
+def verified_api_tactical_actions(
+    room: RoomState,
+    *,
+    user_id: str,
+    bible_snapshot: BibleSnapshot,
+) -> ApiLegalActionSet:
+    """Add deterministic utility and miracle actions to the strict combo surface."""
+
+    combo_actions = verified_api_combo_actions(
+        room,
+        user_id=user_id,
+        bible_snapshot=bible_snapshot,
+    )
+    state = normalize_api_game_state(room, user_id=user_id)
+    game = room.game
+    if game is None:  # pragma: no cover - normalized above
+        raise ApiGameStateError("private room has no active game")
+    me = game.player_by_user(user_id)
+    if me is None:  # pragma: no cover - normalized above
+        raise ApiGameStateError("the API identity has no active player")
+
+    actions = list(combo_actions.actions)
+    existing_action_ids = {action.action_id for action in actions}
+    if state.phase is ApiPhase.TURN:
+        for item in me.usable_items():
+            instance_id = _optional_positive_int(item.id, "item instance ID")
+            model_id = _optional_positive_int(item.model_id, "item model ID")
+            model = item.model
+            if (
+                instance_id is None
+                or model_id is None
+                or item.fake_model_id
+                or model is None
+                or item.cost > me.mp
+                or not model.can_start_turn
+            ):
+                continue
+            if (
+                model.category in {"sundries", "miracles"}
+                and model.ability in {"boostHP", "boostMP"}
+                and not model.needs_target
+            ):
+                action = ApiLegalAction(
+                    action_id=f"utility:{model.ability}:{instance_id}:{model_id}",
+                    kind=ApiActionKind.USE_ITEM,
+                    label=f"Use {item.name or f'model {model_id}'}",
+                    item_instance_ids=(instance_id,),
+                    item_model_ids=(model_id,),
+                )
+                if action.action_id not in existing_action_ids:
+                    actions.append(action)
+                    existing_action_ids.add(action.action_id)
+            elif (
+                model.category == "miracles"
+                and model.ability is None
+                and model.atk > 0
+                and not model.is_plus_atk
+                and model.needs_target
+            ):
+                for target in game.opponents_of(me):
+                    target_id = _required_positive_int(target.id, "target player ID")
+                    action = ApiLegalAction(
+                        action_id=f"miracle-attack:{instance_id}:{model_id}:{target_id}",
+                        kind=ApiActionKind.USE_ITEM,
+                        label=f"Use {item.name or f'model {model_id}'}",
+                        item_instance_ids=(instance_id,),
+                        item_model_ids=(model_id,),
+                        target_player_id=target_id,
+                    )
+                    if action.action_id not in existing_action_ids:
+                        actions.append(action)
+                        existing_action_ids.add(action.action_id)
+
+    return ApiLegalActionSet(
+        state_digest=combo_actions.state_digest,
+        actions=tuple(actions),
+        coverage_complete=False,
+        blocked_reason=(
+            "the tactical surface includes verified single cards, strict plain combinations, "
+            "deterministic HP/MP utility, and targeted fixed-damage miracles; random effects, "
+            "trades, purchases, and unmodeled choices remain excluded"
         ),
     )
 

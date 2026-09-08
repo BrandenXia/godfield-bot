@@ -291,7 +291,7 @@ def play_private_api_game(
         bool,
         typer.Option(
             "--confirm-play",
-            help="Confirm entry and conservative card play in an operator-owned private room.",
+            help="Confirm entry and tactical card play in an operator-owned private room.",
         ),
     ] = False,
     room_id: Annotated[
@@ -326,7 +326,7 @@ def play_private_api_game(
             readable=True,
             help=(
                 "Optional combo candidate to score live states in shadow mode; "
-                "the conservative heuristic still submits every command."
+                "the tactical heuristic still submits every command."
             ),
         ),
     ] = None,
@@ -376,7 +376,7 @@ def play_private_api_game(
         typer.Option(min=1.0, max=120.0, help="Per-request API timeout."),
     ] = 20.0,
 ) -> None:
-    """Enter private games with conservative play and optional neural shadow scoring."""
+    """Enter private games with tactical play and optional neural shadow scoring."""
 
     if not confirm_play:
         typer.echo("Refusing private game entry without --confirm-play", err=True)
@@ -410,7 +410,7 @@ def play_private_api_game(
                 policy=(
                     ApiPolicyName.NEURAL_SHADOW
                     if shadow_model is not None
-                    else ApiPolicyName.HEURISTIC
+                    else ApiPolicyName.TACTICAL_HEURISTIC
                 ),
                 model_directory=shadow_model,
                 bible_snapshot=bible_snapshot,

@@ -29,6 +29,7 @@ from godfield_bot.api_game import (
     ApiActionKind,
     ApiGameState,
     ApiGameStateError,
+    ApiItemState,
     ApiLegalAction,
     ApiLegalActionSet,
     ApiPhase,
@@ -38,14 +39,19 @@ from godfield_bot.api_game import (
     command_for_api_action,
     normalize_api_game_state,
     verified_api_actions,
-    verified_api_combo_actions,
+    verified_api_tactical_actions,
 )
 from godfield_bot.config import AppSettings
 from godfield_bot.domain.outcome import MatchResult, SparseTerminalReward
+from godfield_bot.domain.reference import BibleSnapshot
 from godfield_bot.domain.run import EventKind, RunMode, RunRecord, RunSpec, RunStatus
 from godfield_bot.run_store import RunStore
 
 log = structlog.get_logger()
+TACTICAL_HEAL_THRESHOLD = 25
+ACCEPTED_PRIVATE_BIBLE_CLIENT_SHA256 = (
+    "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd"
+)
 
 
 class ApiRuntimeError(RuntimeError):
@@ -55,6 +61,7 @@ class ApiRuntimeError(RuntimeError):
 class ApiPolicyName(StrEnum):
     OBSERVER = "api-observer-v0"
     HEURISTIC = "api-heuristic-v0"
+    TACTICAL_HEURISTIC = "api-combo-utility-heuristic-v1"
     NEURAL_SHADOW = "api-combo-neural-shadow-v1"
 
 
@@ -96,7 +103,11 @@ class PrivateApiRunConfig(BaseModel):
             raise ValueError("api-observer-v0 requires a zero in-match action budget")
         if not self.enter_match and self.entry_team != 0:
             raise ValueError("a non-solo entry team requires explicit match entry")
-        if self.policy in {ApiPolicyName.HEURISTIC, ApiPolicyName.NEURAL_SHADOW}:
+        if self.policy in {
+            ApiPolicyName.HEURISTIC,
+            ApiPolicyName.TACTICAL_HEURISTIC,
+            ApiPolicyName.NEURAL_SHADOW,
+        }:
             if not self.enter_match:
                 raise ValueError(f"{self.policy.value} requires explicit match entry")
             if self.max_in_match_actions < 1:
@@ -260,6 +271,210 @@ def _should_request_match_entry(room: Any, *, user_id: str, entry_team: int) -> 
     return _identity_entry_team(room, user_id=user_id) != entry_team
 
 
+def _decide_tactical_api_action(
+    state: ApiGameState,
+    legal_actions: ApiLegalActionSet,
+) -> tuple[ApiPolicyDecision, ApiLegalAction | None]:
+    """Choose a deterministic resource-aware action from the reviewed live surface."""
+
+    hand_by_instance = {item.instance_id: item for item in state.hand}
+
+    def action_items(action: ApiLegalAction) -> tuple[ApiItemState, ...]:
+        resolved: list[ApiItemState] = []
+        for instance_id in action.item_instance_ids:
+            item = hand_by_instance.get(instance_id)
+            if item is None:
+                return ()
+            resolved.append(item)
+        return tuple(resolved)
+
+    def attack_value(action: ApiLegalAction) -> int:
+        items = action_items(action)
+        if not items:
+            return 0
+        value = items[0].attack
+        for item in items[1:]:
+            value = value * 2 if item.ability == "doubleAtk" else value + item.attack
+        return value
+
+    def defense_value(action: ApiLegalAction) -> int:
+        return sum(item.defense for item in action_items(action))
+
+    def action_cost(action: ApiLegalAction) -> int:
+        return sum(item.cost for item in action_items(action))
+
+    players_by_id = {player.player_id: player for player in state.players}
+
+    def target_hp(action: ApiLegalAction) -> int:
+        target = (
+            players_by_id.get(action.target_player_id)
+            if action.target_player_id is not None
+            else None
+        )
+        return target.hp if target is not None else 101
+
+    def best_utility(actions: list[ApiLegalAction]) -> ApiLegalAction | None:
+        return (
+            max(
+                actions,
+                key=lambda action: (
+                    action_items(action)[0].ability_value,
+                    -action_cost(action),
+                    -action.item_instance_ids[0],
+                ),
+            )
+            if actions
+            else None
+        )
+
+    chosen: ApiLegalAction | None = None
+    rationale = "the server is not awaiting an action from ロキ-67"
+    if state.phase is ApiPhase.PURCHASE:
+        chosen = next(
+            (
+                action
+                for action in legal_actions.actions
+                if action.kind is ApiActionKind.DECLINE_PURCHASE
+            ),
+            None,
+        )
+        if chosen is not None:
+            rationale = "decline an unmodeled purchase"
+    elif state.phase is ApiPhase.DEFENSE:
+        defenses = [
+            action
+            for action in legal_actions.actions
+            if action.kind is ApiActionKind.USE_ITEM and defense_value(action) > 0
+        ]
+        pending_attack = state.pending_attack.attack if state.pending_attack is not None else 0
+        sufficient = [action for action in defenses if defense_value(action) >= pending_attack]
+        if sufficient:
+            chosen = min(
+                sufficient,
+                key=lambda action: (
+                    defense_value(action),
+                    action_cost(action),
+                    len(action.item_instance_ids),
+                    action.item_instance_ids,
+                ),
+            )
+            rationale = "use the least excessive verified defense that prevents all damage"
+        elif defenses:
+            chosen = max(
+                defenses,
+                key=lambda action: (
+                    defense_value(action),
+                    -action_cost(action),
+                    -len(action.item_instance_ids),
+                    tuple(-value for value in action.item_instance_ids),
+                ),
+            )
+            rationale = "use the strongest verified defense to reduce incoming damage"
+        else:
+            chosen = next(
+                (action for action in legal_actions.actions if action.kind is ApiActionKind.PASS),
+                None,
+            )
+            if chosen is not None:
+                rationale = "accept damage because no verified defense is compatible"
+    elif state.phase is ApiPhase.TURN:
+        candidates = [
+            action
+            for action in legal_actions.actions
+            if (
+                action.kind is ApiActionKind.USE_ITEM
+                and action.item_instance_ids
+                and action_items(action)
+            )
+        ]
+        cleansers = [
+            action for action in candidates if action_items(action)[0].ability == "removeAllCurses"
+        ]
+        attacks = [action for action in candidates if attack_value(action) > 0]
+        heals = [action for action in candidates if action_items(action)[0].ability == "boostHP"]
+        mana = [action for action in candidates if action_items(action)[0].ability == "boostMP"]
+        lethal = [
+            action
+            for action in attacks
+            if action.target_player_id is not None
+            and (target := players_by_id.get(action.target_player_id)) is not None
+            and attack_value(action) >= target.hp
+        ]
+        me = next(player for player in state.players if player.is_self)
+        if state.has_active_curses and cleansers:
+            chosen = min(
+                cleansers,
+                key=lambda action: (action_cost(action), action.item_instance_ids),
+            )
+            rationale = "remove all active curses before committing another action"
+        elif lethal:
+            chosen = min(
+                lethal,
+                key=lambda action: (
+                    attack_value(action),
+                    action_cost(action),
+                    target_hp(action),
+                    len(action.item_instance_ids),
+                    action.item_instance_ids,
+                ),
+            )
+            rationale = "use the least costly attack with potentially lethal power"
+        elif me.hp <= TACTICAL_HEAL_THRESHOLD and (chosen := best_utility(heals)) is not None:
+            rationale = "restore HP before it falls into common lethal range"
+        elif attacks:
+            chosen = max(
+                attacks,
+                key=lambda action: (
+                    attack_value(action),
+                    -action_cost(action),
+                    -target_hp(action),
+                    -len(action.item_instance_ids),
+                    tuple(-value for value in action.item_instance_ids),
+                ),
+            )
+            rationale = (
+                "use the strongest verified attack combination"
+                if len(chosen.item_instance_ids) > 1
+                else "use the strongest verified attack"
+            )
+        elif me.mp <= 5 and (chosen := best_utility(mana)) is not None:
+            rationale = "restore MP while no verified attack is available"
+        elif (chosen := best_utility(heals)) is not None:
+            rationale = "convert an otherwise idle turn into verified HP recovery"
+        elif (chosen := best_utility(mana)) is not None:
+            rationale = "convert an otherwise idle turn into verified MP recovery"
+        else:
+            chosen = next(
+                (action for action in legal_actions.actions if action.kind is ApiActionKind.PASS),
+                None,
+            )
+            if chosen is not None:
+                rationale = "pass because no reviewed tactical action is available"
+
+    executable = chosen is not None
+    if (
+        chosen is None
+        and state.phase in {ApiPhase.TURN, ApiPhase.DEFENSE, ApiPhase.PURCHASE}
+        and state.awaiting_player_id == state.self_player_id
+    ):
+        rationale = "no verified API action is available; abstain without submitting"
+    return (
+        ApiPolicyDecision(
+            decided_at=datetime.now(UTC),
+            policy_id=ApiPolicyName.TACTICAL_HEURISTIC.value,
+            state_digest=legal_actions.state_digest,
+            chosen_action_id=chosen.action_id if chosen is not None else None,
+            scores={
+                action.action_id: float(chosen is not None and action.action_id == chosen.action_id)
+                for action in legal_actions.actions
+            },
+            rationale=rationale,
+            executable=executable,
+        ),
+        chosen,
+    )
+
+
 def decide_api_action(
     policy: ApiPolicyName,
     state: ApiGameState,
@@ -277,6 +492,8 @@ def decide_api_action(
             ),
             None,
         )
+    if policy is ApiPolicyName.TACTICAL_HEURISTIC:
+        return _decide_tactical_api_action(state, legal_actions)
 
     chosen: ApiLegalAction | None = None
     if state.phase is ApiPhase.PURCHASE:
@@ -487,6 +704,7 @@ def run_private_api_observer(
         raise ApiRuntimeError("catalog snapshot was captured by a different pygodfield revision")
     catalog = item_catalog_from_snapshot(snapshot)
     shadow_policy: Any | None = None
+    tactical_snapshot: BibleSnapshot | None = None
     if config.policy is ApiPolicyName.NEURAL_SHADOW:
         try:
             from godfield_bot.api_neural import (
@@ -507,6 +725,19 @@ def run_private_api_observer(
             )
         except ApiNeuralPolicyError as error:
             raise ApiRuntimeError(str(error)) from error
+        tactical_snapshot = shadow_policy.snapshot
+    elif config.policy is ApiPolicyName.TACTICAL_HEURISTIC:
+        try:
+            tactical_snapshot = BibleSnapshot.model_validate_json(
+                config.bible_snapshot.read_text(encoding="utf-8")
+            )
+        except (OSError, ValueError) as error:
+            raise ApiRuntimeError("the tactical Bible snapshot is unreadable or invalid") from error
+    if (
+        tactical_snapshot is not None
+        and tactical_snapshot.client.sha256 != ACCEPTED_PRIVATE_BIBLE_CLIENT_SHA256
+    ):
+        raise ApiRuntimeError("the tactical Bible snapshot has not been accepted for live play")
     environment_fingerprint = api_environment_fingerprint(snapshot)
     store = RunStore(config.database)
     run_config: dict[str, JsonValue] = {
@@ -525,12 +756,14 @@ def run_private_api_observer(
     if shadow_policy is not None:
         run_config.update(
             {
-                "behavior_policy": ApiPolicyName.HEURISTIC.value,
+                "behavior_policy": ApiPolicyName.TACTICAL_HEURISTIC.value,
                 "shadow_model_id": shadow_policy.manifest.model_id,
                 "shadow_model_weights_sha256": shadow_policy.manifest.weights_sha256,
                 "shadow_bible_client_sha256": shadow_policy.snapshot.client.sha256,
             }
         )
+    if tactical_snapshot is not None:
+        run_config["tactical_bible_client_sha256"] = tactical_snapshot.client.sha256
     if config.room_id is not None:
         run_config["room_fingerprint"] = hashlib.sha256(config.room_id.encode()).hexdigest()
     run = store.start_run(
@@ -666,26 +899,28 @@ def run_private_api_observer(
                                 pending_action = None
                             shadow_decision: ApiPolicyDecision | None = None
                             proposed_action: ApiLegalAction | None = None
-                            if shadow_policy is not None:
-                                legal_actions = verified_api_combo_actions(
+                            if tactical_snapshot is not None:
+                                legal_actions = verified_api_tactical_actions(
                                     room,
                                     user_id=user_id,
-                                    bible_snapshot=shadow_policy.snapshot,
-                                )
-                                shadow_decision, proposed_action = shadow_policy.decide(
-                                    state,
-                                    legal_actions,
-                                )
-                                decision, chosen_action = decide_api_action(
-                                    ApiPolicyName.HEURISTIC,
-                                    state,
-                                    legal_actions,
+                                    bible_snapshot=tactical_snapshot,
                                 )
                             else:
                                 legal_actions = verified_api_actions(
                                     room,
                                     user_id=user_id,
                                 )
+                            if shadow_policy is not None:
+                                shadow_decision, proposed_action = shadow_policy.decide(
+                                    state,
+                                    legal_actions,
+                                )
+                                decision, chosen_action = decide_api_action(
+                                    ApiPolicyName.TACTICAL_HEURISTIC,
+                                    state,
+                                    legal_actions,
+                                )
+                            else:
                                 decision, chosen_action = decide_api_action(
                                     config.policy,
                                     state,

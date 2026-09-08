@@ -84,7 +84,7 @@ The existing browser replay exporters intentionally reject these API-specific
 state and action schemas; a reviewed feature/action conversion must land before
 private-game evidence can enter model training.
 
-The first executable policy is `api-heuristic-v0`, gated behind the separate
+The first executable policy was `api-heuristic-v0`, gated behind the separate
 `api play-private --confirm-play` command, explicit next-match entry, a hard
 action budget, optional wall-clock limit, and no-progress limit. A wall-clock
 value of zero disables only that limit. It ranks only the
@@ -102,6 +102,10 @@ known-invalid command. It submits at most once per observed state and never
 retries an ambiguous turn-consuming request. Every decision, dispatch result,
 and observed transition is recorded. This policy is a data-collection
 baseline, not a learned or promotion-eligible policy.
+
+ADR 0011 makes `api-combo-utility-heuristic-v1` the default executable private
+policy. The v0 identifier remains available for reproducibility; its behavior
+is not silently redefined.
 
 Multiplayer entry has an explicit fixed team selection: `0` means solo and
 `1` through `4` mean allied teams A through D. The default remains solo. A

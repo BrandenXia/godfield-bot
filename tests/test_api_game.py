@@ -10,6 +10,7 @@ from godfield_bot.api_game import (
     normalize_api_game_state,
     verified_api_actions,
     verified_api_combo_actions,
+    verified_api_tactical_actions,
 )
 from godfield_bot.domain.reference import (
     ArtifactCategory,
@@ -42,6 +43,28 @@ def catalog() -> ItemCatalog:
                 "category": "weapons",
                 "atk": 1,
                 "isPlusAtk": True,
+            },
+            {
+                "name": "Romance Water",
+                "imageName": "romance-water",
+                "category": "sundries",
+                "ability": "boostHP",
+                "abilityValue": 15,
+            },
+            {
+                "name": "Smile Flower",
+                "imageName": "smile-flower",
+                "category": "sundries",
+                "ability": "boostMP",
+                "abilityValue": 5,
+            },
+            {
+                "name": "Flame",
+                "imageName": "flame",
+                "category": "miracles",
+                "atk": 10,
+                "cost": 5,
+                "element": "fire",
             },
         ]
     )
@@ -152,7 +175,7 @@ def test_normalization_keeps_only_self_hand_card_identities() -> None:
     assert state.phase is ApiPhase.TURN
     assert state.observed_at == observed_at
     assert state.self_player_id == 1
-    assert state.schema_version == 3
+    assert state.schema_version == 4
     assert state.has_active_curses is False
     assert [item.instance_id for item in state.hand] == [11, 12]
     assert [item.asset for item in state.hand] == ["club", "shield"]
@@ -161,6 +184,17 @@ def test_normalization_keeps_only_self_hand_card_identities() -> None:
     serialized = state.model_dump_json()
     assert '"instance_id":99' not in serialized
     assert "Fire Shield" not in serialized
+
+
+def test_normalization_exposes_tactical_item_values() -> None:
+    state = normalize_api_game_state(
+        room_state(self_items=[{"id": 16, "modelId": 6}]),
+        user_id="loki-user",
+    )
+
+    assert state.hand[0].ability == "boostHP"
+    assert state.hand[0].ability_value == 15
+    assert state.hand[0].is_plus_attack is False
 
 
 def test_turn_actions_use_only_safe_single_weapons_and_named_targets() -> None:
@@ -261,6 +295,51 @@ def test_combo_actions_expose_compatible_multi_armor_macro() -> None:
         "combo-defense:12-13",
     ]
     assert command_for_api_action(actions.actions[-1]).to_dict() == {"itemIds": [12, 13]}
+
+
+def test_tactical_actions_add_deterministic_utility_and_targeted_miracles() -> None:
+    room = room_state(
+        self_items=[
+            {"id": 16, "modelId": 6},
+            {"id": 17, "modelId": 7},
+            {"id": 18, "modelId": 8},
+        ]
+    )
+
+    actions = verified_api_tactical_actions(
+        room,
+        user_id="loki-user",
+        bible_snapshot=combo_bible(),
+    )
+
+    assert [action.action_id for action in actions.actions] == [
+        "pass",
+        "utility:boostHP:16:6",
+        "utility:boostMP:17:7",
+        "miracle-attack:18:8:2",
+    ]
+    assert command_for_api_action(actions.actions[-1]).to_dict() == {
+        "itemIds": [18],
+        "targetPlayerId": 2,
+    }
+
+
+def test_tactical_actions_exclude_unaffordable_or_disguised_cards() -> None:
+    room = room_state(
+        self_items=[
+            {"id": 16, "modelId": 8},
+            {"id": 17, "modelId": 6, "fakeModelId": 7},
+        ]
+    )
+    room.raw["game"]["players"][0]["mp"] = 4
+
+    actions = verified_api_tactical_actions(
+        room,
+        user_id="loki-user",
+        bible_snapshot=combo_bible(),
+    )
+
+    assert [action.action_id for action in actions.actions] == ["pass"]
 
 
 def test_turn_actions_never_target_a_member_of_the_selected_team() -> None:

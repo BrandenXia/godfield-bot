@@ -186,31 +186,47 @@ def verified_browser_actions(
         candidates = [
             artifact
             for artifact in state.hand
-            if artifact.category == "weapons"
+            if (
+                artifact.category == "weapons"
+                and artifact.slug in (verified_weapon_attacks or {})
+                and artifact.hit_target_bounds is not None
+            )
             or (
                 artifact.category == "miracles"
                 and (rule := (verified_miracle_attacks or {}).get(artifact.slug)) is not None
                 and rule[1] <= self_player.mp
+                and artifact.hit_target_bounds is not None
             )
         ]
         if (
             state.action_hit_target_bounds is not None
-            and not any(artifact.category == "weapons" for artifact in state.hand)
+            and not any(
+                artifact.category == "weapons"
+                and artifact.slug in (verified_weapon_attacks or {})
+                and artifact.hit_target_bounds is not None
+                for artifact in state.hand
+            )
         ):
             actions.append(
                 LegalAction(
                     action_id="pass",
                     kind=ActionKind.PASS,
-                    label="Confirm an empty Pray action with no weapons in hand",
+                    label="Confirm Pray with no usable verified standalone attack weapon",
                     actor_player_name=self_player.name,
                     control_panel="left",
                 )
             )
     elif self_neutral_defense and state.phase_control == "Forgive":
-        candidates = [artifact for artifact in state.hand if artifact.category == "armor"]
+        candidates = [
+            artifact
+            for artifact in state.hand
+            if artifact.category == "armor"
+            and artifact.slug in (plain_armor_defenses or {})
+            and artifact.hit_target_bounds is not None
+        ]
     else:
         candidates = []
-    if candidates and all(artifact.hit_target_bounds is not None for artifact in candidates):
+    if candidates:
         actions.extend(
             LegalAction(
                 action_id=f"artifact:{artifact.slot}:{artifact.category}/{artifact.slug}",

@@ -80,9 +80,14 @@ def test_heuristic_selects_weapon_only_in_verified_self_phase() -> None:
         images=(),
     )
 
-    actions = verified_browser_actions(game_state, observation)
+    weapon_rules = {"bronze-club": ("ATK1", 1.0)}
+    actions = verified_browser_actions(
+        game_state,
+        observation,
+        verified_weapon_attacks=weapon_rules,
+    )
     decision = HeuristicV0Policy(
-        {"bronze-club": ("ATK1", 1.0)},
+        weapon_rules,
         {"iron-shield": 4},
     ).decide(game_state, actions)
 
@@ -124,9 +129,14 @@ def test_heuristic_can_select_audited_passive_attack_weapon() -> None:
         images=(),
     )
 
-    actions = verified_browser_actions(game_state, observation)
+    weapon_rules = {"angel-sword": ("ATK13", 13.0)}
+    actions = verified_browser_actions(
+        game_state,
+        observation,
+        verified_weapon_attacks=weapon_rules,
+    )
     decision = HeuristicV0Policy(
-        {"angel-sword": ("ATK13", 13.0)},
+        weapon_rules,
         {"iron-shield": 4},
     ).decide(game_state, actions)
 
@@ -230,6 +240,92 @@ def test_heuristic_excludes_unaffordable_fixed_attack_miracle() -> None:
         {"bronze-club": ("ATK1", 1.0)},
         {"iron-shield": 4},
         {"flame": (10, 5, "fire")},
+    ).decide(game_state, actions)
+
+    assert [action.action_id for action in actions.actions] == ["wait", "pass"]
+    assert decision.chosen_action_id == "pass"
+    assert decision.executable is True
+
+
+def test_heuristic_passes_when_only_attack_booster_weapon_is_usable() -> None:
+    initial = state()
+    booster = HandArtifact(
+        slot=0,
+        category="weapons",
+        slug="sky-harpoon",
+        asset_path="/images/items/weapons/sky-harpoon.webp",
+        bounds=Bounds(x=200, y=493, width=80, height=80),
+        hit_target_bounds=Bounds(x=200, y=493, width=80, height=80),
+    )
+    game_state = initial.model_copy(
+        update={
+            "hand": (booster,),
+            "action_actor": "ロキ-67",
+            "action_display": "Pray",
+            "action_hit_target_bounds": Bounds(x=115, y=93, width=310, height=300),
+        }
+    )
+    observation = ScreenObservation(
+        observed_at=game_state.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.10", "Pray", "HP"),
+        text_elements=(),
+        controls=(),
+        images=(),
+    )
+
+    actions = verified_browser_actions(
+        game_state,
+        observation,
+        verified_weapon_attacks={"bronze-club": ("ATK1", 1.0)},
+    )
+    decision = HeuristicV0Policy(
+        {"bronze-club": ("ATK1", 1.0)},
+        {"iron-shield": 4},
+    ).decide(game_state, actions)
+
+    assert [action.action_id for action in actions.actions] == ["wait", "pass"]
+    assert decision.chosen_action_id == "pass"
+    assert decision.executable is True
+
+
+def test_heuristic_passes_when_verified_attack_weapon_is_disabled() -> None:
+    initial = state()
+    disabled_weapon = initial.hand[0].model_copy(update={"hit_target_bounds": None})
+    game_state = initial.model_copy(
+        update={
+            "hand": (disabled_weapon,),
+            "action_actor": "ロキ-67",
+            "action_display": "Pray",
+            "action_hit_target_bounds": Bounds(x=115, y=93, width=310, height=300),
+        }
+    )
+    observation = ScreenObservation(
+        observed_at=game_state.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.17", "Pray", "HP"),
+        text_elements=(),
+        controls=(),
+        images=(),
+    )
+    weapon_rules = {"bronze-club": ("ATK1", 1.0)}
+
+    actions = verified_browser_actions(
+        game_state,
+        observation,
+        verified_weapon_attacks=weapon_rules,
+    )
+    decision = HeuristicV0Policy(
+        weapon_rules,
+        {"iron-shield": 4},
     ).decide(game_state, actions)
 
     assert [action.action_id for action in actions.actions] == ["wait", "pass"]
@@ -341,10 +437,15 @@ def test_heuristic_selects_plain_armor_for_neutral_defense() -> None:
         images=(),
     )
 
-    actions = verified_browser_actions(game_state, observation)
+    armor_rules = {"iron-shield": 4}
+    actions = verified_browser_actions(
+        game_state,
+        observation,
+        plain_armor_defenses=armor_rules,
+    )
     decision = HeuristicV0Policy(
         {"bronze-club": ("ATK1", 1.0)},
-        {"iron-shield": 4},
+        armor_rules,
     ).decide(game_state, actions)
 
     assert [action.action_id for action in actions.actions] == [

@@ -1,6 +1,7 @@
 import stat
 from contextlib import contextmanager
 from datetime import UTC, datetime
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -15,6 +16,7 @@ from godfield_bot.api_catalog import (
 )
 from godfield_bot.api_game import (
     ApiActionKind,
+    ApiPolicyDecision,
     normalize_api_game_state,
     verified_api_actions,
 )
@@ -29,6 +31,12 @@ from godfield_bot.api_runtime import (
     run_private_api_observer,
 )
 from godfield_bot.config import AppSettings
+from godfield_bot.domain.reference import (
+    ArtifactCategory,
+    ArtifactRecord,
+    BibleSnapshot,
+    ClientFingerprint,
+)
 from godfield_bot.domain.run import EventKind, RunStatus
 from godfield_bot.run_store import RunStore
 
@@ -36,8 +44,13 @@ from godfield_bot.run_store import RunStore
 def catalog() -> ItemCatalog:
     return ItemCatalog(
         [
-            {"name": "Club", "category": "weapons", "atk": 5},
-            {"name": "Shield", "category": "armor", "def": 8},
+            {"name": "Club", "imageName": "club", "category": "weapons", "atk": 5},
+            {
+                "name": "Shield",
+                "imageName": "shield",
+                "category": "armor",
+                "def": 8,
+            },
             {"name": "Hidden", "category": "miracles", "atk": 99},
             {"name": "Strong Shield", "category": "armor", "def": 12},
             {
@@ -46,6 +59,37 @@ def catalog() -> ItemCatalog:
                 "ability": "removeAllCurses",
             },
         ]
+    )
+
+
+def combo_bible() -> BibleSnapshot:
+    return BibleSnapshot(
+        observed_at=datetime.now(UTC),
+        source_url="https://godfield.net/",
+        language="en",
+        client=ClientFingerprint(url="https://godfield.net/main.dart.js", sha256="a" * 64),
+        reference_sections={},
+        catalog={
+            "weapons": ArtifactCategory(
+                items=(
+                    ArtifactRecord(
+                        asset="club",
+                        image_path="/images/items/weapons/club.webp",
+                        detail=("Club", "ATK5", "$1", "Gift Rate: 1/500"),
+                    ),
+                )
+            ),
+            "armor": ArtifactCategory(
+                items=(
+                    ArtifactRecord(
+                        asset="shield",
+                        image_path="/images/items/armor/shield.webp",
+                        detail=("Shield", "DEF8", "$1", "Gift Rate: 1/500"),
+                    ),
+                )
+            ),
+        },
+        total_artifacts=2,
     )
 
 
@@ -357,6 +401,18 @@ def test_api_policy_configuration_requires_explicit_safe_bounds() -> None:
         PrivateApiRunConfig(room_id="private-room", entry_team=5)
     with pytest.raises(ValidationError, match="requires explicit match entry"):
         PrivateApiRunConfig(room_id="private-room", entry_team=2)
+    with pytest.raises(ValidationError, match="requires a model directory"):
+        PrivateApiRunConfig(
+            room_id="private-room",
+            enter_match=True,
+            policy=ApiPolicyName.NEURAL_SHADOW,
+            max_in_match_actions=1,
+        )
+    with pytest.raises(ValidationError, match="only valid for neural shadow policy"):
+        PrivateApiRunConfig(
+            room_id="private-room",
+            model_directory=Path("models/candidate"),
+        )
 
 
 def test_zero_max_seconds_disables_only_the_wall_clock_limit() -> None:
@@ -483,6 +539,124 @@ def test_private_api_heuristic_enters_lobby_and_records_accepted_action(
     assert len(transitions) == 1
     assert transitions[0].payload["state_changed"] is True
     assert transitions[0].payload["player_hp_deltas"] == {"2": -35}
+
+
+def test_private_api_neural_shadow_records_proposal_but_dispatches_heuristic(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    snapshot_path = tmp_path / "catalog.json"
+    write_api_catalog_snapshot(catalog_snapshot(), snapshot_path)
+
+    class FakePlayingClient(FakeClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.states = iter([active_room(), terminal_room()])
+            self.commands: list[dict[str, object]] = []
+
+        def state(self) -> RoomState:
+            return next(self.states)
+
+        def submit(self, command) -> None:
+            self.commands.append(command.to_dict())
+
+    class FakeShadowPolicy:
+        def __init__(self) -> None:
+            self.snapshot = combo_bible()
+            self.manifest = SimpleNamespace(
+                model_id="shadow-candidate",
+                weights_sha256="b" * 64,
+            )
+            self.behaviors: list[tuple[str | None, str | None]] = []
+
+        def reset(self) -> None:
+            pass
+
+        def decide(self, state, legal_actions):
+            proposal = next(
+                (
+                    action
+                    for action in legal_actions.actions
+                    if action.kind is ApiActionKind.USE_ITEM
+                ),
+                None,
+            )
+            return (
+                ApiPolicyDecision(
+                    decided_at=state.observed_at,
+                    policy_id=ApiPolicyName.NEURAL_SHADOW.value,
+                    state_digest=legal_actions.state_digest,
+                    chosen_action_id=proposal.action_id if proposal is not None else None,
+                    scores={
+                        action.action_id: float(action is proposal)
+                        for action in legal_actions.actions
+                    },
+                    rationale="fixture shadow proposal",
+                    executable=False,
+                    model_id=self.manifest.model_id,
+                    model_weights_sha256=self.manifest.weights_sha256,
+                ),
+                proposal,
+            )
+
+        def observe_behavior(self, proposal, behavior) -> None:
+            self.behaviors.append(
+                (
+                    proposal.action_id if proposal is not None else None,
+                    behavior.action_id if behavior is not None else None,
+                )
+            )
+
+    client = FakePlayingClient()
+    shadow = FakeShadowPolicy()
+
+    @contextmanager
+    def fake_open_api_client(*args, **kwargs):
+        yield client
+
+    monkeypatch.setattr("godfield_bot.api_runtime.open_api_client", fake_open_api_client)
+    monkeypatch.setattr(
+        "godfield_bot.api_runtime.validate_api_credentials",
+        lambda settings: SimpleNamespace(user_id="loki-user"),
+    )
+    monkeypatch.setattr(
+        "godfield_bot.api_neural.load_api_combo_shadow_policy",
+        lambda model_directory, bible_snapshot: shadow,
+    )
+    monkeypatch.setattr("godfield_bot.api_runtime.time.sleep", lambda seconds: None)
+    database = tmp_path / "runs" / "api.sqlite"
+
+    run = run_private_api_observer(
+        AppSettings(state_root=tmp_path / "state"),
+        PrivateApiRunConfig(
+            database=database,
+            catalog_snapshot=snapshot_path,
+            room_id="private-room",
+            enter_match=True,
+            policy=ApiPolicyName.NEURAL_SHADOW,
+            model_directory=tmp_path / "model",
+            max_in_match_actions=5,
+            max_seconds=10,
+            no_progress_seconds=10,
+        ),
+    )
+
+    assert run.status is RunStatus.COMPLETED
+    assert run.config["behavior_policy"] == ApiPolicyName.HEURISTIC.value
+    assert run.config["shadow_model_id"] == "shadow-candidate"
+    assert client.commands == [{"itemIds": [11], "targetPlayerId": 2}]
+    assert shadow.behaviors == [("use:11:1:2", "use:11:1:2")]
+    decisions = [
+        event.payload
+        for event in RunStore(database).events(run.run_id)
+        if event.kind is EventKind.DECISION
+    ]
+    assert [decision["policy_id"] for decision in decisions[:2]] == [
+        ApiPolicyName.NEURAL_SHADOW.value,
+        ApiPolicyName.HEURISTIC.value,
+    ]
+    assert decisions[0]["executable"] is False
+    assert decisions[1]["executable"] is True
 
 
 def test_private_api_heuristic_dispatches_progress_pass_for_cursed_turn(

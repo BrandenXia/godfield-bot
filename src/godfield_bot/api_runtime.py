@@ -38,6 +38,7 @@ from godfield_bot.api_game import (
     command_for_api_action,
     normalize_api_game_state,
     verified_api_actions,
+    verified_api_combo_actions,
 )
 from godfield_bot.config import AppSettings
 from godfield_bot.domain.outcome import MatchResult, SparseTerminalReward
@@ -54,6 +55,7 @@ class ApiRuntimeError(RuntimeError):
 class ApiPolicyName(StrEnum):
     OBSERVER = "api-observer-v0"
     HEURISTIC = "api-heuristic-v0"
+    NEURAL_SHADOW = "api-combo-neural-shadow-v1"
 
 
 class PrivateApiRunConfig(BaseModel):
@@ -69,6 +71,8 @@ class PrivateApiRunConfig(BaseModel):
     enter_match: bool = False
     entry_team: int = Field(default=0, ge=0, le=4)
     policy: ApiPolicyName = ApiPolicyName.OBSERVER
+    model_directory: Path | None = None
+    bible_snapshot: Path = Path("data", "snapshots", "2026-09-07", "bible.json")
     max_in_match_actions: int = Field(default=0, ge=0, le=1000)
     max_seconds: float = Field(default=90.0, ge=0.0, le=3600.0)
     poll_seconds: float = Field(default=1.0, ge=0.25, le=10.0)
@@ -92,11 +96,15 @@ class PrivateApiRunConfig(BaseModel):
             raise ValueError("api-observer-v0 requires a zero in-match action budget")
         if not self.enter_match and self.entry_team != 0:
             raise ValueError("a non-solo entry team requires explicit match entry")
-        if self.policy is ApiPolicyName.HEURISTIC:
+        if self.policy in {ApiPolicyName.HEURISTIC, ApiPolicyName.NEURAL_SHADOW}:
             if not self.enter_match:
-                raise ValueError("api-heuristic-v0 requires explicit match entry")
+                raise ValueError(f"{self.policy.value} requires explicit match entry")
             if self.max_in_match_actions < 1:
-                raise ValueError("api-heuristic-v0 requires a positive action budget")
+                raise ValueError(f"{self.policy.value} requires a positive action budget")
+        if self.policy is ApiPolicyName.NEURAL_SHADOW and self.model_directory is None:
+            raise ValueError("api-combo-neural-shadow-v1 requires a model directory")
+        if self.policy is not ApiPolicyName.NEURAL_SHADOW and self.model_directory is not None:
+            raise ValueError("a model directory is only valid for neural shadow policy")
         return self
 
 
@@ -284,7 +292,7 @@ def decide_api_action(
         candidates = [
             action
             for action in legal_actions.actions
-            if action.kind is ApiActionKind.USE_ITEM and action.item_instance_ids
+            if action.kind is ApiActionKind.USE_ITEM and len(action.item_instance_ids) == 1
         ]
         hand_by_instance = {item.instance_id: item for item in state.hand}
 
@@ -454,6 +462,27 @@ def run_private_api_observer(
     if snapshot.upstream_revision != PYGODFIELD_REVISION:
         raise ApiRuntimeError("catalog snapshot was captured by a different pygodfield revision")
     catalog = item_catalog_from_snapshot(snapshot)
+    shadow_policy: Any | None = None
+    if config.policy is ApiPolicyName.NEURAL_SHADOW:
+        try:
+            from godfield_bot.api_neural import (
+                ApiNeuralPolicyError,
+                load_api_combo_shadow_policy,
+            )
+        except ImportError as error:
+            raise ApiRuntimeError(
+                "neural shadow dependencies are unavailable; run `uv sync --extra training`"
+            ) from error
+
+        if config.model_directory is None:  # pragma: no cover - config validation
+            raise ApiRuntimeError("neural shadow policy has no model directory")
+        try:
+            shadow_policy = load_api_combo_shadow_policy(
+                config.model_directory,
+                config.bible_snapshot,
+            )
+        except ApiNeuralPolicyError as error:
+            raise ApiRuntimeError(str(error)) from error
     environment_fingerprint = api_environment_fingerprint(snapshot)
     store = RunStore(config.database)
     run_config: dict[str, JsonValue] = {
@@ -469,6 +498,15 @@ def run_private_api_observer(
         "catalog_sha256": snapshot.content_sha256,
         "room_selector": "room_id" if config.room_id is not None else "matchmaking_key",
     }
+    if shadow_policy is not None:
+        run_config.update(
+            {
+                "behavior_policy": ApiPolicyName.HEURISTIC.value,
+                "shadow_model_id": shadow_policy.manifest.model_id,
+                "shadow_model_weights_sha256": shadow_policy.manifest.weights_sha256,
+                "shadow_bible_client_sha256": shadow_policy.snapshot.client.sha256,
+            }
+        )
     if config.room_id is not None:
         run_config["room_fingerprint"] = hashlib.sha256(config.room_id.encode()).hexdigest()
     run = store.start_run(
@@ -537,6 +575,8 @@ def run_private_api_observer(
                     game = room.game
                     me = game.player_by_user(user_id) if game is not None else None
                     if game is None or me is None:
+                        if shadow_policy is not None:
+                            shadow_policy.reset()
                         terminal_recorded = False
                         lobby = _lobby_observation(room, user_id=user_id)
                         digest = _lobby_digest(lobby)
@@ -600,21 +640,44 @@ def run_private_api_observer(
                                     occurred_at=state.observed_at,
                                 )
                                 pending_action = None
-                            legal_actions: ApiLegalActionSet = verified_api_actions(
-                                room,
-                                user_id=user_id,
-                            )
-                            decision, chosen_action = decide_api_action(
-                                config.policy,
-                                state,
-                                legal_actions,
-                            )
+                            shadow_decision: ApiPolicyDecision | None = None
+                            proposed_action: ApiLegalAction | None = None
+                            if shadow_policy is not None:
+                                legal_actions = verified_api_combo_actions(
+                                    room,
+                                    user_id=user_id,
+                                    bible_snapshot=shadow_policy.snapshot,
+                                )
+                                shadow_decision, proposed_action = shadow_policy.decide(
+                                    state,
+                                    legal_actions,
+                                )
+                                decision, chosen_action = decide_api_action(
+                                    ApiPolicyName.HEURISTIC,
+                                    state,
+                                    legal_actions,
+                                )
+                            else:
+                                legal_actions = verified_api_actions(
+                                    room,
+                                    user_id=user_id,
+                                )
+                                decision, chosen_action = decide_api_action(
+                                    config.policy,
+                                    state,
+                                    legal_actions,
+                                )
+                            decision_events: tuple[tuple[EventKind, BaseModel], ...] = (
+                                ((EventKind.DECISION, shadow_decision),)
+                                if shadow_decision is not None
+                                else ()
+                            ) + ((EventKind.DECISION, decision),)
                             store.append_events(
                                 run.run_id,
                                 (
                                     (EventKind.GAME_STATE, state),
                                     (EventKind.LEGAL_ACTIONS, legal_actions),
-                                    (EventKind.DECISION, decision),
+                                    *decision_events,
                                 ),
                                 occurred_at=state.observed_at,
                             )
@@ -630,6 +693,8 @@ def run_private_api_observer(
                             )
                             terminal = classify_api_two_player_terminal(state)
                             if terminal is not None:
+                                if shadow_policy is not None:
+                                    shadow_policy.reset()
                                 if config.max_seconds != 0:
                                     return _finish_terminal_run(
                                         store,
@@ -643,6 +708,8 @@ def run_private_api_observer(
                                     games_completed += 1
                                     terminal_recorded = True
                             elif state.phase is ApiPhase.TERMINAL:
+                                if shadow_policy is not None:
+                                    shadow_policy.reset()
                                 if config.max_seconds != 0:
                                     outcome_reason = "unclassified_terminal"
                                     break
@@ -671,6 +738,11 @@ def run_private_api_observer(
                                 if in_match_actions >= config.max_in_match_actions:
                                     outcome_reason = "action_limit"
                                     break
+                                if shadow_policy is not None:
+                                    shadow_policy.observe_behavior(
+                                        proposed_action,
+                                        chosen_action,
+                                    )
                                 action_started = time.perf_counter()
                                 try:
                                     client.submit(command_for_api_action(chosen_action))

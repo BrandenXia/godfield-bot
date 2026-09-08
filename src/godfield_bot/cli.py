@@ -215,7 +215,7 @@ def observe_private_api_game(
     ] = Path("data", "snapshots", "2026-09-07", "api-catalog-en.json"),
     database: Annotated[
         Path,
-        typer.Option(help="Ignored local SQLite trajectory database."),
+        typer.Option(help="Local SQLite trajectory database."),
     ] = Path("runs", "godfield.sqlite"),
     max_seconds: Annotated[
         float,
@@ -318,9 +318,25 @@ def play_private_api_game(
         Path,
         typer.Option(exists=True, dir_okay=False, readable=True),
     ] = Path("data", "snapshots", "2026-09-07", "api-catalog-en.json"),
+    shadow_model: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True,
+            file_okay=False,
+            readable=True,
+            help=(
+                "Optional combo candidate to score live states in shadow mode; "
+                "the conservative heuristic still submits every command."
+            ),
+        ),
+    ] = None,
+    bible_snapshot: Annotated[
+        Path,
+        typer.Option(exists=True, dir_okay=False, readable=True),
+    ] = Path("data", "snapshots", "2026-09-07", "bible.json"),
     database: Annotated[
         Path,
-        typer.Option(help="Ignored local SQLite trajectory database."),
+        typer.Option(help="Local SQLite trajectory database."),
     ] = Path("runs", "godfield.sqlite"),
     team: Annotated[
         int,
@@ -360,7 +376,7 @@ def play_private_api_game(
         typer.Option(min=1.0, max=120.0, help="Per-request API timeout."),
     ] = 20.0,
 ) -> None:
-    """Enter the next private game and use only conservative verified actions."""
+    """Enter private games with conservative play and optional neural shadow scoring."""
 
     if not confirm_play:
         typer.echo("Refusing private game entry without --confirm-play", err=True)
@@ -391,7 +407,13 @@ def play_private_api_game(
                 password_file=password_file,
                 enter_match=True,
                 entry_team=team,
-                policy=ApiPolicyName.HEURISTIC,
+                policy=(
+                    ApiPolicyName.NEURAL_SHADOW
+                    if shadow_model is not None
+                    else ApiPolicyName.HEURISTIC
+                ),
+                model_directory=shadow_model,
+                bible_snapshot=bible_snapshot,
                 max_in_match_actions=max_actions,
                 max_seconds=max_seconds,
                 poll_seconds=poll_seconds,

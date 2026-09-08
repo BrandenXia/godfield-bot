@@ -98,6 +98,24 @@ normalized API state. When a curse makes card identity unsafe, the policy uses
 a verified curse cleanser when available and otherwise passes, preventing the
 bot from waiting forever on its own turn.
 
+Pass `--shadow-model models/<combo-candidate-id>` to `api play-private` to run
+the schema-v4 combo network on each covered two-player state without giving it
+live control. The conservative heuristic still submits every command. The run
+records the candidate's proposed card sequence, probabilities, value estimates,
+model checksum, behavior decision, accepted transition, and terminal reward:
+
+```console
+uv run godfield-bot api play-private --confirm-play --password-stdin \
+  --shadow-model models/4d4ecff5-45ed-4776-a0ef-2720d8204abe \
+  --max-seconds 0
+```
+
+Shadow inference accepts only candidate or champion models tied to the accepted
+Bible client and exact combo curriculum. It abstains on multiplayer, cursed,
+unknown-phase, or out-of-curriculum states and clears counterfactual recurrent
+memory whenever the conservative behavior differs from its proposal. See
+[ADR 0010](docs/architecture/0010-live-neural-shadow.md).
+
 Install the optional learning stack with `uv sync --extra training --group dev`.
 Install the native C++ curriculum simulator with
 `uv sync --extra simulation --extra training --group dev`. Its batch-first

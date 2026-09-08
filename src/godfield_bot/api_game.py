@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from enum import StrEnum
+from itertools import combinations
 from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 if TYPE_CHECKING:
     from godfield import Command, RoomState  # type: ignore[import-untyped]
+
+    from godfield_bot.domain.reference import BibleSnapshot
 
 
 class ApiGameStateError(RuntimeError):
@@ -33,6 +37,7 @@ class ApiItemState(BaseModel):
     instance_id: int | None = Field(default=None, gt=0)
     model_id: int | None = Field(default=None, gt=0)
     name: str | None = None
+    asset: str | None = None
     category: str | None = None
     element: str | None = None
     attack: int = Field(ge=0)
@@ -40,6 +45,7 @@ class ApiItemState(BaseModel):
     cost: int = Field(ge=0)
     ability: str | None = None
     used: bool
+    identity_reliable: bool = True
 
 
 class ApiPlayerState(BaseModel):
@@ -64,7 +70,7 @@ class ApiAttackState(BaseModel):
 
 
 class ApiGameState(BaseModel):
-    schema_version: int = 2
+    schema_version: int = 3
     observed_at: datetime
     mode: str = "private"
     update_count: int = Field(ge=0)
@@ -87,6 +93,17 @@ class ApiLegalAction(BaseModel):
     item_model_ids: tuple[int, ...] = ()
     target_player_id: int | None = Field(default=None, gt=0)
 
+    @model_validator(mode="after")
+    def command_shape_is_consistent(self) -> ApiLegalAction:
+        if self.kind is ApiActionKind.USE_ITEM:
+            if not self.item_instance_ids or len(self.item_instance_ids) != len(
+                self.item_model_ids
+            ):
+                raise ValueError("item action requires aligned instance and model IDs")
+        elif self.item_instance_ids or self.item_model_ids or self.target_player_id is not None:
+            raise ValueError("non-item action cannot contain item or target IDs")
+        return self
+
 
 class ApiLegalActionSet(BaseModel):
     schema_version: int = 1
@@ -95,9 +112,18 @@ class ApiLegalActionSet(BaseModel):
     coverage_complete: bool
     blocked_reason: str | None = None
 
+    @model_validator(mode="after")
+    def action_set_is_consistent(self) -> ApiLegalActionSet:
+        action_ids = [action.action_id for action in self.actions]
+        if len(action_ids) != len(set(action_ids)):
+            raise ValueError("API legal action IDs must be unique")
+        if not self.coverage_complete and not self.blocked_reason:
+            raise ValueError("incomplete API action coverage requires a blocked reason")
+        return self
+
 
 class ApiPolicyDecision(BaseModel):
-    schema_version: int = 1
+    schema_version: int = 2
     decided_at: datetime
     policy_id: str
     state_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
@@ -105,6 +131,31 @@ class ApiPolicyDecision(BaseModel):
     scores: dict[str, float]
     rationale: str
     executable: bool
+    model_id: str | None = None
+    model_weights_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
+    selection_action_indices: tuple[int, ...] = ()
+    selection_probabilities: tuple[float, ...] = ()
+    value_estimates: tuple[float, ...] = ()
+
+    @model_validator(mode="after")
+    def inference_trace_is_consistent(self) -> ApiPolicyDecision:
+        if self.chosen_action_id is not None and self.chosen_action_id not in self.scores:
+            raise ValueError("chosen API action requires a recorded score")
+        trace_lengths = {
+            len(self.selection_action_indices),
+            len(self.selection_probabilities),
+            len(self.value_estimates),
+        }
+        if trace_lengths != {0} and len(trace_lengths) != 1:
+            raise ValueError("neural selection trace fields must have equal lengths")
+        if trace_lengths != {0} and (
+            self.model_id is None or self.model_weights_sha256 is None
+        ):
+            raise ValueError("neural selection trace requires immutable model identity")
+        return self
 
 
 class ApiActionExecutionResult(BaseModel):
@@ -159,10 +210,16 @@ def _item_state(item: Any) -> ApiItemState:
     model_id = visible_model_id or true_model_id
     catalog = getattr(item, "_catalog", None)
     model = catalog.get(model_id) if catalog is not None and model_id is not None else None
+    raw_model = model.raw if model is not None and isinstance(model.raw, dict) else {}
     return ApiItemState(
         instance_id=_optional_positive_int(item.id, "item instance ID"),
         model_id=model_id,
         name=model.name if model is not None and isinstance(model.name, str) else None,
+        asset=(
+            raw_model.get("imageName")
+            if isinstance(raw_model.get("imageName"), str)
+            else None
+        ),
         category=(
             model.category if model is not None and isinstance(model.category, str) else None
         ),
@@ -172,6 +229,7 @@ def _item_state(item: Any) -> ApiItemState:
         cost=_nonnegative_int(model.cost if model is not None else 0, "item cost"),
         ability=model.ability if model is not None and isinstance(model.ability, str) else None,
         used=bool(item.used),
+        identity_reliable=not bool(item.fake_model_id),
     )
 
 
@@ -330,6 +388,7 @@ def verified_api_actions(room: RoomState, *, user_id: str) -> ApiLegalActionSet:
                 or item.fake_model_id
                 or has_curses
                 or model.category != "weapons"
+                or model.is_plus_atk
                 or not model.can_start_turn
                 or item.cost > me.mp
             ):
@@ -381,6 +440,171 @@ def verified_api_actions(room: RoomState, *, user_id: str) -> ApiLegalActionSet:
             "pygodfield verifies conservative single-card attacks, defenses, and "
             "curse removal; a cursed attack turn may always pass to preserve progress, while "
             "multi-card combinations, purchases, and unknown future effects remain excluded"
+        ),
+    )
+
+
+def verified_api_combo_actions(
+    room: RoomState,
+    *,
+    user_id: str,
+    bible_snapshot: BibleSnapshot,
+) -> ApiLegalActionSet:
+    """Extend the reviewed live surface with strict plain-card combinations.
+
+    The command protocol accepts several item IDs at once. This adapter only
+    exposes combinations represented by the native combo curriculum: one
+    effect-free base weapon followed by effect-free additive weapons, or two
+    or more independently compatible effect-free armor cards.
+    """
+
+    from godfield_bot.reference import (
+        plain_attack_booster_cards,
+        plain_attack_weapon_cards,
+        plain_defense_armor_cards,
+    )
+
+    conservative = verified_api_actions(room, user_id=user_id)
+    state = normalize_api_game_state(room, user_id=user_id)
+    game = room.game
+    if game is None:  # pragma: no cover - normalized above
+        raise ApiGameStateError("private room has no active game")
+    me = game.player_by_user(user_id)
+    if me is None:  # pragma: no cover - normalized above
+        raise ApiGameStateError("the API identity has no active player")
+
+    base_cards = plain_attack_weapon_cards(bible_snapshot)
+    booster_cards = plain_attack_booster_cards(bible_snapshot)
+    armor_cards = plain_defense_armor_cards(bible_snapshot)
+
+    def rule_matches(
+        model: Any,
+        rules: Mapping[str, tuple[int, str]],
+        *,
+        stat: str,
+    ) -> bool:
+        asset = model.raw.get("imageName")
+        expected = rules.get(asset)
+        if expected is None or model.ability is not None or model.cost != 0:
+            return False
+        expected_value, expected_element = expected
+        actual_element = model.element or "non-element"
+        return getattr(model, stat) == expected_value and actual_element == expected_element
+
+    def card_identity(item: Any) -> tuple[int, int, Any] | None:
+        instance_id = _optional_positive_int(item.id, "item instance ID")
+        model_id = _optional_positive_int(item.model_id, "item model ID")
+        model = item.model
+        if (
+            instance_id is None
+            or model_id is None
+            or item.fake_model_id
+            or model is None
+            or not isinstance(model.raw, dict)
+        ):
+            return None
+        return instance_id, model_id, model
+
+    actions = list(conservative.actions)
+    if state.phase is ApiPhase.TURN and not state.has_active_curses:
+        strict_bases: list[tuple[Any, tuple[int, int, Any]]] = []
+        strict_boosters: list[tuple[Any, tuple[int, int, Any]]] = []
+        for item in me.usable_items():
+            identity = card_identity(item)
+            if identity is None:
+                continue
+            model = identity[2]
+            if (
+                model.category == "weapons"
+                and model.can_start_turn
+                and rule_matches(model, base_cards, stat="atk")
+                and not model.is_plus_atk
+            ):
+                strict_bases.append((item, identity))
+            elif (
+                model.category == "weapons"
+                and rule_matches(model, booster_cards, stat="atk")
+                and model.is_plus_atk
+            ):
+                strict_boosters.append((item, identity))
+
+        for base, base_identity in strict_bases:
+            targets = game.opponents_of(me) if base_identity[2].needs_target else (None,)
+            for count in range(1, len(strict_boosters) + 1):
+                for selected_boosters in combinations(strict_boosters, count):
+                    selected = ((base, base_identity), *selected_boosters)
+                    if sum(item.cost for item, _identity in selected) > me.mp:
+                        continue
+                    instance_ids = tuple(identity[0] for _item, identity in selected)
+                    model_ids = tuple(identity[1] for _item, identity in selected)
+                    names = " + ".join(
+                        item.name or f"model {identity[1]}" for item, identity in selected
+                    )
+                    for target in targets:
+                        target_id = (
+                            _required_positive_int(target.id, "target player ID")
+                            if target is not None
+                            else None
+                        )
+                        ids = "-".join(str(value) for value in instance_ids)
+                        actions.append(
+                            ApiLegalAction(
+                                action_id=(
+                                    f"combo-attack:{ids}:"
+                                    f"{target_id if target_id is not None else 'untargeted'}"
+                                ),
+                                kind=ApiActionKind.USE_ITEM,
+                                label=f"Use {names}",
+                                item_instance_ids=instance_ids,
+                                item_model_ids=model_ids,
+                                target_player_id=target_id,
+                            )
+                        )
+    elif state.phase is ApiPhase.DEFENSE and not state.has_active_curses:
+        attack = game.pending_attack
+        if attack is None:  # pragma: no cover - normalized above
+            raise ApiGameStateError("defense phase has no pending attack")
+        strict_armor: list[tuple[Any, tuple[int, int, Any]]] = []
+        for item in me.defense_options(attack):
+            identity = card_identity(item)
+            if identity is None:
+                continue
+            model = identity[2]
+            if model.category == "armor" and rule_matches(
+                model,
+                armor_cards,
+                stat="def_",
+            ):
+                strict_armor.append((item, identity))
+        for count in range(2, len(strict_armor) + 1):
+            for selected in combinations(strict_armor, count):
+                if sum(item.cost for item, _identity in selected) > me.mp:
+                    continue
+                instance_ids = tuple(identity[0] for _item, identity in selected)
+                model_ids = tuple(identity[1] for _item, identity in selected)
+                ids = "-".join(str(value) for value in instance_ids)
+                names = " + ".join(
+                    item.name or f"model {identity[1]}" for item, identity in selected
+                )
+                actions.append(
+                    ApiLegalAction(
+                        action_id=f"combo-defense:{ids}",
+                        kind=ApiActionKind.USE_ITEM,
+                        label=f"Defend with {names}",
+                        item_instance_ids=instance_ids,
+                        item_model_ids=model_ids,
+                    )
+                )
+
+    return ApiLegalActionSet(
+        state_digest=conservative.state_digest,
+        actions=tuple(actions),
+        coverage_complete=False,
+        blocked_reason=(
+            "the reviewed surface includes conservative single-card actions and "
+            "strict plain base-plus-booster attacks or compatible armor combinations; "
+            "purchases, cursed combinations, resource prompts, and special effects remain "
+            "excluded"
         ),
     )
 

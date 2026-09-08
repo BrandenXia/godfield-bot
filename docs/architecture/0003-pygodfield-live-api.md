@@ -92,7 +92,7 @@ project-owned conservative action set: the strongest eligible single weapon on
 an attack turn, the weakest sufficient eligible single defense (falling back
 to the strongest), decline an unmodeled purchase, remove curses with the
 reviewed `removeAllCurses` action, or pass. Curse presence is explicit in API
-game-state schema v2 and therefore participates in state digests. A cursed
+game-state schema v3 (introduced in v2) and therefore participates in state digests. A cursed
 attack turn always retains pass as a verified progress action; this prevents a
 Dream-obscured or otherwise unsupported hand from deadlocking while the server
 waits on the bot. It submits at most once per observed state and never retries

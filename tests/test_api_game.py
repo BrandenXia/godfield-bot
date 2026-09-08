@@ -9,21 +9,83 @@ from godfield_bot.api_game import (
     command_for_api_action,
     normalize_api_game_state,
     verified_api_actions,
+    verified_api_combo_actions,
+)
+from godfield_bot.domain.reference import (
+    ArtifactCategory,
+    ArtifactRecord,
+    BibleSnapshot,
+    ClientFingerprint,
 )
 
 
 def catalog() -> ItemCatalog:
     return ItemCatalog(
         [
-            {"name": "Club", "category": "weapons", "atk": 5},
-            {"name": "Shield", "category": "armor", "def": 5},
-            {"name": "Fire Shield", "category": "armor", "def": 5, "element": "fire"},
+            {"name": "Club", "imageName": "club", "category": "weapons", "atk": 5},
+            {"name": "Shield", "imageName": "shield", "category": "armor", "def": 5},
+            {
+                "name": "Fire Shield",
+                "imageName": "fire-shield",
+                "category": "armor",
+                "def": 5,
+                "element": "fire",
+            },
             {
                 "name": "Heart Shell",
                 "category": "sundries",
                 "ability": "removeAllCurses",
             },
+            {
+                "name": "Blowgun",
+                "imageName": "blowgun",
+                "category": "weapons",
+                "atk": 1,
+                "isPlusAtk": True,
+            },
         ]
+    )
+
+
+def combo_bible() -> BibleSnapshot:
+    return BibleSnapshot(
+        observed_at=datetime.now(UTC),
+        source_url="https://godfield.net/",
+        language="en",
+        client=ClientFingerprint(url="https://godfield.net/main.dart.js", sha256="a" * 64),
+        reference_sections={},
+        catalog={
+            "weapons": ArtifactCategory(
+                items=(
+                    ArtifactRecord(
+                        asset="club",
+                        image_path="/images/items/weapons/club.webp",
+                        detail=("Club", "ATK5", "$1", "Gift Rate: 1/500"),
+                    ),
+                    ArtifactRecord(
+                        asset="blowgun",
+                        image_path="/images/items/weapons/blowgun.webp",
+                        detail=("Blowgun", "+ATK1", "$1", "Gift Rate: 1/500"),
+                    ),
+                )
+            ),
+            "armor": ArtifactCategory(
+                items=(
+                    ArtifactRecord(
+                        asset="shield",
+                        image_path="/images/items/armor/shield.webp",
+                        detail=("Shield", "DEF5", "$1", "Gift Rate: 1/500"),
+                    ),
+                    ArtifactRecord(
+                        asset="fire-shield",
+                        image_path="/images/items/armor/fire-shield.webp",
+                        detail=("Fire Shield", "DEF5", "$1", "Gift Rate: 1/500"),
+                        element_image_paths=("/images/elements/fire.webp",),
+                    ),
+                )
+            ),
+        },
+        total_artifacts=4,
     )
 
 
@@ -90,9 +152,11 @@ def test_normalization_keeps_only_self_hand_card_identities() -> None:
     assert state.phase is ApiPhase.TURN
     assert state.observed_at == observed_at
     assert state.self_player_id == 1
-    assert state.schema_version == 2
+    assert state.schema_version == 3
     assert state.has_active_curses is False
     assert [item.instance_id for item in state.hand] == [11, 12]
+    assert [item.asset for item in state.hand] == ["club", "shield"]
+    assert all(item.identity_reliable for item in state.hand)
     assert state.players[1].hand_count == 1
     serialized = state.model_dump_json()
     assert '"instance_id":99' not in serialized
@@ -113,6 +177,91 @@ def test_turn_actions_use_only_safe_single_weapons_and_named_targets() -> None:
     assert command_for_api_action(attack).to_dict() == {
         "itemIds": [11],
         "targetPlayerId": 2,
+    }
+
+
+def test_combo_actions_expose_only_base_plus_booster_macros() -> None:
+    room = room_state(
+        self_items=[
+            {"id": 11, "modelId": 1},
+            {"id": 15, "modelId": 5},
+        ]
+    )
+
+    conservative = verified_api_actions(room, user_id="loki-user")
+    actions = verified_api_combo_actions(
+        room,
+        user_id="loki-user",
+        bible_snapshot=combo_bible(),
+    )
+
+    assert [action.action_id for action in conservative.actions] == [
+        "pass",
+        "use:11:1:2",
+    ]
+    assert [action.action_id for action in actions.actions] == [
+        "pass",
+        "use:11:1:2",
+        "combo-attack:11-15:2",
+    ]
+    combo = actions.actions[-1]
+    assert combo.item_instance_ids == (11, 15)
+    assert command_for_api_action(combo).to_dict() == {
+        "itemIds": [11, 15],
+        "targetPlayerId": 2,
+    }
+
+
+def test_combo_actions_fail_closed_when_api_stats_differ_from_bible() -> None:
+    room = room_state(
+        self_items=[
+            {"id": 11, "modelId": 1},
+            {"id": 15, "modelId": 5},
+        ]
+    )
+    room._catalog.get(5).raw["atk"] = 2
+
+    actions = verified_api_combo_actions(
+        room,
+        user_id="loki-user",
+        bible_snapshot=combo_bible(),
+    )
+
+    assert [action.action_id for action in actions.actions] == [
+        "pass",
+        "use:11:1:2",
+    ]
+
+
+def test_combo_actions_expose_compatible_multi_armor_macro() -> None:
+    room = room_state(
+        attacks=[
+            {
+                "playerId": 2,
+                "targetPlayerId": 1,
+                "itemModelIds": [1],
+            }
+        ],
+        self_items=[
+            {"id": 12, "modelId": 2},
+            {"id": 13, "modelId": 3},
+        ],
+    )
+
+    actions = verified_api_combo_actions(
+        room,
+        user_id="loki-user",
+        bible_snapshot=combo_bible(),
+    )
+
+    assert [action.action_id for action in actions.actions] == [
+        "pass",
+        "defend:12:2",
+        "defend:13:3",
+        "combo-defense:12-13",
+    ]
+    assert command_for_api_action(actions.actions[-1]).to_dict() == {
+        "itemIds": [12, 13]
     }
 
 
@@ -152,6 +301,7 @@ def test_disguised_cards_never_expose_or_act_on_the_true_model() -> None:
     assert state.hand[0].model_id == 3
     assert state.hand[0].name == "Fire Shield"
     assert state.hand[0].category == "armor"
+    assert state.hand[0].identity_reliable is False
     assert "Club" not in state.model_dump_json()
     assert [action.action_id for action in actions.actions] == ["pass"]
 

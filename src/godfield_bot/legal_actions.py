@@ -8,8 +8,10 @@ from godfield_bot.domain.observation import ScreenKind, ScreenObservation
 
 NEUTRAL_TEXT_COLOR = "rgb(79, 79, 79)"
 WEAPON_ASSET_PATTERN = re.compile(r"^/images/items/weapons/([^/]+)\.(?:png|svg|webp)$")
+MIRACLE_ASSET_PATTERN = re.compile(r"^/images/items/miracles/([^/]+)\.(?:png|svg|webp)$")
 ARMOR_ASSET_PATTERN = re.compile(r"^/images/items/armor/([^/]+)\.(?:png|svg|webp)$")
 ITEM_ASSET_PATTERN = re.compile(r"^/images/items/[^/]+/[^/]+\.(?:png|svg|webp)$")
+PROBABILISTIC_ATTACK_PATTERN = re.compile(r"^\d+%ATK(\d+)$")
 
 
 def game_state_digest(state: GameState) -> str:
@@ -38,7 +40,8 @@ def verified_browser_actions(
     state: GameState,
     observation: ScreenObservation,
     *,
-    verified_weapon_attacks: Mapping[str, int] | None = None,
+    verified_weapon_attacks: Mapping[str, tuple[str, float]] | None = None,
+    verified_miracle_attacks: Mapping[str, tuple[int, int, str]] | None = None,
     plain_armor_defenses: Mapping[str, int] | None = None,
 ) -> LegalActionSet:
     """Expose only semantic in-match controls verified in the current DOM."""
@@ -64,9 +67,7 @@ def verified_browser_actions(
         and image.hit_target_bounds is None
     )
     incoming_context_assets = observed_action_assets or (
-        (state.action_artifact_asset_path,)
-        if state.action_artifact_asset_path is not None
-        else ()
+        (state.action_artifact_asset_path,) if state.action_artifact_asset_path is not None else ()
     )
     self_attack_selection = (
         state.action_actor == self_player.name and state.action_display == "Pray"
@@ -77,8 +78,7 @@ def verified_browser_actions(
         and state.action_target == self_player.name
     )
     self_incoming_targeted_effect = (
-        self_targeted_interaction
-        and state.action_artifact_asset_path is not None
+        self_targeted_interaction and state.action_artifact_asset_path is not None
     )
     self_incoming_response = (
         self_targeted_interaction
@@ -102,11 +102,36 @@ def verified_browser_actions(
         if state.action_artifact_asset_path is not None
         else None
     )
-    selected_weapon_attack = (
+    selected_weapon_rule = (
         (verified_weapon_attacks or {}).get(selected_weapon.group(1))
         if selected_weapon is not None
         else None
     )
+    selected_miracle = (
+        MIRACLE_ASSET_PATTERN.fullmatch(state.action_artifact_asset_path)
+        if state.action_artifact_asset_path is not None
+        else None
+    )
+    selected_miracle_rule = (
+        (verified_miracle_attacks or {}).get(selected_miracle.group(1))
+        if selected_miracle is not None
+        else None
+    )
+    selected_attack_slug = (
+        selected_weapon.group(1)
+        if selected_weapon is not None and selected_weapon_rule is not None
+        else selected_miracle.group(1)
+        if selected_miracle is not None and selected_miracle_rule is not None
+        else None
+    )
+    selected_attack_displays: tuple[str, ...] = ()
+    if selected_weapon_rule is not None:
+        selected_attack_displays = (selected_weapon_rule[0],)
+        chance = PROBABILISTIC_ATTACK_PATTERN.fullmatch(selected_weapon_rule[0])
+        if chance is not None:
+            selected_attack_displays += (f"ATK{chance.group(1)}",)
+    elif selected_miracle_rule is not None and selected_miracle_rule[1] <= self_player.mp:
+        selected_attack_displays = (f"ATK{selected_miracle_rule[0]}",)
     selected_armor = (
         ARMOR_ASSET_PATTERN.fullmatch(state.phase_artifact_asset_path)
         if state.phase_artifact_asset_path is not None
@@ -117,13 +142,22 @@ def verified_browser_actions(
         if selected_armor is not None
         else None
     )
-    self_plain_weapon_confirmation = (
+    self_fixed_attack_confirmation = (
         len(living_opponents) == 1
         and state.action_actor == self_player.name
         and state.action_target == living_opponents[0][1].name
-        and selected_weapon_attack is not None
-        and state.action_display == f"ATK{selected_weapon_attack}"
-        and state.action_display_color == NEUTRAL_TEXT_COLOR
+        and selected_attack_slug is not None
+        and state.action_display in selected_attack_displays
+        and state.action_hit_target_bounds is not None
+    )
+    self_chance_confirmation = (
+        len(living_opponents) == 1
+        and state.action_actor == self_player.name
+        and state.action_target is None
+        and selected_weapon is not None
+        and selected_weapon_rule is not None
+        and PROBABILISTIC_ATTACK_PATTERN.fullmatch(selected_weapon_rule[0]) is not None
+        and state.action_display == selected_weapon_rule[0]
         and state.action_hit_target_bounds is not None
     )
     self_plain_armor_confirmation = (
@@ -133,7 +167,26 @@ def verified_browser_actions(
         and state.phase_control_hit_target_bounds is not None
     )
     if self_attack_selection:
-        candidates = [artifact for artifact in state.hand if artifact.category == "weapons"]
+        candidates = [
+            artifact
+            for artifact in state.hand
+            if artifact.category == "weapons"
+            or (
+                artifact.category == "miracles"
+                and (rule := (verified_miracle_attacks or {}).get(artifact.slug)) is not None
+                and rule[1] <= self_player.mp
+            )
+        ]
+        if not any(artifact.category == "weapons" for artifact in state.hand):
+            actions.append(
+                LegalAction(
+                    action_id="pass",
+                    kind=ActionKind.PASS,
+                    label="Confirm an empty Pray action with no weapons in hand",
+                    actor_player_name=self_player.name,
+                    control_panel="left",
+                )
+            )
     elif self_neutral_defense and state.phase_control == "Forgive":
         candidates = [artifact for artifact in state.hand if artifact.category == "armor"]
     else:
@@ -149,16 +202,29 @@ def verified_browser_actions(
             )
             for artifact in candidates
         )
-    if self_plain_weapon_confirmation and selected_weapon is not None:
+    if self_fixed_attack_confirmation and selected_attack_slug is not None:
         target_index, target = living_opponents[0]
         actions.append(
             LegalAction(
-                action_id=f"confirm:attack:{selected_weapon.group(1)}:{target_index}:{target.name}",
+                action_id=f"confirm:attack:{selected_attack_slug}:{target_index}:{target.name}",
                 kind=ActionKind.CONFIRM,
                 label=f"Confirm the selected attack on {target.name}",
                 artifact_asset_path=state.action_artifact_asset_path,
                 target_player_index=target_index,
                 target_player_name=target.name,
+                control_panel="left",
+            )
+        )
+    if self_chance_confirmation and selected_weapon is not None:
+        slug = selected_weapon.group(1)
+        actions.append(
+            LegalAction(
+                action_id=f"confirm:chance:{slug}",
+                kind=ActionKind.CONFIRM_CHANCE,
+                label=f"Resolve the selected chance attack {slug}",
+                artifact_asset_path=state.action_artifact_asset_path,
+                actor_player_name=self_player.name,
+                expected_action_display=state.action_display,
                 control_panel="left",
             )
         )
@@ -195,8 +261,8 @@ def verified_browser_actions(
         actions=tuple(actions),
         coverage_complete=False,
         blocked_reason=(
-            "only verified fixed-attack weapon selection and confirmation, incoming-effect "
-            "or targeted-interaction Forgive, and neutral plain-armor selection and "
-            "confirmation are supported"
+            "only verified one-click weapon or fixed miracle selection and confirmation, "
+            "weapon-free Pray, incoming-effect or targeted-interaction Forgive, and neutral "
+            "plain-armor selection and confirmation are supported"
         ),
     )

@@ -9,9 +9,11 @@ from godfield_bot.domain.game import GameState
 
 class ActionKind(StrEnum):
     WAIT = "wait"
+    PASS = "pass"
     SELECT_ARTIFACT = "select_artifact"
     SELECT_TARGET = "select_target"
     FORGIVE = "forgive"
+    CONFIRM_CHANCE = "confirm_chance"
     CONFIRM = "confirm"
     CANCEL = "cancel"
 
@@ -26,6 +28,8 @@ class LegalAction(BaseModel):
     target_player_name: str | None = None
     control_panel: Literal["left", "right"] | None = None
     context_asset_paths: tuple[str, ...] = ()
+    actor_player_name: str | None = None
+    expected_action_display: str | None = None
 
     @model_validator(mode="after")
     def artifact_selection_has_identity(self) -> "LegalAction":
@@ -51,6 +55,25 @@ class LegalAction(BaseModel):
             or self.control_panel is None
         ):
             raise ValueError("phase completion requires artifact, target, and panel identities")
+        if self.kind is ActionKind.PASS and (
+            not self.actor_player_name
+            or self.control_panel != "left"
+            or self.artifact_asset_path is not None
+            or self.target_player_index is not None
+            or self.target_player_name is not None
+        ):
+            raise ValueError("pass requires the verified actor and empty left panel")
+        if self.kind is ActionKind.CONFIRM_CHANCE and (
+            self.artifact_asset_path is None
+            or not self.actor_player_name
+            or not self.expected_action_display
+            or self.control_panel != "left"
+            or self.target_player_index is not None
+            or self.target_player_name is not None
+        ):
+            raise ValueError(
+                "chance confirmation requires artifact, actor, display, and empty target"
+            )
         return self
 
 

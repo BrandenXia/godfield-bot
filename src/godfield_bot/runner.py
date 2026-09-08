@@ -19,6 +19,7 @@ from godfield_bot.domain.game import GameState
 from godfield_bot.domain.observation import ScreenKind, ScreenObservation
 from godfield_bot.domain.outcome import MatchOutcome, SparseTerminalReward
 from godfield_bot.domain.run import EventKind, RunMode, RunRecord, RunSpec, RunStatus
+from godfield_bot.elements import CombatElement
 from godfield_bot.executor import execute_action
 from godfield_bot.game_state import GameStateParseError, parse_game_state
 from godfield_bot.legal_actions import game_state_digest, verified_browser_actions
@@ -52,7 +53,10 @@ class TrainingRunConfig(BaseModel):
     screenshot_directory: Path | None = None
     policy: RunnerPolicyName = RunnerPolicyName.SAFE_OBSERVER
     max_in_match_actions: int = Field(default=0, ge=0, le=100)
-    verified_weapon_attacks: dict[str, int] = Field(default_factory=dict)
+    verified_weapon_attacks: dict[str, tuple[str, float]] = Field(default_factory=dict)
+    verified_miracle_attacks: dict[str, tuple[int, int, CombatElement]] = Field(
+        default_factory=dict
+    )
     plain_armor_defenses: dict[str, int] = Field(default_factory=dict)
 
     @model_validator(mode="after")
@@ -64,6 +68,27 @@ class TrainingRunConfig(BaseModel):
         ):
             raise ValueError("heuristic-v0 requires Bible-audited artifact values")
         return self
+
+
+class TrainingCampaignConfig(BaseModel):
+    """Repeat isolated official-CPU games while preserving one run per episode."""
+
+    game: TrainingRunConfig
+    max_games: int = Field(default=0, ge=0, le=100_000)
+    restart_delay_seconds: float = Field(default=2.0, ge=0.0, le=60.0)
+
+
+class TrainingCampaignSummary(BaseModel):
+    schema_version: int = 1
+    max_games: int = Field(ge=0)
+    games_started: int = Field(ge=0)
+    games_completed: int = Field(ge=0)
+    wins: int = Field(ge=0)
+    losses: int = Field(ge=0)
+    draws: int = Field(ge=0)
+    run_ids: tuple[str, ...]
+    stop_reason: str
+    last_run_status: RunStatus
 
 
 class RunnerError(RuntimeError):
@@ -143,6 +168,9 @@ def _record_policy_state(
         plain_armor_defenses=(
             policy.plain_armor_defenses if isinstance(policy, HeuristicV0Policy) else None
         ),
+        verified_miracle_attacks=(
+            policy.verified_miracle_attacks if isinstance(policy, HeuristicV0Policy) else None
+        ),
     )
     decision = policy.decide(state, legal_actions)
     chosen_actions = [
@@ -200,13 +228,18 @@ def build_action_transition(
 
 def _policy_from_name(
     name: RunnerPolicyName,
-    verified_weapon_attacks: dict[str, int],
+    verified_weapon_attacks: dict[str, tuple[str, float]],
+    verified_miracle_attacks: dict[str, tuple[int, int, CombatElement]],
     plain_armor_defenses: dict[str, int],
 ) -> Policy:
     if name is RunnerPolicyName.SAFE_OBSERVER:
         return SafeObserverPolicy()
     if name is RunnerPolicyName.HEURISTIC_V0:
-        return HeuristicV0Policy(verified_weapon_attacks, plain_armor_defenses)
+        return HeuristicV0Policy(
+            verified_weapon_attacks,
+            plain_armor_defenses,
+            verified_miracle_attacks,
+        )
     raise RunnerError(f"unsupported policy: {name}")
 
 
@@ -220,6 +253,7 @@ async def run_training_observer(
     policy = _policy_from_name(
         config.policy,
         config.verified_weapon_attacks,
+        config.verified_miracle_attacks,
         config.plain_armor_defenses,
     )
     store = RunStore(config.database)
@@ -460,3 +494,58 @@ async def run_training_observer(
             "in_match_actions": in_match_actions,
         },
     )
+
+
+async def run_training_campaign(
+    settings: AppSettings,
+    config: TrainingCampaignConfig,
+) -> TrainingCampaignSummary:
+    """Play official Training computers until the game limit or first anomaly."""
+
+    run_ids: list[str] = []
+    outcomes = {"win": 0, "loss": 0, "draw": 0}
+    games_completed = 0
+    while True:
+        run = await run_training_observer(settings, config.game)
+        run_ids.append(run.run_id)
+        outcome_reason = (
+            str(run.outcome.get("reason", "unknown")) if run.outcome is not None else "unknown"
+        )
+        log.info(
+            "training_campaign_game_finished",
+            run_id=run.run_id,
+            status=run.status.value,
+            outcome_reason=outcome_reason,
+            games_started=len(run_ids),
+        )
+        if run.status is not RunStatus.COMPLETED:
+            return TrainingCampaignSummary(
+                max_games=config.max_games,
+                games_started=len(run_ids),
+                games_completed=games_completed,
+                wins=outcomes["win"],
+                losses=outcomes["loss"],
+                draws=outcomes["draw"],
+                run_ids=tuple(run_ids),
+                stop_reason=f"{run.status.value}:{outcome_reason}",
+                last_run_status=run.status,
+            )
+        result = run.outcome.get("result") if run.outcome is not None else None
+        if not isinstance(result, str) or result not in outcomes:
+            raise RunnerError("completed Training run has no classified result")
+        outcomes[result] += 1
+        games_completed += 1
+        if config.max_games != 0 and games_completed >= config.max_games:
+            return TrainingCampaignSummary(
+                max_games=config.max_games,
+                games_started=len(run_ids),
+                games_completed=games_completed,
+                wins=outcomes["win"],
+                losses=outcomes["loss"],
+                draws=outcomes["draw"],
+                run_ids=tuple(run_ids),
+                stop_reason="game_limit",
+                last_run_status=run.status,
+            )
+        if config.restart_delay_seconds > 0:
+            await asyncio.sleep(config.restart_delay_seconds)

@@ -128,6 +128,27 @@ models their state transitions. See
 [ADR 0010](docs/architecture/0010-live-neural-shadow.md) and
 [ADR 0011](docs/architecture/0011-live-tactical-behavior.md).
 
+God Field's official Training computer runs inside the web client rather than
+the server-side API. `play-training` therefore drives the official browser in
+headless mode by default while keeping policy inference, evidence storage, and
+campaign control in Python. It preserves one append-only run per game so every
+terminal reward remains a valid replay episode. `--max-games 0` continues
+through completed games and stops on the first aborted or failed run, making
+the first unsupported state easy to inspect:
+
+```console
+PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot play-training \
+  --headless \
+  --max-games 0 \
+  --max-actions 100 \
+  --no-progress-seconds 60
+```
+
+Use `--headed` to watch the official client. Each game is stored separately in
+`runs/godfield.sqlite`; a campaign summary reports its run IDs and aggregate
+wins, losses, and draws. See
+[ADR 0012](docs/architecture/0012-official-training-campaign.md).
+
 Install the optional learning stack with `uv sync --extra training --group dev`.
 Install the native C++ curriculum simulator with
 `uv sync --extra simulation --extra training --group dev`. Its batch-first
@@ -150,13 +171,16 @@ loss `-1`, or draw `0`. Intermediate HP, resource, and field deltas remain
 diagnostics and never become shaped rewards.
 
 The default `safe-observer-v0` remains observation-only. The explicitly chosen
-`heuristic-v0` path can select the strongest Bible-verified fixed-attack weapon
-and confirm it against an already named sole opponent. The attack allowlist
-contains 32 icon-verified neutral weapons: 18 plain weapons, six whose extra
-effect is passive Bounce, Reflect, or Block behavior, seven whose on-damage
-effect resolves without another choice, and the live-verified neutral
-Legendary Scabbard. Random, multi-hit, elemental, resource-consuming, and
-self-damaging weapons remain excluded.
+`heuristic-v0` path can select the highest-expected-damage Bible-verified
+one-click weapon and confirm it against an already named sole opponent. The
+browser allowlist contains 80 exact-display attacks: 63 fixed attacks across
+all seven elements and 17 probabilistic attacks whose chance roll requires no
+player choice. Chance attacks use a separately validated untargeted resolution
+step before any named-target confirmation. Six fixed-damage, single-element
+miracles are also available when their exact MP cost is affordable. Empty
+Prayer is allowed only when the hand contains no weapon, matching the live
+client's rejection rule. Additive boosters, multi-hit, resource-consuming,
+state-dependent, and self-damaging weapons remain excluded.
 It can also Forgive a targeted incoming interaction after revalidating every
 visible context artifact, and select plain armor during a verified neutral
 defense before confirming that armor in its response panel. Every browser

@@ -213,6 +213,71 @@ async def click_player_target(page: Page, *, player_index: int, player_name: str
     await target.click(force=True)
 
 
+async def click_empty_action_panel(page: Page, *, actor_name: str) -> None:
+    """Confirm an empty Pray action after revalidating its actor and left panel."""
+
+    descriptor = cast(
+        dict[str, Any] | None,
+        await page.evaluate(
+            """
+            (wantedActor) => {
+              const rendered = (element) => {
+                const style = getComputedStyle(element);
+                const rect = element.getBoundingClientRect();
+                return style.display !== 'none' && style.visibility !== 'hidden' &&
+                  rect.width > 0 && rect.height > 0;
+              };
+              const spans = [...document.querySelectorAll('span')].filter(rendered);
+              const actors = spans.filter((element) => {
+                const rect = element.getBoundingClientRect();
+                return element.innerText.trim() === wantedActor &&
+                  rect.x >= 100 && rect.x <= 450 && rect.y >= 40 && rect.y <= 80;
+              });
+              const pray = spans.filter((element) => {
+                const rect = element.getBoundingClientRect();
+                return element.innerText.trim() === 'Pray' &&
+                  rect.x >= 100 && rect.x <= 450 && rect.y >= 390 && rect.y <= 450;
+              });
+              const selectedItems = [...document.querySelectorAll('img[src*="/images/items/"]')]
+                .filter((element) => {
+                  if (!rendered(element)) return false;
+                  const rect = element.getBoundingClientRect();
+                  return rect.x >= 100 && rect.x <= 450 && rect.y >= 80 && rect.y <= 300 &&
+                    rect.width >= 60 && rect.width <= 100 &&
+                    rect.height >= 60 && rect.height <= 100;
+                });
+              if (actors.length !== 1 || pray.length !== 1 || selectedItems.length !== 0) {
+                return null;
+              }
+              const allDivs = [...document.querySelectorAll('div')];
+              const candidates = allDivs.filter((element) => {
+                if (!rendered(element) || getComputedStyle(element).cursor !== 'pointer') {
+                  return false;
+                }
+                const rect = element.getBoundingClientRect();
+                const parentCursor = element.parentElement
+                  ? getComputedStyle(element.parentElement).cursor
+                  : '';
+                return parentCursor !== 'pointer' && element.innerText.trim() === '' &&
+                  rect.x >= 100 && rect.x <= 150 && rect.y >= 80 && rect.y <= 120 &&
+                  rect.width >= 250 && rect.width <= 350 &&
+                  rect.height >= 250 && rect.height <= 350;
+              });
+              if (candidates.length !== 1) return null;
+              return {domIndex: allDivs.indexOf(candidates[0])};
+            }
+            """,
+            actor_name,
+        ),
+    )
+    if descriptor is None:
+        raise BrowserContractError("empty Pray action no longer matches the verified left panel")
+    target = page.locator("div").nth(cast(int, descriptor["domIndex"]))
+    if not await target.is_visible():
+        raise BrowserContractError("unique visible empty-action hit target was not found")
+    await target.click(force=True)
+
+
 async def click_phase_control(
     page: Page,
     *,
@@ -389,4 +454,80 @@ async def click_action_panel(
     target = page.locator("div").nth(cast(int, descriptor["domIndex"]))
     if not await target.is_visible():
         raise BrowserContractError("unique visible action-panel hit target was not found")
+    await target.click(force=True)
+
+
+async def click_chance_panel(
+    page: Page,
+    *,
+    asset_path: str,
+    actor_name: str,
+    action_display: str,
+) -> None:
+    """Resolve an untargeted chance attack after revalidating its exact left panel."""
+
+    descriptor = cast(
+        dict[str, Any] | None,
+        await page.evaluate(
+            """
+            ({wantedPath, wantedActor, wantedDisplay}) => {
+              const rendered = (element) => {
+                const style = getComputedStyle(element);
+                const rect = element.getBoundingClientRect();
+                return style.display !== 'none' && style.visibility !== 'hidden' &&
+                  rect.width > 0 && rect.height > 0;
+              };
+              const selected = [...document.querySelectorAll('img')].filter((element) => {
+                if (!rendered(element) || new URL(element.src).pathname !== wantedPath) {
+                  return false;
+                }
+                const rect = element.getBoundingClientRect();
+                return rect.x >= 100 && rect.x <= 200 && rect.y >= 80 && rect.y <= 200 &&
+                  rect.width >= 60 && rect.width <= 100 &&
+                  rect.height >= 60 && rect.height <= 100;
+              });
+              const spans = [...document.querySelectorAll('span')].filter(rendered);
+              const actors = spans.filter((element) => {
+                const rect = element.getBoundingClientRect();
+                return element.innerText.trim() === wantedActor &&
+                  rect.x >= 100 && rect.x <= 450 && rect.y >= 40 && rect.y <= 80;
+              });
+              const displays = spans.filter((element) => {
+                const rect = element.getBoundingClientRect();
+                return element.innerText.trim() === wantedDisplay &&
+                  rect.x >= 100 && rect.x <= 450 && rect.y >= 390 && rect.y <= 450;
+              });
+              if (selected.length !== 1 || actors.length !== 1 || displays.length !== 1) {
+                return null;
+              }
+              const allDivs = [...document.querySelectorAll('div')];
+              const candidates = allDivs.filter((element) => {
+                if (!rendered(element) || getComputedStyle(element).cursor !== 'pointer') {
+                  return false;
+                }
+                const rect = element.getBoundingClientRect();
+                const parentCursor = element.parentElement
+                  ? getComputedStyle(element.parentElement).cursor
+                  : '';
+                return parentCursor !== 'pointer' && element.innerText.trim() === '' &&
+                  rect.x >= 100 && rect.x <= 150 && rect.y >= 80 && rect.y <= 120 &&
+                  rect.width >= 250 && rect.width <= 350 &&
+                  rect.height >= 250 && rect.height <= 350;
+              });
+              if (candidates.length !== 1) return null;
+              return {domIndex: allDivs.indexOf(candidates[0])};
+            }
+            """,
+            {
+                "wantedPath": asset_path,
+                "wantedActor": actor_name,
+                "wantedDisplay": action_display,
+            },
+        ),
+    )
+    if descriptor is None:
+        raise BrowserContractError("chance attack no longer matches the verified left panel")
+    target = page.locator("div").nth(cast(int, descriptor["domIndex"]))
+    if not await target.is_visible():
+        raise BrowserContractError("unique visible chance-attack hit target was not found")
     await target.click(force=True)

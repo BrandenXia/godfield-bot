@@ -35,7 +35,8 @@ from godfield_bot.reference import (
     diff_bible_snapshots,
     plain_defense_armor_values,
     refresh_bible,
-    verified_attack_weapon_values,
+    verified_attack_miracle_cards,
+    verified_browser_weapon_attacks,
     write_snapshot,
 )
 from godfield_bot.replay import ReplayExportError, export_replay_jsonl
@@ -43,7 +44,9 @@ from godfield_bot.run_store import RunStore, RunStoreError
 from godfield_bot.runner import (
     RunnerError,
     RunnerPolicyName,
+    TrainingCampaignConfig,
     TrainingRunConfig,
+    run_training_campaign,
     run_training_observer,
 )
 
@@ -555,7 +558,7 @@ def run_bot(
     ] = None,
     policy: Annotated[
         RunnerPolicyName,
-        typer.Option(help="Policy; heuristic-v0 uses only verified plain-card Training actions."),
+        typer.Option(help="Policy; heuristic-v0 uses only Bible-audited Training actions."),
     ] = RunnerPolicyName.SAFE_OBSERVER,
     max_actions: Annotated[
         int,
@@ -583,7 +586,8 @@ def run_bot(
                     screenshot_directory=screenshot_directory,
                     policy=policy,
                     max_in_match_actions=max_actions,
-                    verified_weapon_attacks=verified_attack_weapon_values(bible),
+                    verified_weapon_attacks=verified_browser_weapon_attacks(bible),
+                    verified_miracle_attacks=verified_attack_miracle_cards(bible),
                     plain_armor_defenses=plain_defense_armor_values(bible),
                 ),
             )
@@ -601,6 +605,107 @@ def run_bot(
     typer.echo(result.model_dump_json(indent=2))
     if result.status is RunStatus.FAILED:
         raise typer.Exit(code=1)
+
+
+@app.command("play-training")
+def play_official_training_computers(
+    snapshot: Annotated[
+        Path,
+        typer.Option(exists=True, dir_okay=False, readable=True),
+    ] = Path("data", "snapshots", "2026-09-07", "bible.json"),
+    database: Annotated[
+        Path,
+        typer.Option(help="Local SQLite trajectory database."),
+    ] = Path("runs", "godfield.sqlite"),
+    headed: Annotated[
+        bool,
+        typer.Option("--headed/--headless", help="Show or hide the official browser client."),
+    ] = False,
+    max_games: Annotated[
+        int,
+        typer.Option(
+            min=0,
+            max=100_000,
+            help="Completed official-CPU games; 0 continues until an anomaly or interruption.",
+        ),
+    ] = 0,
+    max_seconds: Annotated[
+        float,
+        typer.Option(min=10.0, max=3600.0, help="Maximum time for each Training game."),
+    ] = 3600.0,
+    room_timeout_seconds: Annotated[
+        float,
+        typer.Option(min=5.0, max=300.0, help="Maximum wait for a Training computer."),
+    ] = 60.0,
+    poll_seconds: Annotated[
+        float,
+        typer.Option(min=0.25, max=10.0, help="Seconds between stable observations."),
+    ] = 2.0,
+    no_progress_seconds: Annotated[
+        float,
+        typer.Option(
+            min=10.0,
+            max=600.0,
+            help="Stop the campaign on this many seconds without normalized progress.",
+        ),
+    ] = 60.0,
+    restart_delay_seconds: Annotated[
+        float,
+        typer.Option(min=0.0, max=60.0, help="Delay between completed Training games."),
+    ] = 2.0,
+    screenshot_directory: Annotated[
+        Path | None,
+        typer.Option(help="Optional owner-only screenshots for changed game states."),
+    ] = None,
+    max_actions: Annotated[
+        int,
+        typer.Option(min=1, max=100, help="Hard browser-click budget for each game."),
+    ] = 100,
+) -> None:
+    """Continuously play God Field's official browser-local Training computer."""
+
+    from godfield_bot.domain.reference import BibleSnapshot
+    from godfield_bot.domain.run import RunStatus
+
+    try:
+        bible = BibleSnapshot.model_validate_json(snapshot.read_text(encoding="utf-8"))
+        summary = asyncio.run(
+            run_training_campaign(
+                AppSettings(),
+                TrainingCampaignConfig(
+                    game=TrainingRunConfig(
+                        database=database,
+                        expected_client_sha256=bible.client.sha256,
+                        headed=headed,
+                        max_seconds=max_seconds,
+                        room_timeout_seconds=room_timeout_seconds,
+                        poll_seconds=poll_seconds,
+                        no_progress_seconds=no_progress_seconds,
+                        screenshot_directory=screenshot_directory,
+                        policy=RunnerPolicyName.HEURISTIC_V0,
+                        max_in_match_actions=max_actions,
+                        verified_weapon_attacks=verified_browser_weapon_attacks(bible),
+                        verified_miracle_attacks=verified_attack_miracle_cards(bible),
+                        plain_armor_defenses=plain_defense_armor_values(bible),
+                    ),
+                    max_games=max_games,
+                    restart_delay_seconds=restart_delay_seconds,
+                ),
+            )
+        )
+    except KeyboardInterrupt:
+        typer.echo("Official Training campaign interrupted by operator", err=True)
+        raise typer.Exit(code=130) from None
+    except (OSError, ValueError, RunnerError, ProfileStorageError, PlaywrightError) as error:
+        structlog.get_logger().error(
+            "training_campaign_failed_before_summary",
+            error_type=type(error).__name__,
+            reason=str(error).splitlines()[0],
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(summary.model_dump_json(indent=2))
+    if summary.stop_reason != "game_limit":
+        raise typer.Exit(code=1 if summary.last_run_status is RunStatus.FAILED else 2)
 
 
 @state_app.command("parse")

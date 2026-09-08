@@ -51,6 +51,7 @@ IGNORED_REFERENCE_LINES = {
 
 PLAIN_ATTACK_PATTERN = re.compile(r"^ATK(\d+)$")
 PLAIN_ATTACK_BOOST_PATTERN = re.compile(r"^\+ATK(\d+)$")
+PROBABILISTIC_ATTACK_PATTERN = re.compile(r"^(\d+)%ATK(\d+)$")
 PLAIN_DEFENSE_PATTERN = re.compile(r"^DEF(\d+)$")
 VERIFIED_PASSIVE_ATTACK_EFFECTS = frozenset(
     {
@@ -67,9 +68,10 @@ VERIFIED_AUTOMATIC_ATTACK_EFFECTS = frozenset(
         "Cold on damage",
         "Dream on damage",
         "Dark Cloud on damage",
+        "Flash on damage",
+        "Fog on damage",
     }
 )
-VERIFIED_DUAL_USE_ATTACK_EFFECTS = {"legendary-scabbard": "DEF1"}
 
 
 class ReferenceExtractionError(BrowserContractError):
@@ -404,15 +406,83 @@ def verified_attack_weapon_values(snapshot: BibleSnapshot) -> dict[str, int]:
             and artifact.detail[4].startswith("Gift Rate:")
         ):
             result[artifact.asset] = int(attack.group(1))
-        expected_dual_use_effect = VERIFIED_DUAL_USE_ATTACK_EFFECTS.get(artifact.asset)
         if (
             attack is not None
-            and expected_dual_use_effect is not None
-            and artifact.detail[2] == expected_dual_use_effect
+            and PLAIN_DEFENSE_PATTERN.fullmatch(artifact.detail[2]) is not None
             and re.fullmatch(r"\$\d+", artifact.detail[3]) is not None
             and artifact.detail[4].startswith("Gift Rate:")
         ):
             result[artifact.asset] = int(attack.group(1))
+    return result
+
+
+def verified_browser_weapon_attacks(snapshot: BibleSnapshot) -> dict[str, tuple[str, float]]:
+    """Return one-click weapon attacks with an exact UI display and expected damage.
+
+    Browser confirmation is guarded by both the selected artifact asset and the exact
+    rendered attack expression. Single-element attacks and probabilistic attacks need
+    no additional player choice, so they are safe to execute even though the native
+    simulator currently models only a smaller deterministic subset.
+    """
+
+    result: dict[str, tuple[str, float]] = {}
+    allowed_effects = VERIFIED_PASSIVE_ATTACK_EFFECTS | VERIFIED_AUTOMATIC_ATTACK_EFFECTS
+    for artifact in snapshot.catalog["weapons"].items:
+        if _combat_element(artifact) is None:
+            continue
+        attack_text = artifact.detail[1]
+        fixed = PLAIN_ATTACK_PATTERN.fullmatch(attack_text)
+        probabilistic = PROBABILISTIC_ATTACK_PATTERN.fullmatch(attack_text)
+        if fixed is None and probabilistic is None:
+            continue
+        if len(artifact.detail) == 4:
+            price_index = 2
+        elif len(artifact.detail) == 5 and (
+            artifact.detail[2] in allowed_effects
+            or PLAIN_DEFENSE_PATTERN.fullmatch(artifact.detail[2]) is not None
+        ):
+            price_index = 3
+        else:
+            continue
+        if (
+            re.fullmatch(r"\$\d+", artifact.detail[price_index]) is None
+            or not artifact.detail[price_index + 1].startswith("Gift Rate:")
+        ):
+            continue
+        if fixed is not None:
+            expected_damage = float(fixed.group(1))
+        else:
+            assert probabilistic is not None
+            expected_damage = (
+                int(probabilistic.group(1)) * int(probabilistic.group(2)) / 100.0
+            )
+        result[artifact.asset] = (attack_text, expected_damage)
+    return result
+
+
+def verified_attack_miracle_cards(
+    snapshot: BibleSnapshot,
+) -> dict[str, tuple[int, int, CombatElement]]:
+    """Return fixed-attack miracles with exact MP cost and one element."""
+
+    result: dict[str, tuple[int, int, CombatElement]] = {}
+    for artifact in snapshot.catalog["miracles"].items:
+        element = _combat_element(artifact)
+        if element is None or len(artifact.detail) != 5:
+            continue
+        attack = PLAIN_ATTACK_PATTERN.fullmatch(artifact.detail[1])
+        cost = re.fullmatch(r"(\d+)MP", artifact.detail[3])
+        if (
+            attack is not None
+            and artifact.detail[2] == "Cost"
+            and cost is not None
+            and artifact.detail[4].startswith("Gift Rate:")
+        ):
+            result[artifact.asset] = (
+                int(attack.group(1)),
+                int(cost.group(1)),
+                element,
+            )
     return result
 
 

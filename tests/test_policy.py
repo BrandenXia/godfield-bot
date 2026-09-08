@@ -82,7 +82,7 @@ def test_heuristic_selects_weapon_only_in_verified_self_phase() -> None:
 
     actions = verified_browser_actions(game_state, observation)
     decision = HeuristicV0Policy(
-        {"bronze-club": 1},
+        {"bronze-club": ("ATK1", 1.0)},
         {"iron-shield": 4},
     ).decide(game_state, actions)
 
@@ -126,11 +126,154 @@ def test_heuristic_can_select_audited_passive_attack_weapon() -> None:
 
     actions = verified_browser_actions(game_state, observation)
     decision = HeuristicV0Policy(
-        {"angel-sword": 13},
+        {"angel-sword": ("ATK13", 13.0)},
         {"iron-shield": 4},
     ).decide(game_state, actions)
 
     assert decision.chosen_action_id == "artifact:0:weapons/angel-sword"
+
+
+def test_heuristic_selects_affordable_fixed_attack_miracle() -> None:
+    initial = state()
+    miracle = HandArtifact(
+        slot=0,
+        category="miracles",
+        slug="flame",
+        asset_path="/images/items/miracles/flame.webp",
+        bounds=Bounds(x=200, y=493, width=80, height=80),
+        hit_target_bounds=Bounds(x=200, y=493, width=80, height=80),
+    )
+    game_state = initial.model_copy(
+        update={
+            "hand": (miracle,),
+            "action_actor": "ロキ-67",
+            "action_display": "Pray",
+        }
+    )
+    observation = ScreenObservation(
+        observed_at=game_state.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.1", "Pray", "HP"),
+        text_elements=(),
+        controls=(),
+        images=(),
+    )
+    miracle_rules = {"flame": (10, 5, "fire")}
+
+    actions = verified_browser_actions(
+        game_state,
+        observation,
+        verified_miracle_attacks=miracle_rules,
+    )
+    decision = HeuristicV0Policy(
+        {"bronze-club": ("ATK1", 1.0)},
+        {"iron-shield": 4},
+        miracle_rules,
+    ).decide(game_state, actions)
+
+    assert [action.action_id for action in actions.actions] == [
+        "wait",
+        "pass",
+        "artifact:0:miracles/flame",
+    ]
+    assert decision.chosen_action_id == "artifact:0:miracles/flame"
+
+
+def test_heuristic_excludes_unaffordable_fixed_attack_miracle() -> None:
+    initial = state()
+    miracle = HandArtifact(
+        slot=0,
+        category="miracles",
+        slug="flame",
+        asset_path="/images/items/miracles/flame.webp",
+        bounds=Bounds(x=200, y=493, width=80, height=80),
+        hit_target_bounds=Bounds(x=200, y=493, width=80, height=80),
+    )
+    players = tuple(
+        player.model_copy(update={"mp": 4}) if player.is_self else player
+        for player in initial.players
+    )
+    game_state = initial.model_copy(
+        update={
+            "players": players,
+            "hand": (miracle,),
+            "action_actor": "ロキ-67",
+            "action_display": "Pray",
+        }
+    )
+    observation = ScreenObservation(
+        observed_at=game_state.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.1", "Pray", "HP"),
+        text_elements=(),
+        controls=(),
+        images=(),
+    )
+
+    actions = verified_browser_actions(
+        game_state,
+        observation,
+        verified_miracle_attacks={"flame": (10, 5, "fire")},
+    )
+
+    decision = HeuristicV0Policy(
+        {"bronze-club": ("ATK1", 1.0)},
+        {"iron-shield": 4},
+        {"flame": (10, 5, "fire")},
+    ).decide(game_state, actions)
+
+    assert [action.action_id for action in actions.actions] == ["wait", "pass"]
+    assert decision.chosen_action_id == "pass"
+    assert decision.executable is True
+
+
+def test_heuristic_confirms_selected_fixed_attack_miracle() -> None:
+    initial = state()
+    game_state = initial.model_copy(
+        update={
+            "action_actor": "ロキ-67",
+            "action_target": "CPU",
+            "action_display": "ATK10",
+            "action_display_color": "rgb(221, 102, 68)",
+            "action_artifact_asset_path": "/images/items/miracles/flame.webp",
+            "action_hit_target_bounds": Bounds(x=115, y=93, width=310, height=300),
+        }
+    )
+    observation = ScreenObservation(
+        observed_at=game_state.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.1", "ATK10", "HP"),
+        text_elements=(),
+        controls=(),
+        images=(),
+    )
+    miracle_rules = {"flame": (10, 5, "fire")}
+
+    actions = verified_browser_actions(
+        game_state,
+        observation,
+        verified_miracle_attacks=miracle_rules,
+    )
+    decision = HeuristicV0Policy(
+        {"bronze-club": ("ATK1", 1.0)},
+        {"iron-shield": 4},
+        miracle_rules,
+    ).decide(game_state, actions)
+
+    assert actions.actions[-1].action_id == "confirm:attack:flame:1:CPU"
+    assert decision.chosen_action_id == "confirm:attack:flame:1:CPU"
 
 
 def test_heuristic_selects_plain_armor_for_neutral_defense() -> None:
@@ -170,7 +313,7 @@ def test_heuristic_selects_plain_armor_for_neutral_defense() -> None:
 
     actions = verified_browser_actions(game_state, observation)
     decision = HeuristicV0Policy(
-        {"bronze-club": 1},
+        {"bronze-club": ("ATK1", 1.0)},
         {"iron-shield": 4},
     ).decide(game_state, actions)
 
@@ -210,7 +353,7 @@ def test_heuristic_forgives_elemental_attack_without_verified_defense() -> None:
 
     actions = verified_browser_actions(game_state, observation)
     decision = HeuristicV0Policy(
-        {"bronze-club": 1},
+        {"bronze-club": ("ATK1", 1.0)},
         {"iron-shield": 4},
     ).decide(game_state, actions)
 
@@ -245,7 +388,7 @@ def test_heuristic_forgives_identified_incoming_non_attack_effect() -> None:
 
     actions = verified_browser_actions(game_state, observation)
     decision = HeuristicV0Policy(
-        {"bronze-club": 1},
+        {"bronze-club": ("ATK1", 1.0)},
         {"iron-shield": 4},
     ).decide(game_state, actions)
 
@@ -287,7 +430,7 @@ def test_heuristic_forgives_targeted_interaction_with_multiple_context_artifacts
 
     actions = verified_browser_actions(game_state, observation)
     decision = HeuristicV0Policy(
-        {"bronze-club": 1},
+        {"bronze-club": ("ATK1", 1.0)},
         {"iron-shield": 4},
     ).decide(game_state, actions)
 
@@ -333,10 +476,10 @@ def test_heuristic_confirms_plain_weapon_on_named_sole_opponent() -> None:
     actions = verified_browser_actions(
         game_state,
         observation,
-        verified_weapon_attacks={"bronze-club": 1},
+        verified_weapon_attacks={"bronze-club": ("ATK1", 1.0)},
     )
     decision = HeuristicV0Policy(
-        {"bronze-club": 1},
+        {"bronze-club": ("ATK1", 1.0)},
         {"iron-shield": 4},
     ).decide(game_state, actions)
 
@@ -386,10 +529,90 @@ def test_targeting_fails_closed_when_displayed_attack_does_not_match_bible() -> 
     actions = verified_browser_actions(
         game_state,
         observation,
-        verified_weapon_attacks={"bronze-club": 1},
+        verified_weapon_attacks={"bronze-club": ("ATK1", 1.0)},
     )
 
     assert [action.action_id for action in actions.actions] == ["wait"]
+
+
+def test_heuristic_confirms_probabilistic_elemental_weapon() -> None:
+    initial = state()
+    game_state = initial.model_copy(
+        update={
+            "action_actor": "ロキ-67",
+            "action_target": "CPU",
+            "action_display": "ATK2",
+            "action_display_color": "rgb(136, 102, 170)",
+            "action_artifact_asset_path": "/images/items/weapons/shadow-hand.webp",
+            "action_hit_target_bounds": Bounds(x=115, y=93, width=310, height=300),
+        }
+    )
+    observation = ScreenObservation(
+        observed_at=game_state.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.1", "ATK2", "HP"),
+        text_elements=(),
+        controls=(),
+        images=(),
+    )
+    weapon_rules = {"shadow-hand": ("50%ATK2", 1.0)}
+
+    actions = verified_browser_actions(
+        game_state,
+        observation,
+        verified_weapon_attacks=weapon_rules,
+    )
+    decision = HeuristicV0Policy(
+        weapon_rules,
+        {"iron-shield": 4},
+    ).decide(game_state, actions)
+
+    assert actions.actions[-1].action_id == "confirm:attack:shadow-hand:1:CPU"
+    assert decision.chosen_action_id == "confirm:attack:shadow-hand:1:CPU"
+
+
+def test_heuristic_resolves_untargeted_probabilistic_weapon() -> None:
+    initial = state()
+    game_state = initial.model_copy(
+        update={
+            "action_actor": "ロキ-67",
+            "action_display": "50%ATK5",
+            "action_display_color": "rgb(102, 102, 255)",
+            "action_artifact_asset_path": "/images/items/weapons/oversize-snowball.webp",
+            "action_hit_target_bounds": Bounds(x=115, y=93, width=310, height=300),
+        }
+    )
+    observation = ScreenObservation(
+        observed_at=game_state.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.7", "50%ATK5", "HP"),
+        text_elements=(),
+        controls=(),
+        images=(),
+    )
+    weapon_rules = {"oversize-snowball": ("50%ATK5", 2.5)}
+
+    actions = verified_browser_actions(
+        game_state,
+        observation,
+        verified_weapon_attacks=weapon_rules,
+    )
+    decision = HeuristicV0Policy(
+        weapon_rules,
+        {"iron-shield": 4},
+    ).decide(game_state, actions)
+
+    assert actions.actions[-1].action_id == "confirm:chance:oversize-snowball"
+    assert actions.actions[-1].target_player_name is None
+    assert decision.chosen_action_id == "confirm:chance:oversize-snowball"
 
 
 def test_heuristic_confirms_plain_armor_for_neutral_attack() -> None:
@@ -425,7 +648,7 @@ def test_heuristic_confirms_plain_armor_for_neutral_attack() -> None:
         plain_armor_defenses={"iron-shield": 4},
     )
     decision = HeuristicV0Policy(
-        {"bronze-club": 1},
+        {"bronze-club": ("ATK1", 1.0)},
         {"iron-shield": 4},
     ).decide(game_state, actions)
 

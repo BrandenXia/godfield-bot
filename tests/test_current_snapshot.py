@@ -9,7 +9,9 @@ from godfield_bot.reference import (
     plain_attack_weapon_values,
     plain_defense_armor_cards,
     plain_defense_armor_values,
+    verified_attack_miracle_cards,
     verified_attack_weapon_values,
+    verified_browser_weapon_attacks,
 )
 
 SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-07" / "bible.json"
@@ -57,12 +59,17 @@ def test_committed_snapshot_matches_validated_live_catalog() -> None:
     assert elemental_defenses["flame-shield"] == (5, "fire")
     assert elemental_defenses["shining-high-heels"] == (6, "light")
     verified_attacks = verified_attack_weapon_values(snapshot)
-    assert len(verified_attacks) == 32
+    assert len(verified_attacks) == 37
     assert verified_attacks["bouncing-sword"] == 5
     assert verified_attacks["reflection-sword"] == 10
     assert verified_attacks["moonlight-axe"] == 10
     assert verified_attacks["angel-sword"] == 13
     assert verified_attacks["legendary-scabbard"] == 13
+    assert verified_attacks["saver-rod"] == 2
+    assert verified_attacks["spiked-belt"] == 4
+    assert verified_attacks["plate-of-strike"] == 5
+    assert verified_attacks["elbow-sack"] == 6
+    assert verified_attacks["sword-shield"] == 10
     assert verified_attacks["ghost-sword"] == 7
     assert verified_attacks["hell-scissors"] == 8
     assert verified_attacks["gale-sword"] == 9
@@ -74,9 +81,25 @@ def test_committed_snapshot_matches_validated_live_catalog() -> None:
     assert "saw-boom-boom" not in verified_attacks
     assert "spiritual-staff" not in verified_attacks
     assert "frozen-hammer" not in verified_attacks
+    assert "flaming-roll" not in verified_attacks
+    browser_attacks = verified_browser_weapon_attacks(snapshot)
+    assert len(browser_attacks) == 80
+    assert browser_attacks["torch"] == ("ATK1", 1.0)
+    assert browser_attacks["sword-ware"] == ("ATK2", 2.0)
+    assert browser_attacks["shadow-hand"] == ("50%ATK2", 1.0)
+    assert browser_attacks["spark-bag"] == ("75%ATK1", 0.75)
+    assert "wand-of-ignition" not in browser_attacks
+    assert "ascension-bow" not in browser_attacks
     frozen_hammer = next(
         artifact
         for artifact in snapshot.catalog["weapons"].items
         if artifact.asset == "frozen-hammer"
     )
     assert frozen_hammer.element_image_paths == ("/images/elements/water.webp",)
+    verified_miracles = verified_attack_miracle_cards(snapshot)
+    assert len(verified_miracles) == 6
+    assert verified_miracles["ice"] == (4, 2, "water")
+    assert verified_miracles["flame"] == (10, 5, "fire")
+    assert verified_miracles["waterfall"] == (25, 12, "water")
+    assert "absorption" not in verified_miracles
+    assert "fireball" not in verified_miracles

@@ -37,3 +37,56 @@ def test_forgive_dispatches_with_all_verified_context_assets(monkeypatch) -> Non
         "context_asset_paths": action.context_asset_paths,
         "target_name": "ロキ-67",
     }
+
+
+def test_pass_dispatches_through_verified_empty_pray_panel(monkeypatch) -> None:
+    captured: dict[str, Any] = {}
+
+    async def fake_click_empty_action_panel(page: object, **kwargs: object) -> None:
+        captured["page"] = page
+        captured.update(kwargs)
+
+    monkeypatch.setattr(executor, "click_empty_action_panel", fake_click_empty_action_panel)
+    page = object()
+    action = LegalAction(
+        action_id="pass",
+        kind=ActionKind.PASS,
+        label="Confirm an empty Pray action",
+        actor_player_name="ロキ-67",
+        control_panel="left",
+    )
+
+    result = asyncio.run(executor.execute_action(page, action))  # type: ignore[arg-type]
+
+    assert result.dispatched is True
+    assert captured == {"page": page, "actor_name": "ロキ-67"}
+
+
+def test_chance_attack_dispatches_through_verified_untargeted_panel(monkeypatch) -> None:
+    captured: dict[str, Any] = {}
+
+    async def fake_click_chance_panel(page: object, **kwargs: object) -> None:
+        captured["page"] = page
+        captured.update(kwargs)
+
+    monkeypatch.setattr(executor, "click_chance_panel", fake_click_chance_panel)
+    page = object()
+    action = LegalAction(
+        action_id="confirm:chance:oversize-snowball",
+        kind=ActionKind.CONFIRM_CHANCE,
+        label="Resolve the selected chance attack oversize-snowball",
+        artifact_asset_path="/images/items/weapons/oversize-snowball.webp",
+        actor_player_name="ロキ-67",
+        expected_action_display="50%ATK5",
+        control_panel="left",
+    )
+
+    result = asyncio.run(executor.execute_action(page, action))  # type: ignore[arg-type]
+
+    assert result.dispatched is True
+    assert captured == {
+        "page": page,
+        "asset_path": "/images/items/weapons/oversize-snowball.webp",
+        "actor_name": "ロキ-67",
+        "action_display": "50%ATK5",
+    }

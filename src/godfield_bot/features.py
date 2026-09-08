@@ -44,9 +44,9 @@ def action_index(
         if action.target_player_index is None or action.target_player_index >= max_players:
             raise FeatureEncodingError("target action has an invalid player index")
         return target_action_offset + action.target_player_index
-    if action.kind is ActionKind.FORGIVE:
+    if action.kind in {ActionKind.PASS, ActionKind.FORGIVE}:
         return forgive_action_index
-    if action.kind is ActionKind.CONFIRM:
+    if action.kind in {ActionKind.CONFIRM, ActionKind.CONFIRM_CHANCE}:
         return confirm_action_index
     raise FeatureEncodingError(f"action kind {action.kind} is outside the neural action head")
 
@@ -142,8 +142,7 @@ class StateFeatureEncoder:
         )
         pending_attack_match = (
             ATTACK_DISPLAY_PATTERN.fullmatch(state.action_display)
-            if (is_response_phase or is_outgoing_selection)
-            and state.action_display is not None
+            if (is_response_phase or is_outgoing_selection) and state.action_display is not None
             else None
         )
         pending_attack = int(pending_attack_match.group(1)) if pending_attack_match else 0

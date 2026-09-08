@@ -74,6 +74,11 @@ uv run godfield-bot models evaluate-simulation models/<candidate-model-id> \
   --heuristic-noninferiority-margin 0.025
 uv run godfield-bot simulation benchmark --ruleset mixed-attack-defense \
   --batch-size 4096 --batch-steps 1000
+uv run godfield-bot models migrate-element-features models/<schema-v2-model-id>
+uv run godfield-bot models train-simulation models/<migrated-model-id> \
+  --ruleset elemental-hand --batch-size 256 --rollout-steps 32 --updates 10
+uv run godfield-bot simulation benchmark --ruleset elemental-attack-defense \
+  --batch-size 4096 --batch-steps 1000
 ```
 
 `api observe-private --password-stdin` uses God Field's keyed private-room
@@ -173,24 +178,30 @@ matches require another participant or separately authorized host account,
 because Training gameplay exists only inside the browser client. Learning will
 be simulator-first with real-game fine-tuning.
 
-The native simulator provides three fast, deterministic curricula. The original
+The native simulator provides four fast, deterministic curricula. The original
 `plain-attack-redraw-duel-v1` ruleset isolates effect-free neutral attacks. The
 default `plain-attack-defense-redraw-duel-v1` benchmark adds a separate defense
 decision: five weapon slots and four armor slots redraw within their own
 categories, defense may pass or consume one neutral plain armor card, and
 damage is `max(ATK - DEF, 0)`. Phase, pending ATK, and card role are explicit
 native views. Observation schema v2 appends the response-phase flag and pending
-ATK to the same global feature vector used for live browser states, allowing
-the recurrent network to consume either source. Existing four-feature model
-checkpoints are deliberately incompatible. `models init` now creates a
-schema-v3, slot-aware policy checkpoint; schema-v2 pooled-hand checkpoints
-remain readable for historical evaluation but cannot continue simulator
-training. The separately versioned mixed-hand ruleset starts each player with
+ATK to the original four globals. Existing four-feature checkpoints are
+deliberately incompatible. `models init` creates a manifest-schema-v3,
+slot-aware policy with the current 13-value feature schema. Six-value
+feature-schema-v2 checkpoints remain readable for historical fixed-role and
+mixed-hand evaluation, and can be explicitly migrated for elemental training.
+The separately versioned mixed-hand ruleset starts each player with
 the same five-weapon/four-armor composition in shuffled slots, then redraws
 consumed cards uniformly across both catalogs. Legal actions follow each
 card's current role, and the kernel guarantees that every attack phase retains
 at least one weapon. This removes the fixed-slot shortcut without changing the
-model interface. All rulesets are fingerprinted against the accepted client,
+model interface. The elemental mixed-hand ruleset expands the strict catalog to
+39 single-card weapons and 47 armor cards and enforces opposite-element
+defenses, Light armor substitution, unblockable Light attacks, and Darkness
+lethality only when damage penetrates defense. Observation schema v3 adds a
+seven-way pending-element signal. A recorded model migration preserves the six
+old global inputs and zero-initializes the new columns before elemental
+training. All rulesets are fingerprinted against the accepted client,
 artifact vocabulary, and exact rule catalog, and none is promotion-eligible.
 
 `models train-simulation` creates a bounded

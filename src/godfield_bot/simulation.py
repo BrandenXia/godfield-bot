@@ -10,9 +10,9 @@ from typing import TYPE_CHECKING, Literal
 from pydantic import BaseModel, Field
 
 from godfield_bot.domain.reference import BibleSnapshot
+from godfield_bot.elements import COMBAT_ELEMENT_IDS
 from godfield_bot.features import ArtifactVocabulary
 from godfield_bot.reference import (
-    COMBAT_ELEMENT_IDS,
     plain_attack_weapon_cards,
     plain_attack_weapon_values,
     plain_defense_armor_cards,

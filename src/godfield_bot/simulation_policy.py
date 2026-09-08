@@ -7,10 +7,16 @@ import numpy.typing as npt
 
 from godfield_bot.domain.reference import BibleSnapshot
 from godfield_bot.features import ArtifactVocabulary
-from godfield_bot.reference import plain_attack_weapon_values, plain_defense_armor_values
-from godfield_bot.simulation import AttackDefenseSimulation
+from godfield_bot.reference import (
+    plain_attack_weapon_cards,
+    plain_attack_weapon_values,
+    plain_defense_armor_cards,
+    plain_defense_armor_values,
+)
+from godfield_bot.simulation import AttackDefenseRuleset, AttackDefenseSimulation
 
 HEURISTIC_POLICY_ID = "plain-max-attack-conservative-defense-v0"
+ELEMENTAL_HEURISTIC_POLICY_ID = "plain-element-aware-max-attack-conservative-defense-v1"
 FORGIVE_ACTION_INDEX = 19
 
 
@@ -22,21 +28,34 @@ class SimulationPolicyError(RuntimeError):
 class CurriculumHeuristic:
     attacks: dict[int, int]
     defenses: dict[int, int]
+    policy_id: str = HEURISTIC_POLICY_ID
 
 
 def build_curriculum_heuristic(
     snapshot: BibleSnapshot,
     vocabulary: ArtifactVocabulary,
+    *,
+    ruleset: AttackDefenseRuleset = "fixed-role",
 ) -> CurriculumHeuristic:
+    if ruleset == "elemental-hand":
+        attacks = {
+            slug: attack for slug, (attack, _element) in plain_attack_weapon_cards(snapshot).items()
+        }
+        defenses = {
+            slug: defense
+            for slug, (defense, _element) in plain_defense_armor_cards(snapshot).items()
+        }
+        policy_id = ELEMENTAL_HEURISTIC_POLICY_ID
+    else:
+        attacks = plain_attack_weapon_values(snapshot)
+        defenses = plain_defense_armor_values(snapshot)
+        policy_id = HEURISTIC_POLICY_ID
     return CurriculumHeuristic(
-        attacks={
-            vocabulary.token_id("weapons", slug): attack
-            for slug, attack in plain_attack_weapon_values(snapshot).items()
-        },
+        attacks={vocabulary.token_id("weapons", slug): attack for slug, attack in attacks.items()},
         defenses={
-            vocabulary.token_id("armor", slug): defense
-            for slug, defense in plain_defense_armor_values(snapshot).items()
+            vocabulary.token_id("armor", slug): defense for slug, defense in defenses.items()
         },
+        policy_id=policy_id,
     )
 
 

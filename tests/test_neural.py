@@ -7,11 +7,13 @@ import torch
 from godfield_bot.domain.action import ActionKind, LegalAction, LegalActionSet
 from godfield_bot.domain.game import GameState, HandArtifact, PlayerState
 from godfield_bot.domain.observation import Bounds
+from godfield_bot.domain.reference import BibleSnapshot
 from godfield_bot.features import StateFeatureEncoder, action_index, load_vocabulary
 from godfield_bot.legal_actions import game_state_digest, observation_only_actions
 from godfield_bot.neural import RecurrentPolicyValueNet, features_to_tensors
 
 SNAPSHOT = Path("data/snapshots/2026-09-07/bible.json")
+BIBLE = BibleSnapshot.model_validate_json(SNAPSHOT.read_text(encoding="utf-8"))
 
 
 def state() -> GameState:
@@ -39,14 +41,14 @@ def state() -> GameState:
 def test_snapshot_vocabulary_and_feature_shapes() -> None:
     vocabulary = load_vocabulary(SNAPSHOT)
     game_state = state()
-    features = StateFeatureEncoder(vocabulary).encode(
+    features = StateFeatureEncoder(vocabulary, BIBLE).encode(
         game_state,
         observation_only_actions(game_state),
     )
 
     assert len(vocabulary.tokens) == 296
-    assert features.schema_version == 2
-    assert features.global_features == (0.0, 0.4, 0.1, 0.2, 0.0, 0.0)
+    assert features.schema_version == 3
+    assert features.global_features == (0.0, 0.4, 0.1, 0.2, 0.0, 0.0, *([0.0] * 7))
     assert len(features.player_features) == 9
     assert len(features.hand_token_ids) == 9
     assert features.hand_token_ids[0] > 1
@@ -66,12 +68,47 @@ def test_live_response_features_encode_phase_and_pending_attack() -> None:
         }
     )
 
-    features = StateFeatureEncoder(vocabulary).encode(
+    features = StateFeatureEncoder(vocabulary, BIBLE).encode(
         response_state,
         observation_only_actions(response_state),
     )
 
-    assert features.global_features == (0.0, 0.4, 0.1, 0.2, 1.0, 0.13)
+    assert features.global_features == (
+        0.0,
+        0.4,
+        0.1,
+        0.2,
+        1.0,
+        0.13,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+    )
+
+
+def test_live_response_features_encode_pending_attack_element() -> None:
+    snapshot = BibleSnapshot.model_validate_json(SNAPSHOT.read_text(encoding="utf-8"))
+    vocabulary = load_vocabulary(SNAPSHOT)
+    response_state = state().model_copy(
+        update={
+            "action_actor": "CPU",
+            "action_target": "ロキ-67",
+            "action_display": "ATK1",
+            "action_artifact_asset_path": "/images/items/weapons/torch.webp",
+            "phase_control": "Forgive",
+        }
+    )
+
+    features = StateFeatureEncoder(vocabulary, snapshot).encode(
+        response_state,
+        observation_only_actions(response_state),
+    )
+
+    assert features.global_features[6:13] == (0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
 
 def test_outgoing_attack_is_not_encoded_as_a_defense_response() -> None:
@@ -84,19 +121,19 @@ def test_outgoing_attack_is_not_encoded_as_a_defense_response() -> None:
         }
     )
 
-    features = StateFeatureEncoder(vocabulary).encode(
+    features = StateFeatureEncoder(vocabulary, BIBLE).encode(
         attack_state,
         observation_only_actions(attack_state),
     )
 
-    assert features.global_features[4:] == (0.0, 0.0)
+    assert features.global_features[4:] == (0.0,) * 9
 
 
 def test_recurrent_policy_masks_actions_and_backpropagates() -> None:
     torch.manual_seed(67)
     vocabulary = load_vocabulary(SNAPSHOT)
     game_state = state()
-    features = StateFeatureEncoder(vocabulary).encode(
+    features = StateFeatureEncoder(vocabulary, BIBLE).encode(
         game_state,
         observation_only_actions(game_state),
     )
@@ -136,7 +173,7 @@ def test_recurrent_policy_rejects_legacy_global_feature_shape() -> None:
 def test_slot_aware_policy_moves_card_scores_with_the_cards() -> None:
     torch.manual_seed(67)
     model = RecurrentPolicyValueNet(vocabulary_size=8, action_count=21)
-    global_features = torch.zeros((1, 6))
+    global_features = torch.zeros((1, 13))
     player_features = torch.zeros((1, 2, 4))
     player_mask = torch.ones((1, 2), dtype=torch.bool)
     hand_mask = torch.tensor([[True, True, False, False, False, False, False, False, False]])
@@ -186,7 +223,7 @@ def test_target_action_uses_player_segment_of_action_head() -> None:
         blocked_reason="test fixture covers only target selection",
     )
 
-    features = StateFeatureEncoder(vocabulary).encode(game_state, legal_actions)
+    features = StateFeatureEncoder(vocabulary, BIBLE).encode(game_state, legal_actions)
 
     assert [index for index, allowed in enumerate(features.action_mask) if allowed] == [0, 11]
 
@@ -212,7 +249,7 @@ def test_confirm_action_uses_final_action_head_slot() -> None:
         blocked_reason="test fixture covers only confirmation",
     )
 
-    features = StateFeatureEncoder(vocabulary).encode(game_state, legal_actions)
+    features = StateFeatureEncoder(vocabulary, BIBLE).encode(game_state, legal_actions)
 
     assert [index for index, allowed in enumerate(features.action_mask) if allowed] == [0, 20]
     assert action_index(legal_actions.actions[1]) == 20

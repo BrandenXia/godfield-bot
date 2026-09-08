@@ -7,14 +7,17 @@ from pydantic import BaseModel, model_validator
 from godfield_bot.domain.action import ActionKind, LegalAction, LegalActionSet
 from godfield_bot.domain.game import GameState
 from godfield_bot.domain.reference import BibleSnapshot
+from godfield_bot.elements import COMBAT_ELEMENT_IDS, COMBAT_ELEMENTS, ELEMENT_IMAGE_PATHS
 from godfield_bot.legal_actions import game_state_digest
 
 PAD_TOKEN = "<PAD>"
 UNKNOWN_TOKEN = "<UNKNOWN>"
 TRADE_TOKENS = ("trade/buy", "trade/exchange", "trade/sell")
 ARTIFACT_ACTION_OFFSET = 1
-FEATURE_SCHEMA_VERSION = 2
-GLOBAL_FEATURE_COUNT = 6
+LEGACY_FEATURE_SCHEMA_VERSION = 2
+LEGACY_GLOBAL_FEATURE_COUNT = 6
+FEATURE_SCHEMA_VERSION = 3
+GLOBAL_FEATURE_COUNT = LEGACY_GLOBAL_FEATURE_COUNT + len(COMBAT_ELEMENTS)
 PLAYER_FEATURE_COUNT = 4
 ATTACK_DISPLAY_PATTERN = re.compile(r"^ATK(\d+)$")
 
@@ -82,7 +85,7 @@ class ArtifactVocabulary(BaseModel):
 
 
 class StateFeatures(BaseModel):
-    schema_version: Literal[2] = 2
+    schema_version: Literal[3] = 3
     global_features: tuple[float, ...]
     player_features: tuple[tuple[float, ...], ...]
     player_mask: tuple[bool, ...]
@@ -98,6 +101,7 @@ class StateFeatureEncoder:
     def __init__(
         self,
         vocabulary: ArtifactVocabulary,
+        snapshot: BibleSnapshot,
         *,
         max_players: int = 9,
         max_hand_slots: int = 9,
@@ -107,6 +111,15 @@ class StateFeatureEncoder:
         self.vocabulary = vocabulary
         self.max_players = max_players
         self.max_hand_slots = max_hand_slots
+        self.artifact_element_ids: dict[str, int] = {}
+        for category in snapshot.catalog.values():
+            for artifact in category.items:
+                if not artifact.element_image_paths:
+                    self.artifact_element_ids[artifact.image_path] = 0
+                elif len(artifact.element_image_paths) == 1:
+                    element = ELEMENT_IMAGE_PATHS.get(artifact.element_image_paths[0])
+                    if element is not None:
+                        self.artifact_element_ids[artifact.image_path] = COMBAT_ELEMENT_IDS[element]
 
     def encode(self, state: GameState, legal_actions: LegalActionSet) -> StateFeatures:
         if legal_actions.state_digest != game_state_digest(state):
@@ -129,6 +142,14 @@ class StateFeatureEncoder:
             else None
         )
         pending_attack = int(pending_attack_match.group(1)) if pending_attack_match else 0
+        pending_element_features = [0.0] * len(COMBAT_ELEMENTS)
+        if is_response_phase:
+            if state.action_artifact_asset_path is None:
+                pending_element_features[COMBAT_ELEMENT_IDS["non-element"]] = 1.0
+            elif (
+                pending_element := self.artifact_element_ids.get(state.action_artifact_asset_path)
+            ) is not None:
+                pending_element_features[pending_element] = 1.0
         global_features = (
             min(state.field_number, 100) / 100.0,
             min(self_player.hp, 100) / 100.0,
@@ -136,6 +157,7 @@ class StateFeatureEncoder:
             min(self_player.money, 100) / 100.0,
             float(is_response_phase),
             min(pending_attack, 100) / 100.0,
+            *pending_element_features,
         )
         players: list[tuple[float, ...]] = [
             (

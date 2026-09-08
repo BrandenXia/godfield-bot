@@ -476,7 +476,11 @@ def test_pytorch_inference_views_share_native_buffers() -> None:
     vocabulary = ArtifactVocabulary.from_snapshot(
         BibleSnapshot.model_validate_json(SNAPSHOT_PATH.read_text(encoding="utf-8"))
     )
-    model = RecurrentPolicyValueNet(vocabulary_size=len(vocabulary.tokens), action_count=21)
+    model = RecurrentPolicyValueNet(
+        vocabulary_size=len(vocabulary.tokens),
+        action_count=21,
+        global_feature_count=6,
+    )
     logits, values, recurrent_state = model(*tensors)
 
     assert tensors[0].data_ptr() == global_array.__array_interface__["data"][0]

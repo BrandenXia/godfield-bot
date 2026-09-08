@@ -92,6 +92,18 @@ consumed slot is redrawn from the weapon catalog. This explicit liveness rule
 prevents an absorbing no-weapon hand while the curriculum still lacks trades,
 miracles, and other real-game ways to change a hand.
 
+The separately versioned
+`plain-elemental-mixed-hand-attack-defense-redraw-duel-v1` kernel broadens that
+catalog to effect-free fixed-value cards with zero or one recognized element.
+Defense masks enforce opposite-element pairs, allow Light armor as a
+substitute, reject every armor card against Light attacks, and allow all armor
+against Non-element and Darkness. Darkness is lethal only when positive damage
+remains after defense. Observation schema v3 appends a seven-way pending-element
+one-hot to the prior six globals and exposes hand/pending element IDs as native
+diagnostics. See
+[ADR 0008](0008-elemental-combat-curriculum.md) for checkpoint migration and
+the exact rule boundary.
+
 ## Compatibility and safety
 
 Every simulator instance reports:

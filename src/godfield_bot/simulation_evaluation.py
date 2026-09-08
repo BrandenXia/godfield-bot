@@ -27,7 +27,6 @@ from godfield_bot.simulation import (
     simulation_feature_tensors,
 )
 from godfield_bot.simulation_policy import (
-    HEURISTIC_POLICY_ID,
     CurriculumHeuristic,
     build_curriculum_heuristic,
     curriculum_heuristic_actions,
@@ -39,7 +38,7 @@ class SimulationEvaluationError(RuntimeError):
 
 
 class SimulationEvaluationConfig(BaseModel):
-    ruleset: Literal["fixed-role", "mixed-hand"] = "fixed-role"
+    ruleset: Literal["fixed-role", "mixed-hand", "elemental-hand"] = "fixed-role"
     games_per_seat: int = Field(default=512, ge=1, le=100_000)
     max_decisions_per_game: int = Field(default=512, ge=2, le=100_000)
     minimum_score: float = Field(default=0.5, ge=0, le=1)
@@ -172,7 +171,7 @@ def _evaluate_side(
     candidate_seat: int,
     max_decisions: int,
     device: torch.device,
-    ruleset: Literal["fixed-role", "mixed-hand"],
+    ruleset: Literal["fixed-role", "mixed-hand", "elemental-hand"],
 ) -> _SideEvaluation:
     simulation = create_attack_defense_simulation(
         snapshot_path,
@@ -347,6 +346,7 @@ def _input_digest(
     parent: ModelManifest,
     simulation: SimulationMetadata,
     config: SimulationEvaluationConfig,
+    heuristic_policy_id: str,
 ) -> str:
     value = {
         "schema_version": 2,
@@ -354,7 +354,7 @@ def _input_digest(
         "candidate_weights_sha256": candidate.weights_sha256,
         "parent_model_id": parent.model_id,
         "parent_weights_sha256": parent.weights_sha256,
-        "heuristic_policy_id": HEURISTIC_POLICY_ID,
+        "heuristic_policy_id": heuristic_policy_id,
         "simulation": simulation.model_dump(mode="json"),
         "config": config.model_dump(mode="json"),
     }
@@ -411,11 +411,20 @@ def evaluate_simulation_candidate(
     )
     if simulation.metadata.vocabulary_sha256 != candidate_manifest.vocabulary_sha256:
         raise ValueError("simulator vocabulary differs from the candidate")
+    if (
+        simulation.metadata.global_feature_count
+        != candidate_manifest.architecture.global_feature_count
+    ):
+        raise ValueError("simulator global features differ from the candidate")
 
     device = _resolve_device(config.device)
     candidate.to(device).eval()
     parent.to(device).eval()
-    heuristic = build_curriculum_heuristic(snapshot, vocabulary)
+    heuristic = build_curriculum_heuristic(
+        snapshot,
+        vocabulary,
+        ruleset=config.ruleset,
+    )
 
     parent_sides = (
         _evaluate_side(
@@ -479,7 +488,7 @@ def evaluate_simulation_candidate(
         ),
         _summarize_matchup(
             opponent_kind="heuristic",
-            opponent_id=HEURISTIC_POLICY_ID,
+            opponent_id=heuristic.policy_id,
             candidate_as_seat_zero=heuristic_sides[0],
             candidate_as_seat_one=heuristic_sides[1],
             config=config,
@@ -518,6 +527,7 @@ def evaluate_simulation_candidate(
             parent=parent_manifest,
             simulation=simulation.metadata,
             config=config,
+            heuristic_policy_id=heuristic.policy_id,
         ),
         simulation=simulation.metadata,
         config=config,

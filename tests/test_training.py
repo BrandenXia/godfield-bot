@@ -21,7 +21,13 @@ from godfield_bot.domain.replay import ReplaySample
 from godfield_bot.features import StateFeatureEncoder, action_index, load_vocabulary
 from godfield_bot.imitation import ImitationTrainingConfig, train_imitation_candidate
 from godfield_bot.legal_actions import game_state_digest, observation_only_actions
-from godfield_bot.model_registry import ModelStatus, initialize_model, load_model
+from godfield_bot.model_registry import (
+    ELEMENT_FEATURE_MIGRATION,
+    ModelStatus,
+    initialize_model,
+    load_model,
+    migrate_element_features,
+)
 from godfield_bot.neural import RecurrentPolicyValueNet, features_to_tensors
 from godfield_bot.outcome_training import OutcomeTrainingConfig, train_outcome_candidate
 from godfield_bot.outcomes import classify_two_player_terminal, sparse_terminal_reward
@@ -35,6 +41,7 @@ from godfield_bot.training import (
 )
 
 SNAPSHOT = Path("data/snapshots/2026-09-07/bible.json")
+BIBLE = BibleSnapshot.model_validate_json(SNAPSHOT.read_text(encoding="utf-8"))
 
 
 def state() -> GameState:
@@ -75,7 +82,7 @@ def test_actor_critic_rejects_illegal_replay_target() -> None:
 def test_train_step_updates_recurrent_model() -> None:
     vocabulary = load_vocabulary(SNAPSHOT)
     game_state = state()
-    features = StateFeatureEncoder(vocabulary).encode(
+    features = StateFeatureEncoder(vocabulary, BIBLE).encode(
         game_state,
         observation_only_actions(game_state),
     )
@@ -111,8 +118,8 @@ def test_initialized_model_round_trips_with_checksums(tmp_path) -> None:
 
     assert loaded_manifest == manifest
     assert manifest.schema_version == 3
-    assert manifest.feature_schema_version == 2
-    assert manifest.architecture.global_feature_count == 6
+    assert manifest.feature_schema_version == 3
+    assert manifest.architecture.global_feature_count == 13
     assert manifest.architecture.policy_architecture == "slot-aware-v1"
     assert loaded_model.policy_head.out_features == 21
     assert loaded_model.artifact_policy_head is not None
@@ -139,8 +146,62 @@ def test_legacy_four_feature_model_is_rejected_with_migration_message(tmp_path) 
         encoding="utf-8",
     )
 
-    with pytest.raises(ValueError, match="initialize a feature-schema-v2 model"):
+    with pytest.raises(ValueError, match="initialize a current model"):
         load_model(model_directory)
+
+
+def test_element_feature_migration_preserves_neutral_outputs(tmp_path) -> None:
+    snapshot = BibleSnapshot.model_validate_json(SNAPSHOT.read_text(encoding="utf-8"))
+    vocabulary = load_vocabulary(SNAPSHOT)
+    root = tmp_path / "models"
+    source = initialize_model(
+        root,
+        vocabulary,
+        client_sha256=snapshot.client.sha256,
+        feature_schema_version=2,
+        global_feature_count=6,
+    )
+    migrated = migrate_element_features(
+        root / source.model_id,
+        root,
+        vocabulary,
+        client_sha256=snapshot.client.sha256,
+    )
+    _, source_model = load_model(root / source.model_id)
+    _, migrated_model = load_model(root / migrated.model_id)
+    torch.manual_seed(67)
+    legacy_globals = torch.rand((4, 6))
+    elemental_globals = torch.cat((legacy_globals, torch.zeros((4, 7))), dim=1)
+    players = torch.rand((4, 2, 4))
+    player_mask = torch.ones((4, 2), dtype=torch.bool)
+    hand = torch.randint(2, len(vocabulary.tokens), (4, 9))
+    hand_mask = torch.ones((4, 9), dtype=torch.bool)
+    action_mask = torch.ones((4, 21), dtype=torch.bool)
+
+    source_outputs = source_model(
+        legacy_globals,
+        players,
+        player_mask,
+        hand,
+        hand_mask,
+        action_mask,
+    )
+    migrated_outputs = migrated_model(
+        elemental_globals,
+        players,
+        player_mask,
+        hand,
+        hand_mask,
+        action_mask,
+    )
+
+    assert migrated.status is ModelStatus.INITIALIZED
+    assert migrated.parent_model_id == source.model_id
+    assert migrated.training_algorithm == ELEMENT_FEATURE_MIGRATION
+    assert migrated.feature_schema_version == 3
+    assert migrated.architecture.global_feature_count == 13
+    for source_output, migrated_output in zip(source_outputs, migrated_outputs, strict=True):
+        torch.testing.assert_close(source_output, migrated_output)
 
 
 def test_schema_v3_model_requires_explicit_policy_architecture(tmp_path) -> None:
@@ -229,7 +290,7 @@ def test_behavior_cloning_updates_policy_without_value_target() -> None:
     torch.manual_seed(67)
     vocabulary = load_vocabulary(SNAPSHOT)
     sample = imitation_sample()
-    features = StateFeatureEncoder(vocabulary).encode(
+    features = StateFeatureEncoder(vocabulary, BIBLE).encode(
         sample.before_state,
         sample.legal_actions,
     )
@@ -316,7 +377,7 @@ def test_outcome_step_updates_policy_and_value_heads() -> None:
     torch.manual_seed(67)
     vocabulary = load_vocabulary(SNAPSHOT)
     sample = imitation_sample()
-    features = StateFeatureEncoder(vocabulary).encode(
+    features = StateFeatureEncoder(vocabulary, BIBLE).encode(
         sample.before_state,
         sample.legal_actions,
     )
@@ -345,7 +406,7 @@ def test_outcome_step_updates_policy_and_value_heads() -> None:
 def test_outcome_step_rejects_shaped_return() -> None:
     vocabulary = load_vocabulary(SNAPSHOT)
     sample = imitation_sample()
-    features = StateFeatureEncoder(vocabulary).encode(
+    features = StateFeatureEncoder(vocabulary, BIBLE).encode(
         sample.before_state,
         sample.legal_actions,
     )

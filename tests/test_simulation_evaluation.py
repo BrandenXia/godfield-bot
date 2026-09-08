@@ -6,16 +6,20 @@ import numpy as np
 import pytest
 
 from godfield_bot.domain.reference import BibleSnapshot
-from godfield_bot.features import ArtifactVocabulary
+from godfield_bot.features import (
+    LEGACY_FEATURE_SCHEMA_VERSION,
+    LEGACY_GLOBAL_FEATURE_COUNT,
+    ArtifactVocabulary,
+)
 from godfield_bot.model_registry import initialize_model, load_model, save_candidate
 from godfield_bot.simulation_evaluation import (
-    HEURISTIC_POLICY_ID,
     SimulationEvaluationConfig,
     SimulationEvaluationReport,
     evaluate_simulation_candidate,
     paired_score_statistics,
     wilson_lower_bound,
 )
+from godfield_bot.simulation_policy import HEURISTIC_POLICY_ID
 
 pytest.importorskip("godfield_sim")
 
@@ -30,6 +34,8 @@ def unchanged_candidate(tmp_path: Path) -> tuple[Path, str]:
         model_root,
         vocabulary,
         client_sha256=snapshot.client.sha256,
+        feature_schema_version=LEGACY_FEATURE_SCHEMA_VERSION,
+        global_feature_count=LEGACY_GLOBAL_FEATURE_COUNT,
     )
     _, model = load_model(model_root / parent.model_id)
     candidate = save_candidate(

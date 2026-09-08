@@ -7,6 +7,8 @@ from pydantic import BaseModel, Field
 
 from godfield_bot.domain.reference import BibleSnapshot
 from godfield_bot.features import (
+    FEATURE_SCHEMA_VERSION,
+    GLOBAL_FEATURE_COUNT,
     ArtifactVocabulary,
     StateFeatureEncoder,
     StateFeatures,
@@ -55,6 +57,10 @@ def train_imitation_candidate(
     snapshot = BibleSnapshot.model_validate_json(snapshot_path.read_text(encoding="utf-8"))
     artifact_vocabulary = ArtifactVocabulary.from_snapshot(snapshot)
     parent, model = load_model(base_model_directory)
+    if parent.feature_schema_version != FEATURE_SCHEMA_VERSION or (
+        parent.architecture.global_feature_count != GLOBAL_FEATURE_COUNT
+    ):
+        raise ValueError("replay training requires a feature-schema-v3 base model")
     if parent.client_sha256 != snapshot.client.sha256:
         raise ValueError("base model client fingerprint differs from the Bible snapshot")
     if parent.vocabulary_sha256 != vocabulary_digest(artifact_vocabulary):
@@ -67,7 +73,7 @@ def train_imitation_candidate(
     if any(sample.client_sha256 != parent.client_sha256 for sample in samples):
         raise ValueError("replay client fingerprint differs from the base model")
 
-    encoder = StateFeatureEncoder(artifact_vocabulary)
+    encoder = StateFeatureEncoder(artifact_vocabulary, snapshot)
     grouped: OrderedDict[str, tuple[list[StateFeatures], list[int]]] = OrderedDict()
     for sample in samples:
         encoded_state = encoder.encode(sample.before_state, sample.legal_actions)
@@ -82,8 +88,7 @@ def train_imitation_candidate(
         trajectory[0].append(encoded_state)
         trajectory[1].append(target)
     trajectories = tuple(
-        (trajectory_features, actions)
-        for trajectory_features, actions in grouped.values()
+        (trajectory_features, actions) for trajectory_features, actions in grouped.values()
     )
 
     torch.manual_seed(config.seed)

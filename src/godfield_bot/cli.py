@@ -805,6 +805,46 @@ def models_init(
     typer.echo(manifest.model_dump_json(indent=2))
 
 
+@models_app.command("migrate-element-features")
+def models_migrate_element_features(
+    source_model: Annotated[
+        Path,
+        typer.Argument(exists=True, file_okay=False, readable=True),
+    ],
+    snapshot: Annotated[
+        Path,
+        typer.Option(exists=True, dir_okay=False, readable=True),
+    ] = Path("data", "snapshots", "2026-09-07", "bible.json"),
+    root_directory: Annotated[
+        Path,
+        typer.Option(help="Ignored root directory for the migrated model."),
+    ] = Path("models"),
+) -> None:
+    """Expand a six-global checkpoint into the elemental observation-value schema."""
+
+    try:
+        from godfield_bot.domain.reference import BibleSnapshot
+        from godfield_bot.features import ArtifactVocabulary
+        from godfield_bot.model_registry import migrate_element_features
+
+        bible = BibleSnapshot.model_validate_json(snapshot.read_text(encoding="utf-8"))
+        vocabulary = ArtifactVocabulary.from_snapshot(bible)
+        manifest = migrate_element_features(
+            source_model,
+            root_directory,
+            vocabulary,
+            client_sha256=bible.client.sha256,
+        )
+    except (ImportError, OSError, ValueError) as error:
+        structlog.get_logger().error(
+            "model_element_migration_failed",
+            error_type=type(error).__name__,
+            reason=str(error).splitlines()[0],
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(manifest.model_dump_json(indent=2))
+
+
 @models_app.command("train-replay")
 def models_train_replay(
     base_model: Annotated[
@@ -944,7 +984,7 @@ def models_train_simulation(
         typer.Option(help="Ignored root directory for the new candidate."),
     ] = Path("models"),
     ruleset: Annotated[
-        Literal["fixed-role", "mixed-hand"],
+        Literal["fixed-role", "mixed-hand", "elemental-hand"],
         typer.Option(help="Attack/defense hand-distribution curriculum."),
     ] = "fixed-role",
     batch_size: Annotated[
@@ -1076,7 +1116,7 @@ def models_evaluate_simulation(
         typer.Option(help="Owner-only directory for immutable evaluation reports."),
     ] = Path("models", "evaluations"),
     ruleset: Annotated[
-        Literal["fixed-role", "mixed-hand"],
+        Literal["fixed-role", "mixed-hand", "elemental-hand"],
         typer.Option(help="Attack/defense hand-distribution curriculum."),
     ] = "fixed-role",
     games_per_seat: Annotated[
@@ -1175,7 +1215,12 @@ def simulation_benchmark(
     ] = 1000,
     seed: Annotated[int, typer.Option(min=0)] = 67,
     ruleset: Annotated[
-        Literal["attack", "attack-defense", "mixed-attack-defense"],
+        Literal[
+            "attack",
+            "attack-defense",
+            "mixed-attack-defense",
+            "elemental-attack-defense",
+        ],
         typer.Option(help="Native curriculum ruleset to benchmark."),
     ] = "attack-defense",
 ) -> None:
@@ -1196,12 +1241,21 @@ def simulation_benchmark(
                 seed=seed,
             )
         else:
+            attack_defense_ruleset: Literal[
+                "fixed-role", "mixed-hand", "elemental-hand"
+            ]
+            if ruleset == "elemental-attack-defense":
+                attack_defense_ruleset = "elemental-hand"
+            elif ruleset == "mixed-attack-defense":
+                attack_defense_ruleset = "mixed-hand"
+            else:
+                attack_defense_ruleset = "fixed-role"
             result = benchmark_attack_defense_simulation(
                 snapshot,
                 batch_size=batch_size,
                 batch_steps=batch_steps,
                 seed=seed,
-                ruleset="mixed-hand" if ruleset == "mixed-attack-defense" else "fixed-role",
+                ruleset=attack_defense_ruleset,
             )
     except (ImportError, OSError, ValueError, SimulationUnavailableError) as error:
         structlog.get_logger().error(

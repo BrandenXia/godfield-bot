@@ -17,6 +17,7 @@ from godfield_bot.domain.reference import (
     ClientFingerprint,
 )
 from godfield_bot.domain.reference_diff import ArtifactDelta, BibleDiff, TextDelta
+from godfield_bot.elements import ELEMENT_IMAGE_PATHS, CombatElement
 
 log = structlog.get_logger()
 
@@ -50,29 +51,6 @@ IGNORED_REFERENCE_LINES = {
 
 PLAIN_ATTACK_PATTERN = re.compile(r"^ATK(\d+)$")
 PLAIN_DEFENSE_PATTERN = re.compile(r"^DEF(\d+)$")
-CombatElement = Literal[
-    "non-element",
-    "fire",
-    "water",
-    "wood",
-    "stone",
-    "light",
-    "darkness",
-]
-COMBAT_ELEMENT_IDS: dict[CombatElement, int] = {
-    "non-element": 0,
-    "fire": 1,
-    "water": 2,
-    "wood": 3,
-    "stone": 4,
-    "light": 5,
-    "darkness": 6,
-}
-ELEMENT_IMAGE_PATHS: dict[str, CombatElement] = {
-    f"/images/elements/{element}.webp": element
-    for element in COMBAT_ELEMENT_IDS
-    if element != "non-element"
-}
 VERIFIED_PASSIVE_ATTACK_EFFECTS = frozenset(
     {
         "Bounce a NE weapon",

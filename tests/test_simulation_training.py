@@ -5,8 +5,12 @@ import pytest
 import torch
 
 from godfield_bot.domain.reference import BibleSnapshot
-from godfield_bot.features import ArtifactVocabulary
-from godfield_bot.model_registry import ModelStatus, initialize_model, load_model
+from godfield_bot.features import (
+    LEGACY_FEATURE_SCHEMA_VERSION,
+    LEGACY_GLOBAL_FEATURE_COUNT,
+    ArtifactVocabulary,
+)
+from godfield_bot.model_registry import ModelManifest, ModelStatus, initialize_model, load_model
 from godfield_bot.neural import POOLED_HAND_POLICY, RecurrentPolicyValueNet
 from godfield_bot.simulation import create_attack_defense_simulation
 from godfield_bot.simulation_policy import build_curriculum_heuristic
@@ -26,12 +30,28 @@ SNAPSHOT = Path("data/snapshots/2026-09-07/bible.json")
 
 def test_training_config_selects_versioned_mixed_hand_ruleset() -> None:
     assert SimulationTrainingConfig(ruleset="mixed-hand").ruleset == "mixed-hand"
+    assert SimulationTrainingConfig(ruleset="elemental-hand").ruleset == "elemental-hand"
+
+
+def initialize_fixed_simulation_model(
+    root: Path,
+    vocabulary: ArtifactVocabulary,
+    *,
+    client_sha256: str,
+) -> ModelManifest:
+    return initialize_model(
+        root,
+        vocabulary,
+        client_sha256=client_sha256,
+        feature_schema_version=LEGACY_FEATURE_SCHEMA_VERSION,
+        global_feature_count=LEGACY_GLOBAL_FEATURE_COUNT,
+    )
 
 
 def legacy_pooled_model(root: Path) -> Path:
     snapshot = BibleSnapshot.model_validate_json(SNAPSHOT.read_text(encoding="utf-8"))
     vocabulary = ArtifactVocabulary.from_snapshot(snapshot)
-    manifest = initialize_model(
+    manifest = initialize_fixed_simulation_model(
         root,
         vocabulary,
         client_sha256=snapshot.client.sha256,
@@ -92,7 +112,11 @@ def test_recurrent_rollout_replay_reconstructs_old_policy_before_update() -> Non
     snapshot = BibleSnapshot.model_validate_json(SNAPSHOT.read_text(encoding="utf-8"))
     vocabulary = ArtifactVocabulary.from_snapshot(snapshot)
     torch.manual_seed(67)
-    model = RecurrentPolicyValueNet(vocabulary_size=len(vocabulary.tokens), action_count=21)
+    model = RecurrentPolicyValueNet(
+        vocabulary_size=len(vocabulary.tokens),
+        action_count=21,
+        global_feature_count=LEGACY_GLOBAL_FEATURE_COUNT,
+    )
     simulation = create_attack_defense_simulation(SNAPSHOT, batch_size=4, seed=67)
     rollout = collect_self_play_rollout(
         model,
@@ -129,7 +153,11 @@ def test_recurrent_rollout_replay_reconstructs_old_policy_before_update() -> Non
 def test_rollout_masks_frozen_heuristic_actions_from_policy_training() -> None:
     snapshot = BibleSnapshot.model_validate_json(SNAPSHOT.read_text(encoding="utf-8"))
     vocabulary = ArtifactVocabulary.from_snapshot(snapshot)
-    model = RecurrentPolicyValueNet(vocabulary_size=len(vocabulary.tokens), action_count=21)
+    model = RecurrentPolicyValueNet(
+        vocabulary_size=len(vocabulary.tokens),
+        action_count=21,
+        global_feature_count=LEGACY_GLOBAL_FEATURE_COUNT,
+    )
     simulation = create_attack_defense_simulation(SNAPSHOT, batch_size=8, seed=67)
 
     rollout = collect_self_play_rollout(
@@ -178,7 +206,7 @@ def test_native_self_play_writes_fingerprinted_non_promotable_candidate(tmp_path
     snapshot = BibleSnapshot.model_validate_json(SNAPSHOT.read_text(encoding="utf-8"))
     vocabulary = ArtifactVocabulary.from_snapshot(snapshot)
     model_root = tmp_path / "models"
-    parent = initialize_model(
+    parent = initialize_fixed_simulation_model(
         model_root,
         vocabulary,
         client_sha256=snapshot.client.sha256,
@@ -222,3 +250,43 @@ def test_native_self_play_writes_fingerprinted_non_promotable_candidate(tmp_path
     assert simulation_context["promotion_eligible"] is False
     assert loaded_model.global_feature_count == 6
     assert loaded_model.artifact_policy_head is not None
+
+
+def test_elemental_self_play_uses_expanded_observation_and_heuristic(tmp_path) -> None:
+    snapshot = BibleSnapshot.model_validate_json(SNAPSHOT.read_text(encoding="utf-8"))
+    vocabulary = ArtifactVocabulary.from_snapshot(snapshot)
+    model_root = tmp_path / "models"
+    parent = initialize_model(
+        model_root,
+        vocabulary,
+        client_sha256=snapshot.client.sha256,
+    )
+
+    candidate = train_simulation_candidate(
+        base_model_directory=model_root / parent.model_id,
+        model_root=model_root,
+        snapshot_path=SNAPSHOT,
+        config=SimulationTrainingConfig(
+            ruleset="elemental-hand",
+            batch_size=8,
+            rollout_steps=4,
+            updates=1,
+            ppo_epochs=1,
+            environment_minibatch_size=4,
+            teacher_updates=1,
+            teacher_epochs=1,
+            seed=67,
+        ),
+    )
+    _, loaded_model = load_model(model_root / candidate.model_id)
+    simulation_context = candidate.training_context["simulation"]
+
+    assert isinstance(simulation_context, dict)
+    assert simulation_context["ruleset_id"] == (
+        "plain-elemental-mixed-hand-attack-defense-redraw-duel-v1"
+    )
+    assert simulation_context["global_feature_count"] == 13
+    assert candidate.training_context["heuristic_policy_id"] == (
+        "plain-element-aware-max-attack-conservative-defense-v1"
+    )
+    assert loaded_model.global_feature_count == 13

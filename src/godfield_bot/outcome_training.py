@@ -7,6 +7,8 @@ from pydantic import BaseModel, Field
 
 from godfield_bot.domain.reference import BibleSnapshot
 from godfield_bot.features import (
+    FEATURE_SCHEMA_VERSION,
+    GLOBAL_FEATURE_COUNT,
     ArtifactVocabulary,
     StateFeatureEncoder,
     StateFeatures,
@@ -57,6 +59,10 @@ def train_outcome_candidate(
     snapshot = BibleSnapshot.model_validate_json(snapshot_path.read_text(encoding="utf-8"))
     artifact_vocabulary = ArtifactVocabulary.from_snapshot(snapshot)
     parent, model = load_model(base_model_directory)
+    if parent.feature_schema_version != FEATURE_SCHEMA_VERSION or (
+        parent.architecture.global_feature_count != GLOBAL_FEATURE_COUNT
+    ):
+        raise ValueError("outcome training requires a feature-schema-v3 base model")
     if parent.client_sha256 != snapshot.client.sha256:
         raise ValueError("base model client fingerprint differs from the Bible snapshot")
     if parent.vocabulary_sha256 != vocabulary_digest(artifact_vocabulary):
@@ -69,7 +75,7 @@ def train_outcome_candidate(
     if any(episode.client_sha256 != parent.client_sha256 for episode in episodes):
         raise ValueError("outcome replay client fingerprint differs from the base model")
 
-    encoder = StateFeatureEncoder(artifact_vocabulary)
+    encoder = StateFeatureEncoder(artifact_vocabulary, snapshot)
     encoded_episodes: list[tuple[list[StateFeatures], list[int], float]] = []
     outcome_counts: Counter[str] = Counter()
     for episode in episodes:

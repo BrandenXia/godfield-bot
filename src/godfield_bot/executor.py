@@ -50,7 +50,7 @@ async def execute_action(
             player_name=action.target_player_name,
         )
     elif action.kind is ActionKind.FORGIVE:
-        if action.target_player_name is None or action.control_panel != "right":
+        if action.target_player_name is None or action.control_panel not in {"left", "right"}:
             raise ActionExecutionError("Forgive is missing its verified identities")
         context_asset_paths = action.context_asset_paths or (
             (action.artifact_asset_path,) if action.artifact_asset_path is not None else ()

@@ -39,6 +39,37 @@ def test_forgive_dispatches_with_all_verified_context_assets(monkeypatch) -> Non
     }
 
 
+def test_reflected_forgive_dispatches_to_left_panel(monkeypatch) -> None:
+    captured: dict[str, Any] = {}
+
+    async def fake_click_phase_control(page: object, **kwargs: object) -> None:
+        captured["page"] = page
+        captured.update(kwargs)
+
+    monkeypatch.setattr(executor, "click_phase_control", fake_click_phase_control)
+    page = object()
+    action = LegalAction(
+        action_id="forgive:reflected",
+        kind=ActionKind.FORGIVE,
+        label="Forgive the reflected outgoing attack",
+        artifact_asset_path="/images/items/weapons/angel-sword.webp",
+        target_player_index=1,
+        target_player_name="CPU",
+        control_panel="left",
+    )
+
+    result = asyncio.run(executor.execute_action(page, action))  # type: ignore[arg-type]
+
+    assert result.dispatched is True
+    assert captured == {
+        "page": page,
+        "text": "Forgive",
+        "panel": "left",
+        "context_asset_paths": ("/images/items/weapons/angel-sword.webp",),
+        "target_name": "CPU",
+    }
+
+
 def test_pass_dispatches_through_verified_empty_pray_panel(monkeypatch) -> None:
     captured: dict[str, Any] = {}
 

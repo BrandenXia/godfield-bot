@@ -181,9 +181,10 @@ miracles are also available when their exact MP cost is affordable. Empty
 Prayer is allowed only when the hand contains no weapon, matching the live
 client's rejection rule. Additive boosters, multi-hit, resource-consuming,
 state-dependent, and self-damaging weapons remain excluded.
-It can also Forgive a targeted incoming interaction after revalidating every
-visible context artifact, and select plain armor during a verified neutral
-defense before confirming that armor in its response panel. Every browser
+It can also Forgive a targeted incoming interaction or mirrored reflected
+attack after revalidating every visible context artifact and panel identity,
+and select plain armor during a verified neutral defense before confirming
+that armor in its response panel. Every browser
 interaction counts against `--max-actions`; unknown,
 elemental-defense, multi-target, discard, and other phases remain blocked.
 

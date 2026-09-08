@@ -86,6 +86,11 @@ def verified_browser_actions(
         and state.phase_control == "Forgive"
         and state.phase_control_hit_target_bounds is not None
     )
+    reflected_context_assets = (
+        (state.phase_artifact_asset_path,)
+        if state.phase_artifact_asset_path is not None
+        else ()
+    )
     self_neutral_defense = (
         self_incoming_targeted_effect
         and state.action_display is not None
@@ -97,6 +102,17 @@ def verified_browser_actions(
         for index, player in enumerate(state.players)
         if not player.is_self and player.hp > 0
     ]
+    self_reflected_response = (
+        len(living_opponents) == 1
+        and state.action_actor == self_player.name
+        and state.action_target == living_opponents[0][1].name
+        and state.action_display == "Forgive"
+        and state.action_hit_target_bounds is not None
+        and bool(reflected_context_assets)
+        and state.phase_control is not None
+        and re.fullmatch(r"(?:\d+%)?ATK\d+", state.phase_control) is not None
+        and state.phase_control_hit_target_bounds is None
+    )
     selected_weapon = (
         WEAPON_ASSET_PATTERN.fullmatch(state.action_artifact_asset_path)
         if state.action_artifact_asset_path is not None
@@ -177,7 +193,10 @@ def verified_browser_actions(
                 and rule[1] <= self_player.mp
             )
         ]
-        if not any(artifact.category == "weapons" for artifact in state.hand):
+        if (
+            state.action_hit_target_bounds is not None
+            and not any(artifact.category == "weapons" for artifact in state.hand)
+        ):
             actions.append(
                 LegalAction(
                     action_id="pass",
@@ -256,13 +275,27 @@ def verified_browser_actions(
                 context_asset_paths=incoming_context_assets,
             )
         )
+    if self_reflected_response:
+        target_index, target = living_opponents[0]
+        actions.append(
+            LegalAction(
+                action_id="forgive:reflected",
+                kind=ActionKind.FORGIVE,
+                label="Forgive the reflected outgoing attack",
+                artifact_asset_path=state.phase_artifact_asset_path,
+                target_player_index=target_index,
+                target_player_name=target.name,
+                control_panel="left",
+                context_asset_paths=reflected_context_assets,
+            )
+        )
     return LegalActionSet(
         state_digest=game_state_digest(state),
         actions=tuple(actions),
         coverage_complete=False,
         blocked_reason=(
             "only verified one-click weapon or fixed miracle selection and confirmation, "
-            "weapon-free Pray, incoming-effect or targeted-interaction Forgive, and neutral "
-            "plain-armor selection and confirmation are supported"
+            "weapon-free Pray, incoming or reflected Forgive, and neutral plain-armor "
+            "selection and confirmation are supported"
         ),
     )

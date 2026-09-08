@@ -148,6 +148,7 @@ def test_heuristic_selects_affordable_fixed_attack_miracle() -> None:
             "hand": (miracle,),
             "action_actor": "ロキ-67",
             "action_display": "Pray",
+            "action_hit_target_bounds": Bounds(x=115, y=93, width=310, height=300),
         }
     )
     observation = ScreenObservation(
@@ -203,6 +204,7 @@ def test_heuristic_excludes_unaffordable_fixed_attack_miracle() -> None:
             "hand": (miracle,),
             "action_actor": "ロキ-67",
             "action_display": "Pray",
+            "action_hit_target_bounds": Bounds(x=115, y=93, width=310, height=300),
         }
     )
     observation = ScreenObservation(
@@ -233,6 +235,34 @@ def test_heuristic_excludes_unaffordable_fixed_attack_miracle() -> None:
     assert [action.action_id for action in actions.actions] == ["wait", "pass"]
     assert decision.chosen_action_id == "pass"
     assert decision.executable is True
+
+
+def test_pray_transition_without_hit_target_does_not_expose_pass() -> None:
+    initial = state()
+    game_state = initial.model_copy(
+        update={
+            "hand": (),
+            "action_actor": "ロキ-67",
+            "action_display": "Pray",
+            "action_hit_target_bounds": None,
+        }
+    )
+    observation = ScreenObservation(
+        observed_at=game_state.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.20", "Pray", "HP"),
+        text_elements=(),
+        controls=(),
+        images=(),
+    )
+
+    actions = verified_browser_actions(game_state, observation)
+
+    assert [action.action_id for action in actions.actions] == ["wait"]
 
 
 def test_heuristic_confirms_selected_fixed_attack_miracle() -> None:
@@ -441,6 +471,50 @@ def test_heuristic_forgives_targeted_interaction_with_multiple_context_artifacts
         "/images/items/armor/dreaming-hat.webp",
     )
     assert decision.chosen_action_id == "forgive"
+
+
+def test_heuristic_forgives_reflected_outgoing_attack_from_left_panel() -> None:
+    initial = state()
+    game_state = initial.model_copy(
+        update={
+            "action_actor": "ロキ-67",
+            "action_target": "CPU",
+            "action_display": "Forgive",
+            "action_display_color": "rgb(238, 221, 221)",
+            "action_hit_target_bounds": Bounds(x=115, y=93, width=310, height=300),
+            "phase_artifact_asset_path": "/images/items/weapons/angel-sword.webp",
+            "phase_control": "ATK13",
+            "phase_control_color": "rgb(79, 79, 79)",
+        }
+    )
+    observation = ScreenObservation(
+        observed_at=game_state.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.1", "Forgive", "ATK13", "HP"),
+        text_elements=(),
+        controls=(),
+        images=(),
+    )
+
+    actions = verified_browser_actions(game_state, observation)
+    decision = HeuristicV0Policy(
+        {"bronze-club": ("ATK1", 1.0)},
+        {"iron-shield": 4},
+    ).decide(game_state, actions)
+
+    assert [action.action_id for action in actions.actions] == [
+        "wait",
+        "forgive:reflected",
+    ]
+    assert actions.actions[1].control_panel == "left"
+    assert actions.actions[1].context_asset_paths == (
+        "/images/items/weapons/angel-sword.webp",
+    )
+    assert decision.chosen_action_id == "forgive:reflected"
 
 
 def test_heuristic_confirms_plain_weapon_on_named_sole_opponent() -> None:

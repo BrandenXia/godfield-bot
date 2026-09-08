@@ -59,3 +59,14 @@ normally against the official CPU and was classified as a loss. Earlier
 diagnostic runs established that the client rejects empty Prayer when a weapon
 is held and that probabilistic attacks first render an untargeted chance panel;
 both rules are now explicit rather than inferred from a timeout.
+
+The longer soak also showed that an accepted Prayer can leave a short-lived
+frame with the `Pray` label but without its clickable panel. Legal generation
+now requires the normalized panel hit target, preventing a duplicate click.
+A reflected attack can similarly place `Forgive` on the left panel; that
+mirrored control is admitted only with the original actor, sole named opponent,
+exact reflected artifact, displayed attack, and left-panel hit target.
+
+Run `7d1d9c27-da9f-437b-b38e-01d1f5f2200f` then completed normally and was
+classified as a loss after exercising an accepted probabilistic attack and
+multiple accepted weapon-free Prayers.

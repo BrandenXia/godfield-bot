@@ -4,7 +4,9 @@ from pathlib import Path
 from godfield_bot.domain.reference import BibleSnapshot
 from godfield_bot.reference import (
     category_counts,
+    plain_attack_weapon_cards,
     plain_attack_weapon_values,
+    plain_defense_armor_cards,
     plain_defense_armor_values,
     verified_attack_weapon_values,
 )
@@ -38,6 +40,16 @@ def test_committed_snapshot_matches_validated_live_catalog() -> None:
     assert plain_defenses["iron-shield"] == 4
     assert plain_defenses["steel-shield"] == 8
     assert "flame-shield" not in plain_defenses
+    elemental_attacks = plain_attack_weapon_cards(snapshot)
+    assert len(elemental_attacks) == 39
+    assert elemental_attacks["bronze-club"] == (1, "non-element")
+    assert elemental_attacks["torch"] == (1, "fire")
+    assert elemental_attacks["pri-pri-pricker"] == (1, "darkness")
+    elemental_defenses = plain_defense_armor_cards(snapshot)
+    assert len(elemental_defenses) == 47
+    assert elemental_defenses["iron-shield"] == (4, "non-element")
+    assert elemental_defenses["flame-shield"] == (5, "fire")
+    assert elemental_defenses["shining-high-heels"] == (6, "light")
     verified_attacks = verified_attack_weapon_values(snapshot)
     assert len(verified_attacks) == 32
     assert verified_attacks["bouncing-sword"] == 5

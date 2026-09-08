@@ -12,7 +12,10 @@ from pydantic import BaseModel, Field
 from godfield_bot.domain.reference import BibleSnapshot
 from godfield_bot.features import ArtifactVocabulary
 from godfield_bot.reference import (
+    COMBAT_ELEMENT_IDS,
+    plain_attack_weapon_cards,
     plain_attack_weapon_values,
+    plain_defense_armor_cards,
     plain_defense_armor_values,
 )
 
@@ -20,7 +23,7 @@ if TYPE_CHECKING:
     from godfield_sim import AttackDefenseBatch, FixedAttackBatch
     from torch import Tensor
 
-AttackDefenseRuleset = Literal["fixed-role", "mixed-hand"]
+AttackDefenseRuleset = Literal["fixed-role", "mixed-hand", "elemental-hand"]
 
 
 class SimulationUnavailableError(RuntimeError):
@@ -28,7 +31,7 @@ class SimulationUnavailableError(RuntimeError):
 
 
 class SimulationMetadata(BaseModel):
-    schema_version: int = 1
+    schema_version: int = 2
     kernel_schema_version: int
     observation_schema_version: int
     ruleset_id: str
@@ -46,6 +49,7 @@ class SimulationMetadata(BaseModel):
     rule_catalog_size: int = Field(gt=0)
     action_count: int = Field(gt=0)
     hand_slots: int = Field(gt=0)
+    global_feature_count: int = Field(default=6, gt=0)
     action_semantics: Literal[
         "atomic-hand-slot-macro",
         "atomic-attack-defense-macro",
@@ -54,6 +58,7 @@ class SimulationMetadata(BaseModel):
         "uniform-redraw-with-replacement",
         "fixed-role-uniform-redraw-with-replacement",
         "mixed-role-uniform-redraw-with-attack-liveness",
+        "elemental-mixed-role-uniform-redraw-with-attack-liveness",
     ] = "uniform-redraw-with-replacement"
     promotion_eligible: Literal[False] = False
 
@@ -178,6 +183,7 @@ def create_fixed_attack_simulation(
             rule_catalog_size=len(catalog),
             action_count=ACTION_COUNT,
             hand_slots=HAND_SLOTS,
+            global_feature_count=6,
         ),
     )
 
@@ -199,11 +205,16 @@ def create_attack_defense_simulation(
             ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
             ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
             ATTACK_DEFENSE_RULESET_ID,
+            ELEMENTAL_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
+            ELEMENTAL_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
+            ELEMENTAL_ATTACK_DEFENSE_RULESET_ID,
+            ELEMENTAL_GLOBAL_FEATURE_COUNT,
             HAND_SLOTS,
             MIXED_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
             MIXED_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
             MIXED_ATTACK_DEFENSE_RULESET_ID,
             AttackDefenseBatch,
+            ElementalAttackDefenseBatch,
         )
     except ImportError as error:
         raise SimulationUnavailableError(
@@ -212,8 +223,18 @@ def create_attack_defense_simulation(
 
     snapshot = BibleSnapshot.model_validate_json(snapshot_path.read_text(encoding="utf-8"))
     vocabulary = ArtifactVocabulary.from_snapshot(snapshot)
-    attacks = plain_attack_weapon_values(snapshot)
-    defenses = plain_defense_armor_values(snapshot)
+    if ruleset == "elemental-hand":
+        attacks = plain_attack_weapon_cards(snapshot)
+        defenses = plain_defense_armor_cards(snapshot)
+    else:
+        attacks = {
+            slug: (attack, "non-element")
+            for slug, attack in plain_attack_weapon_values(snapshot).items()
+        }
+        defenses = {
+            slug: (defense, "non-element")
+            for slug, defense in plain_defense_armor_values(snapshot).items()
+        }
     if not attacks:
         raise ValueError("accepted snapshot contains no effect-free neutral attacks")
     if not defenses:
@@ -225,8 +246,13 @@ def create_attack_defense_simulation(
             "kind": "weapon",
             "slug": slug,
             "token_id": vocabulary.token_id("weapons", slug),
+            **(
+                {"element": element, "element_id": COMBAT_ELEMENT_IDS[element]}
+                if ruleset == "elemental-hand"
+                else {}
+            ),
         }
-        for slug, attack in sorted(attacks.items())
+        for slug, (attack, element) in sorted(attacks.items())
     ]
     armor_catalog = [
         {
@@ -234,37 +260,67 @@ def create_attack_defense_simulation(
             "kind": "armor",
             "slug": slug,
             "token_id": vocabulary.token_id("armor", slug),
+            **(
+                {"element": element, "element_id": COMBAT_ELEMENT_IDS[element]}
+                if ruleset == "elemental-hand"
+                else {}
+            ),
         }
-        for slug, defense in sorted(defenses.items())
+        for slug, (defense, element) in sorted(defenses.items())
     ]
     weapon_token_ids = np.asarray([row["token_id"] for row in weapon_catalog], dtype=np.uint32)
     attack_values = np.asarray([row["attack"] for row in weapon_catalog], dtype=np.uint16)
     armor_token_ids = np.asarray([row["token_id"] for row in armor_catalog], dtype=np.uint32)
     defense_values = np.asarray([row["defense"] for row in armor_catalog], dtype=np.uint16)
-    batch = AttackDefenseBatch(
-        batch_size,
-        weapon_token_ids,
-        attack_values,
-        armor_token_ids,
-        defense_values,
-        seed,
-        initial_hp,
-        ruleset == "mixed-hand",
-    )
+    batch: AttackDefenseBatch
+    if ruleset == "elemental-hand":
+        weapon_elements = np.asarray([row["element_id"] for row in weapon_catalog], dtype=np.uint8)
+        armor_elements = np.asarray([row["element_id"] for row in armor_catalog], dtype=np.uint8)
+        batch = ElementalAttackDefenseBatch(
+            batch_size,
+            weapon_token_ids,
+            attack_values,
+            weapon_elements,
+            armor_token_ids,
+            defense_values,
+            armor_elements,
+            seed,
+            initial_hp,
+        )
+    else:
+        batch = AttackDefenseBatch(
+            batch_size,
+            weapon_token_ids,
+            attack_values,
+            armor_token_ids,
+            defense_values,
+            seed,
+            initial_hp,
+            ruleset == "mixed-hand",
+        )
     catalog = weapon_catalog + armor_catalog
     sampling_distribution: Literal[
         "fixed-role-uniform-redraw-with-replacement",
         "mixed-role-uniform-redraw-with-attack-liveness",
+        "elemental-mixed-role-uniform-redraw-with-attack-liveness",
     ]
-    if ruleset == "mixed-hand":
+    if ruleset == "elemental-hand":
+        kernel_schema_version = ELEMENTAL_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION
+        observation_schema_version = ELEMENTAL_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION
+        ruleset_id = ELEMENTAL_ATTACK_DEFENSE_RULESET_ID
+        global_feature_count = ELEMENTAL_GLOBAL_FEATURE_COUNT
+        sampling_distribution = "elemental-mixed-role-uniform-redraw-with-attack-liveness"
+    elif ruleset == "mixed-hand":
         kernel_schema_version = MIXED_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION
         observation_schema_version = MIXED_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION
         ruleset_id = MIXED_ATTACK_DEFENSE_RULESET_ID
+        global_feature_count = 6
         sampling_distribution = "mixed-role-uniform-redraw-with-attack-liveness"
     else:
         kernel_schema_version = ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION
         observation_schema_version = ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION
         ruleset_id = ATTACK_DEFENSE_RULESET_ID
+        global_feature_count = 6
         sampling_distribution = "fixed-role-uniform-redraw-with-replacement"
     return AttackDefenseSimulation(
         batch=batch,
@@ -278,6 +334,7 @@ def create_attack_defense_simulation(
             rule_catalog_size=len(catalog),
             action_count=ACTION_COUNT,
             hand_slots=HAND_SLOTS,
+            global_feature_count=global_feature_count,
             action_semantics="atomic-attack-defense-macro",
             sampling_distribution=sampling_distribution,
         ),

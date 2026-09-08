@@ -7,7 +7,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "godfield-sim"
-version = "0.5.0"
+version = "0.6.0"
 description = "Native batched curriculum simulator for the God Field bot"
 requires-python = ">=3.12,<3.14"
 dependencies = [

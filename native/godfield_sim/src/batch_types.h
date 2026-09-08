@@ -14,12 +14,17 @@ inline constexpr std::size_t kHandSlots = 9;
 inline constexpr std::size_t kActionCount = 21;
 inline constexpr std::size_t kForgiveActionIndex = 19;
 inline constexpr std::size_t kGlobalFeatureCount = 6;
+inline constexpr std::size_t kElementCount = 7;
+inline constexpr std::size_t kElementalGlobalFeatureCount =
+    kGlobalFeatureCount + kElementCount;
 inline constexpr std::size_t kPlayerFeatureCount = 4;
 
 using TokenInput = nb::ndarray<const std::uint32_t, nb::numpy, nb::shape<-1>,
                                nb::c_contig, nb::device::cpu>;
 using ValueInput = nb::ndarray<const std::uint16_t, nb::numpy, nb::shape<-1>,
                                nb::c_contig, nb::device::cpu>;
+using ElementInput = nb::ndarray<const std::uint8_t, nb::numpy, nb::shape<-1>,
+                                 nb::c_contig, nb::device::cpu>;
 using AttackInput = ValueInput;
 using ActionInput = nb::ndarray<const std::int64_t, nb::numpy, nb::shape<-1>,
                                 nb::c_contig, nb::device::cpu>;

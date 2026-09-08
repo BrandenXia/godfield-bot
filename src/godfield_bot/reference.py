@@ -49,6 +49,30 @@ IGNORED_REFERENCE_LINES = {
 }
 
 PLAIN_ATTACK_PATTERN = re.compile(r"^ATK(\d+)$")
+PLAIN_DEFENSE_PATTERN = re.compile(r"^DEF(\d+)$")
+CombatElement = Literal[
+    "non-element",
+    "fire",
+    "water",
+    "wood",
+    "stone",
+    "light",
+    "darkness",
+]
+COMBAT_ELEMENT_IDS: dict[CombatElement, int] = {
+    "non-element": 0,
+    "fire": 1,
+    "water": 2,
+    "wood": 3,
+    "stone": 4,
+    "light": 5,
+    "darkness": 6,
+}
+ELEMENT_IMAGE_PATHS: dict[str, CombatElement] = {
+    f"/images/elements/{element}.webp": element
+    for element in COMBAT_ELEMENT_IDS
+    if element != "non-element"
+}
 VERIFIED_PASSIVE_ATTACK_EFFECTS = frozenset(
     {
         "Bounce a NE weapon",
@@ -137,9 +161,7 @@ async def _artifact_sources(page: Page, category_slug: str) -> tuple[str, ...]:
     return tuple(sources)
 
 
-async def _selected_detail(
-    page: Page, image_path: str
-) -> tuple[tuple[str, ...], tuple[str, ...]]:
+async def _selected_detail(page: Page, image_path: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
     result = cast(
         dict[str, Any],
         await page.evaluate(
@@ -257,11 +279,8 @@ def diff_bible_snapshots(baseline: BibleSnapshot, candidate: BibleSnapshot) -> B
             before=baseline.reference_sections.get(name, ()),
             after=candidate.reference_sections.get(name, ()),
         )
-        for name in sorted(
-            baseline.reference_sections.keys() | candidate.reference_sections.keys()
-        )
-        if baseline.reference_sections.get(name, ())
-        != candidate.reference_sections.get(name, ())
+        for name in sorted(baseline.reference_sections.keys() | candidate.reference_sections.keys())
+        if baseline.reference_sections.get(name, ()) != candidate.reference_sections.get(name, ())
     )
     category_names = baseline.catalog.keys() | candidate.catalog.keys()
     note_changes = tuple(
@@ -332,12 +351,23 @@ def diff_bible_snapshots(baseline: BibleSnapshot, candidate: BibleSnapshot) -> B
     )
 
 
-def plain_attack_weapon_values(snapshot: BibleSnapshot) -> dict[str, int]:
-    """Return weapons whose current Bible detail is only name, ATK, price, and rate."""
+def _combat_element(artifact: ArtifactRecord) -> CombatElement | None:
+    if not artifact.element_image_paths:
+        return "non-element"
+    if len(artifact.element_image_paths) != 1:
+        return None
+    return ELEMENT_IMAGE_PATHS.get(artifact.element_image_paths[0])
 
-    result: dict[str, int] = {}
+
+def plain_attack_weapon_cards(
+    snapshot: BibleSnapshot,
+) -> dict[str, tuple[int, CombatElement]]:
+    """Return effect-free weapon attacks and their single combat element."""
+
+    result: dict[str, tuple[int, CombatElement]] = {}
     for artifact in snapshot.catalog["weapons"].items:
-        if artifact.element_image_paths or len(artifact.detail) != 4:
+        element = _combat_element(artifact)
+        if element is None or len(artifact.detail) != 4:
             continue
         attack = PLAIN_ATTACK_PATTERN.fullmatch(artifact.detail[1])
         if (
@@ -345,8 +375,18 @@ def plain_attack_weapon_values(snapshot: BibleSnapshot) -> dict[str, int]:
             and re.fullmatch(r"\$\d+", artifact.detail[2]) is not None
             and artifact.detail[3].startswith("Gift Rate:")
         ):
-            result[artifact.asset] = int(attack.group(1))
+            result[artifact.asset] = (int(attack.group(1)), element)
     return result
+
+
+def plain_attack_weapon_values(snapshot: BibleSnapshot) -> dict[str, int]:
+    """Return effect-free non-element weapon attacks from the current Bible."""
+
+    return {
+        slug: attack
+        for slug, (attack, element) in plain_attack_weapon_cards(snapshot).items()
+        if element == "non-element"
+    }
 
 
 def verified_attack_weapon_values(snapshot: BibleSnapshot) -> dict[str, int]:
@@ -377,21 +417,34 @@ def verified_attack_weapon_values(snapshot: BibleSnapshot) -> dict[str, int]:
     return result
 
 
-def plain_defense_armor_values(snapshot: BibleSnapshot) -> dict[str, int]:
-    """Return armor whose current Bible detail is only name, DEF, price, and rate."""
+def plain_defense_armor_cards(
+    snapshot: BibleSnapshot,
+) -> dict[str, tuple[int, CombatElement]]:
+    """Return effect-free armor defenses and their single combat element."""
 
-    result: dict[str, int] = {}
+    result: dict[str, tuple[int, CombatElement]] = {}
     for artifact in snapshot.catalog["armor"].items:
-        if artifact.element_image_paths or len(artifact.detail) != 4:
+        element = _combat_element(artifact)
+        if element is None or len(artifact.detail) != 4:
             continue
-        defense = re.fullmatch(r"DEF(\d+)", artifact.detail[1])
+        defense = PLAIN_DEFENSE_PATTERN.fullmatch(artifact.detail[1])
         if (
             defense is not None
             and re.fullmatch(r"\$\d+", artifact.detail[2]) is not None
             and artifact.detail[3].startswith("Gift Rate:")
         ):
-            result[artifact.asset] = int(defense.group(1))
+            result[artifact.asset] = (int(defense.group(1)), element)
     return result
+
+
+def plain_defense_armor_values(snapshot: BibleSnapshot) -> dict[str, int]:
+    """Return effect-free non-element armor defenses from the current Bible."""
+
+    return {
+        slug: defense
+        for slug, (defense, element) in plain_defense_armor_cards(snapshot).items()
+        if element == "non-element"
+    }
 
 
 def ensure_expected_counts(actual: dict[str, int], expected: Iterable[tuple[str, int]]) -> None:

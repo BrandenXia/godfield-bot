@@ -5,6 +5,7 @@
 
 namespace nb = nanobind;
 using godfield_sim::AttackDefenseBatch;
+using godfield_sim::ElementalAttackDefenseBatch;
 using godfield_sim::FixedAttackBatch;
 
 NB_MODULE(_native, module) {
@@ -29,6 +30,29 @@ NB_MODULE(_native, module) {
       godfield_sim::kMixedAttackDefenseObservationSchemaVersion;
   module.attr("MIXED_ATTACK_DEFENSE_RULESET_ID") =
       godfield_sim::kMixedAttackDefenseRulesetId;
+  module.attr("ELEMENTAL_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION") =
+      godfield_sim::kElementalAttackDefenseKernelSchemaVersion;
+  module.attr("ELEMENTAL_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION") =
+      godfield_sim::kElementalAttackDefenseObservationSchemaVersion;
+  module.attr("ELEMENTAL_ATTACK_DEFENSE_RULESET_ID") =
+      godfield_sim::kElementalAttackDefenseRulesetId;
+  module.attr("ELEMENT_COUNT") = godfield_sim::kElementCount;
+  module.attr("ELEMENTAL_GLOBAL_FEATURE_COUNT") =
+      godfield_sim::kElementalGlobalFeatureCount;
+  module.attr("ELEMENT_NON_ELEMENT") =
+      static_cast<std::uint8_t>(godfield_sim::CombatElement::NonElement);
+  module.attr("ELEMENT_FIRE") =
+      static_cast<std::uint8_t>(godfield_sim::CombatElement::Fire);
+  module.attr("ELEMENT_WATER") =
+      static_cast<std::uint8_t>(godfield_sim::CombatElement::Water);
+  module.attr("ELEMENT_WOOD") =
+      static_cast<std::uint8_t>(godfield_sim::CombatElement::Wood);
+  module.attr("ELEMENT_STONE") =
+      static_cast<std::uint8_t>(godfield_sim::CombatElement::Stone);
+  module.attr("ELEMENT_LIGHT") =
+      static_cast<std::uint8_t>(godfield_sim::CombatElement::Light);
+  module.attr("ELEMENT_DARKNESS") =
+      static_cast<std::uint8_t>(godfield_sim::CombatElement::Darkness);
   module.attr("WEAPON_SLOTS") = godfield_sim::kWeaponSlots;
   module.attr("ARMOR_SLOTS") = godfield_sim::kArmorSlots;
   module.attr("PHASE_ATTACK") =
@@ -91,6 +115,9 @@ NB_MODULE(_native, module) {
       .def_prop_ro("seed", &AttackDefenseBatch::seed)
       .def_prop_ro("initial_hp", &AttackDefenseBatch::initial_hp)
       .def_prop_ro("mixed_hands", &AttackDefenseBatch::mixed_hands)
+      .def_prop_ro("elemental", &AttackDefenseBatch::elemental)
+      .def_prop_ro("global_feature_count",
+                   &AttackDefenseBatch::global_feature_count)
       .def_prop_ro("global_features", &AttackDefenseBatch::global_features_view,
                    nb::rv_policy::reference_internal)
       .def_prop_ro("player_features", &AttackDefenseBatch::player_features_view,
@@ -103,6 +130,8 @@ NB_MODULE(_native, module) {
                    nb::rv_policy::reference_internal)
       .def_prop_ro("hand_card_kinds", &AttackDefenseBatch::hand_card_kinds_view,
                    nb::rv_policy::reference_internal)
+      .def_prop_ro("hand_elements", &AttackDefenseBatch::hand_elements_view,
+                   nb::rv_policy::reference_internal)
       .def_prop_ro("action_mask", &AttackDefenseBatch::action_mask_view,
                    nb::rv_policy::reference_internal)
       .def_prop_ro("active_players", &AttackDefenseBatch::active_players_view,
@@ -110,6 +139,9 @@ NB_MODULE(_native, module) {
       .def_prop_ro("phases", &AttackDefenseBatch::phases_view,
                    nb::rv_policy::reference_internal)
       .def_prop_ro("pending_attacks", &AttackDefenseBatch::pending_attacks_view,
+                   nb::rv_policy::reference_internal)
+      .def_prop_ro("pending_elements",
+                   &AttackDefenseBatch::pending_elements_view,
                    nb::rv_policy::reference_internal)
       .def_prop_ro("terminal_returns",
                    &AttackDefenseBatch::terminal_returns_view,
@@ -126,4 +158,16 @@ NB_MODULE(_native, module) {
            nb::call_guard<nb::gil_scoped_release>())
       .def("step", &AttackDefenseBatch::step, nb::arg("actions"),
            nb::call_guard<nb::gil_scoped_release>());
+
+  nb::class_<ElementalAttackDefenseBatch, AttackDefenseBatch>(
+      module, "ElementalAttackDefenseBatch")
+      .def(nb::init<std::size_t, godfield_sim::TokenInput,
+                    godfield_sim::ValueInput, godfield_sim::ElementInput,
+                    godfield_sim::TokenInput, godfield_sim::ValueInput,
+                    godfield_sim::ElementInput, std::uint64_t, std::uint16_t>(),
+           nb::arg("batch_size"), nb::arg("weapon_token_ids"),
+           nb::arg("attack_values"), nb::arg("weapon_elements"),
+           nb::arg("armor_token_ids"), nb::arg("defense_values"),
+           nb::arg("armor_elements"), nb::arg("seed") = 67U,
+           nb::arg("initial_hp") = 40U);
 }

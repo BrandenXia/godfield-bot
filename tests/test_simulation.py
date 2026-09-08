@@ -15,6 +15,7 @@ np = pytest.importorskip("numpy")
 godfield_sim = pytest.importorskip("godfield_sim")
 FixedAttackBatch = godfield_sim.FixedAttackBatch
 AttackDefenseBatch = godfield_sim.AttackDefenseBatch
+ElementalAttackDefenseBatch = godfield_sim.ElementalAttackDefenseBatch
 
 SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-07" / "bible.json"
 
@@ -36,6 +37,27 @@ def defense_batch(*, batch_size: int = 4, attack: int = 13, defense: int = 4) ->
         np.asarray([attack], dtype=np.uint16),
         np.asarray([3], dtype=np.uint32),
         np.asarray([defense], dtype=np.uint16),
+        67,
+        40,
+    )
+
+
+def elemental_batch(
+    *,
+    batch_size: int = 8,
+    attack: int = 13,
+    defense: int = 4,
+    attack_element: int = 0,
+    defense_element: int = 0,
+) -> ElementalAttackDefenseBatch:
+    return ElementalAttackDefenseBatch(
+        batch_size,
+        np.asarray([2], dtype=np.uint32),
+        np.asarray([attack], dtype=np.uint16),
+        np.asarray([attack_element], dtype=np.uint8),
+        np.asarray([3], dtype=np.uint32),
+        np.asarray([defense], dtype=np.uint16),
+        np.asarray([defense_element], dtype=np.uint8),
         67,
         40,
     )
@@ -95,6 +117,103 @@ def test_mixed_hand_factory_versions_distribution_without_changing_observation_s
         simulation.batch.action_mask[:, 1:10],
         kinds == godfield_sim.CARD_KIND_WEAPON,
     )
+
+
+def test_elemental_factory_versions_expanded_catalog_and_observation() -> None:
+    simulation = create_attack_defense_simulation(
+        SNAPSHOT_PATH,
+        batch_size=128,
+        ruleset="elemental-hand",
+    )
+
+    assert simulation.metadata.schema_version == 2
+    assert simulation.metadata.kernel_schema_version == 1
+    assert simulation.metadata.observation_schema_version == 3
+    assert simulation.metadata.ruleset_id == (
+        "plain-elemental-mixed-hand-attack-defense-redraw-duel-v1"
+    )
+    assert simulation.metadata.rule_catalog_size == 86
+    assert simulation.metadata.global_feature_count == 13
+    assert simulation.metadata.sampling_distribution == (
+        "elemental-mixed-role-uniform-redraw-with-attack-liveness"
+    )
+    assert simulation.batch.mixed_hands is True
+    assert simulation.batch.elemental is True
+    assert simulation.batch.global_feature_count == 13
+    assert simulation.batch.global_features.shape == (128, 13)
+    assert simulation.batch.hand_elements.shape == (128, 9)
+    assert int(simulation.batch.hand_elements.max()) == godfield_sim.ELEMENT_DARKNESS
+
+
+@pytest.mark.parametrize(
+    ("attack_element", "compatible_defenses"),
+    [
+        (godfield_sim.ELEMENT_NON_ELEMENT, set(range(7))),
+        (
+            godfield_sim.ELEMENT_FIRE,
+            {godfield_sim.ELEMENT_WATER, godfield_sim.ELEMENT_LIGHT},
+        ),
+        (
+            godfield_sim.ELEMENT_WATER,
+            {godfield_sim.ELEMENT_FIRE, godfield_sim.ELEMENT_LIGHT},
+        ),
+        (
+            godfield_sim.ELEMENT_WOOD,
+            {godfield_sim.ELEMENT_STONE, godfield_sim.ELEMENT_LIGHT},
+        ),
+        (
+            godfield_sim.ELEMENT_STONE,
+            {godfield_sim.ELEMENT_WOOD, godfield_sim.ELEMENT_LIGHT},
+        ),
+        (godfield_sim.ELEMENT_LIGHT, set()),
+        (godfield_sim.ELEMENT_DARKNESS, set(range(7))),
+    ],
+)
+def test_elemental_defense_compatibility_masks(
+    attack_element: int,
+    compatible_defenses: set[int],
+) -> None:
+    for defense_element in range(7):
+        batch = elemental_batch(
+            attack_element=attack_element,
+            defense_element=defense_element,
+        )
+        batch.step(batch.action_mask.argmax(axis=1).astype(np.int64))
+        armor_legal = batch.action_mask[:, 1:10].any(axis=1)
+
+        assert np.all(armor_legal == (defense_element in compatible_defenses))
+        assert np.all(batch.action_mask[:, godfield_sim.FORGIVE_ACTION_INDEX])
+        assert np.all(batch.pending_elements == attack_element)
+        assert np.all(batch.global_features[:, 6 + attack_element] == 1.0)
+        assert np.all(batch.global_features[:, 6:13].sum(axis=1) == 1.0)
+
+
+def test_darkness_is_lethal_only_when_damage_penetrates_defense() -> None:
+    penetrating = elemental_batch(
+        attack=13,
+        defense=4,
+        attack_element=godfield_sim.ELEMENT_DARKNESS,
+    )
+    blocked = elemental_batch(
+        attack=13,
+        defense=20,
+        attack_element=godfield_sim.ELEMENT_DARKNESS,
+    )
+    penetrating.step(penetrating.action_mask.argmax(axis=1).astype(np.int64))
+    blocked.step(blocked.action_mask.argmax(axis=1).astype(np.int64))
+
+    penetrating.step(penetrating.action_mask.argmax(axis=1).astype(np.int64))
+    blocked.step(blocked.action_mask.argmax(axis=1).astype(np.int64))
+
+    assert np.all(penetrating.terminated)
+    assert not np.any(blocked.terminated)
+    assert np.allclose(blocked.global_features[:, 1], 0.40)
+    assert np.all(blocked.global_features[:, 6:13] == 0.0)
+
+
+def test_elemental_catalog_rejects_unknown_element_ids() -> None:
+    with pytest.raises(ValueError, match="unknown element ID"):
+        elemental_batch(attack_element=7)
 
 
 def test_mixed_hand_redraws_roles_and_preserves_attack_liveness() -> None:

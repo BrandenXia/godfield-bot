@@ -94,9 +94,10 @@ remain active.
 Use `--team 0` for solo/free-for-all entry, or `--team 1` through `--team 4`
 for allied teams A through D. The selected team is retained across automatic
 entry into subsequent matches. Active curse presence is recorded in the
-normalized API state. When a curse makes card identity unsafe, the policy uses
-a verified curse cleanser when available and otherwise passes, preventing the
-bot from waiting forever on its own turn.
+normalized API state. On a cursed turn, the policy prefers a verified curse
+cleanser and otherwise uses only individually reliable, undisguised weapons.
+If none are available it abstains locally; it does not submit an empty turn
+command, which the live service rejects in this state.
 
 Pass `--shadow-model models/<combo-candidate-id>` to `api play-private` to run
 the schema-v4 combo network on each covered two-player state without giving it

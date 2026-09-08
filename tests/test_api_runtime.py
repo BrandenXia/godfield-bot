@@ -153,7 +153,7 @@ def active_room(*, opponent_hp: int = 35, update_count: int = 12) -> RoomState:
     return room
 
 
-def test_private_api_heuristic_passes_an_unsupported_cursed_turn() -> None:
+def test_private_api_heuristic_uses_a_reliable_weapon_on_a_cursed_turn() -> None:
     room = active_room()
     room.raw["game"]["players"][0]["curses"] = ["dream"]
     state = normalize_api_game_state(room, user_id="loki-user")
@@ -167,9 +167,29 @@ def test_private_api_heuristic_passes_an_unsupported_cursed_turn() -> None:
 
     assert state.has_active_curses is True
     assert chosen is not None
-    assert chosen.kind is ApiActionKind.PASS
+    assert chosen.kind is ApiActionKind.USE_ITEM
+    assert chosen.item_instance_ids == (11,)
     assert decision.executable is True
-    assert decision.rationale == "pass to advance an unsupported cursed turn"
+    assert decision.rationale == "use the strongest conservative card with a reliable identity"
+
+
+def test_private_api_heuristic_abstains_from_unverified_cursed_turn_pass() -> None:
+    room = active_room()
+    room.raw["game"]["players"][0]["curses"] = ["dream"]
+    room.raw["game"]["players"][0]["items"] = [{"id": 11, "modelId": None, "fakeModelId": 1}]
+    state = normalize_api_game_state(room, user_id="loki-user")
+    legal_actions = verified_api_actions(room, user_id="loki-user")
+
+    decision, chosen = decide_api_action(
+        ApiPolicyName.HEURISTIC,
+        state,
+        legal_actions,
+    )
+
+    assert legal_actions.actions == ()
+    assert chosen is None
+    assert decision.executable is False
+    assert decision.rationale == "no verified API action is available; abstain without submitting"
 
 
 def test_private_api_heuristic_prefers_a_verified_curse_cleanser() -> None:
@@ -659,7 +679,7 @@ def test_private_api_neural_shadow_records_proposal_but_dispatches_heuristic(
     assert decisions[1]["executable"] is True
 
 
-def test_private_api_heuristic_dispatches_progress_pass_for_cursed_turn(
+def test_private_api_heuristic_dispatches_reliable_weapon_for_cursed_turn(
     tmp_path,
     monkeypatch,
 ) -> None:
@@ -710,7 +730,7 @@ def test_private_api_heuristic_dispatches_progress_pass_for_cursed_turn(
     assert run.status is RunStatus.COMPLETED
     assert run.outcome is not None
     assert run.outcome["in_match_actions"] == 1
-    assert client.commands == [{}]
+    assert client.commands == [{"itemIds": [11], "targetPlayerId": 2}]
 
 
 def test_private_api_heuristic_enters_selected_multiplayer_team(tmp_path, monkeypatch) -> None:

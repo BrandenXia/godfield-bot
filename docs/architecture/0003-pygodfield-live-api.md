@@ -91,14 +91,17 @@ value of zero disables only that limit. It ranks only the
 project-owned conservative action set: the strongest eligible single weapon on
 an attack turn, the weakest sufficient eligible single defense (falling back
 to the strongest), decline an unmodeled purchase, remove curses with the
-reviewed `removeAllCurses` action, or pass. Curse presence is explicit in API
-game-state schema v3 (introduced in v2) and therefore participates in state digests. A cursed
-attack turn always retains pass as a verified progress action; this prevents a
-Dream-obscured or otherwise unsupported hand from deadlocking while the server
-waits on the bot. It submits at most once per observed state and never retries
-an ambiguous turn-consuming request. Every decision, dispatch result, and
-observed transition is recorded. This policy is a data-collection baseline,
-not a learned or promotion-eligible policy.
+reviewed `removeAllCurses` action, or pass when the live state permits it. Curse
+presence is explicit in API game-state schema v3 (introduced in v2) and
+therefore participates in state digests. A cursed attack turn prefers the
+cleanser, then exposes only weapons whose displayed identity is reliable. It
+does not expose pass: live evidence shows that the service rejects an empty
+command in this state. With no verified action, the policy abstains locally and
+lets the no-progress safeguard terminate the run instead of dispatching a
+known-invalid command. It submits at most once per observed state and never
+retries an ambiguous turn-consuming request. Every decision, dispatch result,
+and observed transition is recorded. This policy is a data-collection
+baseline, not a learned or promotion-eligible policy.
 
 Multiplayer entry has an explicit fixed team selection: `0` means solo and
 `1` through `4` mean allied teams A through D. The default remains solo. A

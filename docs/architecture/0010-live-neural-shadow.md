@@ -36,6 +36,9 @@ weapons. A defense macro is a subset of at least two armor cards that
 pygodfield independently accepts against the pending attack. Combinations are disabled whenever the bot
 has a curse. Disguised cards, placeholders, special effects, resource prompts,
 purchases, and cards outside the native curriculum are never included.
+The behavior policy can still use a verified cleanser or an individually
+reliable single weapon on a cursed turn; only the learned combo shadow remains
+disabled because curses are outside its curriculum.
 
 For a covered two-player state, the adapter reconstructs the sequential
 21-action observation seen during training. Selected slots are hidden between

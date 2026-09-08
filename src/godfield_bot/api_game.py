@@ -151,9 +151,7 @@ class ApiPolicyDecision(BaseModel):
         }
         if trace_lengths != {0} and len(trace_lengths) != 1:
             raise ValueError("neural selection trace fields must have equal lengths")
-        if trace_lengths != {0} and (
-            self.model_id is None or self.model_weights_sha256 is None
-        ):
+        if trace_lengths != {0} and (self.model_id is None or self.model_weights_sha256 is None):
             raise ValueError("neural selection trace requires immutable model identity")
         return self
 
@@ -215,11 +213,7 @@ def _item_state(item: Any) -> ApiItemState:
         instance_id=_optional_positive_int(item.id, "item instance ID"),
         model_id=model_id,
         name=model.name if model is not None and isinstance(model.name, str) else None,
-        asset=(
-            raw_model.get("imageName")
-            if isinstance(raw_model.get("imageName"), str)
-            else None
-        ),
+        asset=(raw_model.get("imageName") if isinstance(raw_model.get("imageName"), str) else None),
         category=(
             model.category if model is not None and isinstance(model.category, str) else None
         ),
@@ -343,7 +337,7 @@ def verified_api_actions(room: RoomState, *, user_id: str) -> ApiLegalActionSet:
                 label="Decline the purchase",
             )
         )
-    elif state.phase in {ApiPhase.TURN, ApiPhase.DEFENSE}:
+    elif state.phase is ApiPhase.DEFENSE or (state.phase is ApiPhase.TURN and not has_curses):
         actions.append(
             ApiLegalAction(
                 action_id="pass",
@@ -386,7 +380,6 @@ def verified_api_actions(room: RoomState, *, user_id: str) -> ApiLegalActionSet:
                 or item_instance_id is None
                 or item_model_id is None
                 or item.fake_model_id
-                or has_curses
                 or model.category != "weapons"
                 or model.is_plus_atk
                 or not model.can_start_turn
@@ -438,8 +431,9 @@ def verified_api_actions(room: RoomState, *, user_id: str) -> ApiLegalActionSet:
         coverage_complete=False,
         blocked_reason=(
             "pygodfield verifies conservative single-card attacks, defenses, and "
-            "curse removal; a cursed attack turn may always pass to preserve progress, while "
-            "multi-card combinations, purchases, and unknown future effects remain excluded"
+            "curse removal; cursed attack turns expose only individually reliable cards and "
+            "never an unverified empty command, while multi-card combinations, purchases, "
+            "and unknown future effects remain excluded"
         ),
     )
 

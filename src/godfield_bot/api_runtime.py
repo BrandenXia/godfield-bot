@@ -303,7 +303,17 @@ def decide_api_action(
             value = item.attack if state.phase is ApiPhase.TURN else item.defense
             return (value, -action.item_instance_ids[0])
 
-        if candidates and state.phase is ApiPhase.DEFENSE:
+        curse_cleansers = [
+            action
+            for action in candidates
+            if (
+                (item := hand_by_instance.get(action.item_instance_ids[0])) is not None
+                and item.ability == "removeAllCurses"
+            )
+        ]
+        if state.phase is ApiPhase.TURN and state.has_active_curses and curse_cleansers:
+            chosen = min(curse_cleansers, key=lambda action: action.item_instance_ids[0])
+        elif candidates and state.phase is ApiPhase.DEFENSE:
             pending_attack = state.pending_attack.attack if state.pending_attack is not None else 0
             sufficient = [
                 action for action in candidates if action_value(action)[0] >= pending_attack
@@ -327,21 +337,35 @@ def decide_api_action(
                 None,
             )
     executable = chosen is not None
-    if chosen is None:
-        rationale = "the server is not awaiting an action from ロキ-67"
-    elif chosen.kind is ApiActionKind.DECLINE_PURCHASE:
-        rationale = "decline an unmodeled purchase"
-    elif chosen.kind is ApiActionKind.PASS and state.has_active_curses:
-        rationale = "pass to advance an unsupported cursed turn"
-    elif chosen.kind is ApiActionKind.PASS:
-        rationale = "pass because no conservative card action is available"
-    elif state.has_active_curses:
-        rationale = "remove active curses with a verified cleanser"
-    elif state.phase is ApiPhase.DEFENSE:
-        chosen_item = next(
+    chosen_item = (
+        next(
             (item for item in state.hand if item.instance_id == chosen.item_instance_ids[0]),
             None,
         )
+        if chosen is not None and chosen.item_instance_ids
+        else None
+    )
+    if chosen is None:
+        if (
+            state.phase in {ApiPhase.TURN, ApiPhase.DEFENSE, ApiPhase.PURCHASE}
+            and state.awaiting_player_id == state.self_player_id
+        ):
+            rationale = "no verified API action is available; abstain without submitting"
+        else:
+            rationale = "the server is not awaiting an action from ロキ-67"
+    elif chosen.kind is ApiActionKind.DECLINE_PURCHASE:
+        rationale = "decline an unmodeled purchase"
+    elif chosen.kind is ApiActionKind.PASS:
+        rationale = "pass because no conservative card action is available"
+    elif (
+        state.has_active_curses
+        and chosen_item is not None
+        and chosen_item.ability == "removeAllCurses"
+    ):
+        rationale = "remove active curses with a verified cleanser"
+    elif state.phase is ApiPhase.TURN and state.has_active_curses:
+        rationale = "use the strongest conservative card with a reliable identity"
+    elif state.phase is ApiPhase.DEFENSE:
         pending_attack = state.pending_attack.attack if state.pending_attack is not None else 0
         rationale = (
             "use the weakest sufficient conservative defense"

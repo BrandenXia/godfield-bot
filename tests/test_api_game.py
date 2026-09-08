@@ -260,9 +260,7 @@ def test_combo_actions_expose_compatible_multi_armor_macro() -> None:
         "defend:13:3",
         "combo-defense:12-13",
     ]
-    assert command_for_api_action(actions.actions[-1]).to_dict() == {
-        "itemIds": [12, 13]
-    }
+    assert command_for_api_action(actions.actions[-1]).to_dict() == {"itemIds": [12, 13]}
 
 
 def test_turn_actions_never_target_a_member_of_the_selected_team() -> None:
@@ -349,7 +347,7 @@ def test_empty_transient_hand_placeholder_is_preserved_as_unknown() -> None:
     assert state.hand[0].name is None
 
 
-def test_unknown_curse_state_preserves_a_safe_progress_action() -> None:
+def test_unknown_curse_state_keeps_reliable_weapon_and_omits_unverified_pass() -> None:
     state = normalize_api_game_state(
         room_state(self_curses=["future-curse"]),
         user_id="loki-user",
@@ -360,8 +358,23 @@ def test_unknown_curse_state_preserves_a_safe_progress_action() -> None:
     )
 
     assert state.has_active_curses is True
-    assert [action.action_id for action in actions.actions] == ["pass"]
-    assert command_for_api_action(actions.actions[0]).to_dict() == {}
+    assert [action.action_id for action in actions.actions] == ["use:11:1:2"]
+    assert command_for_api_action(actions.actions[0]).to_dict() == {
+        "itemIds": [11],
+        "targetPlayerId": 2,
+    }
+
+
+def test_unknown_curse_state_abstains_when_every_card_identity_is_unreliable() -> None:
+    actions = verified_api_actions(
+        room_state(
+            self_curses=["future-curse"],
+            self_items=[{"id": 11, "modelId": None, "fakeModelId": 1}],
+        ),
+        user_id="loki-user",
+    )
+
+    assert actions.actions == ()
 
 
 def test_cursed_turn_can_use_reviewed_untargeted_curse_removal() -> None:
@@ -377,10 +390,10 @@ def test_cursed_turn_can_use_reviewed_untargeted_curse_removal() -> None:
     )
 
     assert [action.action_id for action in actions.actions] == [
-        "pass",
         "use:14:4:untargeted",
+        "use:11:1:2",
     ]
-    assert command_for_api_action(actions.actions[1]).to_dict() == {"itemIds": [14]}
+    assert command_for_api_action(actions.actions[0]).to_dict() == {"itemIds": [14]}
 
 
 def test_defense_actions_delegate_element_legality_to_pygodfield() -> None:

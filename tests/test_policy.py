@@ -348,6 +348,90 @@ def test_heuristic_accepts_ascension_variant_of_chance_weapon() -> None:
     assert decision.chosen_action_id == "confirm:chance:ascension-bow"
 
 
+def test_heuristic_confirms_fixed_attack_without_named_target_under_fog() -> None:
+    initial = state()
+    hidden_opponent = initial.players[1].model_copy(update={"stats_visible": False})
+    game_state = initial.model_copy(
+        update={
+            "players": (initial.players[0], hidden_opponent),
+            "action_actor": "ロキ-67",
+            "action_target": None,
+            "action_display": "ATK1",
+            "action_artifact_asset_path": "/images/items/weapons/bronze-club.webp",
+            "action_hit_target_bounds": Bounds(x=115, y=93, width=310, height=300),
+        }
+    )
+    observation = ScreenObservation(
+        observed_at=game_state.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.7", "ATK1", "HP"),
+        text_elements=(),
+        controls=(),
+        images=(),
+    )
+    weapon_rules = {"bronze-club": ("ATK1", 1.0)}
+
+    actions = verified_browser_actions(
+        game_state,
+        observation,
+        verified_weapon_attacks=weapon_rules,
+    )
+    decision = HeuristicV0Policy(
+        weapon_rules,
+        {"iron-shield": 4},
+    ).decide(game_state, actions)
+
+    assert actions.actions[-1].action_id == "confirm:fog:bronze-club"
+    assert actions.actions[-1].target_player_name is None
+    assert decision.chosen_action_id == "confirm:fog:bronze-club"
+
+
+def test_heuristic_confirms_fixed_miracle_without_named_target_under_fog() -> None:
+    initial = state()
+    hidden_opponent = initial.players[1].model_copy(update={"stats_visible": False})
+    game_state = initial.model_copy(
+        update={
+            "players": (initial.players[0], hidden_opponent),
+            "action_actor": "ロキ-67",
+            "action_target": None,
+            "action_display": "ATK10",
+            "action_artifact_asset_path": "/images/items/miracles/flame.webp",
+            "action_hit_target_bounds": Bounds(x=115, y=93, width=310, height=300),
+        }
+    )
+    observation = ScreenObservation(
+        observed_at=game_state.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.7", "ATK10", "HP"),
+        text_elements=(),
+        controls=(),
+        images=(),
+    )
+    miracle_rules = {"flame": (10, 5, "fire")}
+
+    actions = verified_browser_actions(
+        game_state,
+        observation,
+        verified_miracle_attacks=miracle_rules,
+    )
+    decision = HeuristicV0Policy(
+        {"bronze-club": ("ATK1", 1.0)},
+        {"iron-shield": 4},
+        miracle_rules,
+    ).decide(game_state, actions)
+
+    assert actions.actions[-1].action_id == "confirm:fog:flame"
+    assert decision.chosen_action_id == "confirm:fog:flame"
+
+
 def test_heuristic_selects_affordable_fixed_attack_miracle() -> None:
     initial = state()
     miracle = HandArtifact(
@@ -452,7 +536,7 @@ def test_heuristic_excludes_unaffordable_fixed_attack_miracle() -> None:
     assert decision.executable is True
 
 
-def test_heuristic_passes_when_only_attack_booster_weapon_is_usable() -> None:
+def test_heuristic_does_not_pass_with_an_unreviewed_displayed_weapon() -> None:
     initial = state()
     booster = HandArtifact(
         slot=0,
@@ -493,12 +577,12 @@ def test_heuristic_passes_when_only_attack_booster_weapon_is_usable() -> None:
         {"iron-shield": 4},
     ).decide(game_state, actions)
 
-    assert [action.action_id for action in actions.actions] == ["wait", "pass"]
-    assert decision.chosen_action_id == "pass"
-    assert decision.executable is True
+    assert [action.action_id for action in actions.actions] == ["wait"]
+    assert decision.chosen_action_id == "wait"
+    assert decision.executable is False
 
 
-def test_heuristic_passes_when_verified_attack_weapon_is_disabled() -> None:
+def test_heuristic_does_not_pass_when_a_displayed_weapon_is_disabled() -> None:
     initial = state()
     disabled_weapon = initial.hand[0].model_copy(update={"hit_target_bounds": None})
     game_state = initial.model_copy(
@@ -533,9 +617,9 @@ def test_heuristic_passes_when_verified_attack_weapon_is_disabled() -> None:
         {"iron-shield": 4},
     ).decide(game_state, actions)
 
-    assert [action.action_id for action in actions.actions] == ["wait", "pass"]
-    assert decision.chosen_action_id == "pass"
-    assert decision.executable is True
+    assert [action.action_id for action in actions.actions] == ["wait"]
+    assert decision.chosen_action_id == "wait"
+    assert decision.executable is False
 
 
 def test_pray_transition_without_hit_target_does_not_expose_pass() -> None:

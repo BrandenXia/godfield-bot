@@ -11,6 +11,7 @@ class PlayerState(BaseModel):
     mp: int = Field(ge=0)
     money: int = Field(ge=0)
     is_self: bool
+    stats_visible: bool = True
     status_marker_color: str | None = None
     hit_target_bounds: Bounds | None = None
 

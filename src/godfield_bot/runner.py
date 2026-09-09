@@ -157,8 +157,13 @@ def _record_policy_state(
     settings: AppSettings,
     policy: Policy,
     previous_digest: str | None,
+    previous_state: GameState | None,
 ) -> tuple[str, PolicyDecision | None, LegalAction | None, GameState]:
-    state = parse_game_state(observation, identity=settings.identity)
+    state = parse_game_state(
+        observation,
+        identity=settings.identity,
+        previous_state=previous_state,
+    )
     digest = game_state_digest(state)
     if digest == previous_digest:
         return digest, None, None, state
@@ -301,6 +306,7 @@ async def run_training_observer(
             )
             gameplay_started = True
             previous_digest: str | None = None
+            previous_state: GameState | None = None
             previous_parse_error_digest: str | None = None
             loop = asyncio.get_running_loop()
             deadline = loop.time() + config.max_seconds
@@ -327,7 +333,9 @@ async def run_training_observer(
                         settings,
                         policy,
                         previous_digest,
+                        previous_state,
                     )
+                    previous_state = before_state
                     if previous_digest != prior_digest:
                         last_progress_at = loop.time()
                     terminal = append_sparse_terminal_events(
@@ -377,6 +385,7 @@ async def run_training_observer(
                                 post_state = parse_game_state(
                                     observation,
                                     identity=settings.identity,
+                                    previous_state=before_state,
                                 )
                         transition = build_action_transition(
                             chosen_action.action_id,
@@ -389,6 +398,7 @@ async def run_training_observer(
                             transition,
                         )
                         if post_state is not None:
+                            previous_state = post_state
                             terminal = append_sparse_terminal_events(
                                 store,
                                 run.run_id,

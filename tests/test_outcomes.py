@@ -76,6 +76,20 @@ def test_refuses_nonterminal_or_unsupported_state(state: GameState) -> None:
     assert classify_two_player_terminal(state) is None
 
 
+def test_hidden_stale_opponent_stats_are_not_terminal_evidence() -> None:
+    state = game_state(self_hp=12, opponent_hp=0)
+    state = state.model_copy(
+        update={
+            "players": (
+                state.players[0],
+                state.players[1].model_copy(update={"stats_visible": False}),
+            )
+        }
+    )
+
+    assert classify_two_player_terminal(state) is None
+
+
 @pytest.mark.parametrize(
     ("self_hp", "opponent_hp", "expected"),
     [(12, 0, 1.0), (0, 12, -1.0), (0, 0, 0.0)],

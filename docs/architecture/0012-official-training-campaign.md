@@ -83,3 +83,22 @@ the MP-scaled Magical Stick path and the newly admitted Evil Broadsword and Saw
 Boom Boom effects without a stall. The campaign also exposed and fixed action
 artifacts rendered below large guardians and now retries transient pre-game
 room failures within the configured bounded allowance.
+
+Two later campaign aborts exposed curse-specific observation contracts. Under
+Fog, the client keeps the player-row hit targets but hides the opponent's text.
+The parser now carries forward the last known opponent identity and resources
+only when the Fog scene, the self Fog marker, the known self row, and the exact
+ordered row targets all agree. Carried values are marked `stats_visible=false`;
+terminal classification and the current neural feature encoder abstain rather
+than treating stale HP as observed. Exact untargeted attack panels remain
+executable under Fog because the official rule randomizes the target, while the
+Training game has exactly one living opponent.
+
+Under Dream, the client renders a same-bounds mask between an artifact image
+and its clickable `div`. Observation and execution now follow only that exact
+overlay chain to a pointer target. The hand normalizer also excludes Trade
+commands and preserves all rows in spatial order. This prevents a disguised
+weapon from being dropped from the hand and prevents the illegal empty Prayer
+that ended run `d2d97273-724b-431b-a312-34475641570c`. The Fog failure from run
+`bef9d31f-2245-4e6b-9a9e-bfa06f96a570` now replays as a typed partial
+observation rather than a parse error.

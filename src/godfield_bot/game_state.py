@@ -11,8 +11,9 @@ from godfield_bot.domain.observation import (
 
 FIELD_PATTERN = re.compile(r"^G\.F\.(\d+)$")
 ITEM_PATTERN = re.compile(r"^/images/items/([^/]+)/([^/]+)\.(?:png|svg|webp)$")
+FOG_SCENE_PATH = "/images/screens/fog.webp"
+FOG_CURSE_PATH = "/images/curses/small/fog.webp"
 ROW_TOLERANCE = 1.5
-HAND_Y_BUCKET = 5.0
 
 
 class GameStateParseError(RuntimeError):
@@ -47,7 +48,113 @@ def _label_value(row: list[VisibleText], label: str, next_label: str | None) -> 
     return int(values[0])
 
 
-def _parse_players(observation: ScreenObservation, identity: str) -> tuple[PlayerState, ...]:
+def _current_player_hit_target(
+    observation: ScreenObservation,
+    *,
+    row_y: float,
+    maximum_name_x: float,
+    hp_label_right: float,
+) -> Bounds | None:
+    hit_targets = [
+        control.bounds
+        for control in observation.controls
+        if not control.text
+        and 700 <= control.bounds.x <= maximum_name_x
+        and abs(control.bounds.y - row_y) <= ROW_TOLERANCE
+        and 250 <= control.bounds.width <= 400
+        and 25 <= control.bounds.height <= 60
+        and control.bounds.x + control.bounds.width >= hp_label_right
+    ]
+    return hit_targets[0] if len(hit_targets) == 1 else None
+
+
+def _player_row_hit_targets(observation: ScreenObservation) -> tuple[Bounds, ...]:
+    return tuple(
+        sorted(
+            (
+                control.bounds
+                for control in observation.controls
+                if not control.text
+                and 700 <= control.bounds.x <= 850
+                and control.bounds.y < 400
+                and 250 <= control.bounds.width <= 400
+                and 25 <= control.bounds.height <= 60
+            ),
+            key=lambda bounds: bounds.y,
+        )
+    )
+
+
+def _bounds_match(left: Bounds | None, right: Bounds) -> bool:
+    if left is None:
+        return False
+    return (
+        abs(left.x - right.x) <= ROW_TOLERANCE
+        and abs(left.y - right.y) <= ROW_TOLERANCE
+        and abs(left.width - right.width) <= ROW_TOLERANCE
+        and abs(left.height - right.height) <= ROW_TOLERANCE
+    )
+
+
+def _recover_fog_hidden_players(
+    observation: ScreenObservation,
+    identity: str,
+    visible_players: list[PlayerState],
+    previous_state: GameState | None,
+) -> tuple[PlayerState, ...] | None:
+    visible_self = visible_players[0] if len(visible_players) == 1 else None
+    self_bounds = visible_self.hit_target_bounds if visible_self is not None else None
+    self_fog_visible = self_bounds is not None and any(
+        image.path == FOG_CURSE_PATH
+        and self_bounds.x <= image.bounds.x <= self_bounds.x + self_bounds.width
+        and self_bounds.y <= image.bounds.y <= self_bounds.y + self_bounds.height
+        for image in observation.images
+    )
+    if (
+        previous_state is None
+        or FOG_SCENE_PATH not in {image.path for image in observation.images}
+        or len(visible_players) != 1
+        or not visible_players[0].is_self
+        or not self_fog_visible
+        or len(previous_state.players) < 2
+        or sum(player.is_self for player in previous_state.players) != 1
+    ):
+        return None
+    previous_self = previous_state.players[previous_state.self_player_index]
+    if previous_self.name != identity or visible_players[0].name != identity:
+        return None
+    row_hit_targets = _player_row_hit_targets(observation)
+    if (
+        len(row_hit_targets) != len(previous_state.players)
+        or not _bounds_match(
+            visible_players[0].hit_target_bounds,
+            row_hit_targets[previous_state.self_player_index],
+        )
+    ):
+        return None
+
+    recovered: list[PlayerState] = []
+    for index, previous in enumerate(previous_state.players):
+        if previous.is_self:
+            recovered.append(visible_players[0])
+            continue
+        recovered.append(
+            previous.model_copy(
+                update={
+                    "stats_visible": False,
+                    "status_marker_color": None,
+                    "hit_target_bounds": row_hit_targets[index],
+                }
+            )
+        )
+    return tuple(recovered)
+
+
+def _parse_players(
+    observation: ScreenObservation,
+    identity: str,
+    previous_state: GameState | None,
+) -> tuple[PlayerState, ...]:
     hp_labels = sorted(
         (
             element
@@ -69,16 +176,6 @@ def _parse_players(observation: ScreenObservation, identity: str) -> tuple[Playe
         if len(names) != 1:
             raise GameStateParseError("expected one player name on stats row")
         name = names[0].text
-        hit_targets = [
-            control.bounds
-            for control in observation.controls
-            if not control.text
-            and 700 <= control.bounds.x <= names[0].bounds.x
-            and abs(control.bounds.y - hp_label.bounds.y) <= ROW_TOLERANCE
-            and 250 <= control.bounds.width <= 400
-            and 25 <= control.bounds.height <= 60
-            and control.bounds.x + control.bounds.width >= hp_label.bounds.x + hp_label.bounds.width
-        ]
         markers = [
             marker
             for marker in observation.markers
@@ -98,10 +195,23 @@ def _parse_players(observation: ScreenObservation, identity: str) -> tuple[Playe
                 money=_label_value(row, "$", None),
                 is_self=name == identity,
                 status_marker_color=(markers[0].background_color if len(markers) == 1 else None),
-                hit_target_bounds=hit_targets[0] if len(hit_targets) == 1 else None,
+                hit_target_bounds=_current_player_hit_target(
+                    observation,
+                    row_y=hp_label.bounds.y,
+                    maximum_name_x=names[0].bounds.x,
+                    hp_label_right=hp_label.bounds.x + hp_label.bounds.width,
+                ),
             )
         )
     if len(players) < 2:
+        recovered = _recover_fog_hidden_players(
+            observation,
+            identity,
+            players,
+            previous_state,
+        )
+        if recovered is not None:
+            return recovered
         raise GameStateParseError("expected at least two player rows")
     if sum(player.is_self for player in players) != 1:
         raise GameStateParseError("expected exactly one player matching the configured identity")
@@ -116,22 +226,19 @@ def _item_coordinates(image: VisibleImage) -> tuple[str, str] | None:
 
 
 def _parse_hand(observation: ScreenObservation) -> tuple[HandArtifact, ...]:
-    candidates = [
-        image
-        for image in observation.images
-        if _item_coordinates(image) is not None
-        and 60 <= image.bounds.width <= 100
-        and 60 <= image.bounds.height <= 100
-    ]
-    buckets: dict[int, list[VisibleImage]] = {}
-    for image in candidates:
-        key = round(image.bounds.y / HAND_Y_BUCKET)
-        buckets.setdefault(key, []).append(image)
-    if not buckets:
-        raise GameStateParseError("no hand artifact image cluster was found")
-    hand_images = max(buckets.values(), key=len)
-    if len(hand_images) < 2:
-        raise GameStateParseError("hand artifact cluster is unexpectedly small")
+    hand_images = sorted(
+        (
+            image
+            for image in observation.images
+            if (coordinates := _item_coordinates(image)) is not None
+            and coordinates[0] != "trade"
+            and 100 <= image.bounds.x <= 850
+            and 480 <= image.bounds.y <= 690
+            and 60 <= image.bounds.width <= 100
+            and 60 <= image.bounds.height <= 100
+        ),
+        key=lambda image: (image.bounds.y, image.bounds.x),
+    )
 
     hand: list[HandArtifact] = []
     for slot, image in enumerate(hand_images):
@@ -222,7 +329,12 @@ def _action_hit_target(observation: ScreenObservation) -> Bounds | None:
     return candidates[0] if len(candidates) == 1 else None
 
 
-def parse_game_state(observation: ScreenObservation, *, identity: str) -> GameState:
+def parse_game_state(
+    observation: ScreenObservation,
+    *,
+    identity: str,
+    previous_state: GameState | None = None,
+) -> GameState:
     if observation.kind is not ScreenKind.GAME:
         raise GameStateParseError(f"expected game observation, got {observation.kind}")
     field_matches = [
@@ -232,7 +344,7 @@ def parse_game_state(observation: ScreenObservation, *, identity: str) -> GameSt
     ]
     if len(field_matches) != 1:
         raise GameStateParseError("expected exactly one G.F. field counter")
-    players = _parse_players(observation, identity)
+    players = _parse_players(observation, identity, previous_state)
     action_actor = _single_spatial_element(
         observation,
         minimum_x=100,

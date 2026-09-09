@@ -94,12 +94,12 @@ async def click_header_back(page: Page, title: str) -> None:
 
 
 async def click_hand_artifact(page: Page, *, slot: int, asset_path: str) -> None:
-    """Click the verified sibling hit target for one normalized hand slot."""
+    """Click one normalized hand slot, following a same-bounds Dream overlay."""
 
     descriptor = cast(
         dict[str, Any] | None,
         await page.evaluate(
-            """
+            r"""
             ({wantedSlot, wantedPath}) => {
               const rendered = (element) => {
                 const style = getComputedStyle(element);
@@ -108,24 +108,39 @@ async def click_hand_artifact(page: Page, *, slot: int, asset_path: str) -> None
                   rect.width >= 60 && rect.width <= 100 &&
                   rect.height >= 60 && rect.height <= 100;
               };
-              const images = [...document.querySelectorAll('img[src^="/images/items/"]')]
-                .map((image, domIndex) => ({image, domIndex}))
-                .filter(({image}) => rendered(image));
-              const buckets = new Map();
-              for (const candidate of images) {
-                const key = Math.round(candidate.image.getBoundingClientRect().y / 5);
-                if (!buckets.has(key)) buckets.set(key, []);
-                buckets.get(key).push(candidate);
-              }
-              const groups = [...buckets.values()]
-                .sort((left, right) => right.length - left.length);
-              if (!groups.length || wantedSlot < 0 || wantedSlot >= groups[0].length) return null;
-              const selected = groups[0][wantedSlot];
-              const path = new URL(selected.image.src).pathname;
+              const images = [...document.querySelectorAll('img')]
+                .filter((image) => {
+                  if (!rendered(image)) return false;
+                  const path = new URL(image.src).pathname;
+                  if (!/^\/images\/items\/[^/]+\/[^/]+\.(?:png|svg|webp)$/.test(path) ||
+                      path.startsWith('/images/items/trade/')) return false;
+                  const rect = image.getBoundingClientRect();
+                  return rect.x >= 100 && rect.x <= 850 && rect.y >= 480 && rect.y <= 690;
+                })
+                .sort((left, right) => {
+                  const leftRect = left.getBoundingClientRect();
+                  const rightRect = right.getBoundingClientRect();
+                  return leftRect.y - rightRect.y || leftRect.x - rightRect.x;
+                });
+              if (wantedSlot < 0 || wantedSlot >= images.length) return null;
+              const selected = images[wantedSlot];
+              const path = new URL(selected.src).pathname;
               if (path !== wantedPath) return null;
-              const target = selected.image.nextElementSibling;
-              if (!target || target.tagName !== 'DIV') return null;
-              return {domIndex: selected.domIndex, path};
+              const selectedRect = selected.getBoundingClientRect();
+              let target = selected.nextElementSibling;
+              while (target?.tagName === 'IMG' && rendered(target)) {
+                const overlayRect = target.getBoundingClientRect();
+                const sameBounds = Math.abs(overlayRect.x - selectedRect.x) <= 1.5 &&
+                  Math.abs(overlayRect.y - selectedRect.y) <= 1.5 &&
+                  Math.abs(overlayRect.width - selectedRect.width) <= 1.5 &&
+                  Math.abs(overlayRect.height - selectedRect.height) <= 1.5;
+                if (!sameBounds) return null;
+                target = target.nextElementSibling;
+              }
+              if (!target || target.tagName !== 'DIV' || !rendered(target) ||
+                  getComputedStyle(target).cursor !== 'pointer') return null;
+              const allDivs = [...document.querySelectorAll('div')];
+              return {targetDomIndex: allDivs.indexOf(target), path};
             }
             """,
             {"wantedSlot": slot, "wantedPath": asset_path},
@@ -133,10 +148,8 @@ async def click_hand_artifact(page: Page, *, slot: int, asset_path: str) -> None
     )
     if descriptor is None:
         raise BrowserContractError("normalized hand slot no longer matches the live DOM")
-    images = page.locator('img[src^="/images/items/"]')
-    image = images.nth(cast(int, descriptor["domIndex"]))
-    target = image.locator("xpath=following-sibling::div[1]")
-    if await target.count() != 1 or not await target.is_visible():
+    target = page.locator("div").nth(cast(int, descriptor["targetDomIndex"]))
+    if not await target.is_visible():
         raise BrowserContractError("unique visible hand hit target was not found")
     await target.click(force=True)
 

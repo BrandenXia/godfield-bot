@@ -88,9 +88,110 @@ def test_game_observation_normalizes_players_and_hand() -> None:
         "hp": 35,
         "mp": 8,
         "money": 12,
+        "stats_visible": True,
     }
     assert state.players[1].hit_target_bounds == bounds(780, 264, 340, 40)
     assert [artifact.slug for artifact in state.hand] == ["bronze-club", "iron-shield"]
+
+
+def test_wrapped_hand_is_spatially_ordered_and_excludes_trade_commands() -> None:
+    initial = game_observation()
+    observation = initial.model_copy(
+        update={
+            "images": (
+                *initial.images,
+                VisibleImage(
+                    path="/images/items/trade/exchange.webp",
+                    bounds=bounds(110, 493, 80, 80),
+                    hit_target_bounds=bounds(110, 493, 80, 80),
+                ),
+                VisibleImage(
+                    path="/images/items/weapons/hatchet.webp",
+                    bounds=bounds(110, 595, 80, 80),
+                    hit_target_bounds=bounds(110, 595, 80, 80),
+                ),
+                VisibleImage(
+                    path="/images/items/fake.webp",
+                    bounds=bounds(110, 595, 80, 80),
+                    hit_target_bounds=bounds(110, 595, 80, 80),
+                ),
+            )
+        }
+    )
+
+    state = parse_game_state(observation, identity="ロキ-67")
+
+    assert [(artifact.slot, artifact.slug) for artifact in state.hand] == [
+        (0, "bronze-club"),
+        (1, "iron-shield"),
+        (2, "hatchet"),
+    ]
+
+
+def test_fog_recovers_hidden_opponent_from_previous_observation() -> None:
+    clear = game_observation()
+    previous = parse_game_state(clear, identity="ロキ-67")
+    fogged = clear.model_copy(
+        update={
+            "images": (
+                *clear.images,
+                VisibleImage(
+                    path="/images/screens/fog.webp",
+                    bounds=bounds(100, 38, 1080, 660),
+                ),
+                VisibleImage(
+                    path="/images/curses/small/fog.webp",
+                    bounds=bounds(1003, 155, 30, 16),
+                ),
+            ),
+            "text_elements": tuple(
+                element
+                for element in clear.text_elements
+                if abs(element.bounds.y - 264) > 1.5
+            ),
+            "text": tuple(value for value in clear.text if value != "CPU"),
+        }
+    )
+
+    state = parse_game_state(
+        fogged,
+        identity="ロキ-67",
+        previous_state=previous,
+    )
+
+    assert state.players[0].stats_visible is True
+    assert state.players[1].model_dump() == {
+        **previous.players[1].model_dump(),
+        "stats_visible": False,
+        "status_marker_color": None,
+    }
+
+
+def test_fog_without_a_previous_opponent_fails_closed() -> None:
+    clear = game_observation()
+    fogged = clear.model_copy(
+        update={
+            "images": (
+                *clear.images,
+                VisibleImage(
+                    path="/images/screens/fog.webp",
+                    bounds=bounds(100, 38, 1080, 660),
+                ),
+                VisibleImage(
+                    path="/images/curses/small/fog.webp",
+                    bounds=bounds(1003, 155, 30, 16),
+                ),
+            ),
+            "text_elements": tuple(
+                element
+                for element in clear.text_elements
+                if abs(element.bounds.y - 264) > 1.5
+            ),
+        }
+    )
+
+    with pytest.raises(GameStateParseError, match="expected at least two player rows"):
+        parse_game_state(fogged, identity="ロキ-67")
 
 
 def test_non_game_screen_fails_closed() -> None:

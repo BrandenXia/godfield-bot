@@ -155,7 +155,7 @@ class HeuristicV0Policy:
             rationale=(
                 "select the sole verified opponent target"
                 if chosen.kind is ActionKind.SELECT_TARGET
-                else "resolve the selected Bible-audited chance attack"
+                else "resolve the selected Bible-audited untargeted attack"
                 if chosen.kind is ActionKind.CONFIRM_CHANCE
                 else "confirm the selected verified attack on the named sole opponent"
                 if chosen.kind is ActionKind.CONFIRM

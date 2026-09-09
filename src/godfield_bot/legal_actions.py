@@ -175,11 +175,17 @@ def verified_browser_actions(
         len(living_opponents) == 1
         and state.action_actor == self_player.name
         and state.action_target is None
-        and selected_weapon is not None
-        and selected_weapon_rule is not None
+        and selected_attack_slug is not None
         and (
-            PROBABILISTIC_ATTACK_PATTERN.fullmatch(selected_weapon_rule[0]) is not None
-            or selected_weapon.group(1) in VERIFIED_RANDOM_TARGET_WEAPONS
+            any(not player.stats_visible for _, player in living_opponents)
+            or (
+                selected_weapon is not None
+                and selected_weapon_rule is not None
+                and (
+                    PROBABILISTIC_ATTACK_PATTERN.fullmatch(selected_weapon_rule[0]) is not None
+                    or selected_weapon.group(1) in VERIFIED_RANDOM_TARGET_WEAPONS
+                )
+            )
         )
         and state.action_display in selected_attack_displays
         and state.action_hit_target_bounds is not None
@@ -208,18 +214,13 @@ def verified_browser_actions(
         ]
         if (
             state.action_hit_target_bounds is not None
-            and not any(
-                artifact.category == "weapons"
-                and artifact.slug in (verified_weapon_attacks or {})
-                and artifact.hit_target_bounds is not None
-                for artifact in state.hand
-            )
+            and not any(artifact.category == "weapons" for artifact in state.hand)
         ):
             actions.append(
                 LegalAction(
                     action_id="pass",
                     kind=ActionKind.PASS,
-                    label="Confirm Pray with no usable verified standalone attack weapon",
+                    label="Confirm an empty Pray action with no displayed weapon in hand",
                     actor_player_name=self_player.name,
                     control_panel="left",
                 )
@@ -258,15 +259,18 @@ def verified_browser_actions(
                 control_panel="left",
             )
         )
-    if self_untargeted_attack_confirmation and selected_weapon is not None:
-        slug = selected_weapon.group(1)
-        assert selected_weapon_rule is not None
-        chance_attack = PROBABILISTIC_ATTACK_PATTERN.fullmatch(selected_weapon_rule[0]) is not None
+    if self_untargeted_attack_confirmation and selected_attack_slug is not None:
+        fog_randomized = any(not player.stats_visible for _, player in living_opponents)
+        chance_attack = (
+            selected_weapon_rule is not None
+            and PROBABILISTIC_ATTACK_PATTERN.fullmatch(selected_weapon_rule[0]) is not None
+        )
+        confirmation_mode = "fog" if fog_randomized else "chance" if chance_attack else "untargeted"
         actions.append(
             LegalAction(
-                action_id=f"confirm:{'chance' if chance_attack else 'untargeted'}:{slug}",
+                action_id=f"confirm:{confirmation_mode}:{selected_attack_slug}",
                 kind=ActionKind.CONFIRM_CHANCE,
-                label=f"Resolve the selected untargeted attack {slug}",
+                label=f"Resolve the selected untargeted attack {selected_attack_slug}",
                 artifact_asset_path=state.action_artifact_asset_path,
                 actor_player_name=self_player.name,
                 expected_action_display=state.action_display,

@@ -125,6 +125,10 @@ class StateFeatureEncoder:
     def encode(self, state: GameState, legal_actions: LegalActionSet) -> StateFeatures:
         if legal_actions.state_digest != game_state_digest(state):
             raise FeatureEncodingError("legal actions do not belong to this game state")
+        if any(not player.stats_visible for player in state.players):
+            raise FeatureEncodingError(
+                "hidden player statistics require a visibility-aware feature schema"
+            )
         if len(state.players) > self.max_players:
             raise FeatureEncodingError("player count exceeds model capacity")
         if len(state.hand) > self.max_hand_slots:

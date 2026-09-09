@@ -72,7 +72,7 @@ class LegalAction(BaseModel):
             or self.target_player_name is not None
         ):
             raise ValueError(
-                "chance confirmation requires artifact, actor, display, and empty target"
+                "untargeted confirmation requires artifact, actor, display, and empty target"
             )
         return self
 

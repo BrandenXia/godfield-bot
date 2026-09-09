@@ -19,6 +19,8 @@ def classify_two_player_terminal(state: GameState) -> MatchOutcome | None:
     opponents = tuple(player for player in state.players if not player.is_self)
     if len(opponents) != 1:
         return None
+    if any(not player.stats_visible for player in state.players):
+        return None
 
     opponent = opponents[0]
     if self_player.hp > 0 and opponent.hp > 0:

@@ -120,13 +120,25 @@ async def capture_screen(page: Page) -> ScreenObservation:
               const images = [...document.querySelectorAll('img')]
                 .filter(rendered)
                 .map((element) => {
-                  const sibling = element.nextElementSibling;
-                  const hitTarget = sibling?.tagName === 'DIV' && rendered(sibling)
-                    ? bounds(sibling)
-                    : null;
+                  const imageBounds = bounds(element);
+                  let sibling = element.nextElementSibling;
+                  while (sibling?.tagName === 'IMG' && rendered(sibling)) {
+                    const overlayBounds = bounds(sibling);
+                    const sameBounds = Math.abs(overlayBounds.x - imageBounds.x) <= 1.5 &&
+                      Math.abs(overlayBounds.y - imageBounds.y) <= 1.5 &&
+                      Math.abs(overlayBounds.width - imageBounds.width) <= 1.5 &&
+                      Math.abs(overlayBounds.height - imageBounds.height) <= 1.5;
+                    if (!sameBounds) break;
+                    sibling = sibling.nextElementSibling;
+                  }
+                  const handImage = imageBounds.x >= 100 && imageBounds.x <= 850 &&
+                    imageBounds.y >= 480 && imageBounds.y <= 690;
+                  const pointerTarget = sibling?.tagName === 'DIV' && rendered(sibling) &&
+                    getComputedStyle(sibling).cursor === 'pointer';
+                  const hitTarget = handImage && pointerTarget ? bounds(sibling) : null;
                   return {
                     path: new URL(element.src).pathname,
-                    bounds: bounds(element),
+                    bounds: imageBounds,
                     hit_target_bounds: hitTarget,
                   };
                 });

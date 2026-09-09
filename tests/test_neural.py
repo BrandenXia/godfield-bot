@@ -8,7 +8,12 @@ from godfield_bot.domain.action import ActionKind, LegalAction, LegalActionSet
 from godfield_bot.domain.game import GameState, HandArtifact, PlayerState
 from godfield_bot.domain.observation import Bounds
 from godfield_bot.domain.reference import BibleSnapshot
-from godfield_bot.features import StateFeatureEncoder, action_index, load_vocabulary
+from godfield_bot.features import (
+    FeatureEncodingError,
+    StateFeatureEncoder,
+    action_index,
+    load_vocabulary,
+)
 from godfield_bot.legal_actions import game_state_digest, observation_only_actions
 from godfield_bot.neural import RecurrentPolicyValueNet, features_to_tensors
 
@@ -55,6 +60,25 @@ def test_snapshot_vocabulary_and_feature_shapes() -> None:
     assert len(features.action_mask) == 21
     assert features.action_mask[0] is True
     assert not any(features.action_mask[1:])
+
+
+def test_hidden_player_stats_do_not_enter_current_neural_features() -> None:
+    vocabulary = load_vocabulary(SNAPSHOT)
+    game_state = state()
+    game_state = game_state.model_copy(
+        update={
+            "players": (
+                game_state.players[0],
+                game_state.players[1].model_copy(update={"stats_visible": False}),
+            )
+        }
+    )
+
+    with pytest.raises(FeatureEncodingError, match="visibility-aware feature schema"):
+        StateFeatureEncoder(vocabulary, BIBLE).encode(
+            game_state,
+            observation_only_actions(game_state),
+        )
 
 
 def test_live_response_features_encode_phase_and_pending_attack() -> None:

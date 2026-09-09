@@ -10,6 +10,10 @@ from godfield_bot.simulation import (
     create_fixed_attack_simulation,
     simulation_feature_tensors,
 )
+from godfield_bot.simulation_policy import (
+    CurriculumHeuristic,
+    curriculum_heuristic_actions,
+)
 
 np = pytest.importorskip("numpy")
 godfield_sim = pytest.importorskip("godfield_sim")
@@ -17,6 +21,7 @@ FixedAttackBatch = godfield_sim.FixedAttackBatch
 AttackDefenseBatch = godfield_sim.AttackDefenseBatch
 ElementalAttackDefenseBatch = godfield_sim.ElementalAttackDefenseBatch
 ComboAttackDefenseBatch = godfield_sim.ComboAttackDefenseBatch
+ResourceAttackDefenseBatch = godfield_sim.ResourceAttackDefenseBatch
 
 SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-07" / "bible.json"
 
@@ -86,6 +91,41 @@ def combo_batch(
         np.asarray([defense_element], dtype=np.uint8),
         67,
         40,
+    )
+
+
+def resource_batch(
+    *,
+    seed: int = 14,
+    initial_hp: int = 40,
+    initial_mp: int = 10,
+    miracle_cost: int = 12,
+) -> ResourceAttackDefenseBatch:
+    return ResourceAttackDefenseBatch(
+        1,
+        np.asarray([2], dtype=np.uint32),
+        np.asarray([10], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_FIRE], dtype=np.uint8),
+        np.asarray([3], dtype=np.uint32),
+        np.asarray([3], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_LIGHT], dtype=np.uint8),
+        np.asarray([4], dtype=np.uint32),
+        np.asarray([8], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_WATER], dtype=np.uint8),
+        np.asarray([5], dtype=np.uint32),
+        np.asarray([10], dtype=np.uint16),
+        np.asarray([6], dtype=np.uint32),
+        np.asarray([5], dtype=np.uint16),
+        np.asarray([7], dtype=np.uint32),
+        np.asarray([25], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_WATER], dtype=np.uint8),
+        np.asarray([miracle_cost], dtype=np.uint16),
+        np.asarray([8], dtype=np.uint32),
+        np.asarray([10], dtype=np.uint16),
+        np.asarray([7], dtype=np.uint16),
+        seed,
+        initial_hp,
+        initial_mp,
     )
 
 
@@ -180,9 +220,7 @@ def test_combo_factory_versions_catalog_and_sequential_action_contract() -> None
     kinds = simulation.batch.hand_card_kinds
 
     assert simulation.metadata.observation_schema_version == 4
-    assert simulation.metadata.ruleset_id == (
-        "plain-elemental-combo-attack-defense-redraw-duel-v1"
-    )
+    assert simulation.metadata.ruleset_id == ("plain-elemental-combo-attack-defense-redraw-duel-v1")
     assert simulation.metadata.rule_catalog_size == 103
     assert simulation.metadata.action_semantics == "sequential-combo-selection"
     assert simulation.metadata.sampling_distribution == (
@@ -190,21 +228,163 @@ def test_combo_factory_versions_catalog_and_sequential_action_contract() -> None
     )
     assert simulation.batch.combo is True
     assert np.all(np.count_nonzero(kinds == godfield_sim.CARD_KIND_WEAPON, axis=1) == 4)
-    assert np.all(
-        np.count_nonzero(kinds == godfield_sim.CARD_KIND_ATTACK_BOOSTER, axis=1) == 2
-    )
+    assert np.all(np.count_nonzero(kinds == godfield_sim.CARD_KIND_ATTACK_BOOSTER, axis=1) == 2)
     assert np.all(np.count_nonzero(kinds == godfield_sim.CARD_KIND_ARMOR, axis=1) == 3)
+
+
+def test_resource_factory_versions_catalog_resources_and_initial_deal() -> None:
+    simulation = create_attack_defense_simulation(
+        SNAPSHOT_PATH,
+        batch_size=128,
+        ruleset="resource-hand",
+    )
+    batch = simulation.batch
+    kinds = batch.hand_card_kinds
+
+    assert simulation.metadata.observation_schema_version == 5
+    assert simulation.metadata.ruleset_id == (
+        "plain-elemental-combo-resource-miracle-attack-defense-redraw-duel-v1"
+    )
+    assert simulation.metadata.rule_catalog_size == 117
+    assert simulation.metadata.action_semantics == "sequential-combo-selection"
+    assert simulation.metadata.sampling_distribution == (
+        "elemental-resource-3-1-2-2-1-initial-uniform-redraw-with-base-liveness"
+    )
+    assert batch.resource_curriculum is True
+    assert batch.initial_mp == 10
+    assert np.all(batch.magic_points == 10)
+    assert np.allclose(batch.global_features[:, 2], 0.10)
+    assert np.allclose(batch.player_features[:, :, 1], 0.10)
+    assert np.all(np.count_nonzero(kinds == godfield_sim.CARD_KIND_WEAPON, axis=1) == 3)
+    assert np.all(np.count_nonzero(kinds == godfield_sim.CARD_KIND_ARMOR, axis=1) == 2)
+    assert np.all(np.count_nonzero(kinds == godfield_sim.CARD_KIND_ATTACK_BOOSTER, axis=1) == 1)
+    assert np.all(np.count_nonzero(kinds == godfield_sim.CARD_KIND_ATTACK_MIRACLE, axis=1) == 1)
+    assert np.all(
+        np.count_nonzero(
+            np.isin(
+                kinds,
+                [
+                    godfield_sim.CARD_KIND_HP_UTILITY,
+                    godfield_sim.CARD_KIND_MP_UTILITY,
+                    godfield_sim.CARD_KIND_HP_MIRACLE,
+                ],
+            ),
+            axis=1,
+        )
+        == 2
+    )
+
+
+def test_resource_utilities_apply_once_and_pass_the_turn() -> None:
+    mp_batch = resource_batch(seed=14)
+    mp_actor = int(mp_batch.active_players[0])
+    mp_action = (
+        int(np.flatnonzero(mp_batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_MP_UTILITY)[0]) + 1
+    )
+    mp_batch.step(np.asarray([mp_action], dtype=np.int64))
+
+    assert mp_batch.magic_points[0, mp_actor] == 15
+    assert mp_batch.turn_numbers[0] == 1
+    assert mp_batch.active_players[0] == 1 - mp_actor
+    assert mp_batch.phases[0] == godfield_sim.PHASE_ATTACK
+
+    hp_batch = resource_batch(seed=14)
+    hp_actor = int(hp_batch.active_players[0])
+    hp_action = (
+        int(np.flatnonzero(hp_batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_HP_UTILITY)[0]) + 1
+    )
+    hp_batch.step(np.asarray([hp_action], dtype=np.int64))
+    assert hp_batch.player_features[0, 1, 0] == pytest.approx(0.50)
+    assert hp_batch.magic_points[0, hp_actor] == 10
+
+    spring_batch = resource_batch(seed=2)
+    spring_actor = int(spring_batch.active_players[0])
+    spring_action = (
+        int(np.flatnonzero(spring_batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_HP_MIRACLE)[0])
+        + 1
+    )
+    spring_batch.step(np.asarray([spring_action], dtype=np.int64))
+    assert spring_batch.magic_points[0, spring_actor] == 3
+    assert spring_batch.player_features[0, 1, 0] == pytest.approx(0.50)
+
+
+def test_attack_miracle_requires_mp_charges_on_confirm_and_is_reusable() -> None:
+    blocked = resource_batch(initial_mp=10, miracle_cost=12)
+    miracle_slot = int(
+        np.flatnonzero(blocked.hand_card_kinds[0] == godfield_sim.CARD_KIND_ATTACK_MIRACLE)[0]
+    )
+    assert not blocked.action_mask[0, miracle_slot + 1]
+
+    batch = resource_batch(initial_mp=12, miracle_cost=12)
+    attacker = int(batch.active_players[0])
+    miracle_slot = int(
+        np.flatnonzero(batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_ATTACK_MIRACLE)[0]
+    )
+    batch.step(np.asarray([miracle_slot + 1], dtype=np.int64))
+    assert batch.selected_values[0] == 25
+    assert batch.magic_points[0, attacker] == 12
+    assert batch.action_mask[0, godfield_sim.CONFIRM_ACTION_INDEX]
+    assert np.count_nonzero(batch.action_mask[0]) == 1
+
+    batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+    assert batch.magic_points[0, attacker] == 0
+    assert batch.pending_attacks[0] == 25
+    batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+    opponent_weapon = int(
+        np.flatnonzero(batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_WEAPON)[0]
+    )
+    batch.step(np.asarray([opponent_weapon + 1], dtype=np.int64))
+    batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+    batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+    assert batch.active_players[0] == attacker
+    assert batch.hand_token_ids[0, miracle_slot] == 7
+    assert not batch.action_mask[0, miracle_slot + 1]
+
+
+def test_resource_actions_are_masked_when_they_cannot_change_state() -> None:
+    batch = resource_batch(seed=14, initial_hp=100, initial_mp=100)
+    for kind in (
+        godfield_sim.CARD_KIND_HP_UTILITY,
+        godfield_sim.CARD_KIND_MP_UTILITY,
+        godfield_sim.CARD_KIND_HP_MIRACLE,
+    ):
+        for slot in np.flatnonzero(batch.hand_card_kinds[0] == kind):
+            assert not batch.action_mask[0, int(slot) + 1]
+
+
+def test_resource_heuristic_restores_mp_only_to_unlock_a_stronger_miracle() -> None:
+    batch = resource_batch(seed=14, initial_mp=10, miracle_cost=12)
+    policy = CurriculumHeuristic(
+        attacks={2: 10, 7: 25},
+        defenses={4: 8},
+        boosters={3: 3},
+        hp_utilities={5: (10, 0), 8: (10, 7)},
+        mp_utilities={6: 5},
+        attack_miracles={7: (25, 12)},
+    )
+    simulation = type("ResourceSimulation", (), {"batch": batch})()
+    action = curriculum_heuristic_actions(
+        simulation,
+        np.asarray([0], dtype=np.int64),
+        policy,
+    )[0]
+
+    assert batch.hand_card_kinds[0, action - 1] == godfield_sim.CARD_KIND_MP_UTILITY
+
+    affordable = resource_batch(seed=14, initial_mp=12, miracle_cost=12)
+    affordable_simulation = type("ResourceSimulation", (), {"batch": affordable})()
+    action = curriculum_heuristic_actions(
+        affordable_simulation,
+        np.asarray([0], dtype=np.int64),
+        policy,
+    )[0]
+    assert affordable.hand_card_kinds[0, action - 1] == (godfield_sim.CARD_KIND_ATTACK_MIRACLE)
 
 
 def test_combo_selection_aggregates_attack_and_defense_before_consuming() -> None:
     batch = combo_batch()
     base_action = (
-        int(
-            np.flatnonzero(
-                batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_WEAPON
-            )[0]
-        )
-        + 1
+        int(np.flatnonzero(batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_WEAPON)[0]) + 1
     )
     batch.step(np.asarray([base_action], dtype=np.int64))
 
@@ -218,11 +398,7 @@ def test_combo_selection_aggregates_attack_and_defense_before_consuming() -> Non
     assert batch.action_mask[0, godfield_sim.CONFIRM_ACTION_INDEX]
 
     booster_action = (
-        int(
-            np.flatnonzero(
-                batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_ATTACK_BOOSTER
-            )[0]
-        )
+        int(np.flatnonzero(batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_ATTACK_BOOSTER)[0])
         + 1
     )
     batch.step(np.asarray([booster_action], dtype=np.int64))
@@ -237,9 +413,7 @@ def test_combo_selection_aggregates_attack_and_defense_before_consuming() -> Non
     assert batch.selected_counts[0] == 0
     assert batch.action_mask[0, godfield_sim.FORGIVE_ACTION_INDEX]
 
-    armor_actions = np.flatnonzero(
-        batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_ARMOR
-    )[:2] + 1
+    armor_actions = np.flatnonzero(batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_ARMOR)[:2] + 1
     batch.step(np.asarray([armor_actions[0]], dtype=np.int64))
     assert not batch.action_mask[0, godfield_sim.FORGIVE_ACTION_INDEX]
     assert batch.action_mask[0, godfield_sim.CONFIRM_ACTION_INDEX]
@@ -255,20 +429,11 @@ def test_combo_selection_aggregates_attack_and_defense_before_consuming() -> Non
 def test_combo_mixed_non_light_elements_collapse_to_non_element() -> None:
     batch = combo_batch(booster_element=godfield_sim.ELEMENT_DARKNESS)
     base_action = (
-        int(
-            np.flatnonzero(
-                batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_WEAPON
-            )[0]
-        )
-        + 1
+        int(np.flatnonzero(batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_WEAPON)[0]) + 1
     )
     batch.step(np.asarray([base_action], dtype=np.int64))
     booster_action = (
-        int(
-            np.flatnonzero(
-                batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_ATTACK_BOOSTER
-            )[0]
-        )
+        int(np.flatnonzero(batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_ATTACK_BOOSTER)[0])
         + 1
     )
     batch.step(np.asarray([booster_action], dtype=np.int64))

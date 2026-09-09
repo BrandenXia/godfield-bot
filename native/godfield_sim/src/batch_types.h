@@ -42,6 +42,8 @@ using UInt8_2D =
     nb::ndarray<const std::uint8_t, nb::numpy, nb::ndim<2>, nb::c_contig>;
 using UInt16_1D =
     nb::ndarray<const std::uint16_t, nb::numpy, nb::ndim<1>, nb::c_contig>;
+using UInt16_2D =
+    nb::ndarray<const std::uint16_t, nb::numpy, nb::ndim<2>, nb::c_contig>;
 using UInt64_1D =
     nb::ndarray<const std::uint64_t, nb::numpy, nb::ndim<1>, nb::c_contig>;
 

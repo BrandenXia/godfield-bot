@@ -13,12 +13,17 @@ from godfield_bot.reference import (
     plain_attack_weapon_values,
     plain_defense_armor_cards,
     plain_defense_armor_values,
+    plain_hp_utility_sundries,
+    plain_mp_utility_sundries,
+    verified_attack_miracle_cards,
+    verified_hp_utility_miracle_cards,
 )
 from godfield_bot.simulation import AttackDefenseRuleset, AttackDefenseSimulation
 
 HEURISTIC_POLICY_ID = "plain-max-attack-conservative-defense-v0"
 ELEMENTAL_HEURISTIC_POLICY_ID = "plain-element-aware-max-attack-conservative-defense-v1"
 COMBO_HEURISTIC_POLICY_ID = "plain-elemental-greedy-combo-v2"
+RESOURCE_HEURISTIC_POLICY_ID = "plain-resource-aware-combo-v1"
 FORGIVE_ACTION_INDEX = 19
 CONFIRM_ACTION_INDEX = 20
 
@@ -32,6 +37,9 @@ class CurriculumHeuristic:
     attacks: dict[int, int]
     defenses: dict[int, int]
     boosters: dict[int, int] | None = None
+    hp_utilities: dict[int, tuple[int, int]] | None = None
+    mp_utilities: dict[int, int] | None = None
+    attack_miracles: dict[int, tuple[int, int]] | None = None
     policy_id: str = HEURISTIC_POLICY_ID
 
 
@@ -42,7 +50,7 @@ def build_curriculum_heuristic(
     ruleset: AttackDefenseRuleset = "fixed-role",
 ) -> CurriculumHeuristic:
     boosters: dict[str, int] = {}
-    if ruleset in {"elemental-hand", "combo-hand"}:
+    if ruleset in {"elemental-hand", "combo-hand", "resource-hand"}:
         attacks = {
             slug: attack for slug, (attack, _element) in plain_attack_weapon_cards(snapshot).items()
         }
@@ -50,7 +58,7 @@ def build_curriculum_heuristic(
             slug: defense
             for slug, (defense, _element) in plain_defense_armor_cards(snapshot).items()
         }
-        if ruleset == "combo-hand":
+        if ruleset in {"combo-hand", "resource-hand"}:
             boosters = {
                 slug: boost
                 for slug, (boost, _element) in plain_attack_booster_cards(snapshot).items()
@@ -62,13 +70,36 @@ def build_curriculum_heuristic(
         attacks = plain_attack_weapon_values(snapshot)
         defenses = plain_defense_armor_values(snapshot)
         policy_id = HEURISTIC_POLICY_ID
+    hp_utilities: dict[str, tuple[int, int]] = {}
+    mp_utilities: dict[str, int] = {}
+    attack_miracles: dict[str, tuple[int, int]] = {}
+    if ruleset == "resource-hand":
+        hp_utilities.update(
+            (slug, (utility, 0)) for slug, utility in plain_hp_utility_sundries(snapshot).items()
+        )
+        hp_utilities.update(verified_hp_utility_miracle_cards(snapshot))
+        mp_utilities = plain_mp_utility_sundries(snapshot)
+        attack_miracles = {
+            slug: (attack, cost)
+            for slug, (attack, cost, _element) in verified_attack_miracle_cards(snapshot).items()
+        }
+        attacks.update({slug: attack for slug, (attack, _cost) in attack_miracles.items()})
+        policy_id = RESOURCE_HEURISTIC_POLICY_ID
     return CurriculumHeuristic(
         attacks={vocabulary.token_id("weapons", slug): attack for slug, attack in attacks.items()},
         defenses={
             vocabulary.token_id("armor", slug): defense for slug, defense in defenses.items()
         },
-        boosters={
-            vocabulary.token_id("weapons", slug): boost for slug, boost in boosters.items()
+        boosters={vocabulary.token_id("weapons", slug): boost for slug, boost in boosters.items()},
+        hp_utilities={
+            vocabulary.token_id("miracles" if cost else "sundries", slug): (utility, cost)
+            for slug, (utility, cost) in hp_utilities.items()
+        },
+        mp_utilities={
+            vocabulary.token_id("sundries", slug): utility for slug, utility in mp_utilities.items()
+        },
+        attack_miracles={
+            vocabulary.token_id("miracles", slug): value for slug, value in attack_miracles.items()
         },
         policy_id=policy_id,
     )
@@ -100,6 +131,49 @@ def curriculum_heuristic_actions(
                     else CONFIRM_ACTION_INDEX
                 )
                 continue
+            if batch.resource_curriculum:
+                attacks = policy.attacks
+                attack_candidates = [
+                    (attacks[int(hand[action - 1])], action)
+                    for action in range(1, 10)
+                    if legal[action] and int(hand[action - 1]) in attacks
+                ]
+                opponent_hp = round(float(batch.player_features[environment, 1, 0]) * 100)
+                lethal = [item for item in attack_candidates if item[0] >= opponent_hp]
+                if lethal:
+                    actions[output_index] = max(lethal, key=lambda item: (item[0], -item[1]))[1]
+                    continue
+                self_hp = round(float(batch.player_features[environment, 0, 0]) * 100)
+                hp_utilities = policy.hp_utilities or {}
+                healing = [
+                    (hp_utilities[int(hand[action - 1])][0], action)
+                    for action in range(1, 10)
+                    if legal[action] and int(hand[action - 1]) in hp_utilities
+                ]
+                if self_hp <= 25 and healing:
+                    actions[output_index] = max(healing, key=lambda item: (item[0], -item[1]))[1]
+                    continue
+                miracle_attacks = policy.attack_miracles or {}
+                strongest_legal = max((value for value, _action in attack_candidates), default=0)
+                actor = int(batch.active_players[environment])
+                mp = int(batch.magic_points[environment, actor])
+                blocked_upgrade = any(
+                    token in miracle_attacks
+                    and miracle_attacks[token][0] > strongest_legal
+                    and miracle_attacks[token][1] > mp
+                    for token in map(int, hand)
+                )
+                mp_utilities = policy.mp_utilities or {}
+                restoration = [
+                    (mp_utilities[int(hand[action - 1])], action)
+                    for action in range(1, 10)
+                    if legal[action] and int(hand[action - 1]) in mp_utilities
+                ]
+                if blocked_upgrade and restoration:
+                    actions[output_index] = max(restoration, key=lambda item: (item[0], -item[1]))[
+                        1
+                    ]
+                    continue
             candidates = [
                 (policy.attacks[int(hand[action - 1])], action)
                 for action in range(1, 10)
@@ -122,9 +196,7 @@ def curriculum_heuristic_actions(
                 if legal[action] and int(hand[action - 1]) in policy.defenses
             ]
             if candidates:
-                actions[output_index] = max(
-                    candidates, key=lambda item: (item[0], -item[1])
-                )[1]
+                actions[output_index] = max(candidates, key=lambda item: (item[0], -item[1]))[1]
             elif selected_defense > 0:
                 actions[output_index] = CONFIRM_ACTION_INDEX
             elif legal[FORGIVE_ACTION_INDEX]:

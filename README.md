@@ -79,6 +79,14 @@ uv run godfield-bot models train-simulation models/<migrated-model-id> \
   --ruleset elemental-hand --batch-size 256 --rollout-steps 32 --updates 10
 uv run godfield-bot simulation benchmark --ruleset elemental-attack-defense \
   --batch-size 4096 --batch-steps 1000
+uv run godfield-bot models migrate-resource-features models/<schema-v4-model-id>
+uv run godfield-bot models train-simulation models/<schema-v5-model-id> \
+  --ruleset resource-hand --batch-size 256 --rollout-steps 32 --updates 10
+uv run godfield-bot models evaluate-simulation models/<resource-candidate-id> \
+  --ruleset resource-hand --games-per-seat 512 --minimum-score 0.5 \
+  --heuristic-noninferiority-margin 0.025
+uv run godfield-bot simulation benchmark --ruleset resource-attack-defense \
+  --batch-size 4096 --batch-steps 1000
 ```
 
 `api observe-private --password-stdin` uses God Field's keyed private-room
@@ -122,11 +130,12 @@ uv run godfield-bot api play-private --confirm-play --password-stdin \
 Shadow inference accepts only candidate or champion models tied to the accepted
 Bible client and exact combo curriculum. It abstains on multiplayer, cursed,
 unknown-phase, or out-of-curriculum states and clears counterfactual recurrent
-memory whenever the tactical behavior differs from its proposal. Utility and
-miracle actions remain behavior-only until the native learning curriculum
-models their state transitions. See
+memory whenever the tactical behavior differs from its proposal. The separate
+schema-v5 `resource-hand` curriculum now models deterministic HP/MP utility and
+fixed-attack miracle costs, but schema-v5 candidates remain shadow-only until
+they pass their native gate and receive a separately reviewed live adapter. See
 [ADR 0010](docs/architecture/0010-live-neural-shadow.md) and
-[ADR 0011](docs/architecture/0011-live-tactical-behavior.md).
+[ADR 0013](docs/architecture/0013-resource-miracle-curriculum.md).
 
 God Field's official Training computer runs inside the web client rather than
 the server-side API. `play-training` therefore drives the official browser in

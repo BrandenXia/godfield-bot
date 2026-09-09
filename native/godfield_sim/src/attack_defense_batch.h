@@ -26,11 +26,21 @@ inline constexpr std::uint32_t kComboAttackDefenseKernelSchemaVersion = 1;
 inline constexpr std::uint32_t kComboAttackDefenseObservationSchemaVersion = 4;
 inline constexpr const char *kComboAttackDefenseRulesetId =
     "plain-elemental-combo-attack-defense-redraw-duel-v1";
+inline constexpr std::uint32_t kResourceAttackDefenseKernelSchemaVersion = 1;
+inline constexpr std::uint32_t kResourceAttackDefenseObservationSchemaVersion =
+    5;
+inline constexpr const char *kResourceAttackDefenseRulesetId =
+    "plain-elemental-combo-resource-miracle-attack-defense-redraw-duel-v1";
 inline constexpr std::size_t kWeaponSlots = 5;
 inline constexpr std::size_t kArmorSlots = kHandSlots - kWeaponSlots;
 inline constexpr std::size_t kComboWeaponSlots = 4;
 inline constexpr std::size_t kComboBoosterSlots = 2;
 inline constexpr std::size_t kComboArmorSlots = 3;
+inline constexpr std::size_t kResourceWeaponSlots = 3;
+inline constexpr std::size_t kResourceBoosterSlots = 1;
+inline constexpr std::size_t kResourceArmorSlots = 2;
+inline constexpr std::size_t kResourceUtilitySlots = 2;
+inline constexpr std::size_t kResourceAttackMiracleSlots = 1;
 
 enum class TurnPhase : std::uint8_t {
   Attack = 0,
@@ -63,6 +73,12 @@ public:
   [[nodiscard]] bool mixed_hands() const noexcept { return mixed_hands_; }
   [[nodiscard]] bool elemental() const noexcept { return elemental_; }
   [[nodiscard]] bool combo() const noexcept { return combo_; }
+  [[nodiscard]] bool resource_curriculum() const noexcept {
+    return resource_curriculum_;
+  }
+  [[nodiscard]] std::uint16_t initial_mp() const noexcept {
+    return initial_mp_;
+  }
   [[nodiscard]] std::size_t global_feature_count() const noexcept {
     return global_feature_count_;
   }
@@ -91,17 +107,25 @@ public:
   [[nodiscard]] Bool1D terminated_view() const;
   [[nodiscard]] UInt64_1D episode_ids_view() const;
   [[nodiscard]] UInt16_1D turn_numbers_view() const;
+  [[nodiscard]] UInt16_2D magic_points_view() const;
 
 protected:
-  AttackDefenseBatch(std::size_t batch_size, TokenInput weapon_token_ids,
-                     ValueInput attack_values,
-                     std::vector<std::uint8_t> weapon_elements,
-                     TokenInput booster_token_ids, ValueInput booster_values,
-                     std::vector<std::uint8_t> booster_elements,
-                     TokenInput armor_token_ids, ValueInput defense_values,
-                     std::vector<std::uint8_t> armor_elements,
-                     std::uint64_t seed, std::uint16_t initial_hp,
-                     bool mixed_hands, bool elemental, bool combo);
+  AttackDefenseBatch(
+      std::size_t batch_size, TokenInput weapon_token_ids,
+      ValueInput attack_values, std::vector<std::uint8_t> weapon_elements,
+      TokenInput booster_token_ids, ValueInput booster_values,
+      std::vector<std::uint8_t> booster_elements, TokenInput armor_token_ids,
+      ValueInput defense_values, std::vector<std::uint8_t> armor_elements,
+      std::uint64_t seed, std::uint16_t initial_hp, bool mixed_hands,
+      bool elemental, bool combo, bool resource_curriculum,
+      TokenInput hp_utility_token_ids = {}, ValueInput hp_utility_values = {},
+      TokenInput mp_utility_token_ids = {}, ValueInput mp_utility_values = {},
+      TokenInput attack_miracle_token_ids = {},
+      ValueInput attack_miracle_values = {},
+      ElementInput attack_miracle_elements = {},
+      ValueInput attack_miracle_costs = {},
+      TokenInput hp_miracle_token_ids = {}, ValueInput hp_miracle_values = {},
+      ValueInput hp_miracle_costs = {}, std::uint16_t initial_mp = 0U);
 
 private:
   static constexpr std::size_t kMaximumBatchSize = 1'000'000;
@@ -120,6 +144,16 @@ private:
                   std::size_t slot);
   void draw_combo(std::size_t environment, std::size_t player,
                   std::size_t slot);
+  void draw_resource(std::size_t environment, std::size_t player,
+                     std::size_t slot);
+  void draw_hp_utility(std::size_t environment, std::size_t player,
+                       std::size_t slot);
+  void draw_mp_utility(std::size_t environment, std::size_t player,
+                       std::size_t slot);
+  void draw_attack_miracle(std::size_t environment, std::size_t player,
+                           std::size_t slot);
+  void draw_hp_miracle(std::size_t environment, std::size_t player,
+                       std::size_t slot);
   [[nodiscard]] bool has_weapon(std::size_t environment,
                                 std::size_t player) const noexcept;
   void redraw_consumed(std::size_t environment, std::size_t player,
@@ -143,7 +177,9 @@ private:
   bool mixed_hands_;
   bool elemental_;
   bool combo_;
+  bool resource_curriculum_;
   std::size_t global_feature_count_;
+  std::uint16_t initial_mp_;
   std::vector<std::uint32_t> weapon_token_ids_;
   std::vector<std::uint16_t> attack_values_;
   std::vector<std::uint8_t> weapon_elements_;
@@ -153,10 +189,23 @@ private:
   std::vector<std::uint32_t> armor_token_ids_;
   std::vector<std::uint16_t> defense_values_;
   std::vector<std::uint8_t> armor_elements_;
+  std::vector<std::uint32_t> hp_utility_token_ids_;
+  std::vector<std::uint16_t> hp_utility_values_;
+  std::vector<std::uint32_t> mp_utility_token_ids_;
+  std::vector<std::uint16_t> mp_utility_values_;
+  std::vector<std::uint32_t> attack_miracle_token_ids_;
+  std::vector<std::uint16_t> attack_miracle_values_;
+  std::vector<std::uint8_t> attack_miracle_elements_;
+  std::vector<std::uint16_t> attack_miracle_costs_;
+  std::vector<std::uint32_t> hp_miracle_token_ids_;
+  std::vector<std::uint16_t> hp_miracle_values_;
+  std::vector<std::uint16_t> hp_miracle_costs_;
   std::vector<std::uint64_t> rng_states_;
   std::vector<std::uint64_t> episode_ids_;
   std::vector<std::uint16_t> hit_points_;
+  std::vector<std::uint16_t> magic_points_;
   std::vector<std::uint16_t> hand_values_;
+  std::vector<std::uint16_t> hand_costs_;
   std::vector<std::int64_t> hand_token_ids_by_player_;
   std::vector<std::uint8_t> hand_card_kinds_by_player_;
   std::vector<std::uint8_t> hand_elements_by_player_;
@@ -169,6 +218,8 @@ private:
   std::vector<std::uint8_t> selected_counts_;
   std::vector<std::uint16_t> selected_values_;
   std::vector<std::uint8_t> selected_elements_;
+  std::vector<std::uint16_t> selected_costs_;
+  std::vector<std::uint8_t> selected_base_kinds_;
   std::vector<std::uint16_t> turn_numbers_;
   std::unique_ptr<bool[]> terminated_;
   std::vector<float> terminal_returns_;
@@ -206,6 +257,23 @@ public:
                           TokenInput armor_token_ids, ValueInput defense_values,
                           ElementInput armor_elements, std::uint64_t seed,
                           std::uint16_t initial_hp);
+};
+
+class ResourceAttackDefenseBatch final : public AttackDefenseBatch {
+public:
+  ResourceAttackDefenseBatch(
+      std::size_t batch_size, TokenInput weapon_token_ids,
+      ValueInput attack_values, ElementInput weapon_elements,
+      TokenInput booster_token_ids, ValueInput booster_values,
+      ElementInput booster_elements, TokenInput armor_token_ids,
+      ValueInput defense_values, ElementInput armor_elements,
+      TokenInput hp_utility_token_ids, ValueInput hp_utility_values,
+      TokenInput mp_utility_token_ids, ValueInput mp_utility_values,
+      TokenInput attack_miracle_token_ids, ValueInput attack_miracle_values,
+      ElementInput attack_miracle_elements, ValueInput attack_miracle_costs,
+      TokenInput hp_miracle_token_ids, ValueInput hp_miracle_values,
+      ValueInput hp_miracle_costs, std::uint64_t seed, std::uint16_t initial_hp,
+      std::uint16_t initial_mp);
 };
 
 } // namespace godfield_sim

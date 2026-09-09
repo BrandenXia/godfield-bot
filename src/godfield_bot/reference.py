@@ -54,6 +54,8 @@ PLAIN_ATTACK_PATTERN = re.compile(r"^ATK(\d+)$")
 PLAIN_ATTACK_BOOST_PATTERN = re.compile(r"^\+ATK(\d+)$")
 PROBABILISTIC_ATTACK_PATTERN = re.compile(r"^(\d+)%ATK(\d+)$")
 PLAIN_DEFENSE_PATTERN = re.compile(r"^DEF(\d+)$")
+HP_UTILITY_PATTERN = re.compile(r"^HP\+(\d+)$")
+MP_UTILITY_PATTERN = re.compile(r"^MP\+(\d+)$")
 VERIFIED_PASSIVE_ATTACK_EFFECTS = frozenset(
     {
         "Bounce a NE weapon",
@@ -473,10 +475,9 @@ def verified_browser_weapon_attacks(snapshot: BibleSnapshot) -> dict[str, Weapon
             price_index = 3
         else:
             continue
-        if (
-            re.fullmatch(r"\$\d+", artifact.detail[price_index]) is None
-            or not artifact.detail[price_index + 1].startswith("Gift Rate:")
-        ):
+        if re.fullmatch(r"\$\d+", artifact.detail[price_index]) is None or not artifact.detail[
+            price_index + 1
+        ].startswith("Gift Rate:"):
             continue
         if fixed is not None:
             expected_damage = float(fixed.group(1))
@@ -490,9 +491,7 @@ def verified_browser_weapon_attacks(snapshot: BibleSnapshot) -> dict[str, Weapon
             action_display = attack_text
         else:
             assert probabilistic is not None
-            expected_damage = (
-                int(probabilistic.group(1)) * int(probabilistic.group(2)) / 100.0
-            )
+            expected_damage = int(probabilistic.group(1)) * int(probabilistic.group(2)) / 100.0
             action_display = attack_text
         if len(artifact.detail) == 5:
             expected_damage *= VERIFIED_BROWSER_ATTACK_EFFECT_MULTIPLIERS.get(
@@ -533,6 +532,61 @@ def verified_attack_miracle_cards(
                 int(cost.group(1)),
                 element,
             )
+    return result
+
+
+def plain_hp_utility_sundries(snapshot: BibleSnapshot) -> dict[str, int]:
+    """Return unconditional, consumable HP gains from the accepted Bible."""
+
+    result: dict[str, int] = {}
+    for artifact in snapshot.catalog["sundries"].items:
+        if artifact.element_image_paths or len(artifact.detail) != 4:
+            continue
+        utility = HP_UTILITY_PATTERN.fullmatch(artifact.detail[1])
+        if (
+            utility is not None
+            and re.fullmatch(r"\$\d+", artifact.detail[2]) is not None
+            and artifact.detail[3].startswith("Gift Rate:")
+        ):
+            result[artifact.asset] = int(utility.group(1))
+    return result
+
+
+def plain_mp_utility_sundries(snapshot: BibleSnapshot) -> dict[str, int]:
+    """Return unconditional, consumable MP gains from the accepted Bible."""
+
+    result: dict[str, int] = {}
+    for artifact in snapshot.catalog["sundries"].items:
+        if artifact.element_image_paths or len(artifact.detail) != 4:
+            continue
+        utility = MP_UTILITY_PATTERN.fullmatch(artifact.detail[1])
+        if (
+            utility is not None
+            and re.fullmatch(r"\$\d+", artifact.detail[2]) is not None
+            and artifact.detail[3].startswith("Gift Rate:")
+        ):
+            result[artifact.asset] = int(utility.group(1))
+    return result
+
+
+def verified_hp_utility_miracle_cards(
+    snapshot: BibleSnapshot,
+) -> dict[str, tuple[int, int]]:
+    """Return unconditional HP miracles with an exact MP cost."""
+
+    result: dict[str, tuple[int, int]] = {}
+    for artifact in snapshot.catalog["miracles"].items:
+        if artifact.element_image_paths or len(artifact.detail) != 5:
+            continue
+        utility = HP_UTILITY_PATTERN.fullmatch(artifact.detail[1])
+        cost = re.fullmatch(r"(\d+)MP", artifact.detail[3])
+        if (
+            utility is not None
+            and artifact.detail[2] == "Cost"
+            and cost is not None
+            and artifact.detail[4].startswith("Gift Rate:")
+        ):
+            result[artifact.asset] = (int(utility.group(1)), int(cost.group(1)))
     return result
 
 

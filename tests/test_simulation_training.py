@@ -9,6 +9,7 @@ from godfield_bot.features import (
     ELEMENT_FEATURE_SCHEMA_VERSION,
     LEGACY_FEATURE_SCHEMA_VERSION,
     LEGACY_GLOBAL_FEATURE_COUNT,
+    RESOURCE_FEATURE_SCHEMA_VERSION,
     ArtifactVocabulary,
 )
 from godfield_bot.model_registry import ModelManifest, ModelStatus, initialize_model, load_model
@@ -33,6 +34,7 @@ def test_training_config_selects_versioned_mixed_hand_ruleset() -> None:
     assert SimulationTrainingConfig(ruleset="mixed-hand").ruleset == "mixed-hand"
     assert SimulationTrainingConfig(ruleset="elemental-hand").ruleset == "elemental-hand"
     assert SimulationTrainingConfig(ruleset="combo-hand").ruleset == "combo-hand"
+    assert SimulationTrainingConfig(ruleset="resource-hand").ruleset == "resource-hand"
 
 
 def initialize_fixed_simulation_model(
@@ -327,6 +329,39 @@ def test_combo_self_play_uses_sequential_schema_and_heuristic(tmp_path) -> None:
     assert isinstance(simulation_context, dict)
     assert simulation_context["observation_schema_version"] == 4
     assert simulation_context["action_semantics"] == "sequential-combo-selection"
-    assert candidate.training_context["heuristic_policy_id"] == (
-        "plain-elemental-greedy-combo-v2"
+    assert candidate.training_context["heuristic_policy_id"] == ("plain-elemental-greedy-combo-v2")
+
+
+def test_resource_self_play_uses_stateful_mp_schema_and_heuristic(tmp_path) -> None:
+    snapshot = BibleSnapshot.model_validate_json(SNAPSHOT.read_text(encoding="utf-8"))
+    vocabulary = ArtifactVocabulary.from_snapshot(snapshot)
+    model_root = tmp_path / "models"
+    parent = initialize_model(
+        model_root,
+        vocabulary,
+        client_sha256=snapshot.client.sha256,
+        feature_schema_version=RESOURCE_FEATURE_SCHEMA_VERSION,
     )
+
+    candidate = train_simulation_candidate(
+        base_model_directory=model_root / parent.model_id,
+        model_root=model_root,
+        snapshot_path=SNAPSHOT,
+        config=SimulationTrainingConfig(
+            ruleset="resource-hand",
+            batch_size=8,
+            rollout_steps=8,
+            updates=1,
+            ppo_epochs=1,
+            environment_minibatch_size=4,
+            teacher_updates=1,
+            teacher_epochs=1,
+            seed=67,
+        ),
+    )
+    simulation_context = candidate.training_context["simulation"]
+
+    assert isinstance(simulation_context, dict)
+    assert simulation_context["observation_schema_version"] == 5
+    assert simulation_context["rule_catalog_size"] == 117
+    assert candidate.training_context["heuristic_policy_id"] == ("plain-resource-aware-combo-v1")

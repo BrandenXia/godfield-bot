@@ -24,11 +24,13 @@ from godfield_bot.legal_actions import game_state_digest, observation_only_actio
 from godfield_bot.model_registry import (
     COMBO_FEATURE_MIGRATION,
     ELEMENT_FEATURE_MIGRATION,
+    RESOURCE_FEATURE_MIGRATION,
     ModelStatus,
     initialize_model,
     load_model,
     migrate_combo_features,
     migrate_element_features,
+    migrate_resource_features,
 )
 from godfield_bot.neural import RecurrentPolicyValueNet, features_to_tensors
 from godfield_bot.outcome_training import OutcomeTrainingConfig, train_outcome_candidate
@@ -237,6 +239,34 @@ def test_combo_feature_migration_preserves_weights_exactly(tmp_path) -> None:
     assert combo.training_algorithm == COMBO_FEATURE_MIGRATION
     for name, value in elemental_model.state_dict().items():
         torch.testing.assert_close(value, combo_model.state_dict()[name], rtol=0, atol=0)
+
+
+def test_resource_feature_migration_preserves_weights_exactly(tmp_path) -> None:
+    snapshot = BibleSnapshot.model_validate_json(SNAPSHOT.read_text(encoding="utf-8"))
+    vocabulary = load_vocabulary(SNAPSHOT)
+    root = tmp_path / "models"
+    combo = initialize_model(
+        root,
+        vocabulary,
+        client_sha256=snapshot.client.sha256,
+        feature_schema_version=4,
+        global_feature_count=13,
+    )
+    resource = migrate_resource_features(
+        root / combo.model_id,
+        root,
+        vocabulary,
+        client_sha256=snapshot.client.sha256,
+    )
+    _, combo_model = load_model(root / combo.model_id)
+    _, resource_model = load_model(root / resource.model_id)
+
+    assert resource.feature_schema_version == 5
+    assert resource.parent_model_id == combo.model_id
+    assert resource.training_algorithm == RESOURCE_FEATURE_MIGRATION
+    assert resource.training_context["tensor_transform"] == "identity"
+    for name, value in combo_model.state_dict().items():
+        torch.testing.assert_close(value, resource_model.state_dict()[name], rtol=0, atol=0)
 
 
 def test_schema_v3_model_requires_explicit_policy_architecture(tmp_path) -> None:

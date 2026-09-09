@@ -9,9 +9,12 @@ from godfield_bot.reference import (
     plain_attack_weapon_values,
     plain_defense_armor_cards,
     plain_defense_armor_values,
+    plain_hp_utility_sundries,
+    plain_mp_utility_sundries,
     verified_attack_miracle_cards,
     verified_attack_weapon_values,
     verified_browser_weapon_attacks,
+    verified_hp_utility_miracle_cards,
 )
 
 SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-07" / "bible.json"
@@ -118,3 +121,15 @@ def test_committed_snapshot_matches_validated_live_catalog() -> None:
     assert verified_miracles["waterfall"] == (25, 12, "water")
     assert "absorption" not in verified_miracles
     assert "fireball" not in verified_miracles
+    assert plain_hp_utility_sundries(snapshot) == {
+        "smile-dew": 5,
+        "heart-dew": 10,
+        "romance-water": 15,
+        "galaxy-geyser": 20,
+    }
+    assert plain_mp_utility_sundries(snapshot) == {
+        "smile-flower": 5,
+        "heart-flower": 10,
+        "romance-fragrance": 15,
+    }
+    assert verified_hp_utility_miracle_cards(snapshot) == {"spring": (10, 7)}

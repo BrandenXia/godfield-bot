@@ -14,6 +14,9 @@ ATTACK_DEFENSE_RULESET_ID: Final[str]
 COMBO_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION: Final[int]
 COMBO_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION: Final[int]
 COMBO_ATTACK_DEFENSE_RULESET_ID: Final[str]
+RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION: Final[int]
+RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION: Final[int]
+RESOURCE_ATTACK_DEFENSE_RULESET_ID: Final[str]
 MIXED_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION: Final[int]
 MIXED_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION: Final[int]
 MIXED_ATTACK_DEFENSE_RULESET_ID: Final[str]
@@ -37,6 +40,10 @@ PHASE_TERMINAL: Final[int]
 CARD_KIND_WEAPON: Final[int]
 CARD_KIND_ARMOR: Final[int]
 CARD_KIND_ATTACK_BOOSTER: Final[int]
+CARD_KIND_HP_UTILITY: Final[int]
+CARD_KIND_MP_UTILITY: Final[int]
+CARD_KIND_ATTACK_MIRACLE: Final[int]
+CARD_KIND_HP_MIRACLE: Final[int]
 FORGIVE_ACTION_INDEX: Final[int]
 CONFIRM_ACTION_INDEX: Final[int]
 GLOBAL_FEATURE_COUNT: Final[int]
@@ -107,6 +114,10 @@ class AttackDefenseBatch:
     @property
     def combo(self) -> bool: ...
     @property
+    def resource_curriculum(self) -> bool: ...
+    @property
+    def initial_mp(self) -> int: ...
+    @property
     def global_feature_count(self) -> int: ...
     @property
     def global_features(self) -> npt.NDArray[np.float32]: ...
@@ -148,6 +159,8 @@ class AttackDefenseBatch:
     def episode_ids(self) -> npt.NDArray[np.uint64]: ...
     @property
     def turn_numbers(self) -> npt.NDArray[np.uint16]: ...
+    @property
+    def magic_points(self) -> npt.NDArray[np.uint16]: ...
     def reset(self) -> None: ...
     def reset_done(self) -> int: ...
     def step(self, actions: npt.NDArray[np.int64]) -> None: ...
@@ -181,4 +194,33 @@ class ComboAttackDefenseBatch(AttackDefenseBatch):
         armor_elements: npt.NDArray[np.uint8],
         seed: int = ...,
         initial_hp: int = ...,
+    ) -> None: ...
+
+class ResourceAttackDefenseBatch(AttackDefenseBatch):
+    def __init__(
+        self,
+        batch_size: int,
+        weapon_token_ids: npt.NDArray[np.uint32],
+        attack_values: npt.NDArray[np.uint16],
+        weapon_elements: npt.NDArray[np.uint8],
+        booster_token_ids: npt.NDArray[np.uint32],
+        booster_values: npt.NDArray[np.uint16],
+        booster_elements: npt.NDArray[np.uint8],
+        armor_token_ids: npt.NDArray[np.uint32],
+        defense_values: npt.NDArray[np.uint16],
+        armor_elements: npt.NDArray[np.uint8],
+        hp_utility_token_ids: npt.NDArray[np.uint32],
+        hp_utility_values: npt.NDArray[np.uint16],
+        mp_utility_token_ids: npt.NDArray[np.uint32],
+        mp_utility_values: npt.NDArray[np.uint16],
+        attack_miracle_token_ids: npt.NDArray[np.uint32],
+        attack_miracle_values: npt.NDArray[np.uint16],
+        attack_miracle_elements: npt.NDArray[np.uint8],
+        attack_miracle_costs: npt.NDArray[np.uint16],
+        hp_miracle_token_ids: npt.NDArray[np.uint32],
+        hp_miracle_values: npt.NDArray[np.uint16],
+        hp_miracle_costs: npt.NDArray[np.uint16],
+        seed: int = ...,
+        initial_hp: int = ...,
+        initial_mp: int = ...,
     ) -> None: ...

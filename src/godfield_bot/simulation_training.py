@@ -43,9 +43,9 @@ class SimulationTrainingError(RuntimeError):
 
 
 class SimulationTrainingConfig(BaseModel):
-    ruleset: Literal["fixed-role", "mixed-hand", "elemental-hand", "combo-hand"] = (
-        "fixed-role"
-    )
+    ruleset: Literal[
+        "fixed-role", "mixed-hand", "elemental-hand", "combo-hand", "resource-hand"
+    ] = "fixed-role"
     batch_size: int = Field(default=256, ge=1, le=1_000_000)
     rollout_steps: int = Field(default=32, ge=2, le=4096)
     updates: int = Field(default=10, ge=1, le=100_000)

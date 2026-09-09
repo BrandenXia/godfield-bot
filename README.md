@@ -12,7 +12,7 @@ revalidated with element metadata on 2026-09-07; see
 [complete extracted Bible](data/snapshots/2026-09-07/bible.json) contains all
 291 visible artifact records. The pinned pygodfield client independently
 captured the current 296-model API catalog, including five trade models, in
-[the API catalog snapshot](data/snapshots/2026-09-07/api-catalog-en.json).
+[the API catalog snapshot](data/snapshots/2026-09-09/api-catalog-en.json).
 
 ## Working principles
 
@@ -102,18 +102,18 @@ remain active.
 Use `--team 0` for solo/free-for-all entry, or `--team 1` through `--team 4`
 for allied teams A through D. The selected team is retained across automatic
 entry into subsequent matches. Active curse presence is recorded in the
-normalized API state. `api-combo-utility-heuristic-v1` uses strict
+normalized API state. `api-combo-utility-heuristic-v2` uses strict
 base-plus-booster attacks, compatible multi-armor defenses, affordable
 targeted fixed-damage and curse miracles, special block/bounce/reflect
 defenses admitted by the API, and deterministic HP/MP recovery. It takes an
 attack with potentially lethal power before healing and otherwise restores HP
 at 25 or less.
 On a cursed turn, it prefers a verified all-curse cleanser and otherwise uses
-only individually reliable, undisguised actions. If none are available it
-abstains locally; it does not submit an empty turn command, which the live
-service rejects in this state. An executable run now stops immediately with an
-`unsupported_self_turn` outcome when such an unmodeled self-turn is reached,
-instead of waiting for the generic no-progress timer.
+only individually reliable, undisguised actions. When no attack or recovery is
+available, Sell can offer the weakest verified plain armor to an opponent. If
+no supported action remains, it abstains locally rather than submit an empty
+turn command, which the live service rejects in this state; the run records an
+`unsupported_self_turn` outcome instead of waiting for the no-progress timer.
 
 Pass `--shadow-model models/<candidate-id>` to `api play-private` to run either
 the schema-v4 combo network or schema-v5 resource network on each covered
@@ -151,7 +151,7 @@ uv run godfield-bot models evaluate-live-shadow \
   models/evaluations/74c09a6c-e682-46b9-88e4-79032677ce62.json
 ```
 
-`live-resource-shadow-readiness-v1` accepts only runs that carry the exact v2
+`live-resource-shadow-readiness-v2` accepts only runs that carry the exact v2
 adapter, schema, model and weight checksum, and tactical behavior identity. It
 validates state/legal-action/decision pairing and terminal rewards, then gates
 on completed games, attack and defense opportunities, all four resource action

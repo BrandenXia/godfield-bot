@@ -1,0 +1,3590 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-09-09T19:31:49.486259Z",
+  "source_url": "https://godfield.net/i18n/en.json",
+  "language": "en",
+  "upstream_revision": "0673312945e3e97ff574cd1617dff7264fed068f",
+  "content_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+  "total_items": 296,
+  "items": [
+    {
+      "model_id": 1,
+      "raw": {
+        "imageName": "discard",
+        "category": "trade",
+        "ability": "discard",
+        "name": "Discard"
+      }
+    },
+    {
+      "model_id": 2,
+      "raw": {
+        "imageName": "sacrifice",
+        "category": "trade",
+        "ability": "sacrifice",
+        "name": "Sacrifice"
+      }
+    },
+    {
+      "model_id": 3,
+      "raw": {
+        "imageName": "exchange",
+        "category": "trade",
+        "ability": "exchange",
+        "price": 5,
+        "giftRate": 20,
+        "name": "Exchange"
+      }
+    },
+    {
+      "model_id": 4,
+      "raw": {
+        "imageName": "sell",
+        "category": "trade",
+        "ability": "sell",
+        "price": 5,
+        "giftRate": 20,
+        "name": "Sell"
+      }
+    },
+    {
+      "model_id": 5,
+      "raw": {
+        "imageName": "buy",
+        "category": "trade",
+        "ability": "buy",
+        "price": 5,
+        "giftRate": 20,
+        "name": "Buy"
+      }
+    },
+    {
+      "model_id": 6,
+      "raw": {
+        "imageName": "bronze-club",
+        "category": "weapons",
+        "atk": 1,
+        "price": 1,
+        "giftRate": 3,
+        "name": "Bronze Club"
+      }
+    },
+    {
+      "model_id": 7,
+      "raw": {
+        "imageName": "silver-club",
+        "category": "weapons",
+        "atk": 1,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Silver Club"
+      }
+    },
+    {
+      "model_id": 8,
+      "raw": {
+        "imageName": "gold-club",
+        "category": "weapons",
+        "atk": 1,
+        "price": 25,
+        "giftRate": 1,
+        "name": "Gold Club"
+      }
+    },
+    {
+      "model_id": 9,
+      "raw": {
+        "imageName": "blowgun",
+        "category": "weapons",
+        "atk": 1,
+        "isPlusAtk": true,
+        "price": 1,
+        "giftRate": 1,
+        "name": "Blowgun"
+      }
+    },
+    {
+      "model_id": 10,
+      "raw": {
+        "imageName": "whip",
+        "category": "weapons",
+        "atk": 2,
+        "price": 1,
+        "giftRate": 4,
+        "name": "Whip"
+      }
+    },
+    {
+      "model_id": 11,
+      "raw": {
+        "imageName": "saver-rod",
+        "category": "weapons",
+        "atk": 2,
+        "def": 6,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Saver Rod"
+      }
+    },
+    {
+      "model_id": 12,
+      "raw": {
+        "imageName": "crossbow",
+        "category": "weapons",
+        "atk": 2,
+        "isPlusAtk": true,
+        "price": 2,
+        "giftRate": 1,
+        "name": "Crossbow"
+      }
+    },
+    {
+      "model_id": 13,
+      "raw": {
+        "imageName": "punch",
+        "category": "weapons",
+        "atk": 3,
+        "price": 1,
+        "giftRate": 5,
+        "name": "Punch"
+      }
+    },
+    {
+      "model_id": 14,
+      "raw": {
+        "imageName": "saw-boom-boom",
+        "category": "weapons",
+        "atk": 3,
+        "ability": "attackTwice",
+        "price": 10,
+        "giftRate": 1,
+        "name": "Saw Boom Boom"
+      }
+    },
+    {
+      "model_id": 15,
+      "raw": {
+        "imageName": "boomerang",
+        "category": "weapons",
+        "atk": 3,
+        "isPlusAtk": true,
+        "price": 3,
+        "giftRate": 1,
+        "name": "Boomerang"
+      }
+    },
+    {
+      "model_id": 16,
+      "raw": {
+        "imageName": "hatchet",
+        "category": "weapons",
+        "atk": 4,
+        "price": 2,
+        "giftRate": 6,
+        "name": "Hatchet"
+      }
+    },
+    {
+      "model_id": 17,
+      "raw": {
+        "imageName": "spiked-belt",
+        "category": "weapons",
+        "atk": 4,
+        "def": 2,
+        "price": 3,
+        "giftRate": 1,
+        "name": "Spiked Belt"
+      }
+    },
+    {
+      "model_id": 18,
+      "raw": {
+        "imageName": "battle-ball",
+        "category": "weapons",
+        "atk": 4,
+        "isPlusAtk": true,
+        "price": 4,
+        "giftRate": 1,
+        "name": "Battle Ball"
+      }
+    },
+    {
+      "model_id": 19,
+      "raw": {
+        "imageName": "chain-sickle",
+        "category": "weapons",
+        "atk": 5,
+        "price": 2,
+        "giftRate": 7,
+        "name": "Chain Sickle"
+      }
+    },
+    {
+      "model_id": 20,
+      "raw": {
+        "imageName": "plate-of-strike",
+        "category": "weapons",
+        "atk": 5,
+        "def": 7,
+        "price": 3,
+        "giftRate": 1,
+        "name": "Plate of Strike"
+      }
+    },
+    {
+      "model_id": 21,
+      "raw": {
+        "imageName": "bouncing-sword",
+        "category": "weapons",
+        "atk": 5,
+        "ability": "bounceWeapon",
+        "price": 10,
+        "giftRate": 7,
+        "name": "Bouncing Sword"
+      }
+    },
+    {
+      "model_id": 22,
+      "raw": {
+        "imageName": "warrior-s-bow",
+        "category": "weapons",
+        "atk": 5,
+        "isPlusAtk": true,
+        "price": 5,
+        "giftRate": 1,
+        "name": "Warrior's Bow"
+      }
+    },
+    {
+      "model_id": 23,
+      "raw": {
+        "imageName": "hard-hammer",
+        "category": "weapons",
+        "atk": 6,
+        "price": 2,
+        "giftRate": 8,
+        "name": "Hard Hammer"
+      }
+    },
+    {
+      "model_id": 24,
+      "raw": {
+        "imageName": "elbow-sack",
+        "category": "weapons",
+        "atk": 6,
+        "def": 3,
+        "price": 3,
+        "giftRate": 1,
+        "name": "Elbow Sack"
+      }
+    },
+    {
+      "model_id": 25,
+      "raw": {
+        "imageName": "jet-yo-yo",
+        "category": "weapons",
+        "atk": 6,
+        "isPlusAtk": true,
+        "price": 6,
+        "giftRate": 1,
+        "name": "Jet Yo-yo"
+      }
+    },
+    {
+      "model_id": 26,
+      "raw": {
+        "imageName": "glaive-classic",
+        "category": "weapons",
+        "atk": 7,
+        "price": 3,
+        "giftRate": 8,
+        "name": "Glaive Classic"
+      }
+    },
+    {
+      "model_id": 27,
+      "raw": {
+        "imageName": "ghost-sword",
+        "category": "weapons",
+        "atk": 7,
+        "ability": "absorbHP",
+        "price": 10,
+        "giftRate": 1,
+        "name": "Ghost Sword"
+      }
+    },
+    {
+      "model_id": 28,
+      "raw": {
+        "imageName": "unknown-feather",
+        "category": "weapons",
+        "atk": 7,
+        "isPlusAtk": true,
+        "price": 7,
+        "giftRate": 1,
+        "name": "Unknown Feather"
+      }
+    },
+    {
+      "model_id": 29,
+      "raw": {
+        "imageName": "final-tusk",
+        "category": "weapons",
+        "atk": 8,
+        "price": 3,
+        "giftRate": 8,
+        "name": "Final Tusk"
+      }
+    },
+    {
+      "model_id": 30,
+      "raw": {
+        "imageName": "hell-scissors",
+        "category": "weapons",
+        "atk": 8,
+        "ability": "addCurseOnDamage",
+        "curse": "hell",
+        "price": 15,
+        "giftRate": 1,
+        "name": "Hell Scissors"
+      }
+    },
+    {
+      "model_id": 31,
+      "raw": {
+        "imageName": "psychic-card",
+        "category": "weapons",
+        "atk": 8,
+        "isPlusAtk": true,
+        "price": 8,
+        "giftRate": 1,
+        "name": "Psychic Card"
+      }
+    },
+    {
+      "model_id": 32,
+      "raw": {
+        "imageName": "power-halberd",
+        "category": "weapons",
+        "atk": 9,
+        "price": 3,
+        "giftRate": 7,
+        "name": "Power Halberd"
+      }
+    },
+    {
+      "model_id": 33,
+      "raw": {
+        "imageName": "gale-sword",
+        "category": "weapons",
+        "atk": 9,
+        "ability": "addCurseOnDamage",
+        "curse": "cold",
+        "price": 10,
+        "giftRate": 1,
+        "name": "Gale Sword"
+      }
+    },
+    {
+      "model_id": 34,
+      "raw": {
+        "imageName": "sky-harpoon",
+        "category": "weapons",
+        "atk": 9,
+        "isPlusAtk": true,
+        "ability": "bounceMiracle",
+        "price": 5,
+        "giftRate": 1,
+        "name": "Sky Harpoon"
+      }
+    },
+    {
+      "model_id": 35,
+      "raw": {
+        "imageName": "wonder-sword",
+        "category": "weapons",
+        "atk": 10,
+        "price": 4,
+        "giftRate": 7,
+        "name": "Wonder Sword"
+      }
+    },
+    {
+      "model_id": 36,
+      "raw": {
+        "imageName": "bogus-spear",
+        "category": "weapons",
+        "atk": 10,
+        "ability": "addCurseOnDamage",
+        "curse": "dream",
+        "price": 10,
+        "giftRate": 1,
+        "name": "Bogus Spear"
+      }
+    },
+    {
+      "model_id": 37,
+      "raw": {
+        "imageName": "sword-shield",
+        "category": "weapons",
+        "atk": 10,
+        "def": 10,
+        "price": 15,
+        "giftRate": 1,
+        "name": "Sword Shield"
+      }
+    },
+    {
+      "model_id": 38,
+      "raw": {
+        "imageName": "reflection-sword",
+        "category": "weapons",
+        "atk": 10,
+        "ability": "reflectWeapon",
+        "price": 5,
+        "giftRate": 3,
+        "name": "Reflection Sword"
+      }
+    },
+    {
+      "model_id": 39,
+      "raw": {
+        "imageName": "moonlight-axe",
+        "category": "weapons",
+        "atk": 10,
+        "ability": "reflectMiracle",
+        "price": 10,
+        "giftRate": 1,
+        "name": "Moonlight Axe"
+      }
+    },
+    {
+      "model_id": 40,
+      "raw": {
+        "imageName": "gravity-mace",
+        "category": "weapons",
+        "atk": 11,
+        "price": 4,
+        "giftRate": 4,
+        "name": "Gravity Mace"
+      }
+    },
+    {
+      "model_id": 41,
+      "raw": {
+        "imageName": "hexagon-doom",
+        "category": "weapons",
+        "atk": 11,
+        "ability": "addCurseOnDamage",
+        "curse": "darkcloud",
+        "price": 15,
+        "giftRate": 1,
+        "name": "Hexagon Doom"
+      }
+    },
+    {
+      "model_id": 42,
+      "raw": {
+        "imageName": "angel-knife",
+        "category": "weapons",
+        "atk": 11,
+        "ability": "blockMiracle",
+        "price": 15,
+        "giftRate": 1,
+        "name": "Angel Knife"
+      }
+    },
+    {
+      "model_id": 43,
+      "raw": {
+        "imageName": "horror-wheel",
+        "category": "weapons",
+        "atk": 11,
+        "isPlusAtk": true,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Horror Wheel"
+      }
+    },
+    {
+      "model_id": 44,
+      "raw": {
+        "imageName": "direct-smash-axe",
+        "category": "weapons",
+        "atk": 12,
+        "price": 4,
+        "giftRate": 4,
+        "name": "Direct Smash Axe"
+      }
+    },
+    {
+      "model_id": 45,
+      "raw": {
+        "imageName": "real-ghost-sword",
+        "category": "weapons",
+        "atk": 12,
+        "ability": "absorbHP",
+        "price": 15,
+        "giftRate": 1,
+        "name": "Real Ghost Sword"
+      }
+    },
+    {
+      "model_id": 46,
+      "raw": {
+        "imageName": "spiritual-staff",
+        "category": "weapons",
+        "atk": 12,
+        "ability": "cutCost",
+        "price": 20,
+        "giftRate": 1,
+        "name": "Spiritual Staff"
+      }
+    },
+    {
+      "model_id": 47,
+      "raw": {
+        "imageName": "spear-in-fine-view",
+        "category": "weapons",
+        "atk": 13,
+        "price": 5,
+        "giftRate": 4,
+        "name": "Spear in Fine View"
+      }
+    },
+    {
+      "model_id": 48,
+      "raw": {
+        "imageName": "severe-gale-sword",
+        "category": "weapons",
+        "atk": 13,
+        "ability": "addCurseOnDamage",
+        "curse": "cold",
+        "price": 15,
+        "giftRate": 1,
+        "name": "Severe Gale Sword"
+      }
+    },
+    {
+      "model_id": 49,
+      "raw": {
+        "imageName": "legendary-scabbard",
+        "category": "weapons",
+        "atk": 13,
+        "def": 1,
+        "price": 3,
+        "giftRate": 1,
+        "name": "Legendary Scabbard"
+      }
+    },
+    {
+      "model_id": 50,
+      "raw": {
+        "imageName": "angel-sword",
+        "category": "weapons",
+        "atk": 13,
+        "ability": "blockMiracle",
+        "price": 15,
+        "giftRate": 1,
+        "name": "Angel Sword"
+      }
+    },
+    {
+      "model_id": 51,
+      "raw": {
+        "imageName": "top-of-combat",
+        "category": "weapons",
+        "atk": 13,
+        "isPlusAtk": true,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Top of Combat"
+      }
+    },
+    {
+      "model_id": 52,
+      "raw": {
+        "imageName": "violent-flail",
+        "category": "weapons",
+        "atk": 14,
+        "price": 5,
+        "giftRate": 3,
+        "name": "Violent Flail"
+      }
+    },
+    {
+      "model_id": 53,
+      "raw": {
+        "imageName": "evil-broadsword",
+        "category": "weapons",
+        "atk": 14,
+        "ability": "dealSameDamage",
+        "price": 1,
+        "giftRate": 1,
+        "name": "Evil Broadsword"
+      }
+    },
+    {
+      "model_id": 54,
+      "raw": {
+        "imageName": "dragon-claws",
+        "category": "weapons",
+        "atk": 15,
+        "price": 5,
+        "giftRate": 3,
+        "name": "Dragon Claws"
+      }
+    },
+    {
+      "model_id": 55,
+      "raw": {
+        "imageName": "angel-axe",
+        "category": "weapons",
+        "atk": 15,
+        "ability": "blockMiracle",
+        "price": 15,
+        "giftRate": 1,
+        "name": "Angel Axe"
+      }
+    },
+    {
+      "model_id": 56,
+      "raw": {
+        "imageName": "angel-bow",
+        "category": "weapons",
+        "atk": 15,
+        "isPlusAtk": true,
+        "ability": "blockMiracle",
+        "price": 15,
+        "giftRate": 1,
+        "name": "Angel Bow"
+      }
+    },
+    {
+      "model_id": 57,
+      "raw": {
+        "imageName": "god-sword",
+        "category": "weapons",
+        "atk": 30,
+        "price": 30,
+        "giftRate": 1,
+        "name": "God Sword"
+      }
+    },
+    {
+      "model_id": 58,
+      "raw": {
+        "imageName": "magical-stick",
+        "category": "weapons",
+        "ability": "atkBy2xMP",
+        "price": 10,
+        "giftRate": 1,
+        "name": "Magical Stick"
+      }
+    },
+    {
+      "model_id": 59,
+      "raw": {
+        "imageName": "torch",
+        "category": "weapons",
+        "element": "fire",
+        "atk": 1,
+        "price": 1,
+        "giftRate": 1,
+        "name": "Torch"
+      }
+    },
+    {
+      "model_id": 60,
+      "raw": {
+        "imageName": "icicle",
+        "category": "weapons",
+        "element": "water",
+        "atk": 1,
+        "price": 1,
+        "giftRate": 1,
+        "name": "Icicle"
+      }
+    },
+    {
+      "model_id": 61,
+      "raw": {
+        "imageName": "wooden-sword",
+        "category": "weapons",
+        "element": "wood",
+        "atk": 1,
+        "price": 1,
+        "giftRate": 1,
+        "name": "Wooden Sword"
+      }
+    },
+    {
+      "model_id": 62,
+      "raw": {
+        "imageName": "wind-talons",
+        "category": "weapons",
+        "element": "stone",
+        "atk": 1,
+        "ability": "addCurseOnDamage",
+        "curse": "cold",
+        "price": 10,
+        "giftRate": 1,
+        "name": "Wind Talons"
+      }
+    },
+    {
+      "model_id": 63,
+      "raw": {
+        "imageName": "piece-of-brightness",
+        "category": "weapons",
+        "element": "light",
+        "atk": 1,
+        "isPlusAtk": true,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Piece of Brightness"
+      }
+    },
+    {
+      "model_id": 64,
+      "raw": {
+        "imageName": "pri-pri-pricker",
+        "category": "weapons",
+        "element": "darkness",
+        "atk": 1,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Pri Pri Pricker"
+      }
+    },
+    {
+      "model_id": 65,
+      "raw": {
+        "imageName": "ouch-knife",
+        "category": "weapons",
+        "element": "fire",
+        "atk": 2,
+        "price": 2,
+        "giftRate": 1,
+        "name": "Ouch Knife"
+      }
+    },
+    {
+      "model_id": 66,
+      "raw": {
+        "imageName": "wand-of-ignition",
+        "category": "weapons",
+        "element": "fire",
+        "atk": 2,
+        "isPlusAtk": true,
+        "ability": "setElement",
+        "price": 15,
+        "giftRate": 1,
+        "name": "Wand of Ignition"
+      }
+    },
+    {
+      "model_id": 67,
+      "raw": {
+        "imageName": "thorn-whip",
+        "category": "weapons",
+        "element": "wood",
+        "atk": 2,
+        "price": 2,
+        "giftRate": 1,
+        "name": "Thorn Whip"
+      }
+    },
+    {
+      "model_id": 68,
+      "raw": {
+        "imageName": "leaf-shuriken",
+        "category": "weapons",
+        "element": "wood",
+        "atk": 2,
+        "isPlusAtk": true,
+        "price": 4,
+        "giftRate": 1,
+        "name": "Leaf Shuriken"
+      }
+    },
+    {
+      "model_id": 69,
+      "raw": {
+        "imageName": "sword-ware",
+        "category": "weapons",
+        "element": "stone",
+        "atk": 2,
+        "price": 2,
+        "giftRate": 1,
+        "name": "Sword Ware"
+      }
+    },
+    {
+      "model_id": 70,
+      "raw": {
+        "imageName": "flash-dagger",
+        "category": "weapons",
+        "element": "light",
+        "atk": 2,
+        "ability": "addCurseOnDamage",
+        "curse": "flash",
+        "price": 15,
+        "giftRate": 1,
+        "name": "Flash Dagger"
+      }
+    },
+    {
+      "model_id": 71,
+      "raw": {
+        "imageName": "fire-whip",
+        "category": "weapons",
+        "element": "fire",
+        "atk": 3,
+        "price": 3,
+        "giftRate": 1,
+        "name": "Fire Whip"
+      }
+    },
+    {
+      "model_id": 72,
+      "raw": {
+        "imageName": "fog-gun",
+        "category": "weapons",
+        "element": "water",
+        "atk": 3,
+        "ability": "addCurseOnDamage",
+        "curse": "fog",
+        "price": 10,
+        "giftRate": 1,
+        "name": "Fog Gun"
+      }
+    },
+    {
+      "model_id": 73,
+      "raw": {
+        "imageName": "bur-nut",
+        "category": "weapons",
+        "element": "wood",
+        "atk": 3,
+        "price": 3,
+        "giftRate": 1,
+        "name": "Bur Nut"
+      }
+    },
+    {
+      "model_id": 74,
+      "raw": {
+        "imageName": "mature-rubber-bow",
+        "category": "weapons",
+        "element": "wood",
+        "atk": 3,
+        "isPlusAtk": true,
+        "price": 6,
+        "giftRate": 1,
+        "name": "Mature Rubber Bow"
+      }
+    },
+    {
+      "model_id": 75,
+      "raw": {
+        "imageName": "star-staff",
+        "category": "weapons",
+        "element": "light",
+        "atk": 3,
+        "price": 3,
+        "giftRate": 1,
+        "name": "Star Staff"
+      }
+    },
+    {
+      "model_id": 76,
+      "raw": {
+        "imageName": "cobra",
+        "category": "weapons",
+        "element": "darkness",
+        "atk": 3,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Cobra"
+      }
+    },
+    {
+      "model_id": 77,
+      "raw": {
+        "imageName": "flaming-roll",
+        "category": "weapons",
+        "element": "fire",
+        "atk": 4,
+        "def": 4,
+        "price": 8,
+        "giftRate": 1,
+        "name": "Flaming Roll"
+      }
+    },
+    {
+      "model_id": 78,
+      "raw": {
+        "imageName": "fire-crossbow",
+        "category": "weapons",
+        "element": "fire",
+        "atk": 4,
+        "isPlusAtk": true,
+        "price": 8,
+        "giftRate": 1,
+        "name": "Fire Crossbow"
+      }
+    },
+    {
+      "model_id": 79,
+      "raw": {
+        "imageName": "frozen-hammer",
+        "category": "weapons",
+        "element": "water",
+        "atk": 4,
+        "price": 4,
+        "giftRate": 1,
+        "name": "Frozen Hammer"
+      }
+    },
+    {
+      "model_id": 80,
+      "raw": {
+        "imageName": "dream-mallet",
+        "category": "weapons",
+        "element": "wood",
+        "atk": 4,
+        "ability": "addCurseOnDamage",
+        "curse": "dream",
+        "price": 15,
+        "giftRate": 1,
+        "name": "Dream Mallet"
+      }
+    },
+    {
+      "model_id": 81,
+      "raw": {
+        "imageName": "goodbye-sword",
+        "category": "weapons",
+        "element": "darkness",
+        "atk": 4,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Goodbye Sword"
+      }
+    },
+    {
+      "model_id": 82,
+      "raw": {
+        "imageName": "blaze-blade",
+        "category": "weapons",
+        "element": "fire",
+        "atk": 5,
+        "price": 5,
+        "giftRate": 1,
+        "name": "Blaze Blade"
+      }
+    },
+    {
+      "model_id": 83,
+      "raw": {
+        "imageName": "wand-of-mystic-water",
+        "category": "weapons",
+        "element": "water",
+        "atk": 5,
+        "isPlusAtk": true,
+        "ability": "setElement",
+        "price": 15,
+        "giftRate": 1,
+        "name": "Wand of Mystic Water"
+      }
+    },
+    {
+      "model_id": 84,
+      "raw": {
+        "imageName": "paleolithic-javelin",
+        "category": "weapons",
+        "element": "stone",
+        "atk": 5,
+        "isPlusAtk": true,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Paleolithic Javelin"
+      }
+    },
+    {
+      "model_id": 85,
+      "raw": {
+        "imageName": "justice-lance",
+        "category": "weapons",
+        "element": "light",
+        "atk": 5,
+        "price": 5,
+        "giftRate": 1,
+        "name": "Justice Lance"
+      }
+    },
+    {
+      "model_id": 86,
+      "raw": {
+        "imageName": "killer-fork",
+        "category": "weapons",
+        "element": "darkness",
+        "atk": 5,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Killer Fork"
+      }
+    },
+    {
+      "model_id": 87,
+      "raw": {
+        "imageName": "abyss-dart",
+        "category": "weapons",
+        "element": "darkness",
+        "atk": 5,
+        "isPlusAtk": true,
+        "price": 15,
+        "giftRate": 1,
+        "name": "Abyss Dart"
+      }
+    },
+    {
+      "model_id": 88,
+      "raw": {
+        "imageName": "neolithic-tomahawk",
+        "category": "weapons",
+        "element": "stone",
+        "atk": 7,
+        "isPlusAtk": true,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Neolithic Tomahawk"
+      }
+    },
+    {
+      "model_id": 89,
+      "raw": {
+        "imageName": "fire-dragon-s-horn",
+        "category": "weapons",
+        "element": "fire",
+        "atk": 8,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Fire Dragon's Horn"
+      }
+    },
+    {
+      "model_id": 90,
+      "raw": {
+        "imageName": "water-dragon-s-horn",
+        "category": "weapons",
+        "element": "water",
+        "atk": 8,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Water Dragon's Horn"
+      }
+    },
+    {
+      "model_id": 91,
+      "raw": {
+        "imageName": "holy-sword",
+        "category": "weapons",
+        "element": "light",
+        "atk": 9,
+        "price": 15,
+        "giftRate": 1,
+        "name": "Holy Sword"
+      }
+    },
+    {
+      "model_id": 92,
+      "raw": {
+        "imageName": "death-s-scythe",
+        "category": "weapons",
+        "element": "darkness",
+        "atk": 10,
+        "price": 20,
+        "giftRate": 1,
+        "name": "Death's Scythe"
+      }
+    },
+    {
+      "model_id": 93,
+      "raw": {
+        "imageName": "diamond-sword",
+        "category": "weapons",
+        "element": "stone",
+        "atk": 13,
+        "price": 25,
+        "giftRate": 1,
+        "name": "Diamond Sword"
+      }
+    },
+    {
+      "model_id": 94,
+      "raw": {
+        "imageName": "dangerous-pestle",
+        "category": "weapons",
+        "element": "light",
+        "atk": 30,
+        "ability": "danger",
+        "price": 5,
+        "giftRate": 1,
+        "name": "Dangerous Pestle"
+      }
+    },
+    {
+      "model_id": 95,
+      "raw": {
+        "imageName": "spark-bag",
+        "category": "weapons",
+        "element": "fire",
+        "atk": 1,
+        "hitRate": 75,
+        "price": 2,
+        "giftRate": 1,
+        "name": "Spark Bag"
+      }
+    },
+    {
+      "model_id": 96,
+      "raw": {
+        "imageName": "shadow-hand",
+        "category": "weapons",
+        "element": "darkness",
+        "atk": 2,
+        "hitRate": 50,
+        "price": 8,
+        "giftRate": 1,
+        "name": "Shadow Hand"
+      }
+    },
+    {
+      "model_id": 97,
+      "raw": {
+        "imageName": "fog-fan",
+        "category": "weapons",
+        "element": "water",
+        "atk": 3,
+        "hitRate": 50,
+        "ability": "addCurseOnDamage",
+        "curse": "fog",
+        "price": 8,
+        "giftRate": 1,
+        "name": "Fog Fan"
+      }
+    },
+    {
+      "model_id": 98,
+      "raw": {
+        "imageName": "vine-shoot",
+        "category": "weapons",
+        "element": "wood",
+        "atk": 3,
+        "hitRate": 75,
+        "ability": "absorbHP",
+        "price": 10,
+        "giftRate": 1,
+        "name": "Vine Shoot"
+      }
+    },
+    {
+      "model_id": 99,
+      "raw": {
+        "imageName": "lightning-kids",
+        "category": "weapons",
+        "element": "light",
+        "atk": 3,
+        "hitRate": 25,
+        "price": 2,
+        "giftRate": 1,
+        "name": "Lightning Kids"
+      }
+    },
+    {
+      "model_id": 100,
+      "raw": {
+        "imageName": "flame-cup",
+        "category": "weapons",
+        "element": "fire",
+        "atk": 4,
+        "hitRate": 75,
+        "price": 6,
+        "giftRate": 1,
+        "name": "Flame Cup"
+      }
+    },
+    {
+      "model_id": 101,
+      "raw": {
+        "imageName": "chill-cup",
+        "category": "weapons",
+        "element": "water",
+        "atk": 4,
+        "hitRate": 75,
+        "price": 6,
+        "giftRate": 1,
+        "name": "Chill Cup"
+      }
+    },
+    {
+      "model_id": 102,
+      "raw": {
+        "imageName": "plant-cup",
+        "category": "weapons",
+        "element": "wood",
+        "atk": 4,
+        "hitRate": 75,
+        "price": 6,
+        "giftRate": 1,
+        "name": "Plant Cup"
+      }
+    },
+    {
+      "model_id": 103,
+      "raw": {
+        "imageName": "rock-cup",
+        "category": "weapons",
+        "element": "stone",
+        "atk": 4,
+        "hitRate": 75,
+        "price": 6,
+        "giftRate": 1,
+        "name": "Rock Cup"
+      }
+    },
+    {
+      "model_id": 104,
+      "raw": {
+        "imageName": "oversize-snowball",
+        "category": "weapons",
+        "element": "water",
+        "atk": 5,
+        "hitRate": 50,
+        "price": 5,
+        "giftRate": 1,
+        "name": "Oversize Snowball"
+      }
+    },
+    {
+      "model_id": 105,
+      "raw": {
+        "imageName": "cliff-hammer",
+        "category": "weapons",
+        "element": "stone",
+        "atk": 6,
+        "hitRate": 25,
+        "price": 4,
+        "giftRate": 1,
+        "name": "Cliff Hammer"
+      }
+    },
+    {
+      "model_id": 106,
+      "raw": {
+        "imageName": "light-orb",
+        "category": "weapons",
+        "element": "light",
+        "atk": 6,
+        "hitRate": 75,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Light Orb"
+      }
+    },
+    {
+      "model_id": 107,
+      "raw": {
+        "imageName": "fire-shower",
+        "category": "weapons",
+        "element": "fire",
+        "atk": 7,
+        "hitRate": 75,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Fire Shower"
+      }
+    },
+    {
+      "model_id": 108,
+      "raw": {
+        "imageName": "jinn-s-rocking-horse",
+        "category": "weapons",
+        "element": "wood",
+        "atk": 8,
+        "hitRate": 75,
+        "def": 6,
+        "price": 15,
+        "giftRate": 1,
+        "name": "Jinn's Rocking Horse"
+      }
+    },
+    {
+      "model_id": 109,
+      "raw": {
+        "imageName": "rain-deity-s-saber",
+        "category": "weapons",
+        "element": "water",
+        "atk": 9,
+        "hitRate": 50,
+        "price": 9,
+        "giftRate": 1,
+        "name": "Rain Deity's Saber"
+      }
+    },
+    {
+      "model_id": 110,
+      "raw": {
+        "imageName": "flare-axe",
+        "category": "weapons",
+        "element": "fire",
+        "atk": 10,
+        "hitRate": 50,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Flare Axe"
+      }
+    },
+    {
+      "model_id": 111,
+      "raw": {
+        "imageName": "petit-saturn",
+        "category": "weapons",
+        "element": "stone",
+        "atk": 20,
+        "hitRate": 25,
+        "price": 15,
+        "giftRate": 1,
+        "name": "Petit Saturn"
+      }
+    },
+    {
+      "model_id": 112,
+      "raw": {
+        "imageName": "ascension-bow",
+        "category": "weapons",
+        "element": "light",
+        "atk": 1,
+        "hitRate": 25,
+        "ability": "attackDyingly",
+        "abilityValue": 30,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Ascension Bow"
+      }
+    },
+    {
+      "model_id": 113,
+      "raw": {
+        "imageName": "leather-cap",
+        "category": "armor",
+        "def": 1,
+        "price": 1,
+        "giftRate": 10,
+        "name": "Leather Cap"
+      }
+    },
+    {
+      "model_id": 114,
+      "raw": {
+        "imageName": "sky-boots",
+        "category": "armor",
+        "def": 1,
+        "ability": "bounceMiracle",
+        "price": 5,
+        "giftRate": 1,
+        "name": "Sky Boots"
+      }
+    },
+    {
+      "model_id": 115,
+      "raw": {
+        "imageName": "aqua-shoes",
+        "category": "armor",
+        "element": "water",
+        "def": 1,
+        "price": 2,
+        "giftRate": 1,
+        "name": "Aqua Shoes"
+      }
+    },
+    {
+      "model_id": 116,
+      "raw": {
+        "imageName": "laurel-wreath",
+        "category": "armor",
+        "element": "wood",
+        "def": 1,
+        "price": 2,
+        "giftRate": 1,
+        "name": "Laurel Wreath"
+      }
+    },
+    {
+      "model_id": 117,
+      "raw": {
+        "imageName": "slate",
+        "category": "armor",
+        "element": "stone",
+        "def": 1,
+        "price": 2,
+        "giftRate": 1,
+        "name": "Slate"
+      }
+    },
+    {
+      "model_id": 118,
+      "raw": {
+        "imageName": "leather-clothes",
+        "category": "armor",
+        "def": 2,
+        "price": 2,
+        "giftRate": 10,
+        "name": "Leather Clothes"
+      }
+    },
+    {
+      "model_id": 119,
+      "raw": {
+        "imageName": "sparkle-glove",
+        "category": "armor",
+        "element": "fire",
+        "def": 2,
+        "price": 4,
+        "giftRate": 1,
+        "name": "Sparkle Glove"
+      }
+    },
+    {
+      "model_id": 120,
+      "raw": {
+        "imageName": "aqua-glove",
+        "category": "armor",
+        "element": "water",
+        "def": 2,
+        "price": 4,
+        "giftRate": 1,
+        "name": "Aqua Glove"
+      }
+    },
+    {
+      "model_id": 121,
+      "raw": {
+        "imageName": "wood-shield",
+        "category": "armor",
+        "element": "wood",
+        "def": 2,
+        "price": 4,
+        "giftRate": 1,
+        "name": "Wood Shield"
+      }
+    },
+    {
+      "model_id": 122,
+      "raw": {
+        "imageName": "bedrock",
+        "category": "armor",
+        "element": "stone",
+        "def": 2,
+        "price": 4,
+        "giftRate": 1,
+        "name": "Bedrock"
+      }
+    },
+    {
+      "model_id": 123,
+      "raw": {
+        "imageName": "iron-gauntlet",
+        "category": "armor",
+        "def": 3,
+        "price": 3,
+        "giftRate": 8,
+        "name": "Iron Gauntlet"
+      }
+    },
+    {
+      "model_id": 124,
+      "raw": {
+        "imageName": "ogre-s-shoes",
+        "category": "armor",
+        "atk": 5,
+        "isPlusAtk": true,
+        "def": 3,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Ogre's Shoes"
+      }
+    },
+    {
+      "model_id": 125,
+      "raw": {
+        "imageName": "sky-gauntlet",
+        "category": "armor",
+        "def": 3,
+        "ability": "bounceMiracle",
+        "price": 5,
+        "giftRate": 1,
+        "name": "Sky Gauntlet"
+      }
+    },
+    {
+      "model_id": 126,
+      "raw": {
+        "imageName": "flame-boots",
+        "category": "armor",
+        "element": "fire",
+        "def": 3,
+        "price": 6,
+        "giftRate": 1,
+        "name": "Flame Boots"
+      }
+    },
+    {
+      "model_id": 127,
+      "raw": {
+        "imageName": "ice-boots",
+        "category": "armor",
+        "element": "water",
+        "def": 3,
+        "price": 6,
+        "giftRate": 1,
+        "name": "Ice Boots"
+      }
+    },
+    {
+      "model_id": 128,
+      "raw": {
+        "imageName": "sacred-tree-gauntlet",
+        "category": "armor",
+        "element": "wood",
+        "def": 3,
+        "price": 6,
+        "giftRate": 1,
+        "name": "Sacred Tree Gauntlet"
+      }
+    },
+    {
+      "model_id": 129,
+      "raw": {
+        "imageName": "crystal-board",
+        "category": "armor",
+        "element": "stone",
+        "def": 3,
+        "price": 6,
+        "giftRate": 1,
+        "name": "Crystal Board"
+      }
+    },
+    {
+      "model_id": 130,
+      "raw": {
+        "imageName": "iron-shield",
+        "category": "armor",
+        "def": 4,
+        "price": 4,
+        "giftRate": 8,
+        "name": "Iron Shield"
+      }
+    },
+    {
+      "model_id": 131,
+      "raw": {
+        "imageName": "flame-helm",
+        "category": "armor",
+        "element": "fire",
+        "def": 4,
+        "price": 8,
+        "giftRate": 1,
+        "name": "Flame Helm"
+      }
+    },
+    {
+      "model_id": 132,
+      "raw": {
+        "imageName": "ice-helm",
+        "category": "armor",
+        "element": "water",
+        "def": 4,
+        "price": 8,
+        "giftRate": 1,
+        "name": "Ice Helm"
+      }
+    },
+    {
+      "model_id": 133,
+      "raw": {
+        "imageName": "grove-shield",
+        "category": "armor",
+        "element": "wood",
+        "def": 4,
+        "price": 8,
+        "giftRate": 1,
+        "name": "Grove Shield"
+      }
+    },
+    {
+      "model_id": 134,
+      "raw": {
+        "imageName": "terra-shoes",
+        "category": "armor",
+        "element": "stone",
+        "def": 4,
+        "price": 8,
+        "giftRate": 1,
+        "name": "Terra Shoes"
+      }
+    },
+    {
+      "model_id": 135,
+      "raw": {
+        "imageName": "iron-armor",
+        "category": "armor",
+        "def": 5,
+        "price": 5,
+        "giftRate": 8,
+        "name": "Iron Armor"
+      }
+    },
+    {
+      "model_id": 136,
+      "raw": {
+        "imageName": "ogre-s-gauntlet",
+        "category": "armor",
+        "atk": 10,
+        "isPlusAtk": true,
+        "def": 5,
+        "price": 15,
+        "giftRate": 1,
+        "name": "Ogre's Gauntlet"
+      }
+    },
+    {
+      "model_id": 137,
+      "raw": {
+        "imageName": "sky-helm",
+        "category": "armor",
+        "def": 5,
+        "ability": "bounceMiracle",
+        "price": 5,
+        "giftRate": 1,
+        "name": "Sky Helm"
+      }
+    },
+    {
+      "model_id": 138,
+      "raw": {
+        "imageName": "flame-shield",
+        "category": "armor",
+        "element": "fire",
+        "def": 5,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Flame Shield"
+      }
+    },
+    {
+      "model_id": 139,
+      "raw": {
+        "imageName": "ice-shield",
+        "category": "armor",
+        "element": "water",
+        "def": 5,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Ice Shield"
+      }
+    },
+    {
+      "model_id": 140,
+      "raw": {
+        "imageName": "resin-knit-robe",
+        "category": "armor",
+        "element": "wood",
+        "def": 5,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Resin Knit Robe"
+      }
+    },
+    {
+      "model_id": 141,
+      "raw": {
+        "imageName": "terra-gauntlet",
+        "category": "armor",
+        "element": "stone",
+        "def": 5,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Terra Gauntlet"
+      }
+    },
+    {
+      "model_id": 142,
+      "raw": {
+        "imageName": "steel-gauntlet",
+        "category": "armor",
+        "def": 6,
+        "price": 6,
+        "giftRate": 6,
+        "name": "Steel Gauntlet"
+      }
+    },
+    {
+      "model_id": 143,
+      "raw": {
+        "imageName": "spiritual-socks",
+        "category": "armor",
+        "def": 6,
+        "ability": "cutCost",
+        "price": 20,
+        "giftRate": 1,
+        "name": "Spiritual Socks"
+      }
+    },
+    {
+      "model_id": 144,
+      "raw": {
+        "imageName": "flame-mail",
+        "category": "armor",
+        "element": "fire",
+        "def": 6,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Flame Mail"
+      }
+    },
+    {
+      "model_id": 145,
+      "raw": {
+        "imageName": "ice-armor",
+        "category": "armor",
+        "element": "water",
+        "def": 6,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Ice Armor"
+      }
+    },
+    {
+      "model_id": 146,
+      "raw": {
+        "imageName": "forest-shield",
+        "category": "armor",
+        "element": "wood",
+        "def": 6,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Forest Shield"
+      }
+    },
+    {
+      "model_id": 147,
+      "raw": {
+        "imageName": "terra-helm",
+        "category": "armor",
+        "element": "stone",
+        "def": 6,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Terra Helm"
+      }
+    },
+    {
+      "model_id": 148,
+      "raw": {
+        "imageName": "shining-high-heels",
+        "category": "armor",
+        "element": "light",
+        "def": 6,
+        "price": 15,
+        "giftRate": 1,
+        "name": "Shining High Heels"
+      }
+    },
+    {
+      "model_id": 149,
+      "raw": {
+        "imageName": "steel-helm",
+        "category": "armor",
+        "def": 7,
+        "price": 7,
+        "giftRate": 6,
+        "name": "Steel Helm"
+      }
+    },
+    {
+      "model_id": 150,
+      "raw": {
+        "imageName": "ogre-s-helm",
+        "category": "armor",
+        "atk": 10,
+        "isPlusAtk": true,
+        "def": 7,
+        "price": 15,
+        "giftRate": 1,
+        "name": "Ogre's Helm"
+      }
+    },
+    {
+      "model_id": 151,
+      "raw": {
+        "imageName": "sky-shield",
+        "category": "armor",
+        "def": 7,
+        "ability": "bounceMiracle",
+        "price": 5,
+        "giftRate": 1,
+        "name": "Sky Shield"
+      }
+    },
+    {
+      "model_id": 152,
+      "raw": {
+        "imageName": "burning-shield",
+        "category": "armor",
+        "element": "fire",
+        "def": 7,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Burning Shield"
+      }
+    },
+    {
+      "model_id": 153,
+      "raw": {
+        "imageName": "snow-mitten",
+        "category": "armor",
+        "element": "water",
+        "def": 7,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Snow Mitten"
+      }
+    },
+    {
+      "model_id": 154,
+      "raw": {
+        "imageName": "steel-shield",
+        "category": "armor",
+        "def": 8,
+        "price": 8,
+        "giftRate": 6,
+        "name": "Steel Shield"
+      }
+    },
+    {
+      "model_id": 155,
+      "raw": {
+        "imageName": "beautiful-glasswork",
+        "category": "armor",
+        "def": 8,
+        "price": 20,
+        "giftRate": 1,
+        "name": "Beautiful Glasswork"
+      }
+    },
+    {
+      "model_id": 156,
+      "raw": {
+        "imageName": "moonlight-helm",
+        "category": "armor",
+        "def": 8,
+        "ability": "reflectMiracle",
+        "price": 10,
+        "giftRate": 1,
+        "name": "Moonlight Helm"
+      }
+    },
+    {
+      "model_id": 157,
+      "raw": {
+        "imageName": "burning-jacket",
+        "category": "armor",
+        "element": "fire",
+        "def": 8,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Burning Jacket"
+      }
+    },
+    {
+      "model_id": 158,
+      "raw": {
+        "imageName": "snow-mask",
+        "category": "armor",
+        "element": "water",
+        "def": 8,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Snow Mask"
+      }
+    },
+    {
+      "model_id": 159,
+      "raw": {
+        "imageName": "amber-breastplate",
+        "category": "armor",
+        "element": "wood",
+        "def": 8,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Amber Breastplate"
+      }
+    },
+    {
+      "model_id": 160,
+      "raw": {
+        "imageName": "terra-armor",
+        "category": "armor",
+        "element": "stone",
+        "def": 8,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Terra Armor"
+      }
+    },
+    {
+      "model_id": 161,
+      "raw": {
+        "imageName": "steel-armor",
+        "category": "armor",
+        "def": 9,
+        "price": 9,
+        "giftRate": 6,
+        "name": "Steel Armor"
+      }
+    },
+    {
+      "model_id": 162,
+      "raw": {
+        "imageName": "ogre-s-armor",
+        "category": "armor",
+        "atk": 15,
+        "isPlusAtk": true,
+        "def": 9,
+        "price": 20,
+        "giftRate": 1,
+        "name": "Ogre's Armor"
+      }
+    },
+    {
+      "model_id": 163,
+      "raw": {
+        "imageName": "spiritual-hood",
+        "category": "armor",
+        "def": 9,
+        "ability": "cutCost",
+        "price": 20,
+        "giftRate": 1,
+        "name": "Spiritual Hood"
+      }
+    },
+    {
+      "model_id": 164,
+      "raw": {
+        "imageName": "sky-armor",
+        "category": "armor",
+        "def": 9,
+        "ability": "bounceMiracle",
+        "price": 5,
+        "giftRate": 1,
+        "name": "Sky Armor"
+      }
+    },
+    {
+      "model_id": 165,
+      "raw": {
+        "imageName": "angel-gauntlet",
+        "category": "armor",
+        "def": 9,
+        "ability": "blockMiracle",
+        "price": 15,
+        "giftRate": 1,
+        "name": "Angel Gauntlet"
+      }
+    },
+    {
+      "model_id": 166,
+      "raw": {
+        "imageName": "energy-helm",
+        "category": "armor",
+        "def": 10,
+        "price": 10,
+        "giftRate": 4,
+        "name": "Energy Helm"
+      }
+    },
+    {
+      "model_id": 167,
+      "raw": {
+        "imageName": "moonlight-shield",
+        "category": "armor",
+        "def": 10,
+        "ability": "reflectMiracle",
+        "price": 10,
+        "giftRate": 1,
+        "name": "Moonlight Shield"
+      }
+    },
+    {
+      "model_id": 168,
+      "raw": {
+        "imageName": "fever-mask",
+        "category": "armor",
+        "element": "fire",
+        "def": 10,
+        "ability": "selfCurse",
+        "curse": "fever",
+        "price": 10,
+        "giftRate": 1,
+        "name": "Fever Mask"
+      }
+    },
+    {
+      "model_id": 169,
+      "raw": {
+        "imageName": "glittering-dress",
+        "category": "armor",
+        "element": "light",
+        "def": 10,
+        "price": 15,
+        "giftRate": 1,
+        "name": "Glittering Dress"
+      }
+    },
+    {
+      "model_id": 170,
+      "raw": {
+        "imageName": "energy-armor",
+        "category": "armor",
+        "def": 11,
+        "price": 10,
+        "giftRate": 4,
+        "name": "Energy Armor"
+      }
+    },
+    {
+      "model_id": 171,
+      "raw": {
+        "imageName": "angel-cap",
+        "category": "armor",
+        "def": 11,
+        "ability": "blockMiracle",
+        "price": 15,
+        "giftRate": 1,
+        "name": "Angel Cap"
+      }
+    },
+    {
+      "model_id": 172,
+      "raw": {
+        "imageName": "core-barrier",
+        "category": "armor",
+        "def": 12,
+        "price": 10,
+        "giftRate": 2,
+        "name": "Core Barrier"
+      }
+    },
+    {
+      "model_id": 173,
+      "raw": {
+        "imageName": "spiritual-sash",
+        "category": "armor",
+        "def": 12,
+        "ability": "cutCost",
+        "price": 20,
+        "giftRate": 1,
+        "name": "Spiritual Sash"
+      }
+    },
+    {
+      "model_id": 174,
+      "raw": {
+        "imageName": "moonlight-armor",
+        "category": "armor",
+        "def": 12,
+        "ability": "reflectMiracle",
+        "price": 10,
+        "giftRate": 1,
+        "name": "Moonlight Armor"
+      }
+    },
+    {
+      "model_id": 175,
+      "raw": {
+        "imageName": "heat-haze-armor",
+        "category": "armor",
+        "element": "fire",
+        "def": 12,
+        "price": 15,
+        "giftRate": 1,
+        "name": "Heat Haze Armor"
+      }
+    },
+    {
+      "model_id": 176,
+      "raw": {
+        "imageName": "core-protector",
+        "category": "armor",
+        "def": 13,
+        "price": 10,
+        "giftRate": 2,
+        "name": "Core Protector"
+      }
+    },
+    {
+      "model_id": 177,
+      "raw": {
+        "imageName": "angel-shield",
+        "category": "armor",
+        "def": 13,
+        "ability": "blockMiracle",
+        "price": 15,
+        "giftRate": 1,
+        "name": "Angel Shield"
+      }
+    },
+    {
+      "model_id": 178,
+      "raw": {
+        "imageName": "dreaming-hat",
+        "category": "armor",
+        "element": "wood",
+        "def": 14,
+        "ability": "selfCurseAndRedraw",
+        "curse": "dream",
+        "price": 15,
+        "giftRate": 1,
+        "name": "Dreaming Hat"
+      }
+    },
+    {
+      "model_id": 179,
+      "raw": {
+        "imageName": "angel-armor",
+        "category": "armor",
+        "def": 15,
+        "ability": "blockMiracle",
+        "price": 15,
+        "giftRate": 1,
+        "name": "Angel Armor"
+      }
+    },
+    {
+      "model_id": 180,
+      "raw": {
+        "imageName": "god-shield",
+        "category": "armor",
+        "def": 30,
+        "price": 30,
+        "giftRate": 1,
+        "name": "God Shield"
+      }
+    },
+    {
+      "model_id": 181,
+      "raw": {
+        "imageName": "mars-ring",
+        "category": "armor",
+        "element": "fire",
+        "hitRate": 75,
+        "ability": "counterAtk",
+        "price": 10,
+        "giftRate": 1,
+        "name": "Mars Ring"
+      }
+    },
+    {
+      "model_id": 182,
+      "raw": {
+        "imageName": "mercury-ring",
+        "category": "armor",
+        "element": "water",
+        "ability": "counterCurse",
+        "curse": "fog",
+        "price": 10,
+        "giftRate": 1,
+        "name": "Mercury Ring"
+      }
+    },
+    {
+      "model_id": 183,
+      "raw": {
+        "imageName": "jupiter-ring",
+        "category": "armor",
+        "element": "wood",
+        "ability": "counterCurse",
+        "curse": "dream",
+        "price": 10,
+        "giftRate": 1,
+        "name": "Jupiter Ring"
+      }
+    },
+    {
+      "model_id": 184,
+      "raw": {
+        "imageName": "saturn-ring",
+        "category": "armor",
+        "element": "stone",
+        "ability": "counter2xAtk",
+        "price": 10,
+        "giftRate": 1,
+        "name": "Saturn Ring"
+      }
+    },
+    {
+      "model_id": 185,
+      "raw": {
+        "imageName": "uranus-ring",
+        "category": "armor",
+        "element": "light",
+        "ability": "counterCurse",
+        "curse": "flash",
+        "price": 10,
+        "giftRate": 1,
+        "name": "Uranus Ring"
+      }
+    },
+    {
+      "model_id": 186,
+      "raw": {
+        "imageName": "pluto-ring",
+        "category": "armor",
+        "element": "darkness",
+        "ability": "counterCurse",
+        "curse": "darkcloud",
+        "price": 10,
+        "giftRate": 1,
+        "name": "Pluto Ring"
+      }
+    },
+    {
+      "model_id": 187,
+      "raw": {
+        "imageName": "neptune-ring",
+        "category": "armor",
+        "guardian": "neptune",
+        "ability": "counterBoost2xMP",
+        "price": 10,
+        "giftRate": 1,
+        "name": "Neptune Ring"
+      }
+    },
+    {
+      "model_id": 188,
+      "raw": {
+        "imageName": "venus-ring",
+        "category": "armor",
+        "guardian": "venus",
+        "ability": "counterTakeCP",
+        "price": 10,
+        "giftRate": 1,
+        "name": "Venus Ring"
+      }
+    },
+    {
+      "model_id": 189,
+      "raw": {
+        "imageName": "rainbow-curtain",
+        "category": "armor",
+        "ability": "filterAtkElement",
+        "price": 15,
+        "giftRate": 3,
+        "name": "Rainbow Curtain"
+      }
+    },
+    {
+      "model_id": 190,
+      "raw": {
+        "imageName": "super-mirror",
+        "category": "armor",
+        "ability": "reflectAnything",
+        "price": 10,
+        "giftRate": 1,
+        "name": "Super Mirror"
+      }
+    },
+    {
+      "model_id": 191,
+      "raw": {
+        "imageName": "smile-dew",
+        "category": "sundries",
+        "ability": "boostHP",
+        "abilityValue": 5,
+        "price": 1,
+        "giftRate": 12,
+        "name": "Smile Dew"
+      }
+    },
+    {
+      "model_id": 192,
+      "raw": {
+        "imageName": "heart-dew",
+        "category": "sundries",
+        "ability": "boostHP",
+        "abilityValue": 10,
+        "price": 3,
+        "giftRate": 8,
+        "name": "Heart Dew"
+      }
+    },
+    {
+      "model_id": 193,
+      "raw": {
+        "imageName": "romance-water",
+        "category": "sundries",
+        "ability": "boostHP",
+        "abilityValue": 15,
+        "price": 5,
+        "giftRate": 4,
+        "name": "Romance Water"
+      }
+    },
+    {
+      "model_id": 194,
+      "raw": {
+        "imageName": "galaxy-geyser",
+        "category": "sundries",
+        "ability": "boostHP",
+        "abilityValue": 20,
+        "price": 20,
+        "giftRate": 1,
+        "name": "Galaxy Geyser"
+      }
+    },
+    {
+      "model_id": 195,
+      "raw": {
+        "imageName": "smile-flower",
+        "category": "sundries",
+        "ability": "boostMP",
+        "abilityValue": 5,
+        "price": 1,
+        "giftRate": 12,
+        "name": "Smile Flower"
+      }
+    },
+    {
+      "model_id": 196,
+      "raw": {
+        "imageName": "heart-flower",
+        "category": "sundries",
+        "ability": "boostMP",
+        "abilityValue": 10,
+        "price": 3,
+        "giftRate": 8,
+        "name": "Heart Flower"
+      }
+    },
+    {
+      "model_id": 197,
+      "raw": {
+        "imageName": "romance-fragrance",
+        "category": "sundries",
+        "ability": "boostMP",
+        "abilityValue": 15,
+        "price": 5,
+        "giftRate": 4,
+        "name": "Romance Fragrance"
+      }
+    },
+    {
+      "model_id": 198,
+      "raw": {
+        "imageName": "heaven-herb",
+        "category": "sundries",
+        "ability": "boostMPAndAddCurse",
+        "abilityValue": 20,
+        "curse": "heaven",
+        "price": 20,
+        "giftRate": 1,
+        "name": "Heaven Herb"
+      }
+    },
+    {
+      "model_id": 199,
+      "raw": {
+        "imageName": "smile-shell",
+        "category": "sundries",
+        "ability": "removeMildCurses",
+        "price": 5,
+        "giftRate": 12,
+        "name": "Smile Shell"
+      }
+    },
+    {
+      "model_id": 200,
+      "raw": {
+        "imageName": "heart-shell",
+        "category": "sundries",
+        "ability": "removeAllCurses",
+        "price": 15,
+        "giftRate": 6,
+        "name": "Heart Shell"
+      }
+    },
+    {
+      "model_id": 201,
+      "raw": {
+        "imageName": "guardian-pot",
+        "category": "sundries",
+        "ability": "setGuardian",
+        "price": 10,
+        "giftRate": 3,
+        "name": "Guardian Pot"
+      }
+    },
+    {
+      "model_id": 202,
+      "raw": {
+        "imageName": "thump-thump-tear",
+        "category": "sundries",
+        "ability": "boostHPOrDealDamage",
+        "abilityValue": 10,
+        "price": 1,
+        "giftRate": 2,
+        "name": "Thump-thump Tear"
+      }
+    },
+    {
+      "model_id": 203,
+      "raw": {
+        "imageName": "strength-powder",
+        "category": "sundries",
+        "atk": 10,
+        "isPlusAtk": true,
+        "price": 15,
+        "giftRate": 2,
+        "name": "Strength Powder"
+      }
+    },
+    {
+      "model_id": 204,
+      "raw": {
+        "imageName": "spiritual-doll",
+        "category": "sundries",
+        "ability": "cutCost",
+        "price": 5,
+        "giftRate": 2,
+        "name": "Spiritual Doll"
+      }
+    },
+    {
+      "model_id": 205,
+      "raw": {
+        "imageName": "nocturnal-broom",
+        "category": "sundries",
+        "ability": "removeItems",
+        "price": 10,
+        "giftRate": 1,
+        "name": "Nocturnal Broom"
+      }
+    },
+    {
+      "model_id": 206,
+      "raw": {
+        "imageName": "goddess-s-soap",
+        "category": "sundries",
+        "ability": "removeUsedMiracles",
+        "price": 10,
+        "giftRate": 1,
+        "name": "Goddess's Soap"
+      }
+    },
+    {
+      "model_id": 207,
+      "raw": {
+        "imageName": "string-of-fate",
+        "category": "sundries",
+        "ability": "callPhenomenon",
+        "price": 3,
+        "giftRate": 1,
+        "name": "String of Fate"
+      }
+    },
+    {
+      "model_id": 208,
+      "raw": {
+        "imageName": "sun-amulet",
+        "category": "sundries",
+        "ability": "revive",
+        "abilityValue": 10,
+        "price": 10,
+        "giftRate": 1,
+        "name": "Sun Amulet"
+      }
+    },
+    {
+      "model_id": 209,
+      "raw": {
+        "imageName": "dangerous-mortar",
+        "category": "sundries",
+        "ability": "attractDanger",
+        "abilityValue": 99,
+        "price": 1,
+        "giftRate": 1,
+        "name": "Dangerous Mortar"
+      }
+    },
+    {
+      "model_id": 210,
+      "raw": {
+        "imageName": "fireball",
+        "category": "miracles",
+        "element": "fire",
+        "atk": 2,
+        "isPlusAtk": true,
+        "cost": 2,
+        "giftRate": 1,
+        "name": "<Fireball>"
+      }
+    },
+    {
+      "model_id": 211,
+      "raw": {
+        "imageName": "ice",
+        "category": "miracles",
+        "element": "water",
+        "atk": 4,
+        "cost": 2,
+        "giftRate": 1,
+        "name": "<Ice>"
+      }
+    },
+    {
+      "model_id": 212,
+      "raw": {
+        "imageName": "darkness",
+        "category": "miracles",
+        "element": "darkness",
+        "atk": 5,
+        "cost": 5,
+        "giftRate": 1,
+        "name": "<Darkness>"
+      }
+    },
+    {
+      "model_id": 213,
+      "raw": {
+        "imageName": "big-tree",
+        "category": "miracles",
+        "element": "wood",
+        "atk": 6,
+        "cost": 3,
+        "giftRate": 1,
+        "name": "<Big Tree>"
+      }
+    },
+    {
+      "model_id": 214,
+      "raw": {
+        "imageName": "rock",
+        "category": "miracles",
+        "element": "stone",
+        "atk": 8,
+        "cost": 4,
+        "giftRate": 1,
+        "name": "<Rock>"
+      }
+    },
+    {
+      "model_id": 215,
+      "raw": {
+        "imageName": "flame",
+        "category": "miracles",
+        "element": "fire",
+        "atk": 10,
+        "cost": 5,
+        "giftRate": 1,
+        "name": "<Flame>"
+      }
+    },
+    {
+      "model_id": 216,
+      "raw": {
+        "imageName": "absorption",
+        "category": "miracles",
+        "element": "light",
+        "atk": 10,
+        "ability": "absorbHP",
+        "cost": 10,
+        "giftRate": 1,
+        "name": "<Absorption>"
+      }
+    },
+    {
+      "model_id": 217,
+      "raw": {
+        "imageName": "meteor",
+        "category": "miracles",
+        "element": "light",
+        "atk": 10,
+        "isPlusAtk": true,
+        "cost": 7,
+        "giftRate": 1,
+        "name": "<Meteor>"
+      }
+    },
+    {
+      "model_id": 218,
+      "raw": {
+        "imageName": "waterfall",
+        "category": "miracles",
+        "element": "water",
+        "atk": 25,
+        "cost": 12,
+        "giftRate": 1,
+        "name": "<Waterfall>"
+      }
+    },
+    {
+      "model_id": 219,
+      "raw": {
+        "imageName": "wind",
+        "category": "miracles",
+        "ability": "addCurse",
+        "curse": "cold",
+        "cost": 6,
+        "giftRate": 1,
+        "name": "<Wind>"
+      }
+    },
+    {
+      "model_id": 220,
+      "raw": {
+        "imageName": "heaven-wind",
+        "category": "miracles",
+        "ability": "addCurse",
+        "curse": "heaven",
+        "cost": 15,
+        "giftRate": 1,
+        "name": "<Heaven Wind>"
+      }
+    },
+    {
+      "model_id": 221,
+      "raw": {
+        "imageName": "fog",
+        "category": "miracles",
+        "element": "water",
+        "ability": "addCurse",
+        "curse": "fog",
+        "cost": 3,
+        "giftRate": 1,
+        "name": "<Fog>"
+      }
+    },
+    {
+      "model_id": 222,
+      "raw": {
+        "imageName": "dream",
+        "category": "miracles",
+        "element": "wood",
+        "ability": "addCurse",
+        "curse": "dream",
+        "cost": 6,
+        "giftRate": 1,
+        "name": "<Dream>"
+      }
+    },
+    {
+      "model_id": 223,
+      "raw": {
+        "imageName": "dark-cloud",
+        "category": "miracles",
+        "element": "darkness",
+        "ability": "addCurse",
+        "curse": "darkcloud",
+        "cost": 5,
+        "giftRate": 1,
+        "name": "<Dark Cloud>"
+      }
+    },
+    {
+      "model_id": 224,
+      "raw": {
+        "imageName": "flash",
+        "category": "miracles",
+        "element": "light",
+        "atk": 1,
+        "hitRate": 25,
+        "ability": "addCurseOnDamage",
+        "curse": "flash",
+        "cost": 3,
+        "giftRate": 1,
+        "name": "<Flash>"
+      }
+    },
+    {
+      "model_id": 225,
+      "raw": {
+        "imageName": "smoke",
+        "category": "miracles",
+        "element": "fire",
+        "atk": 5,
+        "hitRate": 75,
+        "cost": 4,
+        "giftRate": 1,
+        "name": "<Smoke>"
+      }
+    },
+    {
+      "model_id": 226,
+      "raw": {
+        "imageName": "avalanche",
+        "category": "miracles",
+        "element": "water",
+        "atk": 8,
+        "hitRate": 75,
+        "cost": 6,
+        "giftRate": 1,
+        "name": "<Avalanche>"
+      }
+    },
+    {
+      "model_id": 227,
+      "raw": {
+        "imageName": "thunder",
+        "category": "miracles",
+        "element": "light",
+        "atk": 10,
+        "hitRate": 25,
+        "cost": 4,
+        "giftRate": 1,
+        "name": "<Thunder>"
+      }
+    },
+    {
+      "model_id": 228,
+      "raw": {
+        "imageName": "mudflow",
+        "category": "miracles",
+        "element": "stone",
+        "atk": 12,
+        "hitRate": 50,
+        "cost": 6,
+        "giftRate": 1,
+        "name": "<Mudflow>"
+      }
+    },
+    {
+      "model_id": 229,
+      "raw": {
+        "imageName": "magma",
+        "category": "miracles",
+        "element": "fire",
+        "atk": 15,
+        "hitRate": 75,
+        "cost": 10,
+        "giftRate": 1,
+        "name": "<Magma>"
+      }
+    },
+    {
+      "model_id": 230,
+      "raw": {
+        "imageName": "ice-age",
+        "category": "miracles",
+        "element": "water",
+        "atk": 30,
+        "hitRate": 75,
+        "cost": 30,
+        "giftRate": 1,
+        "name": "<Ice Age>"
+      }
+    },
+    {
+      "model_id": 231,
+      "raw": {
+        "imageName": "aura",
+        "category": "miracles",
+        "isPlusAtk": true,
+        "ability": "doubleAtk",
+        "cost": 6,
+        "giftRate": 1,
+        "name": "<Aura>"
+      }
+    },
+    {
+      "model_id": 232,
+      "raw": {
+        "imageName": "mirage",
+        "category": "miracles",
+        "isPlusAtk": true,
+        "ability": "attackEveryEnemy",
+        "cost": 5,
+        "giftRate": 1,
+        "name": "<Mirage>"
+      }
+    },
+    {
+      "model_id": 233,
+      "raw": {
+        "imageName": "wall",
+        "category": "miracles",
+        "ability": "blockWeapon",
+        "cost": 6,
+        "giftRate": 1,
+        "name": "<Wall>"
+      }
+    },
+    {
+      "model_id": 234,
+      "raw": {
+        "imageName": "turbulence",
+        "category": "miracles",
+        "ability": "bounceMiracle",
+        "cost": 5,
+        "giftRate": 1,
+        "name": "<Turbulence>"
+      }
+    },
+    {
+      "model_id": 235,
+      "raw": {
+        "imageName": "spring",
+        "category": "miracles",
+        "guardian": "neptune",
+        "ability": "boostHP",
+        "abilityValue": 10,
+        "cost": 7,
+        "giftRate": 1,
+        "name": "<Spring>"
+      }
+    },
+    {
+      "model_id": 236,
+      "raw": {
+        "imageName": "treasure",
+        "category": "miracles",
+        "guardian": "venus",
+        "ability": "boostCP",
+        "abilityValue": 10,
+        "cost": 5,
+        "giftRate": 1,
+        "name": "<Treasure>"
+      }
+    },
+    {
+      "model_id": 237,
+      "raw": {
+        "imageName": "tone",
+        "category": "miracles",
+        "ability": "removeMildCurses",
+        "cost": 2,
+        "giftRate": 1,
+        "name": "<Tone>"
+      }
+    },
+    {
+      "model_id": 238,
+      "raw": {
+        "imageName": "song",
+        "category": "miracles",
+        "ability": "removeAllCurses",
+        "cost": 5,
+        "giftRate": 1,
+        "name": "<Song>"
+      }
+    },
+    {
+      "model_id": 239,
+      "raw": {
+        "imageName": "release",
+        "category": "miracles",
+        "ability": "setGuardian",
+        "cost": 15,
+        "giftRate": 1,
+        "name": "<Release>"
+      }
+    },
+    {
+      "model_id": 240,
+      "raw": {
+        "imageName": "small-devil",
+        "category": "devils",
+        "ability": "dealDamage",
+        "abilityValue": 10,
+        "appearanceRate": 7,
+        "name": "Small Devil"
+      }
+    },
+    {
+      "model_id": 241,
+      "raw": {
+        "imageName": "medium-devil",
+        "category": "devils",
+        "ability": "dealDamage",
+        "abilityValue": 20,
+        "appearanceRate": 5,
+        "name": "Medium Devil"
+      }
+    },
+    {
+      "model_id": 242,
+      "raw": {
+        "imageName": "large-devil",
+        "category": "devils",
+        "ability": "dealDamage",
+        "abilityValue": 30,
+        "appearanceRate": 3,
+        "name": "Large Devil"
+      }
+    },
+    {
+      "model_id": 243,
+      "raw": {
+        "imageName": "trickster",
+        "category": "devils",
+        "ability": "removeSomething",
+        "appearanceRate": 5,
+        "name": "Trickster"
+      }
+    },
+    {
+      "model_id": 244,
+      "raw": {
+        "imageName": "charity-fairy",
+        "category": "devils",
+        "ability": "boostSomething",
+        "abilityValue": 10,
+        "appearanceRate": 5,
+        "name": "Charity Fairy"
+      }
+    },
+    {
+      "model_id": 245,
+      "raw": {
+        "imageName": "fire-whisper",
+        "category": "guardians",
+        "element": "fire",
+        "atk": 3,
+        "hitRate": 75,
+        "guardian": "mars",
+        "guardianAttackRate": 6,
+        "name": "Fire Whisper"
+      }
+    },
+    {
+      "model_id": 246,
+      "raw": {
+        "imageName": "fire-tweet",
+        "category": "guardians",
+        "element": "fire",
+        "atk": 4,
+        "hitRate": 75,
+        "guardian": "mars",
+        "guardianAttackRate": 5,
+        "name": "Fire Tweet"
+      }
+    },
+    {
+      "model_id": 247,
+      "raw": {
+        "imageName": "fire-buzz",
+        "category": "guardians",
+        "element": "fire",
+        "atk": 5,
+        "hitRate": 75,
+        "guardian": "mars",
+        "guardianAttackRate": 4,
+        "name": "Fire Buzz"
+      }
+    },
+    {
+      "model_id": 248,
+      "raw": {
+        "imageName": "fire-roar",
+        "category": "guardians",
+        "element": "fire",
+        "atk": 6,
+        "hitRate": 75,
+        "guardian": "mars",
+        "guardianAttackRate": 3,
+        "name": "Fire Roar"
+      }
+    },
+    {
+      "model_id": 249,
+      "raw": {
+        "imageName": "fire-shout",
+        "category": "guardians",
+        "element": "fire",
+        "atk": 7,
+        "hitRate": 75,
+        "guardian": "mars",
+        "guardianAttackRate": 2,
+        "name": "Fire Shout"
+      }
+    },
+    {
+      "model_id": 250,
+      "raw": {
+        "imageName": "drizzle",
+        "category": "guardians",
+        "element": "water",
+        "atk": 1,
+        "hitRate": 50,
+        "ability": "addCurseOnDamage",
+        "curse": "fog",
+        "guardian": "mercury",
+        "guardianAttackRate": 6,
+        "name": "Drizzle"
+      }
+    },
+    {
+      "model_id": 251,
+      "raw": {
+        "imageName": "misty-breath",
+        "category": "guardians",
+        "element": "water",
+        "atk": 2,
+        "ability": "addCurseOnDamage",
+        "curse": "fog",
+        "guardian": "mercury",
+        "guardianAttackRate": 5,
+        "name": "Misty Breath"
+      }
+    },
+    {
+      "model_id": 252,
+      "raw": {
+        "imageName": "splash",
+        "category": "guardians",
+        "element": "water",
+        "atk": 3,
+        "hitRate": 50,
+        "guardian": "mercury",
+        "guardianAttackRate": 4,
+        "name": "Splash"
+      }
+    },
+    {
+      "model_id": 253,
+      "raw": {
+        "imageName": "bubbles",
+        "category": "guardians",
+        "element": "water",
+        "atk": 3,
+        "guardian": "mercury",
+        "guardianAttackRate": 3,
+        "name": "Bubbles"
+      }
+    },
+    {
+      "model_id": 254,
+      "raw": {
+        "imageName": "hail",
+        "category": "guardians",
+        "element": "water",
+        "atk": 6,
+        "hitRate": 50,
+        "guardian": "mercury",
+        "guardianAttackRate": 2,
+        "name": "Hail"
+      }
+    },
+    {
+      "model_id": 255,
+      "raw": {
+        "imageName": "branch",
+        "category": "guardians",
+        "element": "wood",
+        "atk": 1,
+        "guardian": "jupiter",
+        "guardianAttackRate": 6,
+        "name": "Branch"
+      }
+    },
+    {
+      "model_id": 256,
+      "raw": {
+        "imageName": "root",
+        "category": "guardians",
+        "element": "wood",
+        "atk": 2,
+        "guardian": "jupiter",
+        "guardianAttackRate": 5,
+        "name": "Root"
+      }
+    },
+    {
+      "model_id": 257,
+      "raw": {
+        "imageName": "tentacles",
+        "category": "guardians",
+        "element": "wood",
+        "atk": 1,
+        "hitRate": 75,
+        "ability": "absorbHP",
+        "guardian": "jupiter",
+        "guardianAttackRate": 4,
+        "name": "Tentacles"
+      }
+    },
+    {
+      "model_id": 258,
+      "raw": {
+        "imageName": "colored-leaves",
+        "category": "guardians",
+        "element": "wood",
+        "ability": "addCurse",
+        "curse": "dream",
+        "guardian": "jupiter",
+        "guardianAttackRate": 3,
+        "name": "Colored Leaves"
+      }
+    },
+    {
+      "model_id": 259,
+      "raw": {
+        "imageName": "dance-of-fallen-leaves",
+        "category": "guardians",
+        "element": "wood",
+        "atk": 2,
+        "hitRate": 75,
+        "ability": "addCurseOnDamage",
+        "curse": "dream",
+        "guardian": "jupiter",
+        "guardianAttackRate": 2,
+        "name": "Dance of Fallen Leaves"
+      }
+    },
+    {
+      "model_id": 260,
+      "raw": {
+        "imageName": "pebble",
+        "category": "guardians",
+        "element": "stone",
+        "atk": 2,
+        "guardian": "saturn",
+        "guardianAttackRate": 6,
+        "name": "Pebble"
+      }
+    },
+    {
+      "model_id": 261,
+      "raw": {
+        "imageName": "stone",
+        "category": "guardians",
+        "element": "stone",
+        "atk": 4,
+        "guardian": "saturn",
+        "guardianAttackRate": 5,
+        "name": "Stone"
+      }
+    },
+    {
+      "model_id": 262,
+      "raw": {
+        "imageName": "boulder",
+        "category": "guardians",
+        "element": "stone",
+        "atk": 6,
+        "guardian": "saturn",
+        "guardianAttackRate": 4,
+        "name": "Boulder"
+      }
+    },
+    {
+      "model_id": 263,
+      "raw": {
+        "imageName": "body-press",
+        "category": "guardians",
+        "element": "stone",
+        "atk": 9,
+        "guardian": "saturn",
+        "guardianAttackRate": 3,
+        "name": "Body Press"
+      }
+    },
+    {
+      "model_id": 264,
+      "raw": {
+        "imageName": "diamond-axe",
+        "category": "guardians",
+        "element": "stone",
+        "atk": 15,
+        "ability": "categoryWeapons",
+        "guardian": "saturn",
+        "guardianAttackRate": 2,
+        "name": "Diamond Axe"
+      }
+    },
+    {
+      "model_id": 265,
+      "raw": {
+        "imageName": "twinkle",
+        "category": "guardians",
+        "element": "light",
+        "atk": 2,
+        "guardian": "uranus",
+        "guardianAttackRate": 6,
+        "name": "Twinkle"
+      }
+    },
+    {
+      "model_id": 266,
+      "raw": {
+        "imageName": "electric-shock",
+        "category": "guardians",
+        "element": "light",
+        "atk": 4,
+        "hitRate": 25,
+        "guardian": "uranus",
+        "guardianAttackRate": 5,
+        "name": "Electric Shock"
+      }
+    },
+    {
+      "model_id": 267,
+      "raw": {
+        "imageName": "halo",
+        "category": "guardians",
+        "element": "light",
+        "ability": "addCurse",
+        "curse": "flash",
+        "guardian": "uranus",
+        "guardianAttackRate": 4,
+        "name": "Halo"
+      }
+    },
+    {
+      "model_id": 268,
+      "raw": {
+        "imageName": "blessing",
+        "category": "guardians",
+        "element": "light",
+        "atk": 5,
+        "ability": "absorbHP",
+        "guardian": "uranus",
+        "guardianAttackRate": 3,
+        "name": "Blessing"
+      }
+    },
+    {
+      "model_id": 269,
+      "raw": {
+        "imageName": "laser-beam",
+        "category": "guardians",
+        "element": "light",
+        "atk": 10,
+        "hitRate": 75,
+        "guardian": "uranus",
+        "guardianAttackRate": 2,
+        "name": "Laser Beam"
+      }
+    },
+    {
+      "model_id": 270,
+      "raw": {
+        "imageName": "thinking",
+        "category": "guardians",
+        "element": "darkness",
+        "atk": 1,
+        "hitRate": 25,
+        "guardian": "pluto",
+        "guardianAttackRate": 6,
+        "name": "Thinking"
+      }
+    },
+    {
+      "model_id": 271,
+      "raw": {
+        "imageName": "wink",
+        "category": "guardians",
+        "element": "darkness",
+        "atk": 2,
+        "guardian": "pluto",
+        "guardianAttackRate": 5,
+        "name": "Wink"
+      }
+    },
+    {
+      "model_id": 272,
+      "raw": {
+        "imageName": "ominous-premonition",
+        "category": "guardians",
+        "element": "darkness",
+        "ability": "addCurse",
+        "curse": "darkcloud",
+        "guardian": "pluto",
+        "guardianAttackRate": 4,
+        "name": "Ominous Premonition"
+      }
+    },
+    {
+      "model_id": 273,
+      "raw": {
+        "imageName": "cough",
+        "category": "guardians",
+        "element": "darkness",
+        "atk": 4,
+        "guardian": "pluto",
+        "guardianAttackRate": 3,
+        "name": "Cough"
+      }
+    },
+    {
+      "model_id": 274,
+      "raw": {
+        "imageName": "hand-raising",
+        "category": "guardians",
+        "element": "darkness",
+        "atk": 8,
+        "guardian": "pluto",
+        "guardianAttackRate": 2,
+        "name": "Hand Raising"
+      }
+    },
+    {
+      "model_id": 275,
+      "raw": {
+        "imageName": "sound-of-ripples",
+        "category": "guardians",
+        "ability": "removeAllCurses",
+        "guardian": "neptune",
+        "guardianAttackRate": 6,
+        "name": "Sound of Ripples"
+      }
+    },
+    {
+      "model_id": 276,
+      "raw": {
+        "imageName": "seafood-soup",
+        "category": "guardians",
+        "ability": "boostHP",
+        "abilityValue": 5,
+        "guardian": "neptune",
+        "guardianAttackRate": 5,
+        "name": "Seafood Soup"
+      }
+    },
+    {
+      "model_id": 277,
+      "raw": {
+        "imageName": "beach-aroma",
+        "category": "guardians",
+        "ability": "boostMP",
+        "abilityValue": 5,
+        "guardian": "neptune",
+        "guardianAttackRate": 4,
+        "name": "Beach Aroma"
+      }
+    },
+    {
+      "model_id": 278,
+      "raw": {
+        "imageName": "healthy-seafood-soup",
+        "category": "guardians",
+        "ability": "boostHP",
+        "abilityValue": 10,
+        "guardian": "neptune",
+        "guardianAttackRate": 3,
+        "name": "Healthy Seafood Soup"
+      }
+    },
+    {
+      "model_id": 279,
+      "raw": {
+        "imageName": "fresh-beach-aroma",
+        "category": "guardians",
+        "ability": "boostMP",
+        "abilityValue": 10,
+        "guardian": "neptune",
+        "guardianAttackRate": 2,
+        "name": "Fresh Beach Aroma"
+      }
+    },
+    {
+      "model_id": 280,
+      "raw": {
+        "imageName": "coin-scattering",
+        "category": "guardians",
+        "ability": "boostCPOfEverybody",
+        "abilityValue": 1,
+        "guardian": "venus",
+        "guardianAttackRate": 6,
+        "name": "Coin Scattering"
+      }
+    },
+    {
+      "model_id": 281,
+      "raw": {
+        "imageName": "bribe",
+        "category": "guardians",
+        "ability": "boostCPToEnemy",
+        "abilityValue": 5,
+        "guardian": "venus",
+        "guardianAttackRate": 5,
+        "name": "Bribe"
+      }
+    },
+    {
+      "model_id": 282,
+      "raw": {
+        "imageName": "fine",
+        "category": "guardians",
+        "ability": "takeCP",
+        "abilityValue": 3,
+        "guardian": "venus",
+        "guardianAttackRate": 4,
+        "name": "Fine"
+      }
+    },
+    {
+      "model_id": 283,
+      "raw": {
+        "imageName": "little-something",
+        "category": "guardians",
+        "ability": "boostCP",
+        "abilityValue": 8,
+        "guardian": "venus",
+        "guardianAttackRate": 3,
+        "name": "Little Something"
+      }
+    },
+    {
+      "model_id": 284,
+      "raw": {
+        "imageName": "luxury-accessory",
+        "category": "guardians",
+        "ability": "boostCP",
+        "abilityValue": 20,
+        "guardian": "venus",
+        "guardianAttackRate": 2,
+        "name": "Luxury Accessory"
+      }
+    },
+    {
+      "model_id": 285,
+      "raw": {
+        "imageName": "drop",
+        "category": "guardians",
+        "ability": "addItem",
+        "guardian": "earth",
+        "name": "Drop"
+      }
+    },
+    {
+      "model_id": 286,
+      "raw": {
+        "imageName": "full-moon-blade",
+        "category": "guardians",
+        "atk": 10,
+        "ability": "categoryWeapons",
+        "guardian": "moon",
+        "name": "Full Moon Blade"
+      }
+    },
+    {
+      "model_id": 287,
+      "raw": {
+        "imageName": "afterglow",
+        "category": "phenomena",
+        "guardian": "mars",
+        "ability": "setCurseOfEverybody",
+        "curse": "fever",
+        "name": "Afterglow"
+      }
+    },
+    {
+      "model_id": 288,
+      "raw": {
+        "imageName": "dense-fog",
+        "category": "phenomena",
+        "guardian": "mercury",
+        "ability": "setCurseOfEverybody",
+        "curse": "fog",
+        "name": "Dense Fog"
+      }
+    },
+    {
+      "model_id": 289,
+      "raw": {
+        "imageName": "mushroom-outbreak",
+        "category": "phenomena",
+        "guardian": "jupiter",
+        "ability": "confuseEverybody",
+        "name": "Mushroom Outbreak"
+      }
+    },
+    {
+      "model_id": 290,
+      "raw": {
+        "imageName": "tornado",
+        "category": "phenomena",
+        "guardian": "saturn",
+        "ability": "setHPOfEverybody",
+        "abilityValue": 1,
+        "name": "Tornado"
+      }
+    },
+    {
+      "model_id": 291,
+      "raw": {
+        "imageName": "gigantic-tub",
+        "category": "phenomena",
+        "element": "light",
+        "atk": 50,
+        "ability": "attackSomebody",
+        "name": "Gigantic Tub"
+      }
+    },
+    {
+      "model_id": 292,
+      "raw": {
+        "imageName": "black-hole",
+        "category": "phenomena",
+        "element": "darkness",
+        "atk": 30,
+        "hitRate": 75,
+        "name": "Black Hole"
+      }
+    },
+    {
+      "model_id": 293,
+      "raw": {
+        "imageName": "warm-current",
+        "category": "phenomena",
+        "guardian": "neptune",
+        "ability": "boostHP",
+        "abilityValue": 50,
+        "name": "Warm Current"
+      }
+    },
+    {
+      "model_id": 294,
+      "raw": {
+        "imageName": "gold-mountain",
+        "category": "phenomena",
+        "guardian": "venus",
+        "ability": "collectCPOfEverybody",
+        "name": "Gold Mountain"
+      }
+    },
+    {
+      "model_id": 295,
+      "raw": {
+        "imageName": "magnetic-storm",
+        "category": "phenomena",
+        "guardian": "earth",
+        "ability": "shuffleItemsOfEverybody",
+        "name": "Magnetic Storm"
+      }
+    },
+    {
+      "model_id": 296,
+      "raw": {
+        "imageName": "solar-eclipse",
+        "category": "phenomena",
+        "guardian": "moon",
+        "ability": "setGuardianOfEverybody",
+        "name": "Solar Eclipse"
+      }
+    }
+  ]
+}

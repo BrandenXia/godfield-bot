@@ -22,10 +22,15 @@ scope.
 ## Decision
 
 Depend on package `godfield==0.1.0` at exact Git revision
-`b33a31276b7e4dbaea962ff0df3ad3d1089a719d`, resolved and locked by uv. Do not
+`0673312945e3e97ff574cd1617dff7264fed068f`, resolved and locked by uv. Do not
 track a moving branch. An upgrade requires review of its protocol behavior,
 offline test suite, state schema, command construction, and credential
 handling.
+
+The 2026-09-09 upgrade from `b33a312` to `0673312` was reviewed as a lifecycle
+correctness update. It waits for pending death attacks, disease, and guardian
+effects before inferring game completion, and adds explicit chat starts plus
+persistent room-kick handling. The bot still does not invoke chat.
 
 The 2026-09-07 upgrade from `6795271` to `b33a312` was reviewed as a
 rule-correctness update. It excludes blank placeholders from upstream usable
@@ -68,7 +73,7 @@ blanket ban on undocumented endpoint use; all other safety and observability
 requirements remain in force.
 
 The current item catalog is captured through pygodfield's catalog loader into
-a checksummed, versioned snapshot. The 2026-09-07 English API catalog has 296
+a checksummed, versioned snapshot. The 2026-09-09 English API catalog has 296
 models: the same 291 artifact records shown across the seven existing Bible
 categories plus five `trade` models.
 

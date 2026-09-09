@@ -74,6 +74,12 @@ def catalog() -> ItemCatalog:
                 "cost": 6,
                 "element": "wood",
             },
+            {
+                "name": "Sell",
+                "imageName": "sell",
+                "category": "trade",
+                "ability": "sell",
+            },
         ]
     )
 
@@ -365,6 +371,30 @@ def test_tactical_actions_expose_targeted_curse_on_a_cursed_turn() -> None:
     assert [action.action_id for action in actions.actions] == ["miracle-curse:19:9:2"]
     assert command_for_api_action(actions.actions[0]).to_dict() == {
         "itemIds": [19],
+        "targetPlayerId": 2,
+    }
+
+
+def test_tactical_actions_expose_plain_armor_sale_on_a_cursed_dead_end() -> None:
+    room = room_state(
+        self_items=[
+            {"id": 20, "modelId": 10},
+            {"id": 21, "modelId": 2},
+            {"id": 22, "modelId": 8},
+        ],
+        self_curses=["dream"],
+    )
+    room.raw["game"]["players"][0]["mp"] = 0
+
+    actions = verified_api_tactical_actions(
+        room,
+        user_id="loki-user",
+        bible_snapshot=combo_bible(),
+    )
+
+    assert [action.action_id for action in actions.actions] == ["trade-sell:20:21:2"]
+    assert command_for_api_action(actions.actions[0]).to_dict() == {
+        "itemIds": [20, 21],
         "targetPlayerId": 2,
     }
 

@@ -8,10 +8,13 @@ import pytest
 from godfield import ItemCatalog, RoomState
 from pydantic import ValidationError
 
+from godfield_bot.api_account import PYGODFIELD_REVISION
 from godfield_bot.api_catalog import (
     ApiCatalogItem,
     ApiCatalogSnapshot,
     api_catalog_digest,
+    item_catalog_from_snapshot,
+    read_api_catalog_snapshot,
     write_api_catalog_snapshot,
 )
 from godfield_bot.api_game import (
@@ -101,6 +104,12 @@ def catalog() -> ItemCatalog:
                 "ability": "blockWeapon",
                 "cost": 6,
             },
+            {
+                "name": "Sell",
+                "imageName": "sell",
+                "category": "trade",
+                "ability": "sell",
+            },
         ]
     )
 
@@ -157,7 +166,7 @@ def catalog_snapshot() -> ApiCatalogSnapshot:
         observed_at=datetime.now(UTC),
         source_url="https://godfield.net/i18n/en.json",
         language="en",
-        upstream_revision="b33a31276b7e4dbaea962ff0df3ad3d1089a719d",
+        upstream_revision=PYGODFIELD_REVISION,
         content_sha256=api_catalog_digest(items),
         total_items=len(items),
         items=items,
@@ -501,6 +510,108 @@ def test_private_api_heuristic_preserves_excess_defense() -> None:
     assert chosen is not None
     assert chosen.item_instance_ids == (20,)
     assert decision.rationale == "use the weakest sufficient conservative defense"
+
+
+def test_tactical_heuristic_sells_weakest_plain_armor_in_cursed_dead_end() -> None:
+    room = active_room()
+    room.raw["game"]["players"][0].update(
+        {
+            "curses": ["dream"],
+            "mp": 0,
+            "items": [
+                {"id": 20, "modelId": 11},
+                {"id": 21, "modelId": 2},
+                {"id": 22, "modelId": 4},
+            ],
+        }
+    )
+    state = normalize_api_game_state(room, user_id="loki-user")
+    legal_actions = verified_api_tactical_actions(
+        room,
+        user_id="loki-user",
+        bible_snapshot=combo_bible(),
+    )
+
+    decision, chosen = decide_api_action(
+        ApiPolicyName.TACTICAL_HEURISTIC,
+        state,
+        legal_actions,
+    )
+
+    assert chosen is not None
+    assert chosen.action_id == "trade-sell:20:21:2"
+    assert chosen.item_instance_ids == (20, 21)
+    assert decision.rationale == "offer the weakest verified plain armor rather than stall"
+
+
+def test_latest_live_cursed_sell_dead_end_has_verified_escape() -> None:
+    api_snapshot = read_api_catalog_snapshot(
+        Path("data/snapshots/2026-09-09/api-catalog-en.json")
+    )
+    bible = BibleSnapshot.model_validate_json(
+        Path("data/snapshots/2026-09-07/bible.json").read_text(encoding="utf-8")
+    )
+    room = RoomState(
+        {
+            "game": {
+                "players": [
+                    {
+                        "id": 1,
+                        "userId": "opponent-user",
+                        "name": "Opponent",
+                        "hp": 55,
+                        "mp": 10,
+                        "cp": 20,
+                        "items": [],
+                    },
+                    {
+                        "id": 2,
+                        "userId": "loki-user",
+                        "name": "ロキ-67",
+                        "hp": 14,
+                        "mp": 4,
+                        "cp": 20,
+                        "curses": ["dream"],
+                        "items": [
+                            {"id": 3, "modelId": 118},
+                            {"id": 5, "modelId": 87},
+                            {"id": 6, "modelId": 4},
+                            {"id": 7, "modelId": 230},
+                            {"id": 8, "modelId": 113},
+                            {"id": 9, "modelId": 126},
+                            {"id": 4, "modelId": 130},
+                            {"id": 1, "modelId": 5},
+                            {"id": 2, "modelId": 222, "used": True},
+                            {"id": 10, "modelId": 220},
+                        ],
+                    },
+                ],
+                "attackTurnPlayerId": 2,
+                "attacks": [],
+                "gf": 6,
+                "updateCount": 12,
+                "isOver": False,
+            }
+        },
+        item_catalog_from_snapshot(api_snapshot),
+    )
+    state = normalize_api_game_state(room, user_id="loki-user")
+    legal_actions = verified_api_tactical_actions(
+        room,
+        user_id="loki-user",
+        bible_snapshot=bible,
+    )
+
+    decision, chosen = decide_api_action(
+        ApiPolicyName.TACTICAL_HEURISTIC,
+        state,
+        legal_actions,
+    )
+
+    assert chosen is not None
+    assert chosen.action_id == "trade-sell:6:8:1"
+    assert chosen.item_instance_ids == (6, 8)
+    assert decision.executable is True
 
 
 def empty_lobby() -> RoomState:

@@ -20,7 +20,7 @@ from godfield_bot.config import AppSettings
 if TYPE_CHECKING:
     from godfield import GodfieldClient  # type: ignore[import-untyped]
 
-PYGODFIELD_REVISION = "b33a31276b7e4dbaea962ff0df3ad3d1089a719d"
+PYGODFIELD_REVISION = "0673312945e3e97ff574cd1617dff7264fed068f"
 
 
 class ApiAccountError(RuntimeError):

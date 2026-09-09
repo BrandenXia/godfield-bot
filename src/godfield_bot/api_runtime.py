@@ -61,7 +61,7 @@ class ApiRuntimeError(RuntimeError):
 class ApiPolicyName(StrEnum):
     OBSERVER = "api-observer-v0"
     HEURISTIC = "api-heuristic-v0"
-    TACTICAL_HEURISTIC = "api-combo-utility-heuristic-v1"
+    TACTICAL_HEURISTIC = "api-combo-utility-heuristic-v2"
     NEURAL_SHADOW = "api-combo-neural-shadow-v1"
 
 
@@ -70,7 +70,7 @@ class PrivateApiRunConfig(BaseModel):
     catalog_snapshot: Path = Path(
         "data",
         "snapshots",
-        "2026-09-07",
+        "2026-09-09",
         "api-catalog-en.json",
     )
     room_id: str | None = Field(default=None, min_length=1, max_length=256)
@@ -411,6 +411,13 @@ def _decide_tactical_api_action(
         curse_attacks = [
             action for action in candidates if action_items(action)[0].ability == "addCurse"
         ]
+        armor_sales = [
+            action
+            for action in candidates
+            if len(action_items(action)) == 2
+            and action_items(action)[0].ability == "sell"
+            and action_items(action)[1].category == "armor"
+        ]
         lethal = [
             action
             for action in attacks
@@ -471,6 +478,16 @@ def _decide_tactical_api_action(
             rationale = "convert an otherwise idle turn into verified HP recovery"
         elif (chosen := best_utility(mana)) is not None:
             rationale = "convert an otherwise idle turn into verified MP recovery"
+        elif armor_sales:
+            chosen = min(
+                armor_sales,
+                key=lambda action: (
+                    action_items(action)[1].defense,
+                    -target_hp(action),
+                    action.item_instance_ids,
+                ),
+            )
+            rationale = "offer the weakest verified plain armor rather than stall"
         else:
             chosen = next(
                 (action for action in legal_actions.actions if action.kind is ApiActionKind.PASS),

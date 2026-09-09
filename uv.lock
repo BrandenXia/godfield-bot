@@ -231,7 +231,7 @@ wheels = [
 [[package]]
 name = "godfield"
 version = "0.1.0"
-source = { git = "https://github.com/xu-shawn/pygodfield.git?rev=b33a31276b7e4dbaea962ff0df3ad3d1089a719d#b33a31276b7e4dbaea962ff0df3ad3d1089a719d" }
+source = { git = "https://github.com/xu-shawn/pygodfield.git?rev=0673312945e3e97ff574cd1617dff7264fed068f#0673312945e3e97ff574cd1617dff7264fed068f" }
 dependencies = [
     { name = "requests" },
 ]
@@ -271,7 +271,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "filelock", specifier = ">=3.18,<4" },
-    { name = "godfield", git = "https://github.com/xu-shawn/pygodfield.git?rev=b33a31276b7e4dbaea962ff0df3ad3d1089a719d" },
+    { name = "godfield", git = "https://github.com/xu-shawn/pygodfield.git?rev=0673312945e3e97ff574cd1617dff7264fed068f" },
     { name = "godfield-sim", marker = "extra == 'simulation'", directory = "native/godfield_sim" },
     { name = "numpy", marker = "extra == 'simulation'", specifier = ">=2.2,<3" },
     { name = "numpy", marker = "extra == 'training'", specifier = ">=2.2,<3" },

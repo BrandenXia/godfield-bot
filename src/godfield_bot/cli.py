@@ -215,7 +215,7 @@ def observe_private_api_game(
     catalog_snapshot: Annotated[
         Path,
         typer.Option(exists=True, dir_okay=False, readable=True),
-    ] = Path("data", "snapshots", "2026-09-07", "api-catalog-en.json"),
+    ] = Path("data", "snapshots", "2026-09-09", "api-catalog-en.json"),
     database: Annotated[
         Path,
         typer.Option(help="Local SQLite trajectory database."),
@@ -320,7 +320,7 @@ def play_private_api_game(
     catalog_snapshot: Annotated[
         Path,
         typer.Option(exists=True, dir_okay=False, readable=True),
-    ] = Path("data", "snapshots", "2026-09-07", "api-catalog-en.json"),
+    ] = Path("data", "snapshots", "2026-09-09", "api-catalog-en.json"),
     shadow_model: Annotated[
         Path | None,
         typer.Option(

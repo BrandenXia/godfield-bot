@@ -616,7 +616,9 @@ def verified_api_tactical_actions(
     user_id: str,
     bible_snapshot: BibleSnapshot,
 ) -> ApiLegalActionSet:
-    """Add deterministic utility and miracle actions to the strict combo surface."""
+    """Add deterministic utility, miracle, and plain-armor sale actions."""
+
+    from godfield_bot.reference import plain_defense_armor_cards
 
     combo_actions = verified_api_combo_actions(
         room,
@@ -634,6 +636,9 @@ def verified_api_tactical_actions(
     actions = list(combo_actions.actions)
     existing_action_ids = {action.action_id for action in actions}
     if state.phase is ApiPhase.TURN:
+        sell_cards: list[tuple[Any, int, int]] = []
+        sellable_armor: list[tuple[Any, int, int]] = []
+        plain_armor = plain_defense_armor_cards(bible_snapshot)
         for item in me.usable_items():
             instance_id = _optional_positive_int(item.id, "item instance ID")
             model_id = _optional_positive_int(item.model_id, "item model ID")
@@ -644,9 +649,28 @@ def verified_api_tactical_actions(
                 or item.fake_model_id
                 or model is None
                 or item.cost > me.mp
-                or not model.can_start_turn
             ):
                 continue
+            asset = model.raw.get("imageName") if isinstance(model.raw, dict) else None
+            expected_armor = plain_armor.get(asset) if isinstance(asset, str) else None
+            if (
+                model.category == "armor"
+                and model.ability is None
+                and model.cost == 0
+                and expected_armor is not None
+                and model.def_ == expected_armor[0]
+                and (model.element or "non-element") == expected_armor[1]
+            ):
+                sellable_armor.append((item, instance_id, model_id))
+            if not model.can_start_turn:
+                continue
+            if (
+                model.category == "trade"
+                and model.ability == "sell"
+                and asset == "sell"
+                and model.needs_target
+            ):
+                sell_cards.append((item, instance_id, model_id))
             if (
                 model.category in {"sundries", "miracles"}
                 and model.ability in {"boostHP", "boostMP"}
@@ -699,6 +723,27 @@ def verified_api_tactical_actions(
                         actions.append(action)
                         existing_action_ids.add(action.action_id)
 
+        for sell_item, sell_instance_id, sell_model_id in sell_cards:
+            for armor_item, armor_instance_id, armor_model_id in sellable_armor:
+                for target in game.opponents_of(me):
+                    target_id = _required_positive_int(target.id, "target player ID")
+                    action = ApiLegalAction(
+                        action_id=(
+                            f"trade-sell:{sell_instance_id}:{armor_instance_id}:{target_id}"
+                        ),
+                        kind=ApiActionKind.USE_ITEM,
+                        label=(
+                            f"Use {sell_item.name or f'model {sell_model_id}'} to offer "
+                            f"{armor_item.name or f'model {armor_model_id}'}"
+                        ),
+                        item_instance_ids=(sell_instance_id, armor_instance_id),
+                        item_model_ids=(sell_model_id, armor_model_id),
+                        target_player_id=target_id,
+                    )
+                    if action.action_id not in existing_action_ids:
+                        actions.append(action)
+                        existing_action_ids.add(action.action_id)
+
     return ApiLegalActionSet(
         state_digest=combo_actions.state_digest,
         actions=tuple(actions),
@@ -706,7 +751,8 @@ def verified_api_tactical_actions(
         blocked_reason=(
             "the tactical surface includes verified single cards, strict plain combinations, "
             "deterministic HP/MP utility, targeted fixed-damage miracles, and targeted curse "
-            "miracles; random effects, trades, purchases, and unmodeled choices remain excluded"
+            "miracles, plus Sell paired with verified plain armor; random effects, other trades, "
+            "purchase acceptance, and unmodeled choices remain excluded"
         ),
     )
 

@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from godfield import ItemCatalog, RoomState
+from godfield import ItemCatalog, RoomState, TransportError
 from pydantic import ValidationError
 
 from godfield_bot.api_account import PYGODFIELD_REVISION
@@ -29,7 +29,9 @@ from godfield_bot.api_runtime import (
     ApiPolicyName,
     ApiRuntimeError,
     PrivateApiRunConfig,
+    _is_retryable_state_read_error,
     _read_password_file,
+    _state_read_retry_delay,
     _within_wall_clock_limit,
     api_environment_fingerprint,
     decide_api_action,
@@ -970,6 +972,153 @@ def test_private_api_heuristic_enters_lobby_and_records_accepted_action(
     assert len(transitions) == 1
     assert transitions[0].payload["state_changed"] is True
     assert transitions[0].payload["player_hp_deltas"] == {"2": -35}
+
+
+def test_private_api_state_read_recovers_without_losing_pending_action(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    snapshot_path = tmp_path / "catalog.json"
+    write_api_catalog_snapshot(catalog_snapshot(), snapshot_path)
+
+    class FakeFlakyReadClient(FakeClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.responses = iter(
+                [
+                    active_room(),
+                    TransportError("connection exposed-secret"),
+                    terminal_room(),
+                ]
+            )
+            self.commands: list[dict[str, object]] = []
+
+        def state(self) -> RoomState:
+            response = next(self.responses)
+            if isinstance(response, Exception):
+                raise response
+            return response
+
+        def submit(self, command) -> None:
+            self.commands.append(command.to_dict())
+
+    client = FakeFlakyReadClient()
+
+    @contextmanager
+    def fake_open_api_client(*args, **kwargs):
+        yield client
+
+    monkeypatch.setattr("godfield_bot.api_runtime.open_api_client", fake_open_api_client)
+    monkeypatch.setattr(
+        "godfield_bot.api_runtime.validate_api_credentials",
+        lambda settings: SimpleNamespace(user_id="loki-user"),
+    )
+    sleep_delays: list[float] = []
+    monkeypatch.setattr("godfield_bot.api_runtime.time.sleep", sleep_delays.append)
+    database = tmp_path / "runs" / "api.sqlite"
+
+    run = run_private_api_observer(
+        AppSettings(state_root=tmp_path / "state"),
+        PrivateApiRunConfig(
+            database=database,
+            catalog_snapshot=snapshot_path,
+            room_id="private-room",
+            enter_match=True,
+            policy=ApiPolicyName.HEURISTIC,
+            max_in_match_actions=5,
+            max_seconds=10,
+            no_progress_seconds=10,
+            state_read_retries=2,
+            state_read_retry_seconds=0.25,
+        ),
+    )
+
+    assert run.status is RunStatus.COMPLETED
+    assert run.outcome is not None
+    assert run.outcome["in_match_actions"] == 1
+    assert client.commands == [{"itemIds": [11], "targetPlayerId": 2}]
+    assert sleep_delays == [1.0, 0.25]
+    events = RunStore(database).events(run.run_id)
+    read_errors = [
+        event for event in events if event.payload.get("operation") == "read-room-state"
+    ]
+    assert len(read_errors) == 1
+    assert read_errors[0].kind is EventKind.ERROR
+    assert read_errors[0].payload["consecutive_failure"] == 1
+    assert read_errors[0].payload["retry_scheduled"] is True
+    assert "exposed-secret" not in read_errors[0].model_dump_json()
+    transitions = [event for event in events if event.kind is EventKind.TRANSITION]
+    assert len(transitions) == 1
+    assert transitions[0].payload["state_changed"] is True
+
+
+def test_private_api_state_read_retry_budget_exhaustion_is_explicit(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    snapshot_path = tmp_path / "catalog.json"
+    write_api_catalog_snapshot(catalog_snapshot(), snapshot_path)
+
+    class FakeFailedReadClient(FakeClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.read_count = 0
+
+        def state(self) -> RoomState:
+            self.read_count += 1
+            raise TransportError("network failed")
+
+    client = FakeFailedReadClient()
+
+    @contextmanager
+    def fake_open_api_client(*args, **kwargs):
+        yield client
+
+    monkeypatch.setattr("godfield_bot.api_runtime.open_api_client", fake_open_api_client)
+    monkeypatch.setattr(
+        "godfield_bot.api_runtime.validate_api_credentials",
+        lambda settings: SimpleNamespace(user_id="loki-user"),
+    )
+    sleep_delays: list[float] = []
+    monkeypatch.setattr("godfield_bot.api_runtime.time.sleep", sleep_delays.append)
+    database = tmp_path / "runs" / "api.sqlite"
+
+    run = run_private_api_observer(
+        AppSettings(state_root=tmp_path / "state"),
+        PrivateApiRunConfig(
+            database=database,
+            catalog_snapshot=snapshot_path,
+            room_id="private-room",
+            max_seconds=10,
+            no_progress_seconds=10,
+            state_read_retries=1,
+            state_read_retry_seconds=0.5,
+        ),
+    )
+
+    assert run.status is RunStatus.FAILED
+    assert run.outcome == {
+        "error_type": "ApiRuntimeError",
+        "reason": "room-state read retry budget exhausted",
+    }
+    assert client.read_count == 2
+    assert client.left is True
+    assert sleep_delays == [0.5]
+    read_errors = [
+        event
+        for event in RunStore(database).events(run.run_id)
+        if event.payload.get("operation") == "read-room-state"
+    ]
+    assert [event.payload["retry_scheduled"] for event in read_errors] == [True, False]
+
+
+def test_state_read_retry_classification_and_backoff_are_bounded() -> None:
+    assert _is_retryable_state_read_error(TransportError("timeout"))
+    assert _is_retryable_state_read_error(TransportError("busy", status=503))
+    assert not _is_retryable_state_read_error(TransportError("forbidden", status=403))
+    assert not _is_retryable_state_read_error(TransportError("invalid", status="503"))
+    assert _state_read_retry_delay(failure_number=1, base_seconds=1.0) == 1.0
+    assert _state_read_retry_delay(failure_number=20, base_seconds=1.0) == 30.0
 
 
 def test_private_api_tactical_policy_dispatches_verified_combo(tmp_path, monkeypatch) -> None:

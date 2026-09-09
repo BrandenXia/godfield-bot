@@ -52,6 +52,8 @@ TACTICAL_HEAL_THRESHOLD = 25
 ACCEPTED_PRIVATE_BIBLE_CLIENT_SHA256 = (
     "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd"
 )
+RETRYABLE_STATE_READ_HTTP_STATUSES = frozenset({408, 425, 429, 500, 502, 503, 504})
+MAX_STATE_READ_RETRY_DELAY_SECONDS = 30.0
 
 
 class ApiRuntimeError(RuntimeError):
@@ -85,6 +87,8 @@ class PrivateApiRunConfig(BaseModel):
     poll_seconds: float = Field(default=1.0, ge=0.25, le=10.0)
     no_progress_seconds: float = Field(default=60.0, ge=10.0, le=600.0)
     request_timeout_seconds: float = Field(default=20.0, ge=1.0, le=120.0)
+    state_read_retries: int = Field(default=5, ge=0, le=20)
+    state_read_retry_seconds: float = Field(default=1.0, ge=0.1, le=30.0)
 
     @field_validator("room_id")
     @classmethod
@@ -243,6 +247,56 @@ def _safe_runtime_error_payload(error: Exception) -> dict[str, JsonValue]:
         payload["api_action"] = action
     if isinstance(status, int) and not isinstance(status, bool):
         payload["http_status"] = status
+    return payload
+
+
+def _transport_http_status(error: Exception) -> int | None:
+    status = getattr(error, "status", None)
+    return status if isinstance(status, int) and not isinstance(status, bool) else None
+
+
+def _is_retryable_state_read_error(error: Exception) -> bool:
+    """Classify safe-to-repeat room reads without retrying client or auth errors."""
+
+    raw_status = getattr(error, "status", None)
+    if raw_status is None:
+        return True
+    return (
+        isinstance(raw_status, int)
+        and not isinstance(raw_status, bool)
+        and raw_status in RETRYABLE_STATE_READ_HTTP_STATUSES
+    )
+
+
+def _state_read_retry_delay(*, failure_number: int, base_seconds: float) -> float:
+    return min(
+        base_seconds * (2.0 ** max(0, failure_number - 1)),
+        MAX_STATE_READ_RETRY_DELAY_SECONDS,
+    )
+
+
+def _state_read_error_payload(
+    error: Exception,
+    *,
+    failure_number: int,
+    retry_budget: int,
+    retry_scheduled: bool,
+    retry_delay_seconds: float | None,
+) -> dict[str, JsonValue]:
+    payload: dict[str, JsonValue] = {
+        "schema_version": 1,
+        "error_type": type(error).__name__,
+        "reason": "private room-state read failed",
+        "operation": "read-room-state",
+        "consecutive_failure": failure_number,
+        "retry_budget": retry_budget,
+        "retry_scheduled": retry_scheduled,
+    }
+    status = _transport_http_status(error)
+    if status is not None:
+        payload["http_status"] = status
+    if retry_delay_seconds is not None:
+        payload["retry_delay_seconds"] = retry_delay_seconds
     return payload
 
 
@@ -790,6 +844,9 @@ def run_private_api_observer(
         "max_seconds": config.max_seconds,
         "poll_seconds": config.poll_seconds,
         "no_progress_seconds": config.no_progress_seconds,
+        "request_timeout_seconds": config.request_timeout_seconds,
+        "state_read_retries": config.state_read_retries,
+        "state_read_retry_seconds": config.state_read_retry_seconds,
         "max_in_match_actions": config.max_in_match_actions,
         "enter_match": config.enter_match,
         "entry_team": config.entry_team,
@@ -831,7 +888,7 @@ def run_private_api_observer(
     outcome_reason = "wall_clock_limit"
     pending_action: tuple[ApiLegalAction, ApiGameState] | None = None
     try:
-        from godfield import Mode  # type: ignore[import-untyped]
+        from godfield import Mode, TransportError  # type: ignore[import-untyped]
 
         with open_api_client(
             settings,
@@ -874,11 +931,59 @@ def run_private_api_observer(
                 previous_digest: str | None = None
                 entry_request_pending = False
                 terminal_recorded = False
+                consecutive_state_read_failures = 0
                 while _within_wall_clock_limit(
                     elapsed=time.monotonic() - started,
                     max_seconds=config.max_seconds,
                 ):
-                    room = client.state()
+                    try:
+                        room = client.state()
+                    except TransportError as error:
+                        consecutive_state_read_failures += 1
+                        retryable = _is_retryable_state_read_error(error)
+                        retry_scheduled = (
+                            retryable
+                            and consecutive_state_read_failures <= config.state_read_retries
+                        )
+                        retry_delay_seconds = (
+                            _state_read_retry_delay(
+                                failure_number=consecutive_state_read_failures,
+                                base_seconds=config.state_read_retry_seconds,
+                            )
+                            if retry_scheduled
+                            else None
+                        )
+                        store.append_event(
+                            run.run_id,
+                            EventKind.ERROR,
+                            _state_read_error_payload(
+                                error,
+                                failure_number=consecutive_state_read_failures,
+                                retry_budget=config.state_read_retries,
+                                retry_scheduled=retry_scheduled,
+                                retry_delay_seconds=retry_delay_seconds,
+                            ),
+                        )
+                        if not retryable:
+                            raise ApiRuntimeError(
+                                "room-state read received a non-retryable transport response"
+                            ) from error
+                        if not retry_scheduled:
+                            raise ApiRuntimeError(
+                                "room-state read retry budget exhausted"
+                            ) from error
+                        assert retry_delay_seconds is not None
+                        log.warning(
+                            "api_private_state_read_retry",
+                            run_id=run.run_id,
+                            consecutive_failure=consecutive_state_read_failures,
+                            retry_budget=config.state_read_retries,
+                            retry_delay_seconds=retry_delay_seconds,
+                            http_status=_transport_http_status(error),
+                        )
+                        time.sleep(retry_delay_seconds)
+                        continue
+                    consecutive_state_read_failures = 0
                     game = room.game
                     me = game.player_by_user(user_id) if game is not None else None
                     if game is None or me is None:

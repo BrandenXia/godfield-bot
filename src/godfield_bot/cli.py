@@ -244,6 +244,22 @@ def observe_private_api_game(
         float,
         typer.Option(min=1.0, max=120.0, help="Per-request API timeout."),
     ] = 20.0,
+    state_read_retries: Annotated[
+        int,
+        typer.Option(
+            min=0,
+            max=20,
+            help="Transient room-state read retries before stopping.",
+        ),
+    ] = 5,
+    state_read_retry_seconds: Annotated[
+        float,
+        typer.Option(
+            min=0.1,
+            max=30.0,
+            help="Initial transient room-state read retry delay.",
+        ),
+    ] = 1.0,
 ) -> None:
     """Join an existing private room and record state without playing cards."""
 
@@ -275,6 +291,8 @@ def observe_private_api_game(
                 poll_seconds=poll_seconds,
                 no_progress_seconds=no_progress_seconds,
                 request_timeout_seconds=request_timeout_seconds,
+                state_read_retries=state_read_retries,
+                state_read_retry_seconds=state_read_retry_seconds,
             ),
             room_password=room_password,
         )
@@ -379,6 +397,22 @@ def play_private_api_game(
         float,
         typer.Option(min=1.0, max=120.0, help="Per-request API timeout."),
     ] = 20.0,
+    state_read_retries: Annotated[
+        int,
+        typer.Option(
+            min=0,
+            max=20,
+            help="Transient room-state read retries before stopping.",
+        ),
+    ] = 5,
+    state_read_retry_seconds: Annotated[
+        float,
+        typer.Option(
+            min=0.1,
+            max=30.0,
+            help="Initial transient room-state read retry delay.",
+        ),
+    ] = 1.0,
 ) -> None:
     """Enter private games with tactical play and optional neural shadow scoring."""
 
@@ -423,6 +457,8 @@ def play_private_api_game(
                 poll_seconds=poll_seconds,
                 no_progress_seconds=no_progress_seconds,
                 request_timeout_seconds=request_timeout_seconds,
+                state_read_retries=state_read_retries,
+                state_read_retry_seconds=state_read_retry_seconds,
             ),
             room_password=room_password,
         )

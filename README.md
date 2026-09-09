@@ -98,7 +98,11 @@ a spectator. `api play-private --confirm-play --password-stdin` explicitly
 enters the next match with the bounded tactical API policy. For an
 unlimited wall-clock session that remains available for subsequent matches,
 pass `--max-seconds 0`; the independent no-progress and action-count safeguards
-remain active.
+remain active. Transient room-state reads are retried five times with bounded
+exponential backoff by default; `--state-read-retries` and
+`--state-read-retry-seconds` tune that read-only recovery budget. Submitted
+game actions are never retried by the runtime because their server outcome can
+be ambiguous.
 Use `--team 0` for solo/free-for-all entry, or `--team 1` through `--team 4`
 for allied teams A through D. The selected team is retained across automatic
 entry into subsequent matches. Active curse presence is recorded in the

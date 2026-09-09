@@ -141,6 +141,27 @@ candidate passed its native gate. See
 [ADR 0013](docs/architecture/0013-resource-miracle-curriculum.md), and
 [ADR 0014](docs/architecture/0014-live-resource-neural-shadow.md).
 
+After collecting schema-v5 shadow games, run the versioned live evidence gate
+against the same immutable candidate and its passing native report:
+
+```console
+uv run godfield-bot models evaluate-live-shadow \
+  models/d349d664-bfce-4997-9ff9-eb94482c20d1 \
+  --native-evaluation \
+  models/evaluations/74c09a6c-e682-46b9-88e4-79032677ce62.json
+```
+
+`live-resource-shadow-readiness-v1` accepts only runs that carry the exact v2
+adapter, schema, model and weight checksum, and tactical behavior identity. It
+validates state/legal-action/decision pairing and terminal rewards, then gates
+on completed games, attack and defense opportunities, all four resource action
+families, proposal coverage, behavior agreement, and operational failures.
+Proportions use Wilson lower confidence bounds. The resulting owner-only report
+can mark a candidate ready for a separately authorized controlled trial, but its
+`promotion_eligible` field remains false: outcomes from heuristic-controlled
+shadow games are not candidate performance. See
+[ADR 0015](docs/architecture/0015-live-shadow-readiness-gate.md).
+
 God Field's official Training computer runs inside the web client rather than
 the server-side API. `play-training` therefore drives the official browser in
 headless mode by default while keeping policy inference, evidence storage, and

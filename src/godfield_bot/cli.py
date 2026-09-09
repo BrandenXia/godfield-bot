@@ -1416,6 +1416,129 @@ def models_evaluate_simulation(
     typer.echo(result.model_dump_json(indent=2))
 
 
+@models_app.command("evaluate-live-shadow")
+def models_evaluate_live_shadow(
+    candidate_model: Annotated[
+        Path,
+        typer.Argument(exists=True, file_okay=False, readable=True),
+    ],
+    native_evaluation: Annotated[
+        Path,
+        typer.Option(exists=True, dir_okay=False, readable=True),
+    ],
+    database: Annotated[
+        Path,
+        typer.Option(exists=True, dir_okay=False, readable=True),
+    ] = Path("runs", "godfield.sqlite"),
+    snapshot: Annotated[
+        Path,
+        typer.Option(exists=True, dir_okay=False, readable=True),
+    ] = Path("data", "snapshots", "2026-09-07", "bible.json"),
+    evaluation_directory: Annotated[
+        Path,
+        typer.Option(help="Owner-only directory for immutable live-shadow reports."),
+    ] = Path("models", "live-evaluations"),
+    minimum_completed_games: Annotated[
+        int,
+        typer.Option(min=1, max=100_000),
+    ] = 20,
+    minimum_turn_opportunities: Annotated[
+        int,
+        typer.Option(min=1, max=1_000_000),
+    ] = 40,
+    minimum_defense_opportunities: Annotated[
+        int,
+        typer.Option(min=1, max=1_000_000),
+    ] = 20,
+    minimum_resource_opportunities: Annotated[
+        int,
+        typer.Option(min=1, max=1_000_000),
+    ] = 12,
+    minimum_each_resource_kind: Annotated[
+        int,
+        typer.Option(min=1, max=1_000_000),
+    ] = 1,
+    minimum_completion_lower_bound: Annotated[
+        float,
+        typer.Option(min=0.0, max=1.0),
+    ] = 0.75,
+    minimum_coverage_lower_bound: Annotated[
+        float,
+        typer.Option(min=0.0, max=1.0),
+    ] = 0.50,
+    minimum_agreement_lower_bound: Annotated[
+        float,
+        typer.Option(min=0.0, max=1.0),
+    ] = 0.60,
+    minimum_resource_coverage_lower_bound: Annotated[
+        float,
+        typer.Option(min=0.0, max=1.0),
+    ] = 0.50,
+    minimum_resource_agreement_lower_bound: Annotated[
+        float,
+        typer.Option(min=0.0, max=1.0),
+    ] = 0.50,
+    maximum_failed_runs: Annotated[
+        int,
+        typer.Option(min=0, max=100_000),
+    ] = 0,
+    maximum_operational_aborts: Annotated[
+        int,
+        typer.Option(min=0, max=100_000),
+    ] = 0,
+    confidence_z: Annotated[
+        float,
+        typer.Option(min=1e-8, max=10.0),
+    ] = 1.96,
+) -> None:
+    """Evaluate immutable schema-v5 live shadow evidence; never promote a model."""
+
+    try:
+        from godfield_bot.live_shadow_evaluation import (
+            LiveShadowEvaluationConfig,
+            LiveShadowEvaluationError,
+            evaluate_live_shadow_candidate,
+        )
+    except ImportError as error:
+        structlog.get_logger().error(
+            "live_shadow_evaluation_failed",
+            error_type=type(error).__name__,
+            reason="live shadow dependencies are unavailable; run `uv sync --extra training`",
+        )
+        raise typer.Exit(code=1) from None
+    try:
+        result = evaluate_live_shadow_candidate(
+            candidate_model_directory=candidate_model,
+            bible_snapshot_path=snapshot,
+            native_evaluation_path=native_evaluation,
+            database_path=database,
+            evaluation_directory=evaluation_directory,
+            config=LiveShadowEvaluationConfig(
+                minimum_completed_games=minimum_completed_games,
+                minimum_turn_opportunities=minimum_turn_opportunities,
+                minimum_defense_opportunities=minimum_defense_opportunities,
+                minimum_resource_opportunities=minimum_resource_opportunities,
+                minimum_each_resource_kind=minimum_each_resource_kind,
+                minimum_completion_lower_bound=minimum_completion_lower_bound,
+                minimum_coverage_lower_bound=minimum_coverage_lower_bound,
+                minimum_agreement_lower_bound=minimum_agreement_lower_bound,
+                minimum_resource_coverage_lower_bound=(minimum_resource_coverage_lower_bound),
+                minimum_resource_agreement_lower_bound=(minimum_resource_agreement_lower_bound),
+                maximum_failed_runs=maximum_failed_runs,
+                maximum_operational_aborts=maximum_operational_aborts,
+                confidence_z=confidence_z,
+            ),
+        )
+    except (OSError, ValueError, LiveShadowEvaluationError, RunStoreError) as error:
+        structlog.get_logger().error(
+            "live_shadow_evaluation_failed",
+            error_type=type(error).__name__,
+            reason=str(error).splitlines()[0],
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(result.model_dump_json(indent=2))
+
+
 @simulation_app.command("benchmark")
 def simulation_benchmark(
     snapshot: Annotated[

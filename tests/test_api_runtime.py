@@ -1091,6 +1091,7 @@ def test_private_api_neural_shadow_records_proposal_but_dispatches_heuristic(
     assert run.config["shadow_policy_id"] == ApiPolicyName.NEURAL_SHADOW.value
     assert run.config["shadow_feature_schema_version"] == 4
     assert run.config["shadow_model_id"] == "shadow-candidate"
+    assert run.model_id == "shadow-candidate"
     assert client.commands == [{"itemIds": [11], "targetPlayerId": 2}]
     assert shadow.behaviors == [("use:11:1:2", "use:11:1:2")]
     decisions = [

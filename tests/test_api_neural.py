@@ -295,6 +295,22 @@ def test_shadow_policy_translates_sequential_defense_into_one_live_macro() -> No
     assert decision.selection_action_indices == (1, 2, 20)
 
 
+def test_shadow_policy_can_forgive_without_any_supported_armor() -> None:
+    current_room = room(defending=True, resource_model_id=5)
+    state = normalize_api_game_state(current_room, user_id="loki-user")
+    legal = verified_api_tactical_actions(
+        current_room,
+        user_id="loki-user",
+        bible_snapshot=bible(),
+    )
+
+    decision, proposal = shadow_policy(feature_schema_version=5).decide(state, legal)
+
+    assert proposal is not None
+    assert proposal.action_id == "pass"
+    assert decision.selection_action_indices == (19,)
+
+
 def test_shadow_policy_abstains_and_resets_on_cursed_state() -> None:
     current_room = room(cursed=True)
     state = normalize_api_game_state(current_room, user_id="loki-user")

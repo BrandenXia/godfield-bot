@@ -804,6 +804,7 @@ def run_private_api_observer(
             identity=settings.identity,
             client_sha256=environment_fingerprint,
             policy_id=config.policy.value,
+            model_id=(shadow_policy.manifest.model_id if shadow_policy is not None else None),
             config=run_config,
         )
     )

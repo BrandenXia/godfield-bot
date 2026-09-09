@@ -417,7 +417,11 @@ class ApiComboShadowPolicy:
             )
 
         macros = self._strict_macros(state, legal_actions)
-        if not macros:
+        pass_action = next(
+            (action for action in legal_actions.actions if action.kind is ApiActionKind.PASS),
+            None,
+        )
+        if not macros and not (state.phase is ApiPhase.DEFENSE and pass_action is not None):
             return self._unsupported(
                 state,
                 legal_actions,
@@ -449,7 +453,7 @@ class ApiComboShadowPolicy:
                     selectable = {
                         instance_id for macro in macros for instance_id in macro.item_instance_ids
                     }
-                    action_mask[FORGIVE_ACTION_INDEX] = True
+                    action_mask[FORGIVE_ACTION_INDEX] = pass_action is not None
             else:
                 selectable = {
                     instance_id
@@ -522,14 +526,7 @@ class ApiComboShadowPolicy:
                     selected_value += item.defense
                 continue
             if action_index == FORGIVE_ACTION_INDEX and not selected_ids:
-                proposal = next(
-                    (
-                        action
-                        for action in legal_actions.actions
-                        if action.kind is ApiActionKind.PASS
-                    ),
-                    None,
-                )
+                proposal = pass_action
                 break
             if action_index == CONFIRM_ACTION_INDEX and selected_ids:
                 selected_set = set(selected_ids)

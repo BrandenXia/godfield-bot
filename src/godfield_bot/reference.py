@@ -535,6 +535,40 @@ def verified_attack_miracle_cards(
     return result
 
 
+def verified_chance_attack_miracle_cards(
+    snapshot: BibleSnapshot,
+) -> dict[str, tuple[int, int, int, CombatElement]]:
+    """Return plain chance-attack miracles with hit rate, damage, cost, and element."""
+
+    miracles = snapshot.catalog.get("miracles")
+    if miracles is None:
+        return {}
+    result: dict[str, tuple[int, int, int, CombatElement]] = {}
+    for artifact in miracles.items:
+        element = _combat_element(artifact)
+        if element is None or len(artifact.detail) != 5:
+            continue
+        attack = PROBABILISTIC_ATTACK_PATTERN.fullmatch(artifact.detail[1])
+        cost = re.fullmatch(r"(\d+)MP", artifact.detail[3])
+        if (
+            attack is not None
+            and artifact.detail[2] == "Cost"
+            and cost is not None
+            and artifact.detail[4].startswith("Gift Rate:")
+        ):
+            hit_rate = int(attack.group(1))
+            attack_value = int(attack.group(2))
+            if not 1 <= hit_rate <= 100 or attack_value == 0:
+                continue
+            result[artifact.asset] = (
+                hit_rate,
+                attack_value,
+                int(cost.group(1)),
+                element,
+            )
+    return result
+
+
 def plain_hp_utility_sundries(snapshot: BibleSnapshot) -> dict[str, int]:
     """Return unconditional, consumable HP gains from the accepted Bible."""
 

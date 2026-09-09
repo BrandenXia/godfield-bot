@@ -63,7 +63,7 @@ class ApiRuntimeError(RuntimeError):
 class ApiPolicyName(StrEnum):
     OBSERVER = "api-observer-v0"
     HEURISTIC = "api-heuristic-v0"
-    TACTICAL_HEURISTIC = "api-combo-utility-heuristic-v2"
+    TACTICAL_HEURISTIC = "api-combo-utility-heuristic-v3"
     NEURAL_SHADOW = "api-combo-neural-shadow-v1"
 
 
@@ -459,7 +459,15 @@ def _decide_tactical_api_action(
         cleansers = [
             action for action in candidates if action_items(action)[0].ability == "removeAllCurses"
         ]
-        attacks = [action for action in candidates if attack_value(action) > 0]
+        chance_attacks = [
+            action for action in candidates if action.action_id.startswith("chance-miracle-attack:")
+        ]
+        attacks = [
+            action
+            for action in candidates
+            if attack_value(action) > 0
+            and not action.action_id.startswith("chance-miracle-attack:")
+        ]
         heals = [action for action in candidates if action_items(action)[0].ability == "boostHP"]
         mana = [action for action in candidates if action_items(action)[0].ability == "boostMP"]
         curse_attacks = [
@@ -532,6 +540,16 @@ def _decide_tactical_api_action(
             rationale = "convert an otherwise idle turn into verified HP recovery"
         elif (chosen := best_utility(mana)) is not None:
             rationale = "convert an otherwise idle turn into verified MP recovery"
+        elif chance_attacks:
+            chosen = max(
+                chance_attacks,
+                key=lambda action: (
+                    attack_value(action),
+                    -action_cost(action),
+                    tuple(-value for value in action.item_instance_ids),
+                ),
+            )
+            rationale = "use a Bible-verified chance attack rather than stall"
         elif armor_sales:
             chosen = min(
                 armor_sales,

@@ -106,12 +106,13 @@ be ambiguous.
 Use `--team 0` for solo/free-for-all entry, or `--team 1` through `--team 4`
 for allied teams A through D. The selected team is retained across automatic
 entry into subsequent matches. Active curse presence is recorded in the
-normalized API state. `api-combo-utility-heuristic-v2` uses strict
+normalized API state. `api-combo-utility-heuristic-v3` uses strict
 base-plus-booster attacks, compatible multi-armor defenses, affordable
 targeted fixed-damage and curse miracles, special block/bounce/reflect
-defenses admitted by the API, and deterministic HP/MP recovery. It takes an
-attack with potentially lethal power before healing and otherwise restores HP
-at 25 or less.
+defenses admitted by the API, Bible-verified untargeted chance miracles, and
+deterministic HP/MP recovery. It takes an attack with potentially lethal power
+before healing and otherwise restores HP at 25 or less. Chance miracles are a
+late fallback after deterministic attacks and HP/MP utility.
 On a cursed turn, it prefers a verified all-curse cleanser and otherwise uses
 only individually reliable, undisguised actions. When no attack or recovery is
 available, Sell can offer the weakest verified plain armor to an opponent. If
@@ -155,8 +156,8 @@ uv run godfield-bot models evaluate-live-shadow \
   models/evaluations/74c09a6c-e682-46b9-88e4-79032677ce62.json
 ```
 
-`live-resource-shadow-readiness-v2` accepts only runs that carry the exact v2
-adapter, schema, model and weight checksum, and tactical behavior identity. It
+`live-resource-shadow-readiness-v3` accepts only runs that carry the exact v3
+behavior identity, schema-v5 shadow adapter, model, and weight checksum. It
 validates state/legal-action/decision pairing and terminal rewards, then gates
 on completed games, attack and defense opportunities, all four resource action
 families, proposal coverage, behavior agreement, and operational failures.

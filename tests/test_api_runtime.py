@@ -20,6 +20,7 @@ from godfield_bot.api_catalog import (
 from godfield_bot.api_game import (
     ApiActionKind,
     ApiPolicyDecision,
+    command_for_api_action,
     normalize_api_game_state,
     verified_api_actions,
     verified_api_tactical_actions,
@@ -613,6 +614,77 @@ def test_latest_live_cursed_sell_dead_end_has_verified_escape() -> None:
     assert chosen is not None
     assert chosen.action_id == "trade-sell:6:8:1"
     assert chosen.item_instance_ids == (6, 8)
+    assert decision.executable is True
+
+
+def test_latest_live_cursed_chance_miracle_dead_end_has_verified_escape() -> None:
+    api_snapshot = read_api_catalog_snapshot(
+        Path("data/snapshots/2026-09-09/api-catalog-en.json")
+    )
+    bible = BibleSnapshot.model_validate_json(
+        Path("data/snapshots/2026-09-07/bible.json").read_text(encoding="utf-8")
+    )
+    room = RoomState(
+        {
+            "game": {
+                "players": [
+                    {
+                        "id": 1,
+                        "userId": "loki-user",
+                        "name": "ロキ-67",
+                        "hp": 35,
+                        "mp": 10,
+                        "cp": 20,
+                        "curses": ["dream"],
+                        "items": [
+                            {"id": 3, "modelId": 118},
+                            {"id": 4, "modelId": 5},
+                            {"id": 6, "modelId": 236},
+                            {"id": 7, "modelId": 163},
+                            {"id": 8, "modelId": 5},
+                            {"id": 9, "modelId": 207},
+                            {"id": 5, "modelId": 202},
+                            {"id": 2, "modelId": 227},
+                            {"id": 1, "modelId": 25},
+                        ],
+                    },
+                    {
+                        "id": 2,
+                        "userId": "opponent-user",
+                        "name": "Opponent",
+                        "hp": 28,
+                        "mp": 18,
+                        "cp": 20,
+                        "items": [],
+                    },
+                ],
+                "attackTurnPlayerId": 1,
+                "attacks": [],
+                "gf": 5,
+                "updateCount": 8,
+                "isOver": False,
+            }
+        },
+        item_catalog_from_snapshot(api_snapshot),
+    )
+    state = normalize_api_game_state(room, user_id="loki-user")
+    legal_actions = verified_api_tactical_actions(
+        room,
+        user_id="loki-user",
+        bible_snapshot=bible,
+    )
+
+    decision, chosen = decide_api_action(
+        ApiPolicyName.TACTICAL_HEURISTIC,
+        state,
+        legal_actions,
+    )
+
+    assert chosen is not None
+    assert chosen.action_id == "chance-miracle-attack:2:227:untargeted"
+    assert chosen.target_player_id is None
+    assert command_for_api_action(chosen).to_dict() == {"itemIds": [2]}
+    assert decision.rationale == "use a Bible-verified chance attack rather than stall"
     assert decision.executable is True
 
 

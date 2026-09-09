@@ -143,6 +143,211 @@ def test_heuristic_can_select_audited_passive_attack_weapon() -> None:
     assert decision.chosen_action_id == "artifact:0:weapons/angel-sword"
 
 
+def test_heuristic_selects_and_confirms_mp_scaled_weapon() -> None:
+    initial = state()
+    magical_stick = HandArtifact(
+        slot=0,
+        category="weapons",
+        slug="magical-stick",
+        asset_path="/images/items/weapons/magical-stick.webp",
+        bounds=Bounds(x=200, y=493, width=80, height=80),
+        hit_target_bounds=Bounds(x=200, y=493, width=80, height=80),
+    )
+    selecting = initial.model_copy(
+        update={
+            "hand": (magical_stick,),
+            "action_actor": "ロキ-67",
+            "action_display": "Pray",
+        }
+    )
+    observation = ScreenObservation(
+        observed_at=selecting.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.15", "Pray", "HP"),
+        text_elements=(),
+        controls=(),
+        images=(),
+    )
+    weapon_rules = {"magical-stick": ("ATK{2\N{MULTIPLICATION SIGN}MP}", 2.0)}
+    policy = HeuristicV0Policy(weapon_rules, {"iron-shield": 4})
+
+    selection_actions = verified_browser_actions(
+        selecting,
+        observation,
+        verified_weapon_attacks=weapon_rules,
+    )
+    selection = policy.decide(selecting, selection_actions)
+
+    assert selection.chosen_action_id == "artifact:0:weapons/magical-stick"
+
+    confirming = selecting.model_copy(
+        update={
+            "action_target": "CPU",
+            "action_display": "ATK20",
+            "action_artifact_asset_path": magical_stick.asset_path,
+            "action_hit_target_bounds": Bounds(x=115, y=93, width=310, height=300),
+        }
+    )
+    confirmation_actions = verified_browser_actions(
+        confirming,
+        observation,
+        verified_weapon_attacks=weapon_rules,
+    )
+    confirmation = policy.decide(confirming, confirmation_actions)
+
+    assert confirmation.chosen_action_id == "confirm:attack:magical-stick:1:CPU"
+
+    mismatched = confirming.model_copy(update={"action_display": "ATK18"})
+    mismatched_actions = verified_browser_actions(
+        mismatched,
+        observation,
+        verified_weapon_attacks=weapon_rules,
+    )
+    assert [action.action_id for action in mismatched_actions.actions] == ["wait"]
+
+
+def test_heuristic_selects_and_confirms_automatic_effect_weapon() -> None:
+    initial = state()
+    spiritual_staff = HandArtifact(
+        slot=0,
+        category="weapons",
+        slug="spiritual-staff",
+        asset_path="/images/items/weapons/spiritual-staff.webp",
+        bounds=Bounds(x=200, y=493, width=80, height=80),
+        hit_target_bounds=Bounds(x=200, y=493, width=80, height=80),
+    )
+    weapon_rules = {"spiritual-staff": ("ATK12", 12.0)}
+    policy = HeuristicV0Policy(weapon_rules, {"iron-shield": 4})
+    selecting = initial.model_copy(
+        update={
+            "hand": (spiritual_staff,),
+            "action_actor": "ロキ-67",
+            "action_display": "Pray",
+        }
+    )
+    observation = ScreenObservation(
+        observed_at=selecting.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.22", "Pray", "HP"),
+        text_elements=(),
+        controls=(),
+        images=(),
+    )
+
+    selection_actions = verified_browser_actions(
+        selecting,
+        observation,
+        verified_weapon_attacks=weapon_rules,
+    )
+    assert policy.decide(selecting, selection_actions).chosen_action_id == (
+        "artifact:0:weapons/spiritual-staff"
+    )
+
+    confirming = selecting.model_copy(
+        update={
+            "action_target": "CPU",
+            "action_display": "ATK12",
+            "action_artifact_asset_path": spiritual_staff.asset_path,
+            "action_hit_target_bounds": Bounds(x=115, y=93, width=310, height=300),
+        }
+    )
+    confirmation_actions = verified_browser_actions(
+        confirming,
+        observation,
+        verified_weapon_attacks=weapon_rules,
+    )
+    assert policy.decide(confirming, confirmation_actions).chosen_action_id == (
+        "confirm:attack:spiritual-staff:1:CPU"
+    )
+
+
+def test_heuristic_confirms_audited_random_target_weapon() -> None:
+    initial = state()
+    game_state = initial.model_copy(
+        update={
+            "action_actor": "ロキ-67",
+            "action_target": None,
+            "action_display": "ATK30",
+            "action_artifact_asset_path": "/images/items/weapons/dangerous-pestle.webp",
+            "action_hit_target_bounds": Bounds(x=115, y=93, width=310, height=300),
+        }
+    )
+    observation = ScreenObservation(
+        observed_at=game_state.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.1", "ATK30", "HP"),
+        text_elements=(),
+        controls=(),
+        images=(),
+    )
+    weapon_rules = {"dangerous-pestle": ("ATK30", 30.0)}
+
+    actions = verified_browser_actions(
+        game_state,
+        observation,
+        verified_weapon_attacks=weapon_rules,
+    )
+    decision = HeuristicV0Policy(
+        weapon_rules,
+        {"iron-shield": 4},
+    ).decide(game_state, actions)
+
+    assert actions.actions[-1].action_id == "confirm:untargeted:dangerous-pestle"
+    assert decision.chosen_action_id == "confirm:untargeted:dangerous-pestle"
+
+
+def test_heuristic_accepts_ascension_variant_of_chance_weapon() -> None:
+    initial = state()
+    game_state = initial.model_copy(
+        update={
+            "action_actor": "ロキ-67",
+            "action_target": None,
+            "action_display": "75%ATK30",
+            "action_artifact_asset_path": "/images/items/weapons/ascension-bow.webp",
+            "action_hit_target_bounds": Bounds(x=115, y=93, width=310, height=300),
+        }
+    )
+    observation = ScreenObservation(
+        observed_at=game_state.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.1", "75%ATK30", "HP"),
+        text_elements=(),
+        controls=(),
+        images=(),
+    )
+    weapon_rules = {"ascension-bow": ("25%ATK1", 0.25, ("75%ATK30",))}
+
+    actions = verified_browser_actions(
+        game_state,
+        observation,
+        verified_weapon_attacks=weapon_rules,
+    )
+    decision = HeuristicV0Policy(
+        weapon_rules,
+        {"iron-shield": 4},
+    ).decide(game_state, actions)
+
+    assert actions.actions[-1].action_id == "confirm:chance:ascension-bow"
+    assert actions.actions[-1].expected_action_display == "75%ATK30"
+    assert decision.chosen_action_id == "confirm:chance:ascension-bow"
+
+
 def test_heuristic_selects_affordable_fixed_attack_miracle() -> None:
     initial = state()
     miracle = HandArtifact(
@@ -571,6 +776,52 @@ def test_heuristic_forgives_targeted_interaction_with_multiple_context_artifacts
         "/images/items/trade/sell.webp",
         "/images/items/armor/dreaming-hat.webp",
     )
+    assert decision.chosen_action_id == "forgive"
+
+
+def test_heuristic_forgives_incoming_artifact_rendered_low_in_action_panel() -> None:
+    initial = state()
+    game_state = initial.model_copy(
+        update={
+            "action_actor": "CPU",
+            "action_target": "ロキ-67",
+            "action_display": "ATK5",
+            "action_display_color": "rgb(197, 197, 0)",
+            "phase_control": "Forgive",
+            "phase_control_hit_target_bounds": Bounds(x=455, y=93, width=310, height=300),
+        }
+    )
+    blessing = "/images/items/guardians/blessing.webp"
+    observation = ScreenObservation(
+        observed_at=game_state.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.35", "ATK5", "Forgive", "HP"),
+        text_elements=(),
+        controls=(),
+        images=(
+            VisibleImage(
+                path="/images/guardians/large/uranus.webp",
+                bounds=Bounds(x=120, y=93, width=300, height=300),
+            ),
+            VisibleImage(
+                path=blessing,
+                bounds=Bounds(x=125, y=303, width=80, height=80),
+            ),
+        ),
+    )
+
+    actions = verified_browser_actions(game_state, observation)
+    decision = HeuristicV0Policy(
+        {"bronze-club": ("ATK1", 1.0)},
+        {"iron-shield": 4},
+    ).decide(game_state, actions)
+
+    assert [action.action_id for action in actions.actions] == ["wait", "forgive"]
+    assert actions.actions[1].context_asset_paths == (blessing,)
     assert decision.chosen_action_id == "forgive"
 
 

@@ -28,6 +28,7 @@ from godfield_bot.outcomes import append_sparse_terminal_events
 from godfield_bot.policy import HeuristicV0Policy, Policy, SafeObserverPolicy
 from godfield_bot.reference import fingerprint_client
 from godfield_bot.run_store import RunStore
+from godfield_bot.weapon_rules import WeaponAttackRule
 
 log = structlog.get_logger()
 
@@ -53,7 +54,7 @@ class TrainingRunConfig(BaseModel):
     screenshot_directory: Path | None = None
     policy: RunnerPolicyName = RunnerPolicyName.SAFE_OBSERVER
     max_in_match_actions: int = Field(default=0, ge=0, le=100)
-    verified_weapon_attacks: dict[str, tuple[str, float]] = Field(default_factory=dict)
+    verified_weapon_attacks: dict[str, WeaponAttackRule] = Field(default_factory=dict)
     verified_miracle_attacks: dict[str, tuple[int, int, CombatElement]] = Field(
         default_factory=dict
     )
@@ -76,6 +77,7 @@ class TrainingCampaignConfig(BaseModel):
     game: TrainingRunConfig
     max_games: int = Field(default=0, ge=0, le=100_000)
     restart_delay_seconds: float = Field(default=2.0, ge=0.0, le=60.0)
+    max_setup_retries: int = Field(default=3, ge=0, le=100)
 
 
 class TrainingCampaignSummary(BaseModel):
@@ -86,6 +88,7 @@ class TrainingCampaignSummary(BaseModel):
     wins: int = Field(ge=0)
     losses: int = Field(ge=0)
     draws: int = Field(ge=0)
+    setup_failures: int = Field(default=0, ge=0)
     run_ids: tuple[str, ...]
     stop_reason: str
     last_run_status: RunStatus
@@ -228,7 +231,7 @@ def build_action_transition(
 
 def _policy_from_name(
     name: RunnerPolicyName,
-    verified_weapon_attacks: dict[str, tuple[str, float]],
+    verified_weapon_attacks: dict[str, WeaponAttackRule],
     verified_miracle_attacks: dict[str, tuple[int, int, CombatElement]],
     plain_armor_defenses: dict[str, int],
 ) -> Policy:
@@ -262,6 +265,7 @@ async def run_training_observer(
     terminal_outcome: MatchOutcome | None = None
     terminal_reward: SparseTerminalReward | None = None
     in_match_actions = 0
+    gameplay_started = False
     outcome_reason = "wall_clock_limit"
     try:
         async with open_account_context(settings, headed=config.headed) as context:
@@ -295,6 +299,7 @@ async def run_training_observer(
                 await capture_screen(page),
                 config,
             )
+            gameplay_started = True
             previous_digest: str | None = None
             previous_parse_error_digest: str | None = None
             loop = asyncio.get_running_loop()
@@ -467,6 +472,7 @@ async def run_training_observer(
             payload: dict[str, JsonValue] = {
                 "error_type": type(error).__name__,
                 "reason": str(error).splitlines()[0],
+                "phase": "gameplay" if gameplay_started else "setup",
             }
             store.append_event(run.run_id, EventKind.ERROR, payload)
             return store.finish_run(run.run_id, RunStatus.FAILED, outcome=payload)
@@ -500,11 +506,13 @@ async def run_training_campaign(
     settings: AppSettings,
     config: TrainingCampaignConfig,
 ) -> TrainingCampaignSummary:
-    """Play official Training computers until the game limit or first anomaly."""
+    """Play official Training computers until the game limit or first gameplay anomaly."""
 
     run_ids: list[str] = []
     outcomes = {"win": 0, "loss": 0, "draw": 0}
     games_completed = 0
+    setup_failures = 0
+    consecutive_setup_failures = 0
     while True:
         run = await run_training_observer(settings, config.game)
         run_ids.append(run.run_id)
@@ -518,6 +526,20 @@ async def run_training_campaign(
             outcome_reason=outcome_reason,
             games_started=len(run_ids),
         )
+        run_phase = run.outcome.get("phase") if run.outcome is not None else None
+        if run.status is RunStatus.FAILED and run_phase == "setup":
+            setup_failures += 1
+            consecutive_setup_failures += 1
+            if consecutive_setup_failures <= config.max_setup_retries:
+                log.warning(
+                    "training_campaign_setup_retry",
+                    run_id=run.run_id,
+                    consecutive_failures=consecutive_setup_failures,
+                    max_retries=config.max_setup_retries,
+                )
+                if config.restart_delay_seconds > 0:
+                    await asyncio.sleep(config.restart_delay_seconds)
+                continue
         if run.status is not RunStatus.COMPLETED:
             return TrainingCampaignSummary(
                 max_games=config.max_games,
@@ -526,10 +548,12 @@ async def run_training_campaign(
                 wins=outcomes["win"],
                 losses=outcomes["loss"],
                 draws=outcomes["draw"],
+                setup_failures=setup_failures,
                 run_ids=tuple(run_ids),
                 stop_reason=f"{run.status.value}:{outcome_reason}",
                 last_run_status=run.status,
             )
+        consecutive_setup_failures = 0
         result = run.outcome.get("result") if run.outcome is not None else None
         if not isinstance(result, str) or result not in outcomes:
             raise RunnerError("completed Training run has no classified result")
@@ -543,6 +567,7 @@ async def run_training_campaign(
                 wins=outcomes["win"],
                 losses=outcomes["loss"],
                 draws=outcomes["draw"],
+                setup_failures=setup_failures,
                 run_ids=tuple(run_ids),
                 stop_reason="game_limit",
                 last_run_status=run.status,

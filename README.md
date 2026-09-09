@@ -133,15 +133,19 @@ the server-side API. `play-training` therefore drives the official browser in
 headless mode by default while keeping policy inference, evidence storage, and
 campaign control in Python. It preserves one append-only run per game so every
 terminal reward remains a valid replay episode. `--max-games 0` continues
-through completed games and stops on the first aborted or failed run, making
-the first unsupported state easy to inspect:
+through completed games and stops on the first gameplay abort or failure,
+making the first unsupported state easy to inspect. Transient pre-game room
+failures are retried three times by default; use `--max-setup-retries` to
+change that bounded allowance:
 
 ```console
 PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot play-training \
   --headless \
   --max-games 0 \
+  --max-seconds 3600 \
   --max-actions 100 \
-  --no-progress-seconds 60
+  --no-progress-seconds 60 \
+  --max-setup-retries 3
 ```
 
 Use `--headed` to watch the official client. Each game is stored separately in

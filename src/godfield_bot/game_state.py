@@ -158,7 +158,7 @@ def _parse_action_artifact(observation: ScreenObservation) -> str | None:
         for image in observation.images
         if _item_coordinates(image) is not None
         and 100 <= image.bounds.x <= 450
-        and 80 <= image.bounds.y <= 250
+        and 80 <= image.bounds.y <= 380
         and 60 <= image.bounds.width <= 100
         and 60 <= image.bounds.height <= 100
         and image.hit_target_bounds is None

@@ -83,13 +83,28 @@ def test_committed_snapshot_matches_validated_live_catalog() -> None:
     assert "frozen-hammer" not in verified_attacks
     assert "flaming-roll" not in verified_attacks
     browser_attacks = verified_browser_weapon_attacks(snapshot)
-    assert len(browser_attacks) == 80
+    assert len(browser_attacks) == 107
     assert browser_attacks["torch"] == ("ATK1", 1.0)
     assert browser_attacks["sword-ware"] == ("ATK2", 2.0)
+    assert browser_attacks["saw-boom-boom"] == ("ATK3", 6.0)
+    assert browser_attacks["blowgun"] == ("ATK1", 1.0)
+    assert browser_attacks["sky-harpoon"] == ("ATK9", 9.0)
     assert browser_attacks["shadow-hand"] == ("50%ATK2", 1.0)
     assert browser_attacks["spark-bag"] == ("75%ATK1", 0.75)
-    assert "wand-of-ignition" not in browser_attacks
-    assert "ascension-bow" not in browser_attacks
+    assert browser_attacks["magical-stick"] == (
+        "ATK{2\N{MULTIPLICATION SIGN}MP}",
+        2.0,
+    )
+    assert browser_attacks["spiritual-staff"] == ("ATK12", 12.0)
+    assert browser_attacks["evil-broadsword"] == ("ATK14", 14.0)
+    assert browser_attacks["wand-of-ignition"] == ("ATK2", 2.0)
+    assert browser_attacks["wand-of-mystic-water"] == ("ATK5", 5.0)
+    assert browser_attacks["dangerous-pestle"] == ("ATK30", 30.0)
+    assert browser_attacks["ascension-bow"] == (
+        "25%ATK1",
+        0.25,
+        ("75%ATK30",),
+    )
     frozen_hammer = next(
         artifact
         for artifact in snapshot.catalog["weapons"].items

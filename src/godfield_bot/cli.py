@@ -653,6 +653,14 @@ def play_official_training_computers(
         float,
         typer.Option(min=0.0, max=60.0, help="Delay between completed Training games."),
     ] = 2.0,
+    max_setup_retries: Annotated[
+        int,
+        typer.Option(
+            min=0,
+            max=100,
+            help="Consecutive pre-game failures tolerated before stopping.",
+        ),
+    ] = 3,
     screenshot_directory: Annotated[
         Path | None,
         typer.Option(help="Optional owner-only screenshots for changed game states."),
@@ -690,6 +698,7 @@ def play_official_training_computers(
                     ),
                     max_games=max_games,
                     restart_delay_seconds=restart_delay_seconds,
+                    max_setup_retries=max_setup_retries,
                 ),
             )
         )

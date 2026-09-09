@@ -161,6 +161,29 @@ def test_selected_action_artifact_is_separate_from_the_hand() -> None:
     assert state.action_hit_target_bounds == bounds(115, 93, 310, 300)
 
 
+def test_low_action_artifact_is_not_lost_below_a_large_guardian() -> None:
+    initial = game_observation()
+    observation = initial.model_copy(
+        update={
+            "images": (
+                *initial.images,
+                VisibleImage(
+                    path="/images/guardians/large/uranus.webp",
+                    bounds=bounds(120, 93, 300, 300),
+                ),
+                VisibleImage(
+                    path="/images/items/guardians/blessing.webp",
+                    bounds=bounds(125, 303, 80, 80),
+                ),
+            )
+        }
+    )
+
+    state = parse_game_state(observation, identity="ロキ-67")
+
+    assert state.action_artifact_asset_path == "/images/items/guardians/blessing.webp"
+
+
 def test_selected_phase_artifact_is_separate_from_the_hand() -> None:
     initial = game_observation()
     observation = initial.model_copy(

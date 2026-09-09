@@ -18,6 +18,7 @@ from godfield_bot.domain.reference import (
 )
 from godfield_bot.domain.reference_diff import ArtifactDelta, BibleDiff, TextDelta
 from godfield_bot.elements import ELEMENT_IMAGE_PATHS, CombatElement
+from godfield_bot.weapon_rules import DYNAMIC_MP_ATTACK_PATTERN, WeaponAttackRule
 
 log = structlog.get_logger()
 
@@ -56,6 +57,7 @@ PLAIN_DEFENSE_PATTERN = re.compile(r"^DEF(\d+)$")
 VERIFIED_PASSIVE_ATTACK_EFFECTS = frozenset(
     {
         "Bounce a NE weapon",
+        "Bounce a miracle",
         "Reflect a NE weapon",
         "Reflect a miracle",
         "Block a miracle",
@@ -72,6 +74,18 @@ VERIFIED_AUTOMATIC_ATTACK_EFFECTS = frozenset(
         "Fog on damage",
     }
 )
+VERIFIED_BROWSER_AUTOMATIC_ATTACK_EFFECTS = frozenset(
+    {
+        "Attack somebody",
+        "Do a miracle w/o cost",
+        "Get the same damage",
+        "Set Fire element",
+        "Set Water element",
+    }
+)
+VERIFIED_BROWSER_ATTACK_EFFECT_MULTIPLIERS = {
+    "Attack twice": 2.0,
+}
 
 
 class ReferenceExtractionError(BrowserContractError):
@@ -416,30 +430,45 @@ def verified_attack_weapon_values(snapshot: BibleSnapshot) -> dict[str, int]:
     return result
 
 
-def verified_browser_weapon_attacks(snapshot: BibleSnapshot) -> dict[str, tuple[str, float]]:
+def verified_browser_weapon_attacks(snapshot: BibleSnapshot) -> dict[str, WeaponAttackRule]:
     """Return one-click weapon attacks with an exact UI display and expected damage.
 
     Browser confirmation is guarded by both the selected artifact asset and the exact
-    rendered attack expression. Single-element attacks and probabilistic attacks need
-    no additional player choice, so they are safe to execute even though the native
-    simulator currently models only a smaller deterministic subset.
+    rendered attack expression. Single-element attacks, additive weapons used alone,
+    probabilistic attacks, and audited automatic effects need no additional player
+    choice, so they are safe to execute even though the native simulator currently
+    models only a smaller deterministic subset.
     """
 
-    result: dict[str, tuple[str, float]] = {}
-    allowed_effects = VERIFIED_PASSIVE_ATTACK_EFFECTS | VERIFIED_AUTOMATIC_ATTACK_EFFECTS
+    result: dict[str, WeaponAttackRule] = {}
+    allowed_effects = (
+        VERIFIED_PASSIVE_ATTACK_EFFECTS
+        | VERIFIED_AUTOMATIC_ATTACK_EFFECTS
+        | VERIFIED_BROWSER_AUTOMATIC_ATTACK_EFFECTS
+        | VERIFIED_BROWSER_ATTACK_EFFECT_MULTIPLIERS.keys()
+    )
     for artifact in snapshot.catalog["weapons"].items:
         if _combat_element(artifact) is None:
             continue
         attack_text = artifact.detail[1]
         fixed = PLAIN_ATTACK_PATTERN.fullmatch(attack_text)
+        additive = PLAIN_ATTACK_BOOST_PATTERN.fullmatch(attack_text)
         probabilistic = PROBABILISTIC_ATTACK_PATTERN.fullmatch(attack_text)
-        if fixed is None and probabilistic is None:
+        dynamic_mp = DYNAMIC_MP_ATTACK_PATTERN.fullmatch(attack_text)
+        ascension = (
+            re.fullmatch(r"(\d+)%ATK(\d+) at Ascension", artifact.detail[2])
+            if probabilistic is not None and len(artifact.detail) == 5
+            else None
+        )
+        if fixed is None and additive is None and probabilistic is None and dynamic_mp is None:
             continue
         if len(artifact.detail) == 4:
             price_index = 2
         elif len(artifact.detail) == 5 and (
             artifact.detail[2] in allowed_effects
             or PLAIN_DEFENSE_PATTERN.fullmatch(artifact.detail[2]) is not None
+            or (dynamic_mp is not None and artifact.detail[2] == "Consume all the MP")
+            or ascension is not None
         ):
             price_index = 3
         else:
@@ -451,12 +480,33 @@ def verified_browser_weapon_attacks(snapshot: BibleSnapshot) -> dict[str, tuple[
             continue
         if fixed is not None:
             expected_damage = float(fixed.group(1))
+            action_display = attack_text
+        elif additive is not None:
+            expected_damage = float(additive.group(1))
+            action_display = f"ATK{additive.group(1)}"
+        elif dynamic_mp is not None:
+            # This coefficient is resolved against live MP by the heuristic.
+            expected_damage = float(dynamic_mp.group(1))
+            action_display = attack_text
         else:
             assert probabilistic is not None
             expected_damage = (
                 int(probabilistic.group(1)) * int(probabilistic.group(2)) / 100.0
             )
-        result[artifact.asset] = (attack_text, expected_damage)
+            action_display = attack_text
+        if len(artifact.detail) == 5:
+            expected_damage *= VERIFIED_BROWSER_ATTACK_EFFECT_MULTIPLIERS.get(
+                artifact.detail[2],
+                1.0,
+            )
+        if ascension is not None:
+            result[artifact.asset] = (
+                action_display,
+                expected_damage,
+                (f"{ascension.group(1)}%ATK{ascension.group(2)}",),
+            )
+        else:
+            result[artifact.asset] = (action_display, expected_damage)
     return result
 
 

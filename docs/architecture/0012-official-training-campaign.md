@@ -26,21 +26,27 @@ the browser client.
 
 `--max-games 0` means no completed-game limit. A classified terminal game is
 counted and followed by another isolated game after a configurable delay. The
-campaign stops on the first aborted or failed game and returns a nonzero status;
-it does not restart an unsupported state indefinitely. The summary includes
-the ordered run IDs, completed-game count, and win/loss/draw totals.
+campaign stops on the first gameplay abort or failure and returns a nonzero
+status; it does not restart an unsupported state indefinitely. Pre-game setup
+failures can be transient, so they receive a separate bounded retry allowance
+and remain recorded as failed runs. The summary includes the ordered run IDs,
+setup-failure count, completed-game count, and win/loss/draw totals.
 
 Per-game wall-clock, no-progress, browser-click, room-entry, and client-hash
 checks remain mandatory. Public Duel remains disabled.
 
-The browser action surface admits Bible-audited one-click weapons with an exact
-rendered attack expression and expected-damage score, affordable fixed-damage
-miracles, neutral plain armor, and verified Forgive controls. Probabilistic
-weapons have a distinct untargeted chance-resolution action because the client
-does not name a target until that phase resolves. That action shares the
-existing neural confirmation index: the chance and targeted confirmation
-controls cannot coexist in one legal set, so the model output dimension does
-not change. Empty Prayer is legal only when no weapon is present in the hand.
+The browser action surface admits all 107 Bible-audited one-click weapons with
+an exact rendered attack expression and state-aware expected-damage score,
+affordable fixed-damage miracles, neutral plain armor, and verified Forgive
+controls. This browser-only expansion includes additive attacks used alone,
+MP-scaled attacks, automatic side effects, repeated attacks, random targets,
+and the alternate Ascension display; it does not enlarge the stricter native
+simulator curriculum. Probabilistic and random-target weapons have a distinct
+untargeted resolution action because the client does not name a target until
+that phase resolves. That action shares the existing neural confirmation
+index: untargeted and targeted confirmation controls cannot coexist in one
+legal set, so the model output dimension does not change. Empty Prayer is legal
+only when no weapon is present in the hand.
 
 ## Consequences
 
@@ -70,3 +76,10 @@ exact reflected artifact, displayed attack, and left-panel hit target.
 Run `7d1d9c27-da9f-437b-b38e-01d1f5f2200f` then completed normally and was
 classified as a loss after exercising an accepted probabilistic attack and
 multiple accepted weapon-free Prayers.
+
+On 2026-09-09, a five-game campaign completed with five classified terminal
+outcomes, two wins, three losses, and zero setup failures. It directly exercised
+the MP-scaled Magical Stick path and the newly admitted Evil Broadsword and Saw
+Boom Boom effects without a stall. The campaign also exposed and fixed action
+artifacts rendered below large guardians and now retries transient pre-game
+room failures within the configured bounded allowance.

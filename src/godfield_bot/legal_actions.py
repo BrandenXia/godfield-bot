@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from godfield_bot.domain.action import ActionKind, LegalAction, LegalActionSet
 from godfield_bot.domain.game import GameState
 from godfield_bot.domain.observation import ScreenKind, ScreenObservation
+from godfield_bot.weapon_rules import WeaponAttackRule, resolved_weapon_attack_displays
 
 NEUTRAL_TEXT_COLOR = "rgb(79, 79, 79)"
 WEAPON_ASSET_PATTERN = re.compile(r"^/images/items/weapons/([^/]+)\.(?:png|svg|webp)$")
@@ -12,6 +13,7 @@ MIRACLE_ASSET_PATTERN = re.compile(r"^/images/items/miracles/([^/]+)\.(?:png|svg
 ARMOR_ASSET_PATTERN = re.compile(r"^/images/items/armor/([^/]+)\.(?:png|svg|webp)$")
 ITEM_ASSET_PATTERN = re.compile(r"^/images/items/[^/]+/[^/]+\.(?:png|svg|webp)$")
 PROBABILISTIC_ATTACK_PATTERN = re.compile(r"^\d+%ATK(\d+)$")
+VERIFIED_RANDOM_TARGET_WEAPONS = frozenset({"dangerous-pestle"})
 
 
 def game_state_digest(state: GameState) -> str:
@@ -40,7 +42,7 @@ def verified_browser_actions(
     state: GameState,
     observation: ScreenObservation,
     *,
-    verified_weapon_attacks: Mapping[str, tuple[str, float]] | None = None,
+    verified_weapon_attacks: Mapping[str, WeaponAttackRule] | None = None,
     verified_miracle_attacks: Mapping[str, tuple[int, int, str]] | None = None,
     plain_armor_defenses: Mapping[str, int] | None = None,
 ) -> LegalActionSet:
@@ -61,7 +63,7 @@ def verified_browser_actions(
         for image in observation.images
         if ITEM_ASSET_PATTERN.fullmatch(image.path) is not None
         and 100 <= image.bounds.x <= 450
-        and 80 <= image.bounds.y <= 300
+        and 80 <= image.bounds.y <= 380
         and 60 <= image.bounds.width <= 100
         and 60 <= image.bounds.height <= 100
         and image.hit_target_bounds is None
@@ -142,7 +144,10 @@ def verified_browser_actions(
     )
     selected_attack_displays: tuple[str, ...] = ()
     if selected_weapon_rule is not None:
-        selected_attack_displays = (selected_weapon_rule[0],)
+        selected_attack_displays = resolved_weapon_attack_displays(
+            selected_weapon_rule,
+            mp=self_player.mp,
+        )
         chance = PROBABILISTIC_ATTACK_PATTERN.fullmatch(selected_weapon_rule[0])
         if chance is not None:
             selected_attack_displays += (f"ATK{chance.group(1)}",)
@@ -166,14 +171,17 @@ def verified_browser_actions(
         and state.action_display in selected_attack_displays
         and state.action_hit_target_bounds is not None
     )
-    self_chance_confirmation = (
+    self_untargeted_attack_confirmation = (
         len(living_opponents) == 1
         and state.action_actor == self_player.name
         and state.action_target is None
         and selected_weapon is not None
         and selected_weapon_rule is not None
-        and PROBABILISTIC_ATTACK_PATTERN.fullmatch(selected_weapon_rule[0]) is not None
-        and state.action_display == selected_weapon_rule[0]
+        and (
+            PROBABILISTIC_ATTACK_PATTERN.fullmatch(selected_weapon_rule[0]) is not None
+            or selected_weapon.group(1) in VERIFIED_RANDOM_TARGET_WEAPONS
+        )
+        and state.action_display in selected_attack_displays
         and state.action_hit_target_bounds is not None
     )
     self_plain_armor_confirmation = (
@@ -250,13 +258,15 @@ def verified_browser_actions(
                 control_panel="left",
             )
         )
-    if self_chance_confirmation and selected_weapon is not None:
+    if self_untargeted_attack_confirmation and selected_weapon is not None:
         slug = selected_weapon.group(1)
+        assert selected_weapon_rule is not None
+        chance_attack = PROBABILISTIC_ATTACK_PATTERN.fullmatch(selected_weapon_rule[0]) is not None
         actions.append(
             LegalAction(
-                action_id=f"confirm:chance:{slug}",
+                action_id=f"confirm:{'chance' if chance_attack else 'untargeted'}:{slug}",
                 kind=ActionKind.CONFIRM_CHANCE,
-                label=f"Resolve the selected chance attack {slug}",
+                label=f"Resolve the selected untargeted attack {slug}",
                 artifact_asset_path=state.action_artifact_asset_path,
                 actor_player_name=self_player.name,
                 expected_action_display=state.action_display,

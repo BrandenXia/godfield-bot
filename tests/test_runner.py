@@ -98,10 +98,13 @@ def training_run(
     status: RunStatus,
     reason: str,
     result: str | None = None,
+    phase: str | None = None,
 ) -> RunRecord:
     outcome: dict[str, object] = {"reason": reason}
     if result is not None:
         outcome["result"] = result
+    if phase is not None:
+        outcome["phase"] = phase
     return RunRecord(
         run_id=run_id,
         started_at=datetime.now(UTC),
@@ -190,3 +193,62 @@ def test_unlimited_training_campaign_stops_on_first_anomaly(monkeypatch) -> None
     assert summary.games_completed == 1
     assert summary.draws == 1
     assert summary.last_run_status is RunStatus.ABORTED
+
+
+def test_training_campaign_retries_transient_setup_failure(monkeypatch) -> None:
+    runs = iter(
+        [
+            training_run(
+                "run-setup-timeout",
+                status=RunStatus.FAILED,
+                reason="room timeout",
+                phase="setup",
+            ),
+            training_run(
+                "run-win",
+                status=RunStatus.COMPLETED,
+                reason="classified_terminal",
+                result="win",
+            ),
+        ]
+    )
+
+    async def fake_run(*args, **kwargs):
+        return next(runs)
+
+    monkeypatch.setattr("godfield_bot.runner.run_training_observer", fake_run)
+
+    summary = asyncio.run(run_training_campaign(AppSettings(), campaign_config(max_games=1)))
+
+    assert summary.stop_reason == "game_limit"
+    assert summary.games_started == 2
+    assert summary.games_completed == 1
+    assert summary.setup_failures == 1
+    assert summary.wins == 1
+    assert summary.run_ids == ("run-setup-timeout", "run-win")
+
+
+def test_training_campaign_stops_after_setup_retry_budget(monkeypatch) -> None:
+    runs = iter(
+        training_run(
+            f"run-setup-timeout-{index}",
+            status=RunStatus.FAILED,
+            reason="room timeout",
+            phase="setup",
+        )
+        for index in range(3)
+    )
+
+    async def fake_run(*args, **kwargs):
+        return next(runs)
+
+    monkeypatch.setattr("godfield_bot.runner.run_training_observer", fake_run)
+    config = campaign_config(max_games=1).model_copy(update={"max_setup_retries": 2})
+
+    summary = asyncio.run(run_training_campaign(AppSettings(), config))
+
+    assert summary.stop_reason == "failed:room timeout"
+    assert summary.games_started == 3
+    assert summary.games_completed == 0
+    assert summary.setup_failures == 3
+    assert summary.last_run_status is RunStatus.FAILED

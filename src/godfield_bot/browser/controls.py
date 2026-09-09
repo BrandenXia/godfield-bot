@@ -322,7 +322,7 @@ async def click_phase_control(
                 if (!rendered(element)) return false;
                 const rect = element.getBoundingClientRect();
                 return rect.x >= assetMinX && rect.x <= assetMaxX &&
-                  rect.y >= 80 && rect.y <= 300 &&
+                  rect.y >= 80 && rect.y <= 380 &&
                   rect.width >= 60 && rect.width <= 100 &&
                   rect.height >= 60 && rect.height <= 100;
               });

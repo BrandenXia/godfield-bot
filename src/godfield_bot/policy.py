@@ -4,6 +4,7 @@ from typing import Protocol
 
 from godfield_bot.domain.action import ActionKind, LegalAction, LegalActionSet, PolicyDecision
 from godfield_bot.domain.game import GameState
+from godfield_bot.weapon_rules import WeaponAttackRule, weapon_attack_value
 
 
 class Policy(Protocol):
@@ -43,7 +44,7 @@ class HeuristicV0Policy:
 
     def __init__(
         self,
-        verified_weapon_attacks: Mapping[str, tuple[str, float]],
+        verified_weapon_attacks: Mapping[str, WeaponAttackRule],
         plain_armor_defenses: Mapping[str, int],
         verified_miracle_attacks: Mapping[str, tuple[int, int, str]] | None = None,
     ) -> None:
@@ -116,7 +117,10 @@ class HeuristicV0Policy:
                 raise ValueError("ranked artifact action is missing its slot")
             artifact = state.hand[action.artifact_slot]
             if artifact.category == "weapons":
-                value = self.verified_weapon_attacks[artifact.slug][1]
+                value = weapon_attack_value(
+                    self.verified_weapon_attacks[artifact.slug],
+                    mp=state.players[state.self_player_index].mp,
+                )
             elif artifact.category == "miracles":
                 value = self.verified_miracle_attacks[artifact.slug][0]
             else:

@@ -63,7 +63,7 @@ class ApiRuntimeError(RuntimeError):
 class ApiPolicyName(StrEnum):
     OBSERVER = "api-observer-v0"
     HEURISTIC = "api-heuristic-v0"
-    TACTICAL_HEURISTIC = "api-combo-utility-heuristic-v3"
+    TACTICAL_HEURISTIC = "api-combo-utility-heuristic-v4"
     NEURAL_SHADOW = "api-combo-neural-shadow-v1"
 
 
@@ -470,6 +470,7 @@ def _decide_tactical_api_action(
         ]
         heals = [action for action in candidates if action_items(action)[0].ability == "boostHP"]
         mana = [action for action in candidates if action_items(action)[0].ability == "boostMP"]
+        capital = [action for action in candidates if action_items(action)[0].ability == "boostCP"]
         curse_attacks = [
             action for action in candidates if action_items(action)[0].ability == "addCurse"
         ]
@@ -550,6 +551,8 @@ def _decide_tactical_api_action(
                 ),
             )
             rationale = "use a Bible-verified chance attack rather than stall"
+        elif (chosen := best_utility(capital)) is not None:
+            rationale = "gain verified CP rather than stall"
         elif armor_sales:
             chosen = min(
                 armor_sales,

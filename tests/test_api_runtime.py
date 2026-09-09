@@ -688,6 +688,84 @@ def test_latest_live_cursed_chance_miracle_dead_end_has_verified_escape() -> Non
     assert decision.executable is True
 
 
+def test_latest_live_cursed_cp_miracle_dead_end_has_verified_escape() -> None:
+    api_snapshot = read_api_catalog_snapshot(
+        Path("data/snapshots/2026-09-09/api-catalog-en.json")
+    )
+    bible = BibleSnapshot.model_validate_json(
+        Path("data/snapshots/2026-09-07/bible.json").read_text(encoding="utf-8")
+    )
+    displayed_items = (
+        (1, 208),
+        (3, 143),
+        (4, 147),
+        (5, 16),
+        (6, 35),
+        (7, 10),
+        (8, 26),
+        (9, 196),
+    )
+    room = RoomState(
+        {
+            "game": {
+                "players": [
+                    {
+                        "id": 1,
+                        "userId": "loki-user",
+                        "name": "ロキ-67",
+                        "hp": 39,
+                        "mp": 10,
+                        "cp": 20,
+                        "curses": ["dream"],
+                        "items": [
+                            *(
+                                {"id": instance_id, "modelId": model_id, "fakeModelId": model_id}
+                                for instance_id, model_id in displayed_items
+                            ),
+                            {"id": 2, "modelId": 236},
+                        ],
+                    },
+                    {
+                        "id": 2,
+                        "userId": "opponent-user",
+                        "name": "Opponent",
+                        "hp": 35,
+                        "mp": 10,
+                        "cp": 20,
+                        "items": [],
+                    },
+                ],
+                "attackTurnPlayerId": 1,
+                "attacks": [],
+                "gf": 3,
+                "updateCount": 16,
+                "isOver": False,
+            }
+        },
+        item_catalog_from_snapshot(api_snapshot),
+    )
+    state = normalize_api_game_state(room, user_id="loki-user")
+    legal_actions = verified_api_tactical_actions(
+        room,
+        user_id="loki-user",
+        bible_snapshot=bible,
+    )
+
+    decision, chosen = decide_api_action(
+        ApiPolicyName.TACTICAL_HEURISTIC,
+        state,
+        legal_actions,
+    )
+
+    assert sum(item.identity_reliable for item in state.hand) == 1
+    assert chosen is not None
+    assert chosen.action_id == "cp-utility:boostCP:2:236"
+    assert chosen.target_player_id is None
+    assert command_for_api_action(chosen).to_dict() == {"itemIds": [2]}
+    assert decision.rationale == "gain verified CP rather than stall"
+    assert decision.executable is True
+
+
 def empty_lobby() -> RoomState:
     return RoomState(
         {

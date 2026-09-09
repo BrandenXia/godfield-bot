@@ -621,6 +621,7 @@ def verified_api_tactical_actions(
     from godfield_bot.reference import (
         plain_defense_armor_cards,
         verified_chance_attack_miracle_cards,
+        verified_cp_utility_miracle_cards,
     )
 
     combo_actions = verified_api_combo_actions(
@@ -643,6 +644,7 @@ def verified_api_tactical_actions(
         sellable_armor: list[tuple[Any, int, int]] = []
         plain_armor = plain_defense_armor_cards(bible_snapshot)
         chance_attack_miracles = verified_chance_attack_miracle_cards(bible_snapshot)
+        cp_utility_miracles = verified_cp_utility_miracle_cards(bible_snapshot)
         for item in me.usable_items():
             instance_id = _optional_positive_int(item.id, "item instance ID")
             model_id = _optional_positive_int(item.model_id, "item model ID")
@@ -692,6 +694,26 @@ def verified_api_tactical_actions(
                     existing_action_ids.add(action.action_id)
             elif (
                 model.category == "miracles"
+                and model.ability == "boostCP"
+                and not model.needs_target
+            ):
+                cp_expected = (
+                    cp_utility_miracles.get(asset) if isinstance(asset, str) else None
+                )
+                if cp_expected != (model.ability_value, model.cost):
+                    continue
+                action = ApiLegalAction(
+                    action_id=f"cp-utility:{model.ability}:{instance_id}:{model_id}",
+                    kind=ApiActionKind.USE_ITEM,
+                    label=f"Use {item.name or f'model {model_id}'}",
+                    item_instance_ids=(instance_id,),
+                    item_model_ids=(model_id,),
+                )
+                if action.action_id not in existing_action_ids:
+                    actions.append(action)
+                    existing_action_ids.add(action.action_id)
+            elif (
+                model.category == "miracles"
                 and model.ability is None
                 and model.atk > 0
                 and not model.is_plus_atk
@@ -700,8 +722,10 @@ def verified_api_tactical_actions(
                     targets = game.opponents_of(me)
                     action_prefix = "miracle-attack"
                 else:
-                    expected = chance_attack_miracles.get(asset) if isinstance(asset, str) else None
-                    if expected != (
+                    chance_expected = (
+                        chance_attack_miracles.get(asset) if isinstance(asset, str) else None
+                    )
+                    if chance_expected != (
                         model.hit_rate,
                         model.atk,
                         model.cost,
@@ -774,7 +798,7 @@ def verified_api_tactical_actions(
         coverage_complete=False,
         blocked_reason=(
             "the tactical surface includes verified single cards, strict plain combinations, "
-            "deterministic HP/MP utility, targeted fixed-damage miracles, Bible-verified "
+            "deterministic HP/MP/CP utility, targeted fixed-damage miracles, Bible-verified "
             "untargeted chance miracles, and targeted curse miracles, plus Sell paired with "
             "verified plain armor; other random effects, trades, purchase acceptance, and "
             "unmodeled choices remain excluded"

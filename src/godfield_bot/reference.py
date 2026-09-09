@@ -56,6 +56,7 @@ PROBABILISTIC_ATTACK_PATTERN = re.compile(r"^(\d+)%ATK(\d+)$")
 PLAIN_DEFENSE_PATTERN = re.compile(r"^DEF(\d+)$")
 HP_UTILITY_PATTERN = re.compile(r"^HP\+(\d+)$")
 MP_UTILITY_PATTERN = re.compile(r"^MP\+(\d+)$")
+CP_UTILITY_PATTERN = re.compile(r"^\$\+(\d+)$")
 VERIFIED_PASSIVE_ATTACK_EFFECTS = frozenset(
     {
         "Bounce a NE weapon",
@@ -613,6 +614,30 @@ def verified_hp_utility_miracle_cards(
         if artifact.element_image_paths or len(artifact.detail) != 5:
             continue
         utility = HP_UTILITY_PATTERN.fullmatch(artifact.detail[1])
+        cost = re.fullmatch(r"(\d+)MP", artifact.detail[3])
+        if (
+            utility is not None
+            and artifact.detail[2] == "Cost"
+            and cost is not None
+            and artifact.detail[4].startswith("Gift Rate:")
+        ):
+            result[artifact.asset] = (int(utility.group(1)), int(cost.group(1)))
+    return result
+
+
+def verified_cp_utility_miracle_cards(
+    snapshot: BibleSnapshot,
+) -> dict[str, tuple[int, int]]:
+    """Return unconditional CP miracles with an exact MP cost."""
+
+    miracles = snapshot.catalog.get("miracles")
+    if miracles is None:
+        return {}
+    result: dict[str, tuple[int, int]] = {}
+    for artifact in miracles.items:
+        if artifact.element_image_paths or len(artifact.detail) != 5:
+            continue
+        utility = CP_UTILITY_PATTERN.fullmatch(artifact.detail[1])
         cost = re.fullmatch(r"(\d+)MP", artifact.detail[3])
         if (
             utility is not None

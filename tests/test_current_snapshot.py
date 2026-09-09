@@ -15,6 +15,7 @@ from godfield_bot.reference import (
     verified_attack_weapon_values,
     verified_browser_weapon_attacks,
     verified_chance_attack_miracle_cards,
+    verified_cp_utility_miracle_cards,
     verified_hp_utility_miracle_cards,
 )
 
@@ -127,6 +128,7 @@ def test_committed_snapshot_matches_validated_live_catalog() -> None:
     assert chance_miracles["smoke"] == (75, 5, 4, "fire")
     assert chance_miracles["thunder"] == (25, 10, 4, "light")
     assert "flash" not in chance_miracles
+    assert verified_cp_utility_miracle_cards(snapshot) == {"treasure": (10, 5)}
     assert plain_hp_utility_sundries(snapshot) == {
         "smile-dew": 5,
         "heart-dew": 10,

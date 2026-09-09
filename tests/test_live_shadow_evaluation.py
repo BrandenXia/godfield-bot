@@ -487,9 +487,9 @@ def test_live_shadow_gate_persists_reproducible_non_promoting_report(tmp_path: P
         report_path.read_text(encoding="utf-8")
     )
     assert reloaded == stored.report
-    assert stored.report.schema_version == 3
-    assert stored.report.gate_id == "live-resource-shadow-readiness-v3"
-    assert stored.report.behavior_policy_id == "api-combo-utility-heuristic-v3"
+    assert stored.report.schema_version == 4
+    assert stored.report.gate_id == "live-resource-shadow-readiness-v4"
+    assert stored.report.behavior_policy_id == "api-combo-utility-heuristic-v4"
     assert stored.report.passed is True
     assert stored.report.ready_for_controlled_trial is True
     assert stored.report.promotion_eligible is False

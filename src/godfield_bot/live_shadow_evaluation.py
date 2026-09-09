@@ -33,7 +33,7 @@ from godfield_bot.simulation_evaluation import (
 )
 from godfield_bot.simulation_policy import RESOURCE_HEURISTIC_POLICY_ID
 
-LIVE_RESOURCE_SHADOW_GATE_ID: Final = "live-resource-shadow-readiness-v3"
+LIVE_RESOURCE_SHADOW_GATE_ID: Final = "live-resource-shadow-readiness-v4"
 RESOURCE_KINDS: Final = ("hp-sundry", "mp-sundry", "attack-miracle", "hp-miracle")
 
 
@@ -96,15 +96,15 @@ class LiveShadowMetrics(BaseModel):
 
 
 class LiveShadowEvaluationReport(BaseModel):
-    schema_version: Literal[3] = 3
+    schema_version: Literal[4] = 4
     evaluation_id: str
-    gate_id: Literal["live-resource-shadow-readiness-v3"] = LIVE_RESOURCE_SHADOW_GATE_ID
+    gate_id: Literal["live-resource-shadow-readiness-v4"] = LIVE_RESOURCE_SHADOW_GATE_ID
     created_at: datetime
     candidate_model_id: str
     candidate_weights_sha256: str
     shadow_policy_id: Literal["api-resource-neural-shadow-v2"] = "api-resource-neural-shadow-v2"
-    behavior_policy_id: Literal["api-combo-utility-heuristic-v3"] = (
-        "api-combo-utility-heuristic-v3"
+    behavior_policy_id: Literal["api-combo-utility-heuristic-v4"] = (
+        "api-combo-utility-heuristic-v4"
     )
     feature_schema_version: Literal[5] = 5
     native_evaluation_id: str
@@ -388,7 +388,7 @@ def _evidence_digest(
 ) -> str:
     digest = hashlib.sha256()
     header = {
-        "schema_version": 3,
+        "schema_version": 4,
         "gate_id": LIVE_RESOURCE_SHADOW_GATE_ID,
         "model_id": model_id,
         "weights_sha256": weights_sha256,

@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 from godfield_bot.api_game import (
     ApiActionKind,
     ApiGameState,
+    ApiItemState,
     ApiLegalAction,
     ApiLegalActionSet,
     ApiPhase,
@@ -22,6 +23,7 @@ from godfield_bot.elements import COMBAT_ELEMENT_IDS, COMBAT_ELEMENTS, CombatEle
 from godfield_bot.features import (
     FEATURE_SCHEMA_VERSION,
     GLOBAL_FEATURE_COUNT,
+    RESOURCE_FEATURE_SCHEMA_VERSION,
     ArtifactVocabulary,
     StateFeatures,
 )
@@ -36,11 +38,19 @@ from godfield_bot.reference import (
     plain_attack_booster_cards,
     plain_attack_weapon_cards,
     plain_defense_armor_cards,
+    plain_hp_utility_sundries,
+    plain_mp_utility_sundries,
+    verified_attack_miracle_cards,
+    verified_hp_utility_miracle_cards,
 )
 from godfield_bot.simulation_policy import CONFIRM_ACTION_INDEX, FORGIVE_ACTION_INDEX
 
 API_COMBO_SHADOW_POLICY_ID = "api-combo-neural-shadow-v1"
+API_RESOURCE_SHADOW_POLICY_ID = "api-resource-neural-shadow-v2"
 COMBO_RULESET_ID = "plain-elemental-combo-attack-defense-redraw-duel-v1"
+RESOURCE_RULESET_ID = (
+    "plain-elemental-combo-resource-miracle-attack-defense-redraw-duel-v1"
+)
 MAX_HAND_SLOTS = 9
 MAX_PLAYERS = 9
 
@@ -74,8 +84,13 @@ def _validate_shadow_model(
 ) -> None:
     if manifest.status not in {ModelStatus.CANDIDATE, ModelStatus.CHAMPION}:
         raise ApiNeuralPolicyError("live shadow inference requires a candidate or champion model")
-    if manifest.feature_schema_version != FEATURE_SCHEMA_VERSION:
-        raise ApiNeuralPolicyError("live combo inference requires feature schema v4")
+    supported_rulesets = {
+        FEATURE_SCHEMA_VERSION: COMBO_RULESET_ID,
+        RESOURCE_FEATURE_SCHEMA_VERSION: RESOURCE_RULESET_ID,
+    }
+    expected_ruleset = supported_rulesets.get(manifest.feature_schema_version)
+    if expected_ruleset is None:
+        raise ApiNeuralPolicyError("live inference requires feature schema v4 or v5")
     if (
         manifest.architecture.action_count != 21
         or manifest.architecture.global_feature_count != GLOBAL_FEATURE_COUNT
@@ -88,31 +103,60 @@ def _validate_shadow_model(
         raise ApiNeuralPolicyError("model vocabulary differs from the Bible snapshot")
     simulation = manifest.training_context.get("simulation")
     if not isinstance(simulation, dict) or (
-        simulation.get("ruleset_id") != COMBO_RULESET_ID
+        simulation.get("ruleset_id") != expected_ruleset
         or simulation.get("action_semantics") != "sequential-combo-selection"
     ):
-        raise ApiNeuralPolicyError("model was not trained on the live combo action semantics")
+        raise ApiNeuralPolicyError(
+            "model was not trained on the matching live combo action semantics"
+        )
 
 
 @dataclass
 class ApiComboShadowPolicy:
-    """Translate one live state into an observable, non-executable combo proposal."""
+    """Translate one live state into an observable, non-executable learned proposal."""
 
     manifest: ModelManifest
     model: RecurrentPolicyValueNet
     vocabulary: ArtifactVocabulary
     snapshot: BibleSnapshot
     recurrent_state: Tensor | None = None
-    _base_assets: set[str] = field(init=False, repr=False)
-    _booster_assets: set[str] = field(init=False, repr=False)
-    _armor_assets: set[str] = field(init=False, repr=False)
+    _base_cards: dict[str, tuple[int, CombatElement]] = field(init=False, repr=False)
+    _booster_cards: dict[str, tuple[int, CombatElement]] = field(init=False, repr=False)
+    _armor_cards: dict[str, tuple[int, CombatElement]] = field(init=False, repr=False)
+    _hp_utilities: dict[str, int] = field(init=False, repr=False)
+    _mp_utilities: dict[str, int] = field(init=False, repr=False)
+    _attack_miracles: dict[str, tuple[int, int, CombatElement]] = field(
+        init=False,
+        repr=False,
+    )
+    _hp_miracles: dict[str, tuple[int, int]] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         _validate_shadow_model(self.manifest, self.vocabulary, self.snapshot)
         self.model.eval()
-        self._base_assets = set(plain_attack_weapon_cards(self.snapshot))
-        self._booster_assets = set(plain_attack_booster_cards(self.snapshot))
-        self._armor_assets = set(plain_defense_armor_cards(self.snapshot))
+        self._base_cards = plain_attack_weapon_cards(self.snapshot)
+        self._booster_cards = plain_attack_booster_cards(self.snapshot)
+        self._armor_cards = plain_defense_armor_cards(self.snapshot)
+        if self.resource_enabled:
+            self._hp_utilities = plain_hp_utility_sundries(self.snapshot)
+            self._mp_utilities = plain_mp_utility_sundries(self.snapshot)
+            self._attack_miracles = verified_attack_miracle_cards(self.snapshot)
+            self._hp_miracles = verified_hp_utility_miracle_cards(self.snapshot)
+        else:
+            self._hp_utilities = {}
+            self._mp_utilities = {}
+            self._attack_miracles = {}
+            self._hp_miracles = {}
+
+    @property
+    def policy_id(self) -> str:
+        if self.manifest.feature_schema_version == RESOURCE_FEATURE_SCHEMA_VERSION:
+            return API_RESOURCE_SHADOW_POLICY_ID
+        return API_COMBO_SHADOW_POLICY_ID
+
+    @property
+    def resource_enabled(self) -> bool:
+        return self.manifest.feature_schema_version == RESOURCE_FEATURE_SCHEMA_VERSION
 
     def reset(self) -> None:
         self.recurrent_state = None
@@ -137,7 +181,7 @@ class ApiComboShadowPolicy:
         return (
             ApiPolicyDecision(
                 decided_at=datetime.now(UTC),
-                policy_id=API_COMBO_SHADOW_POLICY_ID,
+                policy_id=self.policy_id,
                 state_digest=legal_actions.state_digest,
                 scores={action.action_id: 0.0 for action in legal_actions.actions},
                 rationale=reason,
@@ -161,17 +205,109 @@ class ApiComboShadowPolicy:
             items = [by_instance.get(instance_id) for instance_id in action.item_instance_ids]
             if any(item is None or not item.identity_reliable for item in items):
                 continue
-            assets = [item.asset for item in items if item is not None]
+            strict_items = [item for item in items if item is not None]
             if state.phase is ApiPhase.TURN:
-                if assets[0] in self._base_assets and all(
-                    asset in self._booster_assets for asset in assets[1:]
-                ):
+                first = strict_items[0]
+                is_plain_combo = self._matches_combat_card(
+                    first,
+                    self._base_cards,
+                    stat="attack",
+                    is_plus_attack=False,
+                ) and all(
+                    self._matches_combat_card(
+                        item,
+                        self._booster_cards,
+                        stat="attack",
+                        is_plus_attack=True,
+                    )
+                    for item in strict_items[1:]
+                )
+                is_resource = (
+                    self.resource_enabled
+                    and len(strict_items) == 1
+                    and self._matches_resource_card(first, state)
+                )
+                if is_plain_combo or is_resource:
                     macros.append(action)
             elif state.phase is ApiPhase.DEFENSE and all(
-                asset in self._armor_assets for asset in assets
+                self._matches_combat_card(
+                    item,
+                    self._armor_cards,
+                    stat="defense",
+                    is_plus_attack=False,
+                )
+                for item in strict_items
             ):
                 macros.append(action)
         return macros
+
+    @staticmethod
+    def _matches_combat_card(
+        item: ApiItemState,
+        rules: dict[str, tuple[int, CombatElement]],
+        *,
+        stat: str,
+        is_plus_attack: bool,
+    ) -> bool:
+        rule = rules.get(item.asset or "")
+        if rule is None:
+            return False
+        expected_value, expected_element = rule
+        expected_category = "armor" if stat == "defense" else "weapons"
+        return (
+            item.category == expected_category
+            and getattr(item, stat) == expected_value
+            and (item.element or "non-element") == expected_element
+            and item.ability is None
+            and item.cost == 0
+            and item.is_plus_attack is is_plus_attack
+        )
+
+    def _matches_resource_card(self, item: ApiItemState, state: ApiGameState) -> bool:
+        me = next(player for player in state.players if player.is_self)
+        asset = item.asset or ""
+        if (
+            item.category == "sundries"
+            and item.cost == 0
+            and item.element is None
+        ):
+            if item.ability == "boostHP":
+                return me.hp < 100 and item.ability_value == self._hp_utilities.get(asset)
+            if item.ability == "boostMP":
+                return me.mp < 100 and item.ability_value == self._mp_utilities.get(asset)
+            return False
+        attack_rule = self._attack_miracles.get(asset)
+        if attack_rule is not None:
+            attack, cost, element = attack_rule
+            return (
+                item.category == "miracles"
+                and item.ability is None
+                and item.attack == attack
+                and item.cost == cost
+                and item.cost <= me.mp
+                and not item.is_plus_attack
+                and (item.element or "non-element") == element
+            )
+        hp_rule = self._hp_miracles.get(asset)
+        if hp_rule is None:
+            return False
+        utility, cost = hp_rule
+        return (
+            item.category == "miracles"
+            and item.ability == "boostHP"
+            and item.ability_value == utility
+            and item.cost == cost
+            and item.cost <= me.mp
+            and item.element is None
+            and me.hp < 100
+        )
+
+    def _is_atomic_resource(self, item: ApiItemState) -> bool:
+        asset = item.asset or ""
+        return (
+            item.category == "sundries"
+            and asset in {*self._hp_utilities, *self._mp_utilities}
+        ) or (item.category == "miracles" and asset in self._hp_miracles)
 
     def _features(
         self,
@@ -227,6 +363,7 @@ class ApiComboShadowPolicy:
         if response or selected_slots:
             element_features[COMBAT_ELEMENT_IDS[visible_element]] = 1.0
         return StateFeatures(
+            schema_version=(5 if self.resource_enabled else 4),
             global_features=(
                 min(state.field_number, 100) / 100.0,
                 min(me.hp, 100) / 100.0,
@@ -363,6 +500,16 @@ class ApiComboShadowPolicy:
                     )
                 selected_slots.add(slot)
                 selected_ids.append(item.instance_id)
+                if self.resource_enabled and self._is_atomic_resource(item):
+                    proposal = next(
+                        (
+                            macro
+                            for macro in macros
+                            if macro.item_instance_ids == (item.instance_id,)
+                        ),
+                        None,
+                    )
+                    break
                 if state.phase is ApiPhase.TURN:
                     selected_value += item.attack
                     item_element = _combat_element(item.element)
@@ -410,7 +557,7 @@ class ApiComboShadowPolicy:
         return (
             ApiPolicyDecision(
                 decided_at=datetime.now(UTC),
-                policy_id=API_COMBO_SHADOW_POLICY_ID,
+                policy_id=self.policy_id,
                 state_digest=legal_actions.state_digest,
                 chosen_action_id=proposal.action_id,
                 scores={
@@ -418,7 +565,7 @@ class ApiComboShadowPolicy:
                     for action in legal_actions.actions
                 },
                 rationale=(
-                    "non-executable learned combo proposal; the tactical heuristic "
+                    "non-executable learned curriculum proposal; the tactical heuristic "
                     "remains the live behavior policy"
                 ),
                 executable=False,

@@ -1007,9 +1007,11 @@ def test_private_api_neural_shadow_records_proposal_but_dispatches_heuristic(
         def __init__(self) -> None:
             self.snapshot = combo_bible()
             self.manifest = SimpleNamespace(
+                feature_schema_version=4,
                 model_id="shadow-candidate",
                 weights_sha256="b" * 64,
             )
+            self.policy_id = ApiPolicyName.NEURAL_SHADOW.value
             self.behaviors: list[tuple[str | None, str | None]] = []
 
         def reset(self) -> None:
@@ -1086,6 +1088,8 @@ def test_private_api_neural_shadow_records_proposal_but_dispatches_heuristic(
 
     assert run.status is RunStatus.COMPLETED
     assert run.config["behavior_policy"] == ApiPolicyName.TACTICAL_HEURISTIC.value
+    assert run.config["shadow_policy_id"] == ApiPolicyName.NEURAL_SHADOW.value
+    assert run.config["shadow_feature_schema_version"] == 4
     assert run.config["shadow_model_id"] == "shadow-candidate"
     assert client.commands == [{"itemIds": [11], "targetPlayerId": 2}]
     assert shadow.behaviors == [("use:11:1:2", "use:11:1:2")]

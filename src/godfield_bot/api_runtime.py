@@ -113,7 +113,7 @@ class PrivateApiRunConfig(BaseModel):
             if self.max_in_match_actions < 1:
                 raise ValueError(f"{self.policy.value} requires a positive action budget")
         if self.policy is ApiPolicyName.NEURAL_SHADOW and self.model_directory is None:
-            raise ValueError("api-combo-neural-shadow-v1 requires a model directory")
+            raise ValueError("neural shadow mode requires a model directory")
         if self.policy is not ApiPolicyName.NEURAL_SHADOW and self.model_directory is not None:
             raise ValueError("a model directory is only valid for neural shadow policy")
         return self
@@ -785,6 +785,10 @@ def run_private_api_observer(
         run_config.update(
             {
                 "behavior_policy": ApiPolicyName.TACTICAL_HEURISTIC.value,
+                "shadow_policy_id": shadow_policy.policy_id,
+                "shadow_feature_schema_version": (
+                    shadow_policy.manifest.feature_schema_version
+                ),
                 "shadow_model_id": shadow_policy.manifest.model_id,
                 "shadow_model_weights_sha256": shadow_policy.manifest.weights_sha256,
                 "shadow_bible_client_sha256": shadow_policy.snapshot.client.sha256,

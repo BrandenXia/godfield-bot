@@ -87,7 +87,7 @@ class ArtifactVocabulary(BaseModel):
 
 
 class StateFeatures(BaseModel):
-    schema_version: Literal[4] = 4
+    schema_version: Literal[4, 5] = 4
     global_features: tuple[float, ...]
     player_features: tuple[tuple[float, ...], ...]
     player_mask: tuple[bool, ...]

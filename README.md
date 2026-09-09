@@ -115,27 +115,31 @@ service rejects in this state. An executable run now stops immediately with an
 `unsupported_self_turn` outcome when such an unmodeled self-turn is reached,
 instead of waiting for the generic no-progress timer.
 
-Pass `--shadow-model models/<combo-candidate-id>` to `api play-private` to run
-the schema-v4 combo network on each covered two-player state without giving it
-live control. The tactical heuristic still submits every command. The run
-records the candidate's proposed card sequence, probabilities, value estimates,
-model checksum, behavior decision, accepted transition, and terminal reward:
+Pass `--shadow-model models/<candidate-id>` to `api play-private` to run either
+the schema-v4 combo network or schema-v5 resource network on each covered
+two-player state without giving it live control. Schema v5 additionally maps
+HP/MP recovery, Spring's MP cost, and fixed-attack miracles onto the exact
+atomic-or-Confirm semantics used by the native curriculum. The tactical
+heuristic still submits every command. The run records the candidate's proposed
+card sequence, probabilities, value estimates, model checksum, behavior
+decision, accepted transition, and terminal reward:
 
 ```console
 uv run godfield-bot api play-private --confirm-play --password-stdin \
-  --shadow-model models/4d4ecff5-45ed-4776-a0ef-2720d8204abe \
+  --shadow-model models/d349d664-bfce-4997-9ff9-eb94482c20d1 \
   --max-seconds 0
 ```
 
 Shadow inference accepts only candidate or champion models tied to the accepted
-Bible client and exact combo curriculum. It abstains on multiplayer, cursed,
-unknown-phase, or out-of-curriculum states and clears counterfactual recurrent
-memory whenever the tactical behavior differs from its proposal. The separate
-schema-v5 `resource-hand` curriculum now models deterministic HP/MP utility and
-fixed-attack miracle costs, but schema-v5 candidates remain shadow-only until
-they pass their native gate and receive a separately reviewed live adapter. See
-[ADR 0010](docs/architecture/0010-live-neural-shadow.md) and
-[ADR 0013](docs/architecture/0013-resource-miracle-curriculum.md).
+Bible client and the exact schema-matched combo or resource curriculum. It
+abstains on multiplayer, cursed, unknown-phase, identity-drifted, or
+out-of-curriculum states and clears counterfactual recurrent memory whenever the
+tactical behavior differs from its proposal. Schema-v5 proposals use
+`api-resource-neural-shadow-v2` and remain non-executable even though the
+candidate passed its native gate. See
+[ADR 0010](docs/architecture/0010-live-neural-shadow.md),
+[ADR 0013](docs/architecture/0013-resource-miracle-curriculum.md), and
+[ADR 0014](docs/architecture/0014-live-resource-neural-shadow.md).
 
 God Field's official Training computer runs inside the web client rather than
 the server-side API. `play-training` therefore drives the official browser in

@@ -4,9 +4,14 @@ import pytest
 import torch
 from godfield import ItemCatalog, RoomState
 
-from godfield_bot.api_game import normalize_api_game_state, verified_api_combo_actions
+from godfield_bot.api_game import (
+    normalize_api_game_state,
+    verified_api_combo_actions,
+    verified_api_tactical_actions,
+)
 from godfield_bot.api_neural import (
     API_COMBO_SHADOW_POLICY_ID,
+    API_RESOURCE_SHADOW_POLICY_ID,
     ApiComboShadowPolicy,
     ApiNeuralPolicyError,
 )
@@ -62,8 +67,37 @@ def bible() -> BibleSnapshot:
                     ),
                 )
             ),
+            "sundries": ArtifactCategory(
+                items=(
+                    ArtifactRecord(
+                        asset="romance-water",
+                        image_path="/images/items/sundries/romance-water.webp",
+                        detail=("Romance Water", "HP+15", "$5", "Gift Rate: 4/500"),
+                    ),
+                    ArtifactRecord(
+                        asset="smile-flower",
+                        image_path="/images/items/sundries/smile-flower.webp",
+                        detail=("Smile Flower", "MP+5", "$1", "Gift Rate: 12/500"),
+                    ),
+                )
+            ),
+            "miracles": ArtifactCategory(
+                items=(
+                    ArtifactRecord(
+                        asset="flame",
+                        image_path="/images/items/miracles/flame.webp",
+                        detail=("<Flame>", "ATK10", "Cost", "5MP", "Gift Rate: 1/500"),
+                        element_image_paths=("/images/elements/fire.webp",),
+                    ),
+                    ArtifactRecord(
+                        asset="spring",
+                        image_path="/images/items/miracles/spring.webp",
+                        detail=("<Spring>", "HP+10", "Cost", "7MP", "Gift Rate: 1/500"),
+                    ),
+                )
+            ),
         },
-        total_artifacts=4,
+        total_artifacts=8,
     )
 
 
@@ -95,21 +129,59 @@ def catalog() -> ItemCatalog:
                 "category": "armor",
                 "def": 7,
             },
+            {
+                "name": "Romance Water",
+                "imageName": "romance-water",
+                "category": "sundries",
+                "ability": "boostHP",
+                "abilityValue": 15,
+            },
+            {
+                "name": "Smile Flower",
+                "imageName": "smile-flower",
+                "category": "sundries",
+                "ability": "boostMP",
+                "abilityValue": 5,
+            },
+            {
+                "name": "Flame",
+                "imageName": "flame",
+                "category": "miracles",
+                "atk": 10,
+                "cost": 5,
+                "element": "fire",
+            },
+            {
+                "name": "Spring",
+                "imageName": "spring",
+                "category": "miracles",
+                "ability": "boostHP",
+                "abilityValue": 10,
+                "cost": 7,
+            },
         ]
     )
 
 
-def room(*, defending: bool = False, cursed: bool = False) -> RoomState:
+def room(
+    *,
+    defending: bool = False,
+    cursed: bool = False,
+    resource_model_id: int | None = None,
+    hp: int = 40,
+    mp: int = 10,
+) -> RoomState:
     attacks = (
         [{"playerId": 2, "targetPlayerId": 1, "itemModelIds": [1], "atk": 9}]
         if defending
         else []
     )
-    items = (
-        [{"id": 13, "modelId": 3}, {"id": 14, "modelId": 4}]
-        if defending
-        else [{"id": 11, "modelId": 1}, {"id": 12, "modelId": 2}]
-    )
+    if resource_model_id is not None:
+        items = [{"id": 15, "modelId": resource_model_id}]
+    elif defending:
+        items = [{"id": 13, "modelId": 3}, {"id": 14, "modelId": 4}]
+    else:
+        items = [{"id": 11, "modelId": 1}, {"id": 12, "modelId": 2}]
     return RoomState(
         {
             "game": {
@@ -118,8 +190,8 @@ def room(*, defending: bool = False, cursed: bool = False) -> RoomState:
                         "id": 1,
                         "userId": "loki-user",
                         "name": "ロキ-67",
-                        "hp": 40,
-                        "mp": 10,
+                        "hp": hp,
+                        "mp": mp,
                         "cp": 20,
                         "team": 0,
                         "items": items,
@@ -147,7 +219,7 @@ def room(*, defending: bool = False, cursed: bool = False) -> RoomState:
     )
 
 
-def shadow_policy() -> ApiComboShadowPolicy:
+def shadow_policy(*, feature_schema_version: int = 4) -> ApiComboShadowPolicy:
     snapshot = bible()
     vocabulary = ArtifactVocabulary.from_snapshot(snapshot)
     architecture = ModelArchitecture(
@@ -161,7 +233,7 @@ def shadow_policy() -> ApiComboShadowPolicy:
     for parameter in model.parameters():
         torch.nn.init.zeros_(parameter)
     manifest = ModelManifest(
-        feature_schema_version=4,
+        feature_schema_version=feature_schema_version,
         model_id="shadow-candidate",
         created_at=datetime.now(UTC),
         status=ModelStatus.CANDIDATE,
@@ -173,7 +245,11 @@ def shadow_policy() -> ApiComboShadowPolicy:
         seed=67,
         training_context={
             "simulation": {
-                "ruleset_id": "plain-elemental-combo-attack-defense-redraw-duel-v1",
+                "ruleset_id": (
+                    "plain-elemental-combo-resource-miracle-attack-defense-redraw-duel-v1"
+                    if feature_schema_version == 5
+                    else "plain-elemental-combo-attack-defense-redraw-duel-v1"
+                ),
                 "action_semantics": "sequential-combo-selection",
             }
         },
@@ -238,6 +314,23 @@ def test_shadow_policy_abstains_and_resets_on_cursed_state() -> None:
     assert policy.recurrent_state is None
 
 
+def test_shadow_policy_rejects_single_weapon_when_live_value_drifts() -> None:
+    current_room = room()
+    current_room._catalog.get(1).raw["atk"] = 6
+    state = normalize_api_game_state(current_room, user_id="loki-user")
+    legal = verified_api_tactical_actions(
+        current_room,
+        user_id="loki-user",
+        bible_snapshot=bible(),
+    )
+
+    decision, proposal = shadow_policy().decide(state, legal)
+
+    assert proposal is None
+    assert decision.chosen_action_id is None
+    assert "no live macro" in decision.rationale
+
+
 def test_shadow_policy_rejects_an_untrained_or_wrong_ruleset_model() -> None:
     policy = shadow_policy()
 
@@ -251,6 +344,116 @@ def test_shadow_policy_rejects_an_untrained_or_wrong_ruleset_model() -> None:
     with pytest.raises(ApiNeuralPolicyError, match="combo action semantics"):
         ApiComboShadowPolicy(
             policy.manifest.model_copy(update={"training_context": {}}),
+            policy.model,
+            policy.vocabulary,
+            policy.snapshot,
+        )
+
+
+@pytest.mark.parametrize(
+    ("model_id", "expected_action_id"),
+    [
+        (5, "utility:boostHP:15:5"),
+        (6, "utility:boostMP:15:6"),
+        (8, "utility:boostHP:15:8"),
+    ],
+)
+def test_resource_shadow_translates_atomic_utility_without_confirm(
+    model_id: int,
+    expected_action_id: str,
+) -> None:
+    current_room = room(resource_model_id=model_id)
+    state = normalize_api_game_state(current_room, user_id="loki-user")
+    legal = verified_api_tactical_actions(
+        current_room,
+        user_id="loki-user",
+        bible_snapshot=bible(),
+    )
+
+    decision, proposal = shadow_policy(feature_schema_version=5).decide(state, legal)
+
+    assert proposal is not None
+    assert proposal.action_id == expected_action_id
+    assert decision.policy_id == API_RESOURCE_SHADOW_POLICY_ID
+    assert decision.chosen_action_id == expected_action_id
+    assert decision.selection_action_indices == (1,)
+    assert decision.executable is False
+
+
+def test_resource_shadow_translates_attack_miracle_with_confirm() -> None:
+    current_room = room(resource_model_id=7, mp=5)
+    state = normalize_api_game_state(current_room, user_id="loki-user")
+    legal = verified_api_tactical_actions(
+        current_room,
+        user_id="loki-user",
+        bible_snapshot=bible(),
+    )
+
+    decision, proposal = shadow_policy(feature_schema_version=5).decide(state, legal)
+
+    assert proposal is not None
+    assert proposal.action_id == "miracle-attack:15:7:2"
+    assert decision.selection_action_indices == (1, 20)
+
+
+@pytest.mark.parametrize(
+    ("model_id", "hp", "mp"),
+    [
+        (5, 100, 10),
+        (6, 40, 100),
+        (7, 40, 4),
+        (8, 100, 10),
+        (8, 40, 6),
+    ],
+)
+def test_resource_shadow_matches_native_resource_masks(
+    model_id: int,
+    hp: int,
+    mp: int,
+) -> None:
+    current_room = room(resource_model_id=model_id, hp=hp, mp=mp)
+    state = normalize_api_game_state(current_room, user_id="loki-user")
+    legal = verified_api_tactical_actions(
+        current_room,
+        user_id="loki-user",
+        bible_snapshot=bible(),
+    )
+
+    decision, proposal = shadow_policy(feature_schema_version=5).decide(state, legal)
+
+    assert proposal is None
+    assert decision.chosen_action_id is None
+    assert "no live macro" in decision.rationale
+
+
+def test_resource_shadow_rejects_live_value_drift_and_v4_ignores_resources() -> None:
+    current_room = room(resource_model_id=5)
+    current_room._catalog.get(5).raw["abilityValue"] = 14
+    state = normalize_api_game_state(current_room, user_id="loki-user")
+    legal = verified_api_tactical_actions(
+        current_room,
+        user_id="loki-user",
+        bible_snapshot=bible(),
+    )
+
+    resource_decision, resource_proposal = shadow_policy(feature_schema_version=5).decide(
+        state,
+        legal,
+    )
+    combo_decision, combo_proposal = shadow_policy().decide(state, legal)
+
+    assert resource_proposal is None
+    assert resource_decision.chosen_action_id is None
+    assert combo_proposal is None
+    assert combo_decision.policy_id == API_COMBO_SHADOW_POLICY_ID
+
+
+def test_resource_shadow_requires_the_schema_v5_ruleset_pair() -> None:
+    policy = shadow_policy(feature_schema_version=5)
+
+    with pytest.raises(ApiNeuralPolicyError, match="matching live combo action semantics"):
+        ApiComboShadowPolicy(
+            policy.manifest.model_copy(update={"feature_schema_version": 4}),
             policy.model,
             policy.vocabulary,
             policy.snapshot,

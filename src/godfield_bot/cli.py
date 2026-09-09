@@ -328,7 +328,8 @@ def play_private_api_game(
             file_okay=False,
             readable=True,
             help=(
-                "Optional combo candidate to score live states in shadow mode; "
+                "Optional schema-v4 combo or schema-v5 resource candidate to score live "
+                "states in shadow mode; "
                 "the tactical heuristic still submits every command."
             ),
         ),

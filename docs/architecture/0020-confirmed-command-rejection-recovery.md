@@ -35,7 +35,9 @@ retry. Budget exhaustion remains a failed run rather than an unbounded loop.
 
 Do not retry transport failures, missing responses, authentication failures,
 other HTTP statuses, or any other write. Their server outcome is not proven.
-The read-recovery rules from ADR 0017 remain unchanged.
+The read-recovery rules from ADR 0017 remain unchanged. ADR 0021 adds read-only
+state reconciliation for an ambiguous transport failure without replaying its
+command.
 
 ## Consequences
 

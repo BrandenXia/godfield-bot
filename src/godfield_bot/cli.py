@@ -421,6 +421,14 @@ def play_private_api_game(
             help="Confirmed command-rejection retries after unchanged state reads.",
         ),
     ] = 2,
+    command_reconcile_seconds: Annotated[
+        float,
+        typer.Option(
+            min=1.0,
+            max=300.0,
+            help="Wait for state evidence after an ambiguous command response.",
+        ),
+    ] = 30.0,
 ) -> None:
     """Enter private games with tactical play and optional neural shadow scoring."""
 
@@ -468,6 +476,7 @@ def play_private_api_game(
                 state_read_retries=state_read_retries,
                 state_read_retry_seconds=state_read_retry_seconds,
                 command_retries=command_retries,
+                command_reconcile_seconds=command_reconcile_seconds,
             ),
             room_password=room_password,
         )

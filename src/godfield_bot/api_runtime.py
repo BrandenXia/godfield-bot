@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import structlog
+from godfield import TransportError  # type: ignore[import-untyped]
 from pydantic import BaseModel, Field, JsonValue, field_validator, model_validator
 
 from godfield_bot.api_account import (
@@ -67,6 +68,12 @@ class ApiPolicyName(StrEnum):
     NEURAL_SHADOW = "api-combo-neural-shadow-v1"
 
 
+class _ApiActionDispatch(StrEnum):
+    ACCEPTED = "accepted"
+    CONFIRMED_REJECTION = "confirmed_rejection"
+    AMBIGUOUS = "ambiguous"
+
+
 class PrivateApiRunConfig(BaseModel):
     database: Path = Path("runs", "godfield.sqlite")
     catalog_snapshot: Path = Path(
@@ -90,6 +97,7 @@ class PrivateApiRunConfig(BaseModel):
     state_read_retries: int = Field(default=5, ge=0, le=20)
     state_read_retry_seconds: float = Field(default=1.0, ge=0.1, le=30.0)
     command_retries: int = Field(default=2, ge=0, le=5)
+    command_reconcile_seconds: float = Field(default=30.0, ge=1.0, le=300.0)
 
     @field_validator("room_id")
     @classmethod
@@ -333,6 +341,27 @@ def _command_rejection_error_payload(
     return payload
 
 
+def _ambiguous_command_error_payload(
+    error: Exception,
+    *,
+    action_id: str,
+    reconcile_seconds: float,
+) -> dict[str, JsonValue]:
+    payload: dict[str, JsonValue] = {
+        "schema_version": 1,
+        "error_type": type(error).__name__,
+        "reason": "private submit response was ambiguous",
+        "operation": "submit-command",
+        "action_id": action_id,
+        "reconciliation_scheduled": True,
+        "reconcile_seconds": reconcile_seconds,
+    }
+    status = _transport_http_status(error)
+    if status is not None:
+        payload["http_status"] = status
+    return payload
+
+
 def _dispatch_api_action(
     client: Any,
     store: RunStore,
@@ -342,14 +371,16 @@ def _dispatch_api_action(
     state: ApiGameState,
     rejection_number: int,
     retry_budget: int,
-) -> bool:
-    """Submit once, recording enough evidence to retry only a definite rejection."""
+    reconcile_seconds: float,
+) -> _ApiActionDispatch:
+    """Submit once and classify the observable server outcome without guessing."""
 
     action_started = time.perf_counter()
     try:
         client.submit(command_for_api_action(action))
     except Exception as error:
         confirmed_rejection = _is_confirmed_command_rejection(error)
+        ambiguous_response = isinstance(error, TransportError)
         retry_scheduled = confirmed_rejection and rejection_number <= retry_budget
         execution = ApiActionExecutionResult(
             executed_at=datetime.now(UTC),
@@ -375,7 +406,18 @@ def _dispatch_api_action(
                     ),
                 )
             )
-        if not retry_scheduled:
+        elif ambiguous_response:
+            failure_events.append(
+                (
+                    EventKind.ERROR,
+                    _ambiguous_command_error_payload(
+                        error,
+                        action_id=action.action_id,
+                        reconcile_seconds=reconcile_seconds,
+                    ),
+                )
+            )
+        if not retry_scheduled and not ambiguous_response:
             failure_events.append(
                 (
                     EventKind.TRANSITION,
@@ -383,9 +425,11 @@ def _dispatch_api_action(
                 )
             )
         store.append_events(run_id, tuple(failure_events))
-        if not retry_scheduled:
-            raise
-        return False
+        if retry_scheduled:
+            return _ApiActionDispatch.CONFIRMED_REJECTION
+        if ambiguous_response:
+            return _ApiActionDispatch.AMBIGUOUS
+        raise
 
     store.append_event(
         run_id,
@@ -399,7 +443,7 @@ def _dispatch_api_action(
             latency_ms=(time.perf_counter() - action_started) * 1000,
         ),
     )
-    return True
+    return _ApiActionDispatch.ACCEPTED
 
 
 def _identity_entry_team(room: Any, *, user_id: str) -> int | None:
@@ -971,6 +1015,7 @@ def run_private_api_observer(
         "state_read_retries": config.state_read_retries,
         "state_read_retry_seconds": config.state_read_retry_seconds,
         "command_retries": config.command_retries,
+        "command_reconcile_seconds": config.command_reconcile_seconds,
         "max_in_match_actions": config.max_in_match_actions,
         "enter_match": config.enter_match,
         "entry_team": config.entry_team,
@@ -984,9 +1029,7 @@ def run_private_api_observer(
             {
                 "behavior_policy": ApiPolicyName.TACTICAL_HEURISTIC.value,
                 "shadow_policy_id": shadow_policy.policy_id,
-                "shadow_feature_schema_version": (
-                    shadow_policy.manifest.feature_schema_version
-                ),
+                "shadow_feature_schema_version": (shadow_policy.manifest.feature_schema_version),
                 "shadow_model_id": shadow_policy.manifest.model_id,
                 "shadow_model_weights_sha256": shadow_policy.manifest.weights_sha256,
                 "shadow_bible_client_sha256": shadow_policy.snapshot.client.sha256,
@@ -1012,8 +1055,9 @@ def run_private_api_observer(
     outcome_reason = "wall_clock_limit"
     pending_action: tuple[ApiLegalAction, ApiGameState] | None = None
     rejected_action: tuple[ApiLegalAction, ApiGameState, int] | None = None
+    ambiguous_action: tuple[ApiLegalAction, ApiGameState, float] | None = None
     try:
-        from godfield import Mode, TransportError  # type: ignore[import-untyped]
+        from godfield import Mode
 
         with open_api_client(
             settings,
@@ -1112,6 +1156,14 @@ def run_private_api_observer(
                     game = room.game
                     me = game.player_by_user(user_id) if game is not None else None
                     if game is None or me is None:
+                        if ambiguous_action is not None:
+                            action, before_state, _ambiguous_since = ambiguous_action
+                            store.append_event(
+                                run.run_id,
+                                EventKind.TRANSITION,
+                                build_api_action_transition(action, before_state, None),
+                            )
+                            ambiguous_action = None
                         if rejected_action is not None:
                             action, before_state, _failure_count = rejected_action
                             store.append_event(
@@ -1171,6 +1223,43 @@ def run_private_api_observer(
                         entry_request_pending = False
                         state = normalize_api_game_state(room, user_id=user_id)
                         digest = api_game_state_digest(state)
+                        if ambiguous_action is not None:
+                            action, ambiguous_state, ambiguous_since = ambiguous_action
+                            if digest != api_game_state_digest(ambiguous_state):
+                                store.append_event(
+                                    run.run_id,
+                                    EventKind.TRANSITION,
+                                    build_api_action_transition(
+                                        action,
+                                        ambiguous_state,
+                                        state,
+                                    ),
+                                    occurred_at=state.observed_at,
+                                )
+                                ambiguous_action = None
+                                log.info(
+                                    "api_private_ambiguous_command_reconciled",
+                                    run_id=run.run_id,
+                                    action=action.action_id,
+                                    state_changed=True,
+                                )
+                            elif (
+                                time.monotonic() - ambiguous_since
+                                >= config.command_reconcile_seconds
+                            ):
+                                store.append_event(
+                                    run.run_id,
+                                    EventKind.TRANSITION,
+                                    build_api_action_transition(
+                                        action,
+                                        ambiguous_state,
+                                        None,
+                                    ),
+                                )
+                                ambiguous_action = None
+                                raise ApiRuntimeError(
+                                    "ambiguous submit could not be reconciled before timeout"
+                                )
                         if rejected_action is not None:
                             action, rejected_state, failed_attempts = rejected_action
                             store.append_event(
@@ -1186,7 +1275,7 @@ def run_private_api_observer(
                             rejected_action = None
                             if digest == api_game_state_digest(rejected_state):
                                 failure_number = failed_attempts + 1
-                                if not _dispatch_api_action(
+                                dispatch = _dispatch_api_action(
                                     client,
                                     store,
                                     run_id=run.run_id,
@@ -1194,7 +1283,9 @@ def run_private_api_observer(
                                     state=state,
                                     rejection_number=failure_number,
                                     retry_budget=config.command_retries,
-                                ):
+                                    reconcile_seconds=config.command_reconcile_seconds,
+                                )
+                                if dispatch is _ApiActionDispatch.CONFIRMED_REJECTION:
                                     rejected_action = (
                                         action,
                                         state,
@@ -1206,6 +1297,20 @@ def run_private_api_observer(
                                         action=action.action_id,
                                         consecutive_failure=failure_number,
                                         retry_budget=config.command_retries,
+                                    )
+                                elif dispatch is _ApiActionDispatch.AMBIGUOUS:
+                                    ambiguous_action = (
+                                        action,
+                                        state,
+                                        time.monotonic(),
+                                    )
+                                    in_match_actions += 1
+                                    log.warning(
+                                        "api_private_ambiguous_command_reconcile",
+                                        run_id=run.run_id,
+                                        action=action.action_id,
+                                        action_count=in_match_actions,
+                                        reconcile_seconds=config.command_reconcile_seconds,
                                     )
                                 else:
                                     pending_action = (action, state)
@@ -1346,7 +1451,7 @@ def run_private_api_observer(
                                         chosen_action,
                                     )
                                 failure_number = 1
-                                if not _dispatch_api_action(
+                                dispatch = _dispatch_api_action(
                                     client,
                                     store,
                                     run_id=run.run_id,
@@ -1354,7 +1459,9 @@ def run_private_api_observer(
                                     state=state,
                                     rejection_number=failure_number,
                                     retry_budget=config.command_retries,
-                                ):
+                                    reconcile_seconds=config.command_reconcile_seconds,
+                                )
+                                if dispatch is _ApiActionDispatch.CONFIRMED_REJECTION:
                                     rejected_action = (
                                         chosen_action,
                                         state,
@@ -1366,6 +1473,20 @@ def run_private_api_observer(
                                         action=chosen_action.action_id,
                                         consecutive_failure=failure_number,
                                         retry_budget=config.command_retries,
+                                    )
+                                elif dispatch is _ApiActionDispatch.AMBIGUOUS:
+                                    ambiguous_action = (
+                                        chosen_action,
+                                        state,
+                                        time.monotonic(),
+                                    )
+                                    in_match_actions += 1
+                                    log.warning(
+                                        "api_private_ambiguous_command_reconcile",
+                                        run_id=run.run_id,
+                                        action=chosen_action.action_id,
+                                        action_count=in_match_actions,
+                                        reconcile_seconds=config.command_reconcile_seconds,
                                     )
                                 else:
                                     pending_action = (chosen_action, state)
@@ -1390,7 +1511,10 @@ def run_private_api_observer(
                                     field_number=state.field_number,
                                 )
                                 break
-                    if time.monotonic() - last_progress_at >= config.no_progress_seconds:
+                    if (
+                        ambiguous_action is None
+                        and time.monotonic() - last_progress_at >= config.no_progress_seconds
+                    ):
                         outcome_reason = "no_progress_limit"
                         break
                     time.sleep(config.poll_seconds)
@@ -1406,6 +1530,14 @@ def run_private_api_observer(
     except KeyboardInterrupt:
         outcome_reason = "operator_interrupt"
     except Exception as error:
+        if ambiguous_action is not None:
+            action, before_state, _ambiguous_since = ambiguous_action
+            store.append_event(
+                run.run_id,
+                EventKind.TRANSITION,
+                build_api_action_transition(action, before_state, None),
+            )
+            ambiguous_action = None
         if rejected_action is not None:
             action, before_state, _failure_count = rejected_action
             store.append_event(
@@ -1425,6 +1557,13 @@ def run_private_api_observer(
         payload = _safe_runtime_error_payload(error)
         store.append_event(run.run_id, EventKind.ERROR, payload)
         return store.finish_run(run.run_id, RunStatus.FAILED, outcome=payload)
+    if ambiguous_action is not None:
+        action, before_state, _ambiguous_since = ambiguous_action
+        store.append_event(
+            run.run_id,
+            EventKind.TRANSITION,
+            build_api_action_transition(action, before_state, None),
+        )
     if rejected_action is not None:
         action, before_state, _failure_count = rejected_action
         store.append_event(

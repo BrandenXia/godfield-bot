@@ -549,9 +549,7 @@ def test_tactical_heuristic_sells_weakest_plain_armor_in_cursed_dead_end() -> No
 
 
 def test_latest_live_cursed_sell_dead_end_has_verified_escape() -> None:
-    api_snapshot = read_api_catalog_snapshot(
-        Path("data/snapshots/2026-09-09/api-catalog-en.json")
-    )
+    api_snapshot = read_api_catalog_snapshot(Path("data/snapshots/2026-09-09/api-catalog-en.json"))
     bible = BibleSnapshot.model_validate_json(
         Path("data/snapshots/2026-09-07/bible.json").read_text(encoding="utf-8")
     )
@@ -619,9 +617,7 @@ def test_latest_live_cursed_sell_dead_end_has_verified_escape() -> None:
 
 
 def test_latest_live_cursed_chance_miracle_dead_end_has_verified_escape() -> None:
-    api_snapshot = read_api_catalog_snapshot(
-        Path("data/snapshots/2026-09-09/api-catalog-en.json")
-    )
+    api_snapshot = read_api_catalog_snapshot(Path("data/snapshots/2026-09-09/api-catalog-en.json"))
     bible = BibleSnapshot.model_validate_json(
         Path("data/snapshots/2026-09-07/bible.json").read_text(encoding="utf-8")
     )
@@ -690,9 +686,7 @@ def test_latest_live_cursed_chance_miracle_dead_end_has_verified_escape() -> Non
 
 
 def test_latest_live_cursed_cp_miracle_dead_end_has_verified_escape() -> None:
-    api_snapshot = read_api_catalog_snapshot(
-        Path("data/snapshots/2026-09-09/api-catalog-en.json")
-    )
+    api_snapshot = read_api_catalog_snapshot(Path("data/snapshots/2026-09-09/api-catalog-en.json"))
     bible = BibleSnapshot.model_validate_json(
         Path("data/snapshots/2026-09-07/bible.json").read_text(encoding="utf-8")
     )
@@ -970,6 +964,8 @@ def test_api_policy_configuration_requires_explicit_safe_bounds() -> None:
         )
     with pytest.raises(ValidationError, match="less than or equal to 5"):
         PrivateApiRunConfig(room_id="private-room", command_retries=6)
+    with pytest.raises(ValidationError, match="less than or equal to 300"):
+        PrivateApiRunConfig(room_id="private-room", command_reconcile_seconds=301)
 
 
 def test_zero_max_seconds_disables_only_the_wall_clock_limit() -> None:
@@ -1192,9 +1188,7 @@ def test_private_api_state_read_recovers_without_losing_pending_action(
     assert client.commands == [{"itemIds": [11], "targetPlayerId": 2}]
     assert sleep_delays == [1.0, 0.25]
     events = RunStore(database).events(run.run_id)
-    read_errors = [
-        event for event in events if event.payload.get("operation") == "read-room-state"
-    ]
+    read_errors = [event for event in events if event.payload.get("operation") == "read-room-state"]
     assert len(read_errors) == 1
     assert read_errors[0].kind is EventKind.ERROR
     assert read_errors[0].payload["consecutive_failure"] == 1
@@ -1370,18 +1364,29 @@ def test_private_api_retries_confirmed_rejection_after_unchanged_read(
     ] == ["pass"]
 
 
-def test_private_api_does_not_retry_ambiguous_submit_failure(tmp_path, monkeypatch) -> None:
+def test_private_api_reconciles_ambiguous_submit_without_retry(tmp_path, monkeypatch) -> None:
     snapshot_path = tmp_path / "catalog.json"
     write_api_catalog_snapshot(catalog_snapshot(), snapshot_path)
+    unchanged = active_room()
 
     class FakeAmbiguousSubmitClient(FakeClient):
         def __init__(self) -> None:
             super().__init__()
-            self.states = iter([active_room()])
+            self.states = iter(
+                [
+                    unchanged,
+                    TransportError("read must-not-be-stored"),
+                    unchanged,
+                    terminal_room(),
+                ]
+            )
             self.commands: list[dict[str, object]] = []
 
         def state(self) -> RoomState:
-            return next(self.states)
+            response = next(self.states)
+            if isinstance(response, Exception):
+                raise response
+            return response
 
         def submit(self, command) -> None:
             self.commands.append(command.to_dict())
@@ -1398,6 +1403,7 @@ def test_private_api_does_not_retry_ambiguous_submit_failure(tmp_path, monkeypat
         "godfield_bot.api_runtime.validate_api_credentials",
         lambda settings: SimpleNamespace(user_id="loki-user"),
     )
+    monkeypatch.setattr("godfield_bot.api_runtime.time.sleep", lambda seconds: None)
     database = tmp_path / "runs" / "api.sqlite"
 
     run = run_private_api_observer(
@@ -1414,16 +1420,114 @@ def test_private_api_does_not_retry_ambiguous_submit_failure(tmp_path, monkeypat
         ),
     )
 
-    assert run.status is RunStatus.FAILED
-    assert run.outcome == {
-        "error_type": "TransportError",
-        "reason": "pygodfield private-room operation failed",
-    }
+    assert run.status is RunStatus.COMPLETED
+    assert run.outcome is not None
+    assert run.outcome["in_match_actions"] == 1
+    assert run.config["command_reconcile_seconds"] == 30.0
     assert client.commands == [{"itemIds": [11], "targetPlayerId": 2}]
     events = RunStore(database).events(run.run_id)
     action_results = [event.payload for event in events if event.kind is EventKind.ACTION_RESULT]
     assert [result["server_acknowledged"] for result in action_results] == [None]
-    assert not any(event.payload.get("operation") == "submit-command" for event in events)
+    ambiguous_errors = [
+        event.payload
+        for event in events
+        if event.kind is EventKind.ERROR
+        and event.payload.get("reason") == "private submit response was ambiguous"
+    ]
+    assert ambiguous_errors == [
+        {
+            "schema_version": 1,
+            "error_type": "TransportError",
+            "reason": "private submit response was ambiguous",
+            "operation": "submit-command",
+            "action_id": "use:11:1:2",
+            "reconciliation_scheduled": True,
+            "reconcile_seconds": 30.0,
+        }
+    ]
+    transitions = [event.payload for event in events if event.kind is EventKind.TRANSITION]
+    assert [transition["state_changed"] for transition in transitions] == [True]
+    read_errors = [
+        event.payload
+        for event in events
+        if event.kind is EventKind.ERROR and event.payload.get("operation") == "read-room-state"
+    ]
+    assert [event["retry_scheduled"] for event in read_errors] == [True]
+    assert "must-not-be-stored" not in "".join(event.model_dump_json() for event in events)
+
+
+def test_private_api_ambiguous_submit_reconciliation_is_bounded(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    snapshot_path = tmp_path / "catalog.json"
+    write_api_catalog_snapshot(catalog_snapshot(), snapshot_path)
+    unchanged = active_room()
+
+    class FakeUnresolvedSubmitClient(FakeClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.state_calls = 0
+            self.commands: list[dict[str, object]] = []
+
+        def state(self) -> RoomState:
+            self.state_calls += 1
+            return unchanged
+
+        def submit(self, command) -> None:
+            self.commands.append(command.to_dict())
+            raise TransportError("unresolved must-not-be-stored")
+
+    class AdvancingClock:
+        def __init__(self) -> None:
+            self.value = 0.0
+
+        def __call__(self) -> float:
+            self.value += 0.25
+            return self.value
+
+    client = FakeUnresolvedSubmitClient()
+
+    @contextmanager
+    def fake_open_api_client(*args, **kwargs):
+        yield client
+
+    monkeypatch.setattr("godfield_bot.api_runtime.open_api_client", fake_open_api_client)
+    monkeypatch.setattr(
+        "godfield_bot.api_runtime.validate_api_credentials",
+        lambda settings: SimpleNamespace(user_id="loki-user"),
+    )
+    monkeypatch.setattr("godfield_bot.api_runtime.time.monotonic", AdvancingClock())
+    monkeypatch.setattr("godfield_bot.api_runtime.time.sleep", lambda seconds: None)
+    database = tmp_path / "runs" / "api.sqlite"
+
+    run = run_private_api_observer(
+        AppSettings(state_root=tmp_path / "state"),
+        PrivateApiRunConfig(
+            database=database,
+            catalog_snapshot=snapshot_path,
+            room_id="private-room",
+            enter_match=True,
+            policy=ApiPolicyName.HEURISTIC,
+            max_in_match_actions=5,
+            max_seconds=10,
+            no_progress_seconds=10,
+            command_reconcile_seconds=1,
+        ),
+    )
+
+    assert run.status is RunStatus.FAILED
+    assert run.outcome == {
+        "error_type": "ApiRuntimeError",
+        "reason": "ambiguous submit could not be reconciled before timeout",
+    }
+    assert client.commands == [{"itemIds": [11], "targetPlayerId": 2}]
+    assert client.state_calls >= 2
+    events = RunStore(database).events(run.run_id)
+    action_results = [event.payload for event in events if event.kind is EventKind.ACTION_RESULT]
+    assert [result["server_acknowledged"] for result in action_results] == [None]
+    transitions = [event.payload for event in events if event.kind is EventKind.TRANSITION]
+    assert [transition["state_changed"] for transition in transitions] == [None]
     assert "must-not-be-stored" not in "".join(event.model_dump_json() for event in events)
 
 

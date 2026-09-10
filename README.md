@@ -101,11 +101,14 @@ pass `--max-seconds 0`; the independent no-progress and action-count safeguards
 remain active. Transient room-state reads are retried five times with bounded
 exponential backoff by default; `--state-read-retries` and
 `--state-read-retry-seconds` tune that read-only recovery budget. Submitted
-game actions with an ambiguous network outcome are never retried. A definite
-HTTP 400 rejection is different: the runtime first obtains a fresh room read,
-retries only if the normalized state is unchanged, and stops after two retries
-by default. `--command-retries` tunes that bounded rejection-recovery budget,
-and every rejected attempt and observed transition is stored locally.
+game actions with an ambiguous network outcome are never retried. Instead, the
+runtime keeps reading room state for up to 30 seconds and continues the session
+once a changed state reconciles the uncertain action. `--command-reconcile-seconds`
+tunes that bound. A definite HTTP 400 rejection is different: the runtime first
+obtains a fresh room read, retries only if the normalized state is unchanged,
+and stops after two retries by default. `--command-retries` tunes that bounded
+rejection-recovery budget, and every uncertain or rejected attempt and observed
+transition is stored locally.
 Use `--team 0` for solo/free-for-all entry, or `--team 1` through `--team 4`
 for allied teams A through D. The selected team is retained across automatic
 entry into subsequent matches. Active curse presence is recorded in the

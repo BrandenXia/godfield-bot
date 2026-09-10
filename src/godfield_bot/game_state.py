@@ -13,6 +13,9 @@ FIELD_PATTERN = re.compile(r"^G\.F\.(\d+)$")
 ITEM_PATTERN = re.compile(r"^/images/items/([^/]+)/([^/]+)\.(?:png|svg|webp)$")
 FOG_SCENE_PATH = "/images/screens/fog.webp"
 FOG_CURSE_PATH = "/images/curses/small/fog.webp"
+NEUTRAL_TEXT_COLOR = "rgb(79, 79, 79)"
+ATTACK_DISPLAY_PATTERN = re.compile(r"^ATK\d+$")
+DEFENSE_DISPLAY_PATTERN = re.compile(r"^DEF\d+$")
 ROW_TOLERANCE = 1.5
 
 
@@ -168,12 +171,40 @@ def _recover_fog_hidden_players(
             minimum_y=390,
             maximum_y=450,
         )
+        action_display = _single_spatial_element(
+            observation,
+            minimum_x=100,
+            maximum_x=450,
+            minimum_y=390,
+            maximum_y=450,
+        )
         previous_opponents = [player for player in previous_state.players if not player.is_self]
         has_action_context = any(
             _item_coordinates(image) is not None
             and 100 <= image.bounds.x <= 450
             and 80 <= image.bounds.y <= 380
             for image in observation.images
+        )
+        selected_phase_armor = [
+            image
+            for image in observation.images
+            if (coordinates := _item_coordinates(image)) is not None
+            and coordinates[0] == "armor"
+            and 450 <= image.bounds.x <= 750
+            and 80 <= image.bounds.y <= 250
+            and 60 <= image.bounds.width <= 100
+            and 60 <= image.bounds.height <= 100
+            and image.hit_target_bounds is None
+        ]
+        has_forgive_response = phase_control is not None and phase_control.text == "Forgive"
+        has_neutral_armor_response = (
+            action_display is not None
+            and ATTACK_DISPLAY_PATTERN.fullmatch(action_display.text) is not None
+            and action_display.color == NEUTRAL_TEXT_COLOR
+            and phase_control is not None
+            and DEFENSE_DISPLAY_PATTERN.fullmatch(phase_control.text) is not None
+            and phase_control.color == NEUTRAL_TEXT_COLOR
+            and len(selected_phase_armor) == 1
         )
         if (
             row_hit_targets
@@ -183,7 +214,7 @@ def _recover_fog_hidden_players(
             or action_target is None
             or action_target.text != identity
             or phase_control is None
-            or phase_control.text != "Forgive"
+            or not (has_forgive_response or has_neutral_armor_response)
             or _phase_control_hit_target(observation) is None
             or not has_action_context
         ):

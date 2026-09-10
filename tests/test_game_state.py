@@ -238,6 +238,98 @@ def test_fog_recovers_targeted_response_when_player_rows_are_not_clickable() -> 
         )
 
 
+def test_fog_recovers_selected_neutral_armor_when_opponent_row_is_hidden() -> None:
+    clear = game_observation()
+    previous = parse_game_state(clear, identity="ロキ-67")
+    retained = tuple(
+        element
+        for element in clear.text_elements
+        if abs(element.bounds.y - 264) > 1.5
+        and not (40 <= element.bounds.y <= 80 or 390 <= element.bounds.y <= 450)
+    )
+    fogged_defense = clear.model_copy(
+        update={
+            "images": (
+                *clear.images,
+                VisibleImage(
+                    path="/images/screens/fog.webp",
+                    bounds=bounds(100, 38, 1080, 660),
+                ),
+                VisibleImage(
+                    path="/images/items/weapons/crossbow.webp",
+                    bounds=bounds(125, 103, 80, 80),
+                ),
+                VisibleImage(
+                    path="/images/items/armor/energy-helm.webp",
+                    bounds=bounds(465, 103, 80, 80),
+                ),
+                VisibleImage(
+                    path="/images/curses/small/fog.webp",
+                    bounds=bounds(1003, 155, 30, 16),
+                ),
+            ),
+            "controls": (VisibleControl(text="", tag="div", bounds=bounds(455, 93, 310, 300)),),
+            "text_elements": (
+                *retained,
+                text("CPU", 160, 53),
+                text("ロキ-67", 500, 53),
+                VisibleText(
+                    text="ATK2",
+                    bounds=bounds(145, 403, 250, 40),
+                    color="rgb(79, 79, 79)",
+                ),
+                VisibleText(
+                    text="DEF10",
+                    bounds=bounds(485, 403, 250, 40),
+                    color="rgb(79, 79, 79)",
+                ),
+            ),
+        }
+    )
+
+    state = parse_game_state(
+        fogged_defense,
+        identity="ロキ-67",
+        previous_state=previous,
+    )
+
+    assert state.action_actor == "CPU"
+    assert state.action_target == "ロキ-67"
+    assert state.action_display == "ATK2"
+    assert state.phase_control == "DEF10"
+    assert state.phase_artifact_asset_path == "/images/items/armor/energy-helm.webp"
+    assert state.phase_control_hit_target_bounds == bounds(455, 93, 310, 300)
+    assert state.players[0].stats_visible is True
+    assert state.players[0].hit_target_bounds is None
+    assert state.players[1].stats_visible is False
+    assert state.players[1].hit_target_bounds is None
+    assert [
+        action.action_id
+        for action in verified_browser_actions(
+            state,
+            fogged_defense,
+            plain_armor_defenses={"energy-helm": 10},
+        ).actions
+    ] == ["wait", "confirm:defense:energy-helm:0:ロキ-67"]
+
+    elemental_defense = fogged_defense.model_copy(
+        update={
+            "text_elements": tuple(
+                element.model_copy(update={"color": "rgb(68, 68, 221)"})
+                if element.text == "DEF10"
+                else element
+                for element in fogged_defense.text_elements
+            )
+        }
+    )
+    with pytest.raises(GameStateParseError, match="expected at least two player rows"):
+        parse_game_state(
+            elemental_defense,
+            identity="ロキ-67",
+            previous_state=previous,
+        )
+
+
 def test_fog_without_a_previous_opponent_fails_closed() -> None:
     clear = game_observation()
     fogged = clear.model_copy(

@@ -47,7 +47,11 @@ def action_index(
         return target_action_offset + action.target_player_index
     if action.kind in {ActionKind.PASS, ActionKind.FORGIVE}:
         return forgive_action_index
-    if action.kind in {ActionKind.CONFIRM, ActionKind.CONFIRM_CHANCE}:
+    if action.kind in {
+        ActionKind.CONFIRM,
+        ActionKind.CONFIRM_CHANCE,
+        ActionKind.CONFIRM_UTILITY,
+    }:
         return confirm_action_index
     raise FeatureEncodingError(f"action kind {action.kind} is outside the neural action head")
 

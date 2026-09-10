@@ -14,6 +14,7 @@ class ActionKind(StrEnum):
     SELECT_TARGET = "select_target"
     FORGIVE = "forgive"
     CONFIRM_CHANCE = "confirm_chance"
+    CONFIRM_UTILITY = "confirm_utility"
     CONFIRM = "confirm"
     CANCEL = "cancel"
 
@@ -73,6 +74,17 @@ class LegalAction(BaseModel):
         ):
             raise ValueError(
                 "untargeted confirmation requires artifact, actor, display, and empty target"
+            )
+        if self.kind is ActionKind.CONFIRM_UTILITY and (
+            self.artifact_asset_path is None
+            or not self.actor_player_name
+            or not self.expected_action_display
+            or self.control_panel != "left"
+            or self.target_player_index is not None
+            or self.target_player_name is not None
+        ):
+            raise ValueError(
+                "utility confirmation requires artifact, actor, effect, and empty target"
             )
         return self
 

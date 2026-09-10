@@ -231,7 +231,7 @@ diagnostics and never become shaped rewards.
 
 The default `safe-observer-v0` remains observation-only. The explicitly chosen
 `heuristic-v0` path can select the highest-expected-damage Bible-verified
-one-click weapon and confirm it against an already named sole opponent. The
+weapon and confirm it against an already named sole opponent. The
 browser allowlist contains 80 exact-display attacks: 63 fixed attacks across
 all seven elements and 17 probabilistic attacks whose chance roll requires no
 player choice. Chance attacks use a separately validated untargeted resolution
@@ -239,11 +239,13 @@ step before any named-target confirmation. Six fixed-damage, single-element
 miracles are also available when their exact MP cost is affordable. Empty
 Prayer is allowed only when the hand contains no weapon, matching the live
 client's rejection rule. Bible-audited unconditional HP and MP sundries are
-also available as atomic one-click actions. The heuristic takes a lethal attack
-before healing, otherwise restores HP at 25 or less, and uses MP recovery as a
-fallback when no attack or HP recovery is currently usable. This prevents a
-disabled or Dream-masked weapon from deadlocking a turn when an independently
-verified utility remains clickable. Additive boosters, multi-hit,
+also available through separate selection and confirmation actions. Utility
+confirmation requires the exact actor, accepted card asset, `HP+N` or `MP+N`
+effect label, empty target, and left-panel hit target. The heuristic takes a
+lethal attack before healing, otherwise restores HP at 25 or less, and uses MP
+recovery as a fallback when no attack or HP recovery is currently usable. This
+prevents a disabled or Dream-masked weapon from deadlocking a turn when an
+independently verified utility remains clickable. Additive boosters, multi-hit,
 resource-consuming, state-dependent, and self-damaging weapons remain excluded.
 It can also Forgive a targeted incoming interaction or mirrored reflected
 attack after revalidating every visible context artifact and panel identity,

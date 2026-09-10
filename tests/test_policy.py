@@ -1,11 +1,13 @@
 from datetime import UTC, datetime
 
+from godfield_bot.domain.action import ActionKind
 from godfield_bot.domain.game import GameState, HandArtifact, PlayerState
 from godfield_bot.domain.observation import (
     Bounds,
     ScreenKind,
     ScreenObservation,
     VisibleImage,
+    VisibleText,
 )
 from godfield_bot.legal_actions import (
     game_state_digest,
@@ -618,6 +620,76 @@ def test_heuristic_uses_mp_utility_to_escape_the_recorded_fog_dead_end() -> None
         "restore MP with the strongest deterministic Bible-audited utility"
     )
     assert decision.executable is True
+
+
+def test_heuristic_confirms_selected_hp_utility_from_recorded_stall() -> None:
+    initial = state()
+    selected = initial.model_copy(
+        update={
+            "field_number": 10,
+            "players": tuple(
+                player.model_copy(update={"hp": 22}) if player.is_self else player
+                for player in initial.players
+            ),
+            "action_actor": "ロキ-67",
+            "action_artifact_asset_path": "/images/items/sundries/smile-dew.webp",
+            "action_hit_target_bounds": Bounds(x=115, y=93, width=310, height=300),
+        }
+    )
+    effect = VisibleText(
+        text="HP+5",
+        bounds=Bounds(x=238, y=140, width=125, height=22),
+        color="rgb(79, 79, 79)",
+    )
+    observation = ScreenObservation(
+        observed_at=selected.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.10", "Smile Dew", "HP+5", "HP"),
+        text_elements=(effect,),
+        controls=(),
+        images=(),
+    )
+    hp_utilities = {"smile-dew": 5}
+    actions = verified_browser_actions(
+        selected,
+        observation,
+        verified_weapon_attacks={"bronze-club": ("ATK1", 1.0)},
+        plain_hp_utilities=hp_utilities,
+    )
+    decision = HeuristicV0Policy(
+        {"bronze-club": ("ATK1", 1.0)},
+        {"iron-shield": 4},
+        plain_hp_utilities=hp_utilities,
+    ).decide(selected, actions)
+
+    assert [action.action_id for action in actions.actions] == [
+        "wait",
+        "confirm:utility:smile-dew:HP+5",
+    ]
+    assert actions.actions[1].kind is ActionKind.CONFIRM_UTILITY
+    assert actions.actions[1].actor_player_name == "ロキ-67"
+    assert actions.actions[1].expected_action_display == "HP+5"
+    assert decision.chosen_action_id == "confirm:utility:smile-dew:HP+5"
+    assert decision.rationale == "confirm the selected deterministic Bible-audited utility"
+    assert decision.executable is True
+
+    mismatched_observation = observation.model_copy(
+        update={
+            "text": ("Training", "G.F.10", "Smile Dew", "MP+5", "HP"),
+            "text_elements": (effect.model_copy(update={"text": "MP+5"}),),
+        }
+    )
+    blocked = verified_browser_actions(
+        selected,
+        mismatched_observation,
+        verified_weapon_attacks={"bronze-club": ("ATK1", 1.0)},
+        plain_hp_utilities=hp_utilities,
+    )
+    assert [action.action_id for action in blocked.actions] == ["wait"]
 
 
 def test_heuristic_heals_at_low_hp_unless_an_attack_is_lethal() -> None:

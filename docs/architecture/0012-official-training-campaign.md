@@ -35,13 +35,16 @@ setup-failure count, completed-game count, and win/loss/draw totals.
 Per-game wall-clock, no-progress, browser-click, room-entry, and client-hash
 checks remain mandatory. Public Duel remains disabled.
 
-The browser action surface admits all 107 Bible-audited one-click weapons with
+The browser action surface admits all 107 Bible-audited selectable weapons with
 an exact rendered attack expression and state-aware expected-damage score,
 affordable fixed-damage miracles, unconditional HP/MP sundries, neutral plain
 armor, and verified Forgive controls. Utility sundries are admitted only when
 their exact accepted-Bible asset has a current hand hit target and the resource
-is below its cap. They are atomic selections: their accepted transition must
-change normalized state just like every other browser action. The heuristic
+is below its cap. The official client resolves utility cards through a separate
+left-panel confirmation after selection. That confirmation is exposed only when
+the actor, accepted asset, exact `HP+N` or `MP+N` effect label, empty target, and
+panel hit target all agree. Each step must change normalized state just like
+every other browser action. The heuristic
 prefers a lethal attack, then HP recovery at 25 HP or less, then an available
 attack, and finally HP or MP recovery for liveness. This browser-only expansion
 includes additive attacks used alone, MP-scaled attacks, automatic side
@@ -133,3 +136,25 @@ without enabling targeting from stale geometry.
 Post-fix live run `93a69f7a-609d-4ddd-86ce-c3088c15561b` completed with a
 classified terminal result after 25 accepted browser actions and did not reach
 the no-progress limit.
+
+Run `dfcb06f8-4da9-485e-a013-c8882ce3c33e` showed that browser utility use was
+incorrectly modeled as atomic. Selecting Smile Dew produced a stable left
+action panel with the accepted asset and `HP+5` detail but did not apply the
+effect. The stored frame now replays to an explicit utility confirmation using
+the existing neural confirmation slot, so the action-head size is unchanged.
+
+The first bounded validation, run `178aac17-a5ec-45a5-98c8-3cc4edcbc32c`,
+advanced through 18 accepted actions before finding a separate Fog parser gap.
+After Energy Helm was selected against a neutral `ATK2`, Fog hid the opponent
+row while leaving the exact opponent actor, self target, left attack asset,
+right armor asset, neutral `DEF10`, self Fog marker, and right-panel hit target
+visible. The targeted Fog carry-forward now accepts this armor-confirmation
+shape as well as Forgive; it still carries opponent stats as stale, fabricates
+no row hit targets, and leaves the Bible allowlist to decide whether the armor
+is executable.
+
+Fresh official-client run `e0a18763-5070-4add-aed2-fac09462d3c3` completed
+with a classified terminal result after 40 dispatched actions and no parse
+errors. It directly exercised the corrected two-step utility path: Heart Flower
+selection was followed by `confirm:utility:heart-flower:MP+10`, whose recorded
+transition changed normalized state before the game advanced.

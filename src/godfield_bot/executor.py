@@ -10,6 +10,7 @@ from godfield_bot.browser.controls import (
     click_hand_artifact,
     click_phase_control,
     click_player_target,
+    click_utility_panel,
 )
 from godfield_bot.domain.action import (
     ActionExecutionResult,
@@ -77,6 +78,20 @@ async def execute_action(
             asset_path=action.artifact_asset_path,
             actor_name=action.actor_player_name,
             action_display=action.expected_action_display,
+        )
+    elif action.kind is ActionKind.CONFIRM_UTILITY:
+        if (
+            action.artifact_asset_path is None
+            or action.actor_player_name is None
+            or action.expected_action_display is None
+            or action.control_panel != "left"
+        ):
+            raise ActionExecutionError("utility confirmation is missing its verified identities")
+        await click_utility_panel(
+            page,
+            asset_path=action.artifact_asset_path,
+            actor_name=action.actor_player_name,
+            effect_display=action.expected_action_display,
         )
     elif action.kind is ActionKind.CONFIRM:
         if (

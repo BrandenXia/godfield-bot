@@ -83,6 +83,11 @@ class HeuristicV0Policy:
         chance_actions = [
             action for action in legal_actions.actions if action.kind is ActionKind.CONFIRM_CHANCE
         ]
+        utility_confirm_actions = [
+            action
+            for action in legal_actions.actions
+            if action.kind is ActionKind.CONFIRM_UTILITY
+        ]
         if len(target_actions) > 1:
             raise ValueError("heuristic policy requires at most one verified target")
         if len(forgive_actions) > 1:
@@ -91,6 +96,8 @@ class HeuristicV0Policy:
             raise ValueError("heuristic policy requires at most one verified confirmation")
         if len(chance_actions) > 1:
             raise ValueError("heuristic policy requires at most one chance confirmation")
+        if len(utility_confirm_actions) > 1:
+            raise ValueError("heuristic policy requires at most one utility confirmation")
         if len(pass_actions) > 1:
             raise ValueError("heuristic policy requires at most one verified pass")
         artifacts_by_slot = {artifact.slot: artifact for artifact in state.hand}
@@ -189,6 +196,8 @@ class HeuristicV0Policy:
             if confirm_actions
             else chance_actions[0]
             if chance_actions
+            else utility_confirm_actions[0]
+            if utility_confirm_actions
             else target_actions[0]
             if target_actions
             else selected_artifact
@@ -215,6 +224,8 @@ class HeuristicV0Policy:
                 if chosen.kind is ActionKind.SELECT_TARGET
                 else "resolve the selected Bible-audited untargeted attack"
                 if chosen.kind is ActionKind.CONFIRM_CHANCE
+                else "confirm the selected deterministic Bible-audited utility"
+                if chosen.kind is ActionKind.CONFIRM_UTILITY
                 else "confirm the selected verified attack on the named sole opponent"
                 if chosen.kind is ActionKind.CONFIRM
                 else "restore HP with the strongest deterministic Bible-audited utility"

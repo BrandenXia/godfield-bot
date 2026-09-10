@@ -11,6 +11,7 @@ NEUTRAL_TEXT_COLOR = "rgb(79, 79, 79)"
 WEAPON_ASSET_PATTERN = re.compile(r"^/images/items/weapons/([^/]+)\.(?:png|svg|webp)$")
 MIRACLE_ASSET_PATTERN = re.compile(r"^/images/items/miracles/([^/]+)\.(?:png|svg|webp)$")
 ARMOR_ASSET_PATTERN = re.compile(r"^/images/items/armor/([^/]+)\.(?:png|svg|webp)$")
+SUNDRY_ASSET_PATTERN = re.compile(r"^/images/items/sundries/([^/]+)\.(?:png|svg|webp)$")
 ITEM_ASSET_PATTERN = re.compile(r"^/images/items/[^/]+/[^/]+\.(?:png|svg|webp)$")
 PROBABILISTIC_ATTACK_PATTERN = re.compile(r"^\d+%ATK(\d+)$")
 VERIFIED_RANDOM_TARGET_WEAPONS = frozenset({"dangerous-pestle"})
@@ -163,6 +164,38 @@ def verified_browser_actions(
         if selected_armor is not None
         else None
     )
+    selected_sundry = (
+        SUNDRY_ASSET_PATTERN.fullmatch(state.action_artifact_asset_path)
+        if state.action_artifact_asset_path is not None
+        else None
+    )
+    selected_hp_utility = (
+        (plain_hp_utilities or {}).get(selected_sundry.group(1))
+        if selected_sundry is not None
+        else None
+    )
+    selected_mp_utility = (
+        (plain_mp_utilities or {}).get(selected_sundry.group(1))
+        if selected_sundry is not None
+        else None
+    )
+    selected_utility_display = (
+        f"HP+{selected_hp_utility}"
+        if selected_hp_utility is not None and self_player.hp < 100
+        else f"MP+{selected_mp_utility}"
+        if selected_mp_utility is not None and self_player.mp < 100
+        else None
+    )
+    selected_utility_display_matches = (
+        selected_utility_display is not None
+        and sum(
+            element.text == selected_utility_display
+            and 200 <= element.bounds.x <= 400
+            and 110 <= element.bounds.y <= 200
+            for element in observation.text_elements
+        )
+        == 1
+    )
     self_fixed_attack_confirmation = (
         len(living_opponents) == 1
         and state.action_actor == self_player.name
@@ -195,6 +228,14 @@ def verified_browser_actions(
         and selected_armor_defense is not None
         and state.phase_control == f"DEF{selected_armor_defense}"
         and state.phase_control_hit_target_bounds is not None
+    )
+    self_utility_confirmation = (
+        state.action_actor == self_player.name
+        and state.action_target is None
+        and state.action_display is None
+        and selected_sundry is not None
+        and selected_utility_display_matches
+        and state.action_hit_target_bounds is not None
     )
     if self_attack_selection:
         candidates = [
@@ -284,6 +325,27 @@ def verified_browser_actions(
                 control_panel="left",
             )
         )
+    if (
+        self_utility_confirmation
+        and selected_sundry is not None
+        and selected_utility_display is not None
+    ):
+        actions.append(
+            LegalAction(
+                action_id=(
+                    f"confirm:utility:{selected_sundry.group(1)}:{selected_utility_display}"
+                ),
+                kind=ActionKind.CONFIRM_UTILITY,
+                label=(
+                    f"Confirm the selected {selected_utility_display} utility "
+                    f"{selected_sundry.group(1)}"
+                ),
+                artifact_asset_path=state.action_artifact_asset_path,
+                actor_player_name=self_player.name,
+                expected_action_display=selected_utility_display,
+                control_panel="left",
+            )
+        )
     if self_plain_armor_confirmation and selected_armor is not None:
         actions.append(
             LegalAction(
@@ -331,8 +393,8 @@ def verified_browser_actions(
         actions=tuple(actions),
         coverage_complete=False,
         blocked_reason=(
-            "only verified one-click weapon, fixed miracle, or deterministic HP/MP utility "
-            "selection and attack confirmation, weapon-free Pray, incoming or reflected "
+            "only verified weapon, fixed miracle, or deterministic HP/MP utility selection "
+            "and confirmation, weapon-free Pray, incoming or reflected "
             "Forgive, and neutral plain-armor selection and confirmation are supported"
         ),
     )

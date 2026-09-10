@@ -544,3 +544,86 @@ async def click_chance_panel(
     if not await target.is_visible():
         raise BrowserContractError("unique visible chance-attack hit target was not found")
     await target.click(force=True)
+
+
+async def click_utility_panel(
+    page: Page,
+    *,
+    asset_path: str,
+    actor_name: str,
+    effect_display: str,
+) -> None:
+    """Confirm a selected utility after revalidating its exact left action panel."""
+
+    descriptor = cast(
+        dict[str, Any] | None,
+        await page.evaluate(
+            """
+            ({wantedPath, wantedActor, wantedEffect}) => {
+              const rendered = (element) => {
+                const style = getComputedStyle(element);
+                const rect = element.getBoundingClientRect();
+                return style.display !== 'none' && style.visibility !== 'hidden' &&
+                  rect.width > 0 && rect.height > 0;
+              };
+              const selected = [...document.querySelectorAll('img')].filter((element) => {
+                if (!rendered(element) || new URL(element.src).pathname !== wantedPath) {
+                  return false;
+                }
+                const rect = element.getBoundingClientRect();
+                return rect.x >= 100 && rect.x <= 200 && rect.y >= 80 && rect.y <= 200 &&
+                  rect.width >= 60 && rect.width <= 100 &&
+                  rect.height >= 60 && rect.height <= 100;
+              });
+              const spans = [...document.querySelectorAll('span')].filter(rendered);
+              const actors = spans.filter((element) => {
+                const rect = element.getBoundingClientRect();
+                return element.innerText.trim() === wantedActor &&
+                  rect.x >= 100 && rect.x <= 450 && rect.y >= 40 && rect.y <= 80;
+              });
+              const effects = spans.filter((element) => {
+                const rect = element.getBoundingClientRect();
+                return element.innerText.trim() === wantedEffect &&
+                  rect.x >= 200 && rect.x <= 400 && rect.y >= 110 && rect.y <= 200;
+              });
+              const targets = spans.filter((element) => {
+                const rect = element.getBoundingClientRect();
+                return rect.x >= 451 && rect.x <= 750 && rect.y >= 40 && rect.y <= 80;
+              });
+              const actionDisplays = spans.filter((element) => {
+                const rect = element.getBoundingClientRect();
+                return rect.x >= 100 && rect.x <= 450 && rect.y >= 390 && rect.y <= 450;
+              });
+              if (selected.length !== 1 || actors.length !== 1 || effects.length !== 1 ||
+                  targets.length !== 0 || actionDisplays.length !== 0) return null;
+              const allDivs = [...document.querySelectorAll('div')];
+              const candidates = allDivs.filter((element) => {
+                if (!rendered(element) || getComputedStyle(element).cursor !== 'pointer') {
+                  return false;
+                }
+                const rect = element.getBoundingClientRect();
+                const parentCursor = element.parentElement
+                  ? getComputedStyle(element.parentElement).cursor
+                  : '';
+                return parentCursor !== 'pointer' && element.innerText.trim() === '' &&
+                  rect.x >= 100 && rect.x <= 150 && rect.y >= 80 && rect.y <= 120 &&
+                  rect.width >= 250 && rect.width <= 350 &&
+                  rect.height >= 250 && rect.height <= 350;
+              });
+              if (candidates.length !== 1) return null;
+              return {domIndex: allDivs.indexOf(candidates[0])};
+            }
+            """,
+            {
+                "wantedPath": asset_path,
+                "wantedActor": actor_name,
+                "wantedEffect": effect_display,
+            },
+        ),
+    )
+    if descriptor is None:
+        raise BrowserContractError("utility no longer matches the verified left action panel")
+    target = page.locator("div").nth(cast(int, descriptor["domIndex"]))
+    if not await target.is_visible():
+        raise BrowserContractError("unique visible utility hit target was not found")
+    await target.click(force=True)

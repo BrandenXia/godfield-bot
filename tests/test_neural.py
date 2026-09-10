@@ -298,3 +298,17 @@ def test_confirm_action_uses_final_action_head_slot() -> None:
 
     assert [index for index, allowed in enumerate(features.action_mask) if allowed] == [0, 20]
     assert action_index(legal_actions.actions[1]) == 20
+
+
+def test_utility_confirmation_shares_final_action_head_slot() -> None:
+    action = LegalAction(
+        action_id="confirm:utility:smile-dew:HP+5",
+        kind=ActionKind.CONFIRM_UTILITY,
+        label="Confirm utility",
+        artifact_asset_path="/images/items/sundries/smile-dew.webp",
+        actor_player_name="ロキ-67",
+        expected_action_display="HP+5",
+        control_panel="left",
+    )
+
+    assert action_index(action) == 20

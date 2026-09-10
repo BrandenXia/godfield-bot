@@ -182,3 +182,25 @@ with two completed episodes and no aborts. Three incomplete frames immediately
 before the second terminal classification recovered through the existing
 parse-frame retry path, confirming that transient animation remains distinct
 from the new screen-level recovery path.
+
+A later unlimited campaign completed nine of ten games before run
+`1b9537cc-01bf-4705-afdb-83fd131a1f33` reached a new Fog interaction at G.F.33.
+The CPU reflected the bot's Rock miracle, placing `Forgive` in the left action
+panel and the reflected `ATK8` plus Rock context in the right phase panel. Fog
+hid the opponent's stats row. Hidden-player recovery only accepted the ordinary
+incoming layout, so the otherwise supported reflected-Forgive action was never
+reconstructed and the unchanged frame reached `no_progress_limit`.
+
+Fog recovery now recognizes that reversed layout only when the prior state has
+exactly one opponent, the visible headers name self and that opponent in the
+expected columns, the left panel is a clickable `Forgive`, and the right panel
+contains one selected weapon or miracle with an attack display. Replaying the
+stored failure frame now yields `forgive:reflected`; missing attack context still
+fails closed.
+
+Official Training run `a19bce03-2bdc-4d52-b896-e9f9eeb28d33` then completed
+with a classified terminal loss after 30 dispatched actions. It exercised a
+live reflected attack inside a Fog scene at G.F.4: `forgive:reflected` was
+dispatched from the left panel and produced a changed normalized state. This
+live frame retained both stats rows, while the archived G.F.33 replay covers
+the hidden-row recovery branch that caused the original stall.

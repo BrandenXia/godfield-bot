@@ -330,6 +330,82 @@ def test_fog_recovers_selected_neutral_armor_when_opponent_row_is_hidden() -> No
         )
 
 
+def test_fog_recovers_reflected_attack_response_with_hidden_opponent() -> None:
+    clear = game_observation()
+    previous = parse_game_state(clear, identity="ロキ-67")
+    retained = tuple(
+        element
+        for element in clear.text_elements
+        if abs(element.bounds.y - 264) > 1.5
+        and not (40 <= element.bounds.y <= 80 or 390 <= element.bounds.y <= 450)
+    )
+    fogged_reflection = clear.model_copy(
+        update={
+            "images": (
+                *clear.images,
+                VisibleImage(
+                    path="/images/screens/fog.webp",
+                    bounds=bounds(100, 38, 1080, 660),
+                ),
+                VisibleImage(
+                    path="/images/items/miracles/rock.webp",
+                    bounds=bounds(465, 103, 80, 80),
+                ),
+                VisibleImage(
+                    path="/images/curses/small/fog.webp",
+                    bounds=bounds(1003, 155, 30, 16),
+                ),
+            ),
+            "controls": (VisibleControl(text="", tag="div", bounds=bounds(115, 93, 310, 300)),),
+            "text_elements": (
+                *retained,
+                text("ロキ-67", 160, 53),
+                text("CPU", 500, 53),
+                text("Forgive", 145, 403),
+                VisibleText(
+                    text="ATK8",
+                    bounds=bounds(485, 403, 250, 40),
+                    color="rgb(102, 136, 170)",
+                ),
+            ),
+        }
+    )
+
+    state = parse_game_state(
+        fogged_reflection,
+        identity="ロキ-67",
+        previous_state=previous,
+    )
+
+    assert state.action_actor == "ロキ-67"
+    assert state.action_target == "CPU"
+    assert state.action_display == "Forgive"
+    assert state.action_hit_target_bounds == bounds(115, 93, 310, 300)
+    assert state.phase_control == "ATK8"
+    assert state.phase_artifact_asset_path == "/images/items/miracles/rock.webp"
+    assert state.players[0].stats_visible is True
+    assert state.players[1].stats_visible is False
+    assert [
+        action.action_id for action in verified_browser_actions(state, fogged_reflection).actions
+    ] == ["wait", "forgive:reflected"]
+
+    missing_reflected_attack = fogged_reflection.model_copy(
+        update={
+            "images": tuple(
+                image
+                for image in fogged_reflection.images
+                if image.path != "/images/items/miracles/rock.webp"
+            )
+        }
+    )
+    with pytest.raises(GameStateParseError, match="expected at least two player rows"):
+        parse_game_state(
+            missing_reflected_attack,
+            identity="ロキ-67",
+            previous_state=previous,
+        )
+
+
 def test_fog_without_a_previous_opponent_fails_closed() -> None:
     clear = game_observation()
     fogged = clear.model_copy(

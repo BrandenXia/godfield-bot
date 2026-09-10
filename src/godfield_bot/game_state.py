@@ -15,6 +15,7 @@ FOG_SCENE_PATH = "/images/screens/fog.webp"
 FOG_CURSE_PATH = "/images/curses/small/fog.webp"
 NEUTRAL_TEXT_COLOR = "rgb(79, 79, 79)"
 ATTACK_DISPLAY_PATTERN = re.compile(r"^ATK\d+$")
+REFLECTED_ATTACK_DISPLAY_PATTERN = re.compile(r"^(?:\d+%)?ATK\d+$")
 DEFENSE_DISPLAY_PATTERN = re.compile(r"^DEF\d+$")
 ROW_TOLERANCE = 1.5
 
@@ -179,6 +180,9 @@ def _recover_fog_hidden_players(
             maximum_y=450,
         )
         previous_opponents = [player for player in previous_state.players if not player.is_self]
+        if len(previous_opponents) != 1:
+            return None
+        previous_opponent = previous_opponents[0]
         has_action_context = any(
             _item_coordinates(image) is not None
             and 100 <= image.bounds.x <= 450
@@ -196,6 +200,17 @@ def _recover_fog_hidden_players(
             and 60 <= image.bounds.height <= 100
             and image.hit_target_bounds is None
         ]
+        selected_phase_attacks = [
+            image
+            for image in observation.images
+            if (coordinates := _item_coordinates(image)) is not None
+            and coordinates[0] in {"weapons", "miracles"}
+            and 450 <= image.bounds.x <= 750
+            and 80 <= image.bounds.y <= 250
+            and 60 <= image.bounds.width <= 100
+            and 60 <= image.bounds.height <= 100
+            and image.hit_target_bounds is None
+        ]
         has_forgive_response = phase_control is not None and phase_control.text == "Forgive"
         has_neutral_armor_response = (
             action_display is not None
@@ -206,18 +221,28 @@ def _recover_fog_hidden_players(
             and phase_control.color == NEUTRAL_TEXT_COLOR
             and len(selected_phase_armor) == 1
         )
-        if (
-            row_hit_targets
-            or len(previous_opponents) != 1
-            or action_actor is None
-            or action_actor.text != previous_opponents[0].name
-            or action_target is None
-            or action_target.text != identity
-            or phase_control is None
-            or not (has_forgive_response or has_neutral_armor_response)
-            or _phase_control_hit_target(observation) is None
-            or not has_action_context
-        ):
+        has_incoming_response = (
+            action_actor is not None
+            and action_actor.text == previous_opponent.name
+            and action_target is not None
+            and action_target.text == identity
+            and (has_forgive_response or has_neutral_armor_response)
+            and _phase_control_hit_target(observation) is not None
+            and has_action_context
+        )
+        has_reflected_response = (
+            action_actor is not None
+            and action_actor.text == identity
+            and action_target is not None
+            and action_target.text == previous_opponent.name
+            and action_display is not None
+            and action_display.text == "Forgive"
+            and phase_control is not None
+            and REFLECTED_ATTACK_DISPLAY_PATTERN.fullmatch(phase_control.text) is not None
+            and _action_hit_target(observation) is not None
+            and len(selected_phase_attacks) == 1
+        )
+        if row_hit_targets or not (has_incoming_response or has_reflected_response):
             return None
 
     recovered: list[PlayerState] = []

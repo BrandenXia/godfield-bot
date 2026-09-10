@@ -33,7 +33,7 @@ from godfield_bot.simulation_evaluation import (
 )
 from godfield_bot.simulation_policy import RESOURCE_HEURISTIC_POLICY_ID
 
-LIVE_RESOURCE_SHADOW_GATE_ID: Final = "live-resource-shadow-readiness-v4"
+LIVE_RESOURCE_SHADOW_GATE_ID: Final = "live-resource-shadow-readiness-v5"
 RESOURCE_KINDS: Final = ("hp-sundry", "mp-sundry", "attack-miracle", "hp-miracle")
 
 
@@ -96,16 +96,14 @@ class LiveShadowMetrics(BaseModel):
 
 
 class LiveShadowEvaluationReport(BaseModel):
-    schema_version: Literal[4] = 4
+    schema_version: Literal[5] = 5
     evaluation_id: str
-    gate_id: Literal["live-resource-shadow-readiness-v4"] = LIVE_RESOURCE_SHADOW_GATE_ID
+    gate_id: Literal["live-resource-shadow-readiness-v5"] = LIVE_RESOURCE_SHADOW_GATE_ID
     created_at: datetime
     candidate_model_id: str
     candidate_weights_sha256: str
     shadow_policy_id: Literal["api-resource-neural-shadow-v2"] = "api-resource-neural-shadow-v2"
-    behavior_policy_id: Literal["api-combo-utility-heuristic-v4"] = (
-        "api-combo-utility-heuristic-v4"
-    )
+    behavior_policy_id: Literal["api-combo-utility-heuristic-v5"] = "api-combo-utility-heuristic-v5"
     feature_schema_version: Literal[5] = 5
     native_evaluation_id: str
     native_evaluation_input_sha256: str

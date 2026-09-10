@@ -214,11 +214,8 @@ def test_normalization_exposes_tactical_item_values() -> None:
 def test_turn_actions_use_only_safe_single_weapons_and_named_targets() -> None:
     actions = verified_api_actions(room_state(), user_id="loki-user")
 
-    assert [action.kind for action in actions.actions] == [
-        ApiActionKind.PASS,
-        ApiActionKind.USE_ITEM,
-    ]
-    attack = actions.actions[1]
+    assert [action.kind for action in actions.actions] == [ApiActionKind.USE_ITEM]
+    attack = actions.actions[0]
     assert attack.item_instance_ids == (11,)
     assert attack.item_model_ids == (1,)
     assert attack.target_player_id == 2
@@ -244,11 +241,9 @@ def test_combo_actions_expose_only_base_plus_booster_macros() -> None:
     )
 
     assert [action.action_id for action in conservative.actions] == [
-        "pass",
         "use:11:1:2",
     ]
     assert [action.action_id for action in actions.actions] == [
-        "pass",
         "use:11:1:2",
         "combo-attack:11-15:2",
     ]
@@ -276,9 +271,17 @@ def test_combo_actions_fail_closed_when_api_stats_differ_from_bible() -> None:
     )
 
     assert [action.action_id for action in actions.actions] == [
-        "pass",
         "use:11:1:2",
     ]
+
+
+def test_turn_pass_is_suppressed_for_a_visible_additive_weapon() -> None:
+    actions = verified_api_actions(
+        room_state(self_items=[{"id": 15, "modelId": 5}]),
+        user_id="loki-user",
+    )
+
+    assert actions.actions == ()
 
 
 def test_combo_actions_expose_compatible_multi_armor_macro() -> None:
@@ -470,7 +473,7 @@ def test_transient_hand_placeholder_without_instance_id_is_never_actionable() ->
     assert state.hand[0].instance_id is None
     assert state.hand[0].model_id == 1
     assert state.hand[0].name == "Club"
-    assert [action.action_id for action in actions.actions] == ["pass"]
+    assert actions.actions == ()
 
 
 def test_empty_transient_hand_placeholder_is_preserved_as_unknown() -> None:
@@ -596,7 +599,7 @@ def test_api_action_transition_records_state_and_public_hp_delta() -> None:
     after_room = room_state()
     after_room.raw["game"]["players"][1]["hp"] = 30
     after_room.raw["game"]["updateCount"] = 13
-    action = verified_api_actions(before_room, user_id="loki-user").actions[1]
+    action = verified_api_actions(before_room, user_id="loki-user").actions[0]
 
     transition = build_api_action_transition(
         action,

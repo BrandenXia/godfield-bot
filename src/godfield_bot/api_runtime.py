@@ -64,7 +64,7 @@ class ApiRuntimeError(RuntimeError):
 class ApiPolicyName(StrEnum):
     OBSERVER = "api-observer-v0"
     HEURISTIC = "api-heuristic-v0"
-    TACTICAL_HEURISTIC = "api-combo-utility-heuristic-v4"
+    TACTICAL_HEURISTIC = "api-combo-utility-heuristic-v5"
     NEURAL_SHADOW = "api-combo-neural-shadow-v1"
 
 

@@ -16,6 +16,7 @@ from godfield_bot.reference import (
     verified_browser_weapon_attacks,
     verified_chance_attack_miracle_cards,
     verified_cp_utility_miracle_cards,
+    verified_effect_attack_miracle_cards,
     verified_hp_utility_miracle_cards,
 )
 
@@ -123,6 +124,9 @@ def test_committed_snapshot_matches_validated_live_catalog() -> None:
     assert verified_miracles["waterfall"] == (25, 12, "water")
     assert "absorption" not in verified_miracles
     assert "fireball" not in verified_miracles
+    assert verified_effect_attack_miracle_cards(snapshot) == {
+        "absorption": (10, 10, "light", "absorbHP")
+    }
     chance_miracles = verified_chance_attack_miracle_cards(snapshot)
     assert len(chance_miracles) == 6
     assert chance_miracles["smoke"] == (75, 5, 4, "fire")

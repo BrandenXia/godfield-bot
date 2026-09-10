@@ -89,6 +89,9 @@ VERIFIED_BROWSER_AUTOMATIC_ATTACK_EFFECTS = frozenset(
 VERIFIED_BROWSER_ATTACK_EFFECT_MULTIPLIERS = {
     "Attack twice": 2.0,
 }
+VERIFIED_EFFECT_ATTACK_MIRACLE_ABILITIES = {
+    "Absorb HP": "absorbHP",
+}
 
 
 class ReferenceExtractionError(BrowserContractError):
@@ -532,6 +535,37 @@ def verified_attack_miracle_cards(
                 int(attack.group(1)),
                 int(cost.group(1)),
                 element,
+            )
+    return result
+
+
+def verified_effect_attack_miracle_cards(
+    snapshot: BibleSnapshot,
+) -> dict[str, tuple[int, int, CombatElement, str]]:
+    """Return fixed-attack miracles with an audited automatic effect."""
+
+    miracles = snapshot.catalog.get("miracles")
+    if miracles is None:
+        return {}
+    result: dict[str, tuple[int, int, CombatElement, str]] = {}
+    for artifact in miracles.items:
+        element = _combat_element(artifact)
+        if element is None or len(artifact.detail) != 6:
+            continue
+        attack = PLAIN_ATTACK_PATTERN.fullmatch(artifact.detail[1])
+        cost = re.fullmatch(r"(\d+)MP", artifact.detail[4])
+        if (
+            attack is not None
+            and artifact.detail[2] in VERIFIED_EFFECT_ATTACK_MIRACLE_ABILITIES
+            and artifact.detail[3] == "Cost"
+            and cost is not None
+            and artifact.detail[5].startswith("Gift Rate:")
+        ):
+            result[artifact.asset] = (
+                int(attack.group(1)),
+                int(cost.group(1)),
+                element,
+                VERIFIED_EFFECT_ATTACK_MIRACLE_ABILITIES[artifact.detail[2]],
             )
     return result
 

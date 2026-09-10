@@ -11,6 +11,7 @@ from godfield_bot.domain.observation import (
     VisibleText,
 )
 from godfield_bot.game_state import GameStateParseError, parse_game_state
+from godfield_bot.legal_actions import verified_browser_actions
 from godfield_bot.probe import record_observation_probe
 from godfield_bot.run_store import RunStore
 
@@ -145,9 +146,7 @@ def test_fog_recovers_hidden_opponent_from_previous_observation() -> None:
                 ),
             ),
             "text_elements": tuple(
-                element
-                for element in clear.text_elements
-                if abs(element.bounds.y - 264) > 1.5
+                element for element in clear.text_elements if abs(element.bounds.y - 264) > 1.5
             ),
             "text": tuple(value for value in clear.text if value != "CPU"),
         }
@@ -167,6 +166,78 @@ def test_fog_recovers_hidden_opponent_from_previous_observation() -> None:
     }
 
 
+def test_fog_recovers_targeted_response_when_player_rows_are_not_clickable() -> None:
+    clear = game_observation()
+    previous = parse_game_state(clear, identity="ロキ-67")
+    retained = tuple(
+        element
+        for element in clear.text_elements
+        if abs(element.bounds.y - 264) > 1.5
+        and not (40 <= element.bounds.y <= 80 or 390 <= element.bounds.y <= 450)
+    )
+    fogged_response = clear.model_copy(
+        update={
+            "images": (
+                *clear.images,
+                VisibleImage(
+                    path="/images/screens/fog.webp",
+                    bounds=bounds(100, 38, 1080, 660),
+                ),
+                VisibleImage(
+                    path="/images/items/sundries/nocturnal-broom.webp",
+                    bounds=bounds(125, 103, 80, 80),
+                ),
+                VisibleImage(
+                    path="/images/curses/small/fog.webp",
+                    bounds=bounds(1003, 155, 30, 16),
+                ),
+            ),
+            "controls": (VisibleControl(text="", tag="div", bounds=bounds(455, 93, 310, 300)),),
+            "text_elements": (
+                *retained,
+                text("CPU", 160, 53),
+                text("ロキ-67", 500, 53),
+                text("Forgive", 480, 403),
+            ),
+        }
+    )
+
+    state = parse_game_state(
+        fogged_response,
+        identity="ロキ-67",
+        previous_state=previous,
+    )
+
+    assert state.action_actor == "CPU"
+    assert state.action_target == "ロキ-67"
+    assert state.phase_control == "Forgive"
+    assert state.phase_control_hit_target_bounds == bounds(455, 93, 310, 300)
+    assert state.players[0].stats_visible is True
+    assert state.players[0].hit_target_bounds is None
+    assert state.players[1].stats_visible is False
+    assert state.players[1].hit_target_bounds is None
+    assert [
+        action.action_id for action in verified_browser_actions(state, fogged_response).actions
+    ] == ["wait", "forgive"]
+
+    mismatched_target = fogged_response.model_copy(
+        update={
+            "text_elements": tuple(
+                element
+                if element.text != "ロキ-67" or element.bounds.x != 500
+                else text("Other", 500, 53)
+                for element in fogged_response.text_elements
+            )
+        }
+    )
+    with pytest.raises(GameStateParseError, match="expected at least two player rows"):
+        parse_game_state(
+            mismatched_target,
+            identity="ロキ-67",
+            previous_state=previous,
+        )
+
+
 def test_fog_without_a_previous_opponent_fails_closed() -> None:
     clear = game_observation()
     fogged = clear.model_copy(
@@ -183,9 +254,7 @@ def test_fog_without_a_previous_opponent_fails_closed() -> None:
                 ),
             ),
             "text_elements": tuple(
-                element
-                for element in clear.text_elements
-                if abs(element.bounds.y - 264) > 1.5
+                element for element in clear.text_elements if abs(element.bounds.y - 264) > 1.5
             ),
         }
     )
@@ -224,7 +293,7 @@ def test_defense_phase_spatial_roles_are_distinct() -> None:
                     color="rgb(79, 79, 79)",
                 ),
                 text("Forgive", 480, 403),
-            )
+            ),
         }
     )
 
@@ -252,7 +321,7 @@ def test_selected_action_artifact_is_separate_from_the_hand() -> None:
                     path="/images/items/weapons/bronze-club.webp",
                     bounds=bounds(125, 103, 80, 80),
                 ),
-            )
+            ),
         }
     )
 

@@ -37,16 +37,21 @@ checks remain mandatory. Public Duel remains disabled.
 
 The browser action surface admits all 107 Bible-audited one-click weapons with
 an exact rendered attack expression and state-aware expected-damage score,
-affordable fixed-damage miracles, neutral plain armor, and verified Forgive
-controls. This browser-only expansion includes additive attacks used alone,
-MP-scaled attacks, automatic side effects, repeated attacks, random targets,
-and the alternate Ascension display; it does not enlarge the stricter native
-simulator curriculum. Probabilistic and random-target weapons have a distinct
-untargeted resolution action because the client does not name a target until
-that phase resolves. That action shares the existing neural confirmation
-index: untargeted and targeted confirmation controls cannot coexist in one
-legal set, so the model output dimension does not change. Empty Prayer is legal
-only when no weapon is present in the hand.
+affordable fixed-damage miracles, unconditional HP/MP sundries, neutral plain
+armor, and verified Forgive controls. Utility sundries are admitted only when
+their exact accepted-Bible asset has a current hand hit target and the resource
+is below its cap. They are atomic selections: their accepted transition must
+change normalized state just like every other browser action. The heuristic
+prefers a lethal attack, then HP recovery at 25 HP or less, then an available
+attack, and finally HP or MP recovery for liveness. This browser-only expansion
+includes additive attacks used alone, MP-scaled attacks, automatic side
+effects, repeated attacks, random targets, and the alternate Ascension display;
+it does not enlarge the stricter native simulator curriculum. Probabilistic and
+random-target weapons have a distinct untargeted resolution action because the
+client does not name a target until that phase resolves. That action shares the
+existing neural confirmation index: untargeted and targeted confirmation
+controls cannot coexist in one legal set, so the model output dimension does
+not change. Empty Prayer is legal only when no weapon is present in the hand.
 
 ## Consequences
 
@@ -102,3 +107,29 @@ weapon from being dropped from the hand and prevents the illegal empty Prayer
 that ended run `d2d97273-724b-431b-a312-34475641570c`. The Fog failure from run
 `bef9d31f-2245-4e6b-9a9e-bfa06f96a570` now replays as a typed partial
 observation rather than a parse error.
+
+Run `308002d7-352a-48d9-880e-137acfe3e2b2` exposed the next liveness boundary.
+At field 13, ロキ-67 had 2 HP and 10 MP under Fog; Evil Broadsword was masked,
+Waterfall cost 12 MP, and Smile Flower was the only independently identified,
+clickable useful card. The attack-only browser policy exposed only `wait` and
+eventually reached the no-progress limit. With the deterministic utility rule,
+the stored state instead selects the Bible-verified Smile Flower for MP+5,
+without making the masked weapon executable or weakening the empty-Prayer
+guard.
+
+Bounded validation run `351c0e37-5d7c-4891-958b-6840dd21a3a5` then exposed a
+distinct Fog response frame after 13 accepted actions. Nocturnal Broom targeted
+ロキ-67 and displayed a clickable `Forgive`, but the response animation removed
+all player-row controls and hid the opponent's stats. The original Fog recovery
+required both player-row controls, so parsing waited until the no-progress
+limit. The targeted-response fallback now carries the sole previous opponent
+only when the Fog marker remains anchored to the visible self row, the current
+actor exactly matches that opponent, the target exactly matches ロキ-67, a
+current action artifact is present, and the right-side `Forgive` panel is
+clickable. Carried opponent stats remain explicitly stale and neither player
+receives a fabricated row hit target; this is sufficient to expose `Forgive`
+without enabling targeting from stale geometry.
+
+Post-fix live run `93a69f7a-609d-4ddd-86ce-c3088c15561b` completed with a
+classified terminal result after 25 accepted browser actions and did not reach
+the no-progress limit.

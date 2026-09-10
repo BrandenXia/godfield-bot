@@ -58,6 +58,8 @@ class TrainingRunConfig(BaseModel):
     verified_miracle_attacks: dict[str, tuple[int, int, CombatElement]] = Field(
         default_factory=dict
     )
+    plain_hp_utilities: dict[str, int] = Field(default_factory=dict)
+    plain_mp_utilities: dict[str, int] = Field(default_factory=dict)
     plain_armor_defenses: dict[str, int] = Field(default_factory=dict)
 
     @model_validator(mode="after")
@@ -179,6 +181,12 @@ def _record_policy_state(
         verified_miracle_attacks=(
             policy.verified_miracle_attacks if isinstance(policy, HeuristicV0Policy) else None
         ),
+        plain_hp_utilities=(
+            policy.plain_hp_utilities if isinstance(policy, HeuristicV0Policy) else None
+        ),
+        plain_mp_utilities=(
+            policy.plain_mp_utilities if isinstance(policy, HeuristicV0Policy) else None
+        ),
     )
     decision = policy.decide(state, legal_actions)
     chosen_actions = [
@@ -238,6 +246,8 @@ def _policy_from_name(
     name: RunnerPolicyName,
     verified_weapon_attacks: dict[str, WeaponAttackRule],
     verified_miracle_attacks: dict[str, tuple[int, int, CombatElement]],
+    plain_hp_utilities: dict[str, int],
+    plain_mp_utilities: dict[str, int],
     plain_armor_defenses: dict[str, int],
 ) -> Policy:
     if name is RunnerPolicyName.SAFE_OBSERVER:
@@ -247,6 +257,8 @@ def _policy_from_name(
             verified_weapon_attacks,
             plain_armor_defenses,
             verified_miracle_attacks,
+            plain_hp_utilities,
+            plain_mp_utilities,
         )
     raise RunnerError(f"unsupported policy: {name}")
 
@@ -262,6 +274,8 @@ async def run_training_observer(
         config.policy,
         config.verified_weapon_attacks,
         config.verified_miracle_attacks,
+        config.plain_hp_utilities,
+        config.plain_mp_utilities,
         config.plain_armor_defenses,
     )
     store = RunStore(config.database)

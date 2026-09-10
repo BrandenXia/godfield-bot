@@ -104,10 +104,28 @@ def _recover_fog_hidden_players(
 ) -> tuple[PlayerState, ...] | None:
     visible_self = visible_players[0] if len(visible_players) == 1 else None
     self_bounds = visible_self.hit_target_bounds if visible_self is not None else None
-    self_fog_visible = self_bounds is not None and any(
+    visible_hp_labels = [
+        element
+        for element in observation.text_elements
+        if element.text == "HP" and element.bounds.x >= 700 and element.bounds.y < 400
+    ]
+    self_fog_visible = any(
         image.path == FOG_CURSE_PATH
-        and self_bounds.x <= image.bounds.x <= self_bounds.x + self_bounds.width
-        and self_bounds.y <= image.bounds.y <= self_bounds.y + self_bounds.height
+        and (
+            (
+                self_bounds is not None
+                and self_bounds.x <= image.bounds.x <= self_bounds.x + self_bounds.width
+                and self_bounds.y <= image.bounds.y <= self_bounds.y + self_bounds.height
+            )
+            or (
+                self_bounds is None
+                and len(visible_hp_labels) == 1
+                and 780 <= image.bounds.x <= 1120
+                and visible_hp_labels[0].bounds.y
+                <= image.bounds.y
+                <= visible_hp_labels[0].bounds.y + visible_hp_labels[0].bounds.height
+            )
+        )
         for image in observation.images
     )
     if (
@@ -124,14 +142,52 @@ def _recover_fog_hidden_players(
     if previous_self.name != identity or visible_players[0].name != identity:
         return None
     row_hit_targets = _player_row_hit_targets(observation)
-    if (
-        len(row_hit_targets) != len(previous_state.players)
-        or not _bounds_match(
-            visible_players[0].hit_target_bounds,
-            row_hit_targets[previous_state.self_player_index],
+    complete_row_targets = len(row_hit_targets) == len(previous_state.players) and _bounds_match(
+        visible_players[0].hit_target_bounds,
+        row_hit_targets[previous_state.self_player_index],
+    )
+    if not complete_row_targets:
+        action_actor = _single_spatial_element(
+            observation,
+            minimum_x=100,
+            maximum_x=450,
+            minimum_y=40,
+            maximum_y=80,
         )
-    ):
-        return None
+        action_target = _single_spatial_element(
+            observation,
+            minimum_x=451,
+            maximum_x=750,
+            minimum_y=40,
+            maximum_y=80,
+        )
+        phase_control = _single_spatial_element(
+            observation,
+            minimum_x=451,
+            maximum_x=750,
+            minimum_y=390,
+            maximum_y=450,
+        )
+        previous_opponents = [player for player in previous_state.players if not player.is_self]
+        has_action_context = any(
+            _item_coordinates(image) is not None
+            and 100 <= image.bounds.x <= 450
+            and 80 <= image.bounds.y <= 380
+            for image in observation.images
+        )
+        if (
+            row_hit_targets
+            or len(previous_opponents) != 1
+            or action_actor is None
+            or action_actor.text != previous_opponents[0].name
+            or action_target is None
+            or action_target.text != identity
+            or phase_control is None
+            or phase_control.text != "Forgive"
+            or _phase_control_hit_target(observation) is None
+            or not has_action_context
+        ):
+            return None
 
     recovered: list[PlayerState] = []
     for index, previous in enumerate(previous_state.players):
@@ -143,7 +199,7 @@ def _recover_fog_hidden_players(
                 update={
                     "stats_visible": False,
                     "status_marker_color": None,
-                    "hit_target_bounds": row_hit_targets[index],
+                    "hit_target_bounds": (row_hit_targets[index] if complete_row_targets else None),
                 }
             )
         )

@@ -536,6 +536,160 @@ def test_heuristic_excludes_unaffordable_fixed_attack_miracle() -> None:
     assert decision.executable is True
 
 
+def test_heuristic_uses_mp_utility_to_escape_the_recorded_fog_dead_end() -> None:
+    initial = state()
+    players = tuple(
+        player.model_copy(update={"hp": 2, "mp": 10}) if player.is_self else player
+        for player in initial.players
+    )
+    hand = (
+        HandArtifact(
+            slot=0,
+            category="weapons",
+            slug="evil-broadsword",
+            asset_path="/images/items/weapons/evil-broadsword.webp",
+            bounds=Bounds(x=274, y=493, width=80, height=80),
+            hit_target_bounds=None,
+        ),
+        HandArtifact(
+            slot=1,
+            category="sundries",
+            slug="smile-flower",
+            asset_path="/images/items/sundries/smile-flower.webp",
+            bounds=Bounds(x=520, y=493, width=80, height=80),
+            hit_target_bounds=Bounds(x=520, y=493, width=80, height=80),
+        ),
+        HandArtifact(
+            slot=2,
+            category="miracles",
+            slug="waterfall",
+            asset_path="/images/items/miracles/waterfall.webp",
+            bounds=Bounds(x=766, y=493, width=80, height=80),
+            hit_target_bounds=Bounds(x=766, y=493, width=80, height=80),
+        ),
+    )
+    game_state = initial.model_copy(
+        update={
+            "players": players,
+            "hand": hand,
+            "field_number": 13,
+            "scene_layers": ("/images/screens/room.webp", "/images/screens/fog.webp"),
+            "action_actor": "ロキ-67",
+            "action_display": "Pray",
+            "action_hit_target_bounds": Bounds(x=115, y=93, width=310, height=300),
+        }
+    )
+    observation = ScreenObservation(
+        observed_at=game_state.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.13", "Pray", "HP"),
+        text_elements=(),
+        controls=(),
+        images=(),
+    )
+    weapon_rules = {"evil-broadsword": ("ATK14", 14.0)}
+    miracle_rules = {"waterfall": (25, 12, "water")}
+    mp_utilities = {"smile-flower": 5}
+
+    actions = verified_browser_actions(
+        game_state,
+        observation,
+        verified_weapon_attacks=weapon_rules,
+        verified_miracle_attacks=miracle_rules,
+        plain_mp_utilities=mp_utilities,
+    )
+    decision = HeuristicV0Policy(
+        weapon_rules,
+        {"iron-shield": 4},
+        miracle_rules,
+        plain_mp_utilities=mp_utilities,
+    ).decide(game_state, actions)
+
+    assert [action.action_id for action in actions.actions] == [
+        "wait",
+        "artifact:1:sundries/smile-flower",
+    ]
+    assert decision.chosen_action_id == "artifact:1:sundries/smile-flower"
+    assert decision.rationale == (
+        "restore MP with the strongest deterministic Bible-audited utility"
+    )
+    assert decision.executable is True
+
+
+def test_heuristic_heals_at_low_hp_unless_an_attack_is_lethal() -> None:
+    initial = state()
+    weapon = initial.hand[0].model_copy(update={"hit_target_bounds": initial.hand[0].bounds})
+    recovery = HandArtifact(
+        slot=1,
+        category="sundries",
+        slug="galaxy-geyser",
+        asset_path="/images/items/sundries/galaxy-geyser.webp",
+        bounds=Bounds(x=282, y=493, width=80, height=80),
+        hit_target_bounds=Bounds(x=282, y=493, width=80, height=80),
+    )
+    low_hp_players = tuple(
+        player.model_copy(update={"hp": 20}) if player.is_self else player
+        for player in initial.players
+    )
+    game_state = initial.model_copy(
+        update={
+            "players": low_hp_players,
+            "hand": (weapon, recovery),
+            "action_actor": "ロキ-67",
+            "action_display": "Pray",
+        }
+    )
+    observation = ScreenObservation(
+        observed_at=game_state.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.1", "Pray", "HP"),
+        text_elements=(),
+        controls=(),
+        images=(),
+    )
+    weapon_rules = {"bronze-club": ("ATK1", 1.0)}
+    hp_utilities = {"galaxy-geyser": 20}
+    policy = HeuristicV0Policy(
+        weapon_rules,
+        {"iron-shield": 4},
+        plain_hp_utilities=hp_utilities,
+    )
+    actions = verified_browser_actions(
+        game_state,
+        observation,
+        verified_weapon_attacks=weapon_rules,
+        plain_hp_utilities=hp_utilities,
+    )
+
+    assert policy.decide(game_state, actions).chosen_action_id == (
+        "artifact:1:sundries/galaxy-geyser"
+    )
+
+    lethal_players = (
+        low_hp_players[0],
+        low_hp_players[1].model_copy(update={"hp": 1}),
+    )
+    lethal_state = game_state.model_copy(update={"players": lethal_players})
+    lethal_actions = verified_browser_actions(
+        lethal_state,
+        observation,
+        verified_weapon_attacks=weapon_rules,
+        plain_hp_utilities=hp_utilities,
+    )
+
+    assert policy.decide(lethal_state, lethal_actions).chosen_action_id == (
+        "artifact:0:weapons/bronze-club"
+    )
+
+
 def test_heuristic_does_not_pass_with_an_unreviewed_displayed_weapon() -> None:
     initial = state()
     booster = HandArtifact(
@@ -947,9 +1101,7 @@ def test_heuristic_forgives_reflected_outgoing_attack_from_left_panel() -> None:
         "forgive:reflected",
     ]
     assert actions.actions[1].control_panel == "left"
-    assert actions.actions[1].context_asset_paths == (
-        "/images/items/weapons/angel-sword.webp",
-    )
+    assert actions.actions[1].context_asset_paths == ("/images/items/weapons/angel-sword.webp",)
     assert decision.chosen_action_id == "forgive:reflected"
 
 

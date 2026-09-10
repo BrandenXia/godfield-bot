@@ -44,6 +44,8 @@ def verified_browser_actions(
     *,
     verified_weapon_attacks: Mapping[str, WeaponAttackRule] | None = None,
     verified_miracle_attacks: Mapping[str, tuple[int, int, str]] | None = None,
+    plain_hp_utilities: Mapping[str, int] | None = None,
+    plain_mp_utilities: Mapping[str, int] | None = None,
     plain_armor_defenses: Mapping[str, int] | None = None,
 ) -> LegalActionSet:
     """Expose only semantic in-match controls verified in the current DOM."""
@@ -89,9 +91,7 @@ def verified_browser_actions(
         and state.phase_control_hit_target_bounds is not None
     )
     reflected_context_assets = (
-        (state.phase_artifact_asset_path,)
-        if state.phase_artifact_asset_path is not None
-        else ()
+        (state.phase_artifact_asset_path,) if state.phase_artifact_asset_path is not None else ()
     )
     self_neutral_defense = (
         self_incoming_targeted_effect
@@ -211,10 +211,17 @@ def verified_browser_actions(
                 and rule[1] <= self_player.mp
                 and artifact.hit_target_bounds is not None
             )
+            or (
+                artifact.category == "sundries"
+                and (
+                    (artifact.slug in (plain_hp_utilities or {}) and self_player.hp < 100)
+                    or (artifact.slug in (plain_mp_utilities or {}) and self_player.mp < 100)
+                )
+                and artifact.hit_target_bounds is not None
+            )
         ]
-        if (
-            state.action_hit_target_bounds is not None
-            and not any(artifact.category == "weapons" for artifact in state.hand)
+        if state.action_hit_target_bounds is not None and not any(
+            artifact.category == "weapons" for artifact in state.hand
         ):
             actions.append(
                 LegalAction(
@@ -324,8 +331,8 @@ def verified_browser_actions(
         actions=tuple(actions),
         coverage_complete=False,
         blocked_reason=(
-            "only verified one-click weapon or fixed miracle selection and confirmation, "
-            "weapon-free Pray, incoming or reflected Forgive, and neutral plain-armor "
-            "selection and confirmation are supported"
+            "only verified one-click weapon, fixed miracle, or deterministic HP/MP utility "
+            "selection and attack confirmation, weapon-free Pray, incoming or reflected "
+            "Forgive, and neutral plain-armor selection and confirmation are supported"
         ),
     )

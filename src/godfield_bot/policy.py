@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from typing import Protocol
 
 from godfield_bot.domain.action import ActionKind, LegalAction, LegalActionSet, PolicyDecision
-from godfield_bot.domain.game import GameState
+from godfield_bot.domain.game import GameState, HandArtifact
 from godfield_bot.weapon_rules import WeaponAttackRule, weapon_attack_value
 
 
@@ -38,20 +38,25 @@ class SafeObserverPolicy:
 
 
 class HeuristicV0Policy:
-    """Executable baseline constrained to Bible-audited fixed attacks and plain armor."""
+    """Executable baseline constrained to Bible-audited combat and resource actions."""
 
     policy_id = "heuristic-v0"
+    heal_threshold = 25
 
     def __init__(
         self,
         verified_weapon_attacks: Mapping[str, WeaponAttackRule],
         plain_armor_defenses: Mapping[str, int],
         verified_miracle_attacks: Mapping[str, tuple[int, int, str]] | None = None,
+        plain_hp_utilities: Mapping[str, int] | None = None,
+        plain_mp_utilities: Mapping[str, int] | None = None,
     ) -> None:
         if not verified_weapon_attacks or not plain_armor_defenses:
             raise ValueError("heuristic-v0 requires Bible-audited artifact values")
         self.verified_weapon_attacks = dict(verified_weapon_attacks)
         self.verified_miracle_attacks = dict(verified_miracle_attacks or {})
+        self.plain_hp_utilities = dict(plain_hp_utilities or {})
+        self.plain_mp_utilities = dict(plain_mp_utilities or {})
         self.plain_armor_defenses = dict(plain_armor_defenses)
 
     def decide(self, state: GameState, legal_actions: LegalActionSet) -> PolicyDecision:
@@ -76,9 +81,7 @@ class HeuristicV0Policy:
             action for action in legal_actions.actions if action.kind is ActionKind.CONFIRM
         ]
         chance_actions = [
-            action
-            for action in legal_actions.actions
-            if action.kind is ActionKind.CONFIRM_CHANCE
+            action for action in legal_actions.actions if action.kind is ActionKind.CONFIRM_CHANCE
         ]
         if len(target_actions) > 1:
             raise ValueError("heuristic policy requires at most one verified target")
@@ -90,32 +93,55 @@ class HeuristicV0Policy:
             raise ValueError("heuristic policy requires at most one chance confirmation")
         if len(pass_actions) > 1:
             raise ValueError("heuristic policy requires at most one verified pass")
-        ranked_actions = [
+        artifacts_by_slot = {artifact.slot: artifact for artifact in state.hand}
+
+        def artifact_for(action: LegalAction) -> HandArtifact | None:
+            return (
+                artifacts_by_slot.get(action.artifact_slot)
+                if action.artifact_slot is not None
+                else None
+            )
+
+        attack_actions = [
             action
             for action in artifact_actions
-            if action.artifact_slot is not None
+            if (artifact := artifact_for(action)) is not None
             and (
-                (
-                    state.hand[action.artifact_slot].category == "weapons"
-                    and state.hand[action.artifact_slot].slug in self.verified_weapon_attacks
-                )
+                (artifact.category == "weapons" and artifact.slug in self.verified_weapon_attacks)
                 or (
-                    state.hand[action.artifact_slot].category == "miracles"
-                    and state.hand[action.artifact_slot].slug in self.verified_miracle_attacks
-                    and self.verified_miracle_attacks[state.hand[action.artifact_slot].slug][1]
+                    artifact.category == "miracles"
+                    and artifact.slug in self.verified_miracle_attacks
+                    and self.verified_miracle_attacks[artifact.slug][1]
                     <= state.players[state.self_player_index].mp
-                )
-                or (
-                    state.hand[action.artifact_slot].category == "armor"
-                    and state.hand[action.artifact_slot].slug in self.plain_armor_defenses
                 )
             )
         ]
+        hp_utility_actions = [
+            action
+            for action in artifact_actions
+            if (artifact := artifact_for(action)) is not None
+            and artifact.category == "sundries"
+            and artifact.slug in self.plain_hp_utilities
+        ]
+        mp_utility_actions = [
+            action
+            for action in artifact_actions
+            if (artifact := artifact_for(action)) is not None
+            and artifact.category == "sundries"
+            and artifact.slug in self.plain_mp_utilities
+        ]
+        armor_actions = [
+            action
+            for action in artifact_actions
+            if (artifact := artifact_for(action)) is not None
+            and artifact.category == "armor"
+            and artifact.slug in self.plain_armor_defenses
+        ]
 
         def artifact_value(action: LegalAction) -> tuple[float, int]:
-            if action.artifact_slot is None:
+            artifact = artifact_for(action)
+            if artifact is None or action.artifact_slot is None:
                 raise ValueError("ranked artifact action is missing its slot")
-            artifact = state.hand[action.artifact_slot]
             if artifact.category == "weapons":
                 value = weapon_attack_value(
                     self.verified_weapon_attacks[artifact.slug],
@@ -123,9 +149,40 @@ class HeuristicV0Policy:
                 )
             elif artifact.category == "miracles":
                 value = self.verified_miracle_attacks[artifact.slug][0]
-            else:
+            elif artifact.category == "armor":
                 value = self.plain_armor_defenses[artifact.slug]
+            elif artifact.slug in self.plain_hp_utilities:
+                value = self.plain_hp_utilities[artifact.slug]
+            else:
+                value = self.plain_mp_utilities[artifact.slug]
             return value, -action.artifact_slot
+
+        best_attack = max(attack_actions, key=artifact_value) if attack_actions else None
+        best_hp_utility = (
+            max(hp_utility_actions, key=artifact_value) if hp_utility_actions else None
+        )
+        best_mp_utility = (
+            max(mp_utility_actions, key=artifact_value) if mp_utility_actions else None
+        )
+        best_armor = max(armor_actions, key=artifact_value) if armor_actions else None
+        me = state.players[state.self_player_index]
+        living_opponent_hp = [
+            player.hp for player in state.players if not player.is_self and player.hp
+        ]
+        attack_is_lethal = (
+            best_attack is not None
+            and bool(living_opponent_hp)
+            and artifact_value(best_attack)[0] >= min(living_opponent_hp)
+        )
+        selected_artifact: LegalAction | None
+        if best_armor is not None:
+            selected_artifact = best_armor
+        elif attack_is_lethal:
+            selected_artifact = best_attack
+        elif me.hp <= self.heal_threshold and best_hp_utility is not None:
+            selected_artifact = best_hp_utility
+        else:
+            selected_artifact = best_attack or best_hp_utility or best_mp_utility
 
         chosen = (
             confirm_actions[0]
@@ -134,8 +191,8 @@ class HeuristicV0Policy:
             if chance_actions
             else target_actions[0]
             if target_actions
-            else max(ranked_actions, key=artifact_value)
-            if ranked_actions
+            else selected_artifact
+            if selected_artifact is not None
             else pass_actions[0]
             if pass_actions
             else forgive_actions[0]
@@ -143,6 +200,7 @@ class HeuristicV0Policy:
             else wait_actions[0]
         )
         executable = chosen.kind is not ActionKind.WAIT
+        chosen_artifact = artifact_for(chosen)
         return PolicyDecision(
             decided_at=datetime.now(UTC),
             policy_id=self.policy_id,
@@ -159,6 +217,10 @@ class HeuristicV0Policy:
                 if chosen.kind is ActionKind.CONFIRM_CHANCE
                 else "confirm the selected verified attack on the named sole opponent"
                 if chosen.kind is ActionKind.CONFIRM
+                else "restore HP with the strongest deterministic Bible-audited utility"
+                if chosen_artifact is not None and chosen_artifact.slug in self.plain_hp_utilities
+                else "restore MP with the strongest deterministic Bible-audited utility"
+                if chosen_artifact is not None and chosen_artifact.slug in self.plain_mp_utilities
                 else "select the strongest affordable phase-appropriate Bible-audited artifact"
                 if chosen.kind is ActionKind.SELECT_ARTIFACT
                 else "forgive an incoming attack with no verified usable defense"

@@ -109,6 +109,12 @@ obtains a fresh room read, retries only if the normalized state is unchanged,
 and stops after two retries by default. `--command-retries` tunes that bounded
 rejection-recovery budget, and every uncertain or rejected attempt and observed
 transition is stored locally.
+The runtime also verifies that ロキ-67 remains in the room's live membership
+list before processing each game snapshot. If membership disappears, it mirrors
+the official client's recovery path by requesting `join-room` once and waiting
+for a confirming snapshot before resuming policy actions. A temporary HTTP 403
+while entering the next match after a completed game is retried with bounded
+backoff; the normal no-progress safeguard still terminates a persistent fault.
 Use `--team 0` for solo/free-for-all entry, or `--team 1` through `--team 4`
 for allied teams A through D. The selected team is retained across automatic
 entry into subsequent matches. Active curse presence is recorded in the

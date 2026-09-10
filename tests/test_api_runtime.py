@@ -31,7 +31,9 @@ from godfield_bot.api_runtime import (
     ApiRuntimeError,
     PrivateApiRunConfig,
     _is_confirmed_command_rejection,
+    _is_retryable_post_game_entry_error,
     _is_retryable_state_read_error,
+    _post_game_entry_retry_delay,
     _read_password_file,
     _state_read_retry_delay,
     _within_wall_clock_limit,
@@ -180,6 +182,12 @@ def catalog_snapshot() -> ApiCatalogSnapshot:
 def terminal_room() -> RoomState:
     return RoomState(
         {
+            "users": [
+                {"id": "loki-user", "name": "ロキ-67"},
+                {"id": "other-user", "name": "Opponent"},
+            ],
+            "entries": [],
+            "userCount": 2,
             "game": {
                 "players": [
                     {
@@ -208,7 +216,7 @@ def terminal_room() -> RoomState:
                 "gf": 11,
                 "updateCount": 17,
                 "isOver": True,
-            }
+            },
         },
         catalog(),
     )
@@ -1128,6 +1136,171 @@ def test_unlimited_session_stays_in_room_after_a_terminal_match(tmp_path, monkey
     assert client.left is True
 
 
+def test_unlimited_session_retries_a_rejected_post_game_entry(tmp_path, monkeypatch) -> None:
+    snapshot_path = tmp_path / "catalog.json"
+    write_api_catalog_snapshot(catalog_snapshot(), snapshot_path)
+
+    class FakePostGameEntryClient(FakeClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.states = iter(
+                [
+                    terminal_room(),
+                    empty_lobby(),
+                    empty_lobby(),
+                    active_room(),
+                ]
+            )
+            self.entry_attempts = 0
+
+        def state(self) -> RoomState:
+            try:
+                return next(self.states)
+            except StopIteration:
+                raise KeyboardInterrupt from None
+
+        def make_entry(self, *, team) -> None:
+            self.entry_attempts += 1
+            if self.entry_attempts == 1:
+                raise ApiError("make-entry", 403, "must-not-be-stored")
+            super().make_entry(team=team)
+
+    client = FakePostGameEntryClient()
+
+    @contextmanager
+    def fake_open_api_client(*args, **kwargs):
+        yield client
+
+    monkeypatch.setattr("godfield_bot.api_runtime.open_api_client", fake_open_api_client)
+    monkeypatch.setattr(
+        "godfield_bot.api_runtime.validate_api_credentials",
+        lambda settings: SimpleNamespace(user_id="loki-user"),
+    )
+    sleep_delays: list[float] = []
+    monkeypatch.setattr("godfield_bot.api_runtime.time.sleep", sleep_delays.append)
+    database = tmp_path / "runs" / "api.sqlite"
+
+    run = run_private_api_observer(
+        AppSettings(state_root=tmp_path / "state"),
+        PrivateApiRunConfig(
+            database=database,
+            catalog_snapshot=snapshot_path,
+            room_id="private-room",
+            enter_match=True,
+            max_seconds=0,
+            no_progress_seconds=10,
+        ),
+    )
+
+    assert run.status is RunStatus.ABORTED
+    assert run.outcome is not None
+    assert run.outcome["reason"] == "operator_interrupt"
+    assert run.outcome["games_completed"] == 1
+    assert client.entry_attempts == 2
+    assert client.entry_teams == [0]
+    assert 1.0 in sleep_delays
+    entry_errors = [
+        event
+        for event in RunStore(database).events(run.run_id)
+        if event.payload.get("operation") == "make-entry"
+    ]
+    assert len(entry_errors) == 1
+    assert entry_errors[0].kind is EventKind.ERROR
+    assert entry_errors[0].payload == {
+        "schema_version": 1,
+        "error_type": "ApiError",
+        "reason": "post-game match entry was temporarily rejected",
+        "operation": "make-entry",
+        "consecutive_failure": 1,
+        "retry_scheduled": True,
+        "retry_delay_seconds": 1.0,
+        "http_status": 403,
+    }
+    assert "must-not-be-stored" not in entry_errors[0].model_dump_json()
+
+
+def test_private_api_rejoins_when_membership_drops_during_a_game(tmp_path, monkeypatch) -> None:
+    snapshot_path = tmp_path / "catalog.json"
+    write_api_catalog_snapshot(catalog_snapshot(), snapshot_path)
+    connected_before = active_room(update_count=11)
+    disconnected = active_room(update_count=12)
+    disconnected.raw["users"] = [{"id": "other-user", "name": "Opponent"}]
+    disconnected.raw["userCount"] = 1
+    disconnected.raw["game"]["players"][0]["isBot"] = True
+    connected_after = active_room(update_count=13)
+
+    class FakeDisconnectedClient(FakeClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.states = iter(
+                [
+                    connected_before,
+                    disconnected,
+                    connected_after,
+                    terminal_room(),
+                ]
+            )
+            self.join_calls = 0
+
+        def state(self) -> RoomState:
+            return next(self.states)
+
+        def join_room(self, room_id, *, mode, password) -> None:
+            self.join_calls += 1
+            super().join_room(room_id, mode=mode, password=password)
+
+    client = FakeDisconnectedClient()
+
+    @contextmanager
+    def fake_open_api_client(*args, **kwargs):
+        yield client
+
+    monkeypatch.setattr("godfield_bot.api_runtime.open_api_client", fake_open_api_client)
+    monkeypatch.setattr(
+        "godfield_bot.api_runtime.validate_api_credentials",
+        lambda settings: SimpleNamespace(user_id="loki-user"),
+    )
+    monkeypatch.setattr("godfield_bot.api_runtime.time.sleep", lambda seconds: None)
+    database = tmp_path / "runs" / "api.sqlite"
+
+    run = run_private_api_observer(
+        AppSettings(state_root=tmp_path / "state"),
+        PrivateApiRunConfig(
+            database=database,
+            catalog_snapshot=snapshot_path,
+            room_id="private-room",
+            enter_match=True,
+            max_seconds=10,
+            no_progress_seconds=10,
+        ),
+    )
+
+    assert run.status is RunStatus.COMPLETED
+    assert client.join_calls == 2
+    rejoin_events = [
+        event
+        for event in RunStore(database).events(run.run_id)
+        if event.payload.get("phase") == "membership_rejoin_requested"
+    ]
+    assert [event.payload for event in rejoin_events] == [
+        {
+            "schema_version": 1,
+            "mode": "private",
+            "phase": "membership_rejoin_requested",
+            "reason": "identity_missing_from_room",
+            "active_game": True,
+            "active_game_over": False,
+        }
+    ]
+    game_states = [
+        event.payload
+        for event in RunStore(database).events(run.run_id)
+        if event.kind is EventKind.GAME_STATE
+    ]
+    assert [state["update_count"] for state in game_states] == [11, 13, 17]
+    assert all(not state["players"][0]["is_bot"] for state in game_states)
+
+
 def test_private_api_heuristic_enters_lobby_and_records_accepted_action(
     tmp_path,
     monkeypatch,
@@ -1338,6 +1511,15 @@ def test_state_read_retry_classification_and_backoff_are_bounded() -> None:
     assert not _is_retryable_state_read_error(TransportError("invalid", status="503"))
     assert _state_read_retry_delay(failure_number=1, base_seconds=1.0) == 1.0
     assert _state_read_retry_delay(failure_number=20, base_seconds=1.0) == 30.0
+
+
+def test_post_game_entry_retry_classification_and_backoff_are_narrow() -> None:
+    assert _is_retryable_post_game_entry_error(ApiError("make-entry", 403))
+    assert not _is_retryable_post_game_entry_error(ApiError("make-entry", 400))
+    assert not _is_retryable_post_game_entry_error(ApiError("submit-command", 403))
+    assert not _is_retryable_post_game_entry_error(TransportError("ambiguous", status=403))
+    assert _post_game_entry_retry_delay(failure_number=1) == 1.0
+    assert _post_game_entry_retry_delay(failure_number=20) == 10.0
 
 
 def test_command_rejection_retry_classification_is_narrow() -> None:

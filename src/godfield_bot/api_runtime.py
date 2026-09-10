@@ -55,6 +55,7 @@ ACCEPTED_PRIVATE_BIBLE_CLIENT_SHA256 = (
 )
 RETRYABLE_STATE_READ_HTTP_STATUSES = frozenset({408, 425, 429, 500, 502, 503, 504})
 MAX_STATE_READ_RETRY_DELAY_SECONDS = 30.0
+MAX_POST_GAME_ENTRY_RETRY_DELAY_SECONDS = 10.0
 
 
 class ApiRuntimeError(RuntimeError):
@@ -306,6 +307,40 @@ def _state_read_error_payload(
         payload["http_status"] = status
     if retry_delay_seconds is not None:
         payload["retry_delay_seconds"] = retry_delay_seconds
+    return payload
+
+
+def _is_retryable_post_game_entry_error(error: Exception) -> bool:
+    """Return whether the server explicitly rejected post-game re-entry."""
+
+    return getattr(error, "action", None) == "make-entry" and _transport_http_status(error) == 403
+
+
+def _post_game_entry_retry_delay(*, failure_number: int) -> float:
+    return min(
+        2.0 ** max(0, failure_number - 1),
+        MAX_POST_GAME_ENTRY_RETRY_DELAY_SECONDS,
+    )
+
+
+def _post_game_entry_error_payload(
+    error: Exception,
+    *,
+    failure_number: int,
+    retry_delay_seconds: float,
+) -> dict[str, JsonValue]:
+    payload: dict[str, JsonValue] = {
+        "schema_version": 1,
+        "error_type": type(error).__name__,
+        "reason": "post-game match entry was temporarily rejected",
+        "operation": "make-entry",
+        "consecutive_failure": failure_number,
+        "retry_scheduled": True,
+        "retry_delay_seconds": retry_delay_seconds,
+    }
+    status = _transport_http_status(error)
+    if status is not None:
+        payload["http_status"] = status
     return payload
 
 
@@ -1099,6 +1134,8 @@ def run_private_api_observer(
                 last_progress_at = started
                 previous_digest: str | None = None
                 entry_request_pending = False
+                membership_request_pending = True
+                consecutive_entry_failures = 0
                 terminal_recorded = False
                 consecutive_state_read_failures = 0
                 while _within_wall_clock_limit(
@@ -1153,6 +1190,37 @@ def run_private_api_observer(
                         time.sleep(retry_delay_seconds)
                         continue
                     consecutive_state_read_failures = 0
+                    if not room.is_present(user_id):
+                        if not membership_request_pending:
+                            client.join_room(
+                                joined_room_id,
+                                mode=Mode.PRIVATE,
+                                password=password,
+                            )
+                            membership_request_pending = True
+                            store.append_event(
+                                run.run_id,
+                                EventKind.OBSERVATION,
+                                {
+                                    "schema_version": 1,
+                                    "mode": "private",
+                                    "phase": "membership_rejoin_requested",
+                                    "reason": "identity_missing_from_room",
+                                    "active_game": room.game is not None,
+                                    "active_game_over": (
+                                        bool(room.game.is_over) if room.game is not None else None
+                                    ),
+                                },
+                            )
+                            last_progress_at = time.monotonic()
+                            log.warning(
+                                "api_private_membership_rejoin_requested",
+                                run_id=run.run_id,
+                                active_game=room.game is not None,
+                            )
+                        time.sleep(config.poll_seconds)
+                        continue
+                    membership_request_pending = False
                     game = room.game
                     me = game.player_by_user(user_id) if game is not None else None
                     if game is None or me is None:
@@ -1180,6 +1248,7 @@ def run_private_api_observer(
                         current_entry_team = _identity_entry_team(room, user_id=user_id)
                         if current_entry_team == config.entry_team:
                             entry_request_pending = False
+                            consecutive_entry_failures = 0
                         if (
                             config.enter_match
                             and _should_request_match_entry(
@@ -1203,24 +1272,55 @@ def run_private_api_observer(
                                         "requested_team": config.entry_team,
                                     },
                                 )
-                            client.make_entry(team=config.entry_team)
-                            entry_request_pending = True
-                            store.append_event(
-                                run.run_id,
-                                EventKind.OBSERVATION,
-                                {
-                                    "schema_version": 1,
-                                    "mode": "private",
-                                    "phase": "entry_requested",
-                                    "team": config.entry_team,
-                                },
-                            )
+                            try:
+                                client.make_entry(team=config.entry_team)
+                            except Exception as error:
+                                if not (
+                                    games_completed > 0
+                                    and _is_retryable_post_game_entry_error(error)
+                                ):
+                                    raise
+                                consecutive_entry_failures += 1
+                                retry_delay_seconds = _post_game_entry_retry_delay(
+                                    failure_number=consecutive_entry_failures
+                                )
+                                store.append_event(
+                                    run.run_id,
+                                    EventKind.ERROR,
+                                    _post_game_entry_error_payload(
+                                        error,
+                                        failure_number=consecutive_entry_failures,
+                                        retry_delay_seconds=retry_delay_seconds,
+                                    ),
+                                )
+                                log.warning(
+                                    "api_private_post_game_entry_retry",
+                                    run_id=run.run_id,
+                                    consecutive_failure=consecutive_entry_failures,
+                                    retry_delay_seconds=retry_delay_seconds,
+                                    http_status=_transport_http_status(error),
+                                )
+                                time.sleep(retry_delay_seconds)
+                            else:
+                                entry_request_pending = True
+                                consecutive_entry_failures = 0
+                                store.append_event(
+                                    run.run_id,
+                                    EventKind.OBSERVATION,
+                                    {
+                                        "schema_version": 1,
+                                        "mode": "private",
+                                        "phase": "entry_requested",
+                                        "team": config.entry_team,
+                                    },
+                                )
                         if digest != previous_digest:
                             store.append_event(run.run_id, EventKind.OBSERVATION, lobby)
                             previous_digest = digest
                             last_progress_at = time.monotonic()
                     else:
                         entry_request_pending = False
+                        consecutive_entry_failures = 0
                         state = normalize_api_game_state(room, user_id=user_id)
                         digest = api_game_state_digest(state)
                         if ambiguous_action is not None:

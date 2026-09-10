@@ -32,6 +32,6 @@ and whether another read was scheduled. Exhaustion produces an explicit failed
 run outcome. The wall-clock, no-progress, and action-count limits remain
 independent.
 
-Never retry `submit`, lobby entry, team changes, or other writes at this layer.
-Their server outcome can be ambiguous, so existing fail-closed behavior and
-transition evidence remain unchanged.
+Never retry a `submit`, lobby entry, team change, or other write when its server
+outcome is ambiguous. ADR 0020 separately permits bounded recovery from an
+explicit HTTP 400 `submit-command` rejection, which confirms non-acceptance.

@@ -89,6 +89,7 @@ class PrivateApiRunConfig(BaseModel):
     request_timeout_seconds: float = Field(default=20.0, ge=1.0, le=120.0)
     state_read_retries: int = Field(default=5, ge=0, le=20)
     state_read_retry_seconds: float = Field(default=1.0, ge=0.1, le=30.0)
+    command_retries: int = Field(default=2, ge=0, le=5)
 
     @field_validator("room_id")
     @classmethod
@@ -298,6 +299,107 @@ def _state_read_error_payload(
     if retry_delay_seconds is not None:
         payload["retry_delay_seconds"] = retry_delay_seconds
     return payload
+
+
+def _is_confirmed_command_rejection(error: Exception) -> bool:
+    """Return whether a submit definitely failed without consuming the command."""
+
+    return (
+        getattr(error, "action", None) == "submit-command" and _transport_http_status(error) == 400
+    )
+
+
+def _command_rejection_error_payload(
+    error: Exception,
+    *,
+    action_id: str,
+    failure_number: int,
+    retry_budget: int,
+    retry_scheduled: bool,
+) -> dict[str, JsonValue]:
+    payload: dict[str, JsonValue] = {
+        "schema_version": 1,
+        "error_type": type(error).__name__,
+        "reason": "private submit command was rejected",
+        "operation": "submit-command",
+        "action_id": action_id,
+        "consecutive_failure": failure_number,
+        "retry_budget": retry_budget,
+        "retry_scheduled": retry_scheduled,
+    }
+    status = _transport_http_status(error)
+    if status is not None:
+        payload["http_status"] = status
+    return payload
+
+
+def _dispatch_api_action(
+    client: Any,
+    store: RunStore,
+    *,
+    run_id: str,
+    action: ApiLegalAction,
+    state: ApiGameState,
+    rejection_number: int,
+    retry_budget: int,
+) -> bool:
+    """Submit once, recording enough evidence to retry only a definite rejection."""
+
+    action_started = time.perf_counter()
+    try:
+        client.submit(command_for_api_action(action))
+    except Exception as error:
+        confirmed_rejection = _is_confirmed_command_rejection(error)
+        retry_scheduled = confirmed_rejection and rejection_number <= retry_budget
+        execution = ApiActionExecutionResult(
+            executed_at=datetime.now(UTC),
+            action_id=action.action_id,
+            kind=action.kind,
+            dispatched=True,
+            server_acknowledged=False if confirmed_rejection else None,
+            latency_ms=(time.perf_counter() - action_started) * 1000,
+        )
+        failure_events: list[tuple[EventKind, BaseModel | dict[str, JsonValue]]] = [
+            (EventKind.ACTION_RESULT, execution)
+        ]
+        if confirmed_rejection:
+            failure_events.append(
+                (
+                    EventKind.ERROR,
+                    _command_rejection_error_payload(
+                        error,
+                        action_id=action.action_id,
+                        failure_number=rejection_number,
+                        retry_budget=retry_budget,
+                        retry_scheduled=retry_scheduled,
+                    ),
+                )
+            )
+        if not retry_scheduled:
+            failure_events.append(
+                (
+                    EventKind.TRANSITION,
+                    build_api_action_transition(action, state, None),
+                )
+            )
+        store.append_events(run_id, tuple(failure_events))
+        if not retry_scheduled:
+            raise
+        return False
+
+    store.append_event(
+        run_id,
+        EventKind.ACTION_RESULT,
+        ApiActionExecutionResult(
+            executed_at=datetime.now(UTC),
+            action_id=action.action_id,
+            kind=action.kind,
+            dispatched=True,
+            server_acknowledged=True,
+            latency_ms=(time.perf_counter() - action_started) * 1000,
+        ),
+    )
+    return True
 
 
 def _identity_entry_team(room: Any, *, user_id: str) -> int | None:
@@ -868,6 +970,7 @@ def run_private_api_observer(
         "request_timeout_seconds": config.request_timeout_seconds,
         "state_read_retries": config.state_read_retries,
         "state_read_retry_seconds": config.state_read_retry_seconds,
+        "command_retries": config.command_retries,
         "max_in_match_actions": config.max_in_match_actions,
         "enter_match": config.enter_match,
         "entry_team": config.entry_team,
@@ -908,6 +1011,7 @@ def run_private_api_observer(
     games_completed = 0
     outcome_reason = "wall_clock_limit"
     pending_action: tuple[ApiLegalAction, ApiGameState] | None = None
+    rejected_action: tuple[ApiLegalAction, ApiGameState, int] | None = None
     try:
         from godfield import Mode, TransportError  # type: ignore[import-untyped]
 
@@ -1008,6 +1112,14 @@ def run_private_api_observer(
                     game = room.game
                     me = game.player_by_user(user_id) if game is not None else None
                     if game is None or me is None:
+                        if rejected_action is not None:
+                            action, before_state, _failure_count = rejected_action
+                            store.append_event(
+                                run.run_id,
+                                EventKind.TRANSITION,
+                                build_api_action_transition(action, before_state, None),
+                            )
+                            rejected_action = None
                         if shadow_policy is not None:
                             shadow_policy.reset()
                         terminal_recorded = False
@@ -1059,6 +1171,61 @@ def run_private_api_observer(
                         entry_request_pending = False
                         state = normalize_api_game_state(room, user_id=user_id)
                         digest = api_game_state_digest(state)
+                        if rejected_action is not None:
+                            action, rejected_state, failed_attempts = rejected_action
+                            store.append_event(
+                                run.run_id,
+                                EventKind.TRANSITION,
+                                build_api_action_transition(
+                                    action,
+                                    rejected_state,
+                                    state,
+                                ),
+                                occurred_at=state.observed_at,
+                            )
+                            rejected_action = None
+                            if digest == api_game_state_digest(rejected_state):
+                                failure_number = failed_attempts + 1
+                                if not _dispatch_api_action(
+                                    client,
+                                    store,
+                                    run_id=run.run_id,
+                                    action=action,
+                                    state=state,
+                                    rejection_number=failure_number,
+                                    retry_budget=config.command_retries,
+                                ):
+                                    rejected_action = (
+                                        action,
+                                        state,
+                                        failure_number,
+                                    )
+                                    log.warning(
+                                        "api_private_command_rejection_retry",
+                                        run_id=run.run_id,
+                                        action=action.action_id,
+                                        consecutive_failure=failure_number,
+                                        retry_budget=config.command_retries,
+                                    )
+                                else:
+                                    pending_action = (action, state)
+                                    in_match_actions += 1
+                                    log.info(
+                                        "api_private_action_retry_accepted",
+                                        run_id=run.run_id,
+                                        action=action.action_id,
+                                        action_count=in_match_actions,
+                                        failed_attempts=failed_attempts,
+                                    )
+                            else:
+                                if shadow_policy is not None:
+                                    shadow_policy.reset()
+                                log.info(
+                                    "api_private_command_retry_cancelled",
+                                    run_id=run.run_id,
+                                    action=action.action_id,
+                                    reason="state_changed",
+                                )
                         if digest != previous_digest:
                             if pending_action is not None:
                                 previous_action, previous_state = pending_action
@@ -1178,54 +1345,37 @@ def run_private_api_observer(
                                         proposed_action,
                                         chosen_action,
                                     )
-                                action_started = time.perf_counter()
-                                try:
-                                    client.submit(command_for_api_action(chosen_action))
-                                except Exception:
-                                    execution = ApiActionExecutionResult(
-                                        executed_at=datetime.now(UTC),
-                                        action_id=chosen_action.action_id,
-                                        kind=chosen_action.kind,
-                                        dispatched=True,
-                                        server_acknowledged=None,
-                                        latency_ms=(time.perf_counter() - action_started) * 1000,
-                                    )
-                                    store.append_events(
-                                        run.run_id,
-                                        (
-                                            (EventKind.ACTION_RESULT, execution),
-                                            (
-                                                EventKind.TRANSITION,
-                                                build_api_action_transition(
-                                                    chosen_action,
-                                                    state,
-                                                    None,
-                                                ),
-                                            ),
-                                        ),
-                                    )
-                                    raise
-                                execution = ApiActionExecutionResult(
-                                    executed_at=datetime.now(UTC),
-                                    action_id=chosen_action.action_id,
-                                    kind=chosen_action.kind,
-                                    dispatched=True,
-                                    server_acknowledged=True,
-                                    latency_ms=(time.perf_counter() - action_started) * 1000,
-                                )
-                                store.append_event(
-                                    run.run_id,
-                                    EventKind.ACTION_RESULT,
-                                    execution,
-                                )
-                                pending_action = (chosen_action, state)
-                                in_match_actions += 1
-                                log.info(
-                                    "api_private_action_dispatched",
+                                failure_number = 1
+                                if not _dispatch_api_action(
+                                    client,
+                                    store,
                                     run_id=run.run_id,
-                                    action=chosen_action.action_id,
-                                    action_count=in_match_actions,
-                                )
+                                    action=chosen_action,
+                                    state=state,
+                                    rejection_number=failure_number,
+                                    retry_budget=config.command_retries,
+                                ):
+                                    rejected_action = (
+                                        chosen_action,
+                                        state,
+                                        failure_number,
+                                    )
+                                    log.warning(
+                                        "api_private_command_rejection_retry",
+                                        run_id=run.run_id,
+                                        action=chosen_action.action_id,
+                                        consecutive_failure=failure_number,
+                                        retry_budget=config.command_retries,
+                                    )
+                                else:
+                                    pending_action = (chosen_action, state)
+                                    in_match_actions += 1
+                                    log.info(
+                                        "api_private_action_dispatched",
+                                        run_id=run.run_id,
+                                        action=chosen_action.action_id,
+                                        action_count=in_match_actions,
+                                    )
                             elif (
                                 config.policy is not ApiPolicyName.OBSERVER
                                 and state.phase
@@ -1256,6 +1406,14 @@ def run_private_api_observer(
     except KeyboardInterrupt:
         outcome_reason = "operator_interrupt"
     except Exception as error:
+        if rejected_action is not None:
+            action, before_state, _failure_count = rejected_action
+            store.append_event(
+                run.run_id,
+                EventKind.TRANSITION,
+                build_api_action_transition(action, before_state, None),
+            )
+            rejected_action = None
         if pending_action is not None:
             action, before_state = pending_action
             store.append_event(
@@ -1267,6 +1425,13 @@ def run_private_api_observer(
         payload = _safe_runtime_error_payload(error)
         store.append_event(run.run_id, EventKind.ERROR, payload)
         return store.finish_run(run.run_id, RunStatus.FAILED, outcome=payload)
+    if rejected_action is not None:
+        action, before_state, _failure_count = rejected_action
+        store.append_event(
+            run.run_id,
+            EventKind.TRANSITION,
+            build_api_action_transition(action, before_state, None),
+        )
     if pending_action is not None:
         action, before_state = pending_action
         store.append_event(

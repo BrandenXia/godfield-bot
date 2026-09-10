@@ -413,6 +413,14 @@ def play_private_api_game(
             help="Initial transient room-state read retry delay.",
         ),
     ] = 1.0,
+    command_retries: Annotated[
+        int,
+        typer.Option(
+            min=0,
+            max=5,
+            help="Confirmed command-rejection retries after unchanged state reads.",
+        ),
+    ] = 2,
 ) -> None:
     """Enter private games with tactical play and optional neural shadow scoring."""
 
@@ -459,6 +467,7 @@ def play_private_api_game(
                 request_timeout_seconds=request_timeout_seconds,
                 state_read_retries=state_read_retries,
                 state_read_retry_seconds=state_read_retry_seconds,
+                command_retries=command_retries,
             ),
             room_password=room_password,
         )

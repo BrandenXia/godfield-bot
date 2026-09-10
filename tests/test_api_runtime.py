@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from godfield import ItemCatalog, RoomState, TransportError
+from godfield import ApiError, ItemCatalog, RoomState, TransportError
 from pydantic import ValidationError
 
 from godfield_bot.api_account import PYGODFIELD_REVISION
@@ -30,6 +30,7 @@ from godfield_bot.api_runtime import (
     ApiPolicyName,
     ApiRuntimeError,
     PrivateApiRunConfig,
+    _is_confirmed_command_rejection,
     _is_retryable_state_read_error,
     _read_password_file,
     _state_read_retry_delay,
@@ -967,6 +968,8 @@ def test_api_policy_configuration_requires_explicit_safe_bounds() -> None:
             room_id="private-room",
             model_directory=Path("models/candidate"),
         )
+    with pytest.raises(ValidationError, match="less than or equal to 5"):
+        PrivateApiRunConfig(room_id="private-room", command_retries=6)
 
 
 def test_zero_max_seconds_disables_only_the_wall_clock_limit() -> None:
@@ -1269,6 +1272,282 @@ def test_state_read_retry_classification_and_backoff_are_bounded() -> None:
     assert not _is_retryable_state_read_error(TransportError("invalid", status="503"))
     assert _state_read_retry_delay(failure_number=1, base_seconds=1.0) == 1.0
     assert _state_read_retry_delay(failure_number=20, base_seconds=1.0) == 30.0
+
+
+def test_command_rejection_retry_classification_is_narrow() -> None:
+    assert _is_confirmed_command_rejection(ApiError("submit-command", 400))
+    assert not _is_confirmed_command_rejection(ApiError("submit-command", 403))
+    assert not _is_confirmed_command_rejection(ApiError("make-entry", 400))
+    assert not _is_confirmed_command_rejection(TransportError("ambiguous", status=400))
+
+
+def test_private_api_retries_confirmed_rejection_after_unchanged_read(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    snapshot_path = tmp_path / "catalog.json"
+    write_api_catalog_snapshot(catalog_snapshot(), snapshot_path)
+    pass_room = active_room()
+    pass_room.raw["game"]["players"][0]["items"] = [{"id": 12, "modelId": 2}]
+
+    class FakeRejectedOnceClient(FakeClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.states = iter([pass_room, pass_room, terminal_room()])
+            self.commands: list[dict[str, object]] = []
+
+        def state(self) -> RoomState:
+            return next(self.states)
+
+        def submit(self, command) -> None:
+            self.commands.append(command.to_dict())
+            if len(self.commands) == 1:
+                raise ApiError("submit-command", 400, "must-not-be-stored")
+
+    client = FakeRejectedOnceClient()
+
+    @contextmanager
+    def fake_open_api_client(*args, **kwargs):
+        yield client
+
+    monkeypatch.setattr("godfield_bot.api_runtime.open_api_client", fake_open_api_client)
+    monkeypatch.setattr(
+        "godfield_bot.api_runtime.validate_api_credentials",
+        lambda settings: SimpleNamespace(user_id="loki-user"),
+    )
+    monkeypatch.setattr("godfield_bot.api_runtime.time.sleep", lambda seconds: None)
+    database = tmp_path / "runs" / "api.sqlite"
+
+    run = run_private_api_observer(
+        AppSettings(state_root=tmp_path / "state"),
+        PrivateApiRunConfig(
+            database=database,
+            catalog_snapshot=snapshot_path,
+            room_id="private-room",
+            enter_match=True,
+            policy=ApiPolicyName.HEURISTIC,
+            max_in_match_actions=5,
+            max_seconds=10,
+            no_progress_seconds=10,
+            command_retries=2,
+        ),
+    )
+
+    assert run.status is RunStatus.COMPLETED
+    assert run.outcome is not None
+    assert run.outcome["in_match_actions"] == 1
+    assert run.config["command_retries"] == 2
+    assert client.commands == [{}, {}]
+    events = RunStore(database).events(run.run_id)
+    action_results = [event.payload for event in events if event.kind is EventKind.ACTION_RESULT]
+    assert [result["server_acknowledged"] for result in action_results] == [False, True]
+    rejection_errors = [
+        event.payload
+        for event in events
+        if event.kind is EventKind.ERROR and event.payload.get("operation") == "submit-command"
+    ]
+    assert rejection_errors == [
+        {
+            "schema_version": 1,
+            "error_type": "ApiError",
+            "reason": "private submit command was rejected",
+            "operation": "submit-command",
+            "action_id": "pass",
+            "consecutive_failure": 1,
+            "retry_budget": 2,
+            "retry_scheduled": True,
+            "http_status": 400,
+        }
+    ]
+    assert "must-not-be-stored" not in "".join(event.model_dump_json() for event in events)
+    transitions = [event.payload for event in events if event.kind is EventKind.TRANSITION]
+    assert [transition["state_changed"] for transition in transitions] == [False, True]
+    decisions = [event for event in events if event.kind is EventKind.DECISION]
+    assert [
+        event.payload["chosen_action_id"]
+        for event in decisions
+        if event.payload["chosen_action_id"] == "pass"
+    ] == ["pass"]
+
+
+def test_private_api_does_not_retry_ambiguous_submit_failure(tmp_path, monkeypatch) -> None:
+    snapshot_path = tmp_path / "catalog.json"
+    write_api_catalog_snapshot(catalog_snapshot(), snapshot_path)
+
+    class FakeAmbiguousSubmitClient(FakeClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.states = iter([active_room()])
+            self.commands: list[dict[str, object]] = []
+
+        def state(self) -> RoomState:
+            return next(self.states)
+
+        def submit(self, command) -> None:
+            self.commands.append(command.to_dict())
+            raise TransportError("ambiguous must-not-be-stored")
+
+    client = FakeAmbiguousSubmitClient()
+
+    @contextmanager
+    def fake_open_api_client(*args, **kwargs):
+        yield client
+
+    monkeypatch.setattr("godfield_bot.api_runtime.open_api_client", fake_open_api_client)
+    monkeypatch.setattr(
+        "godfield_bot.api_runtime.validate_api_credentials",
+        lambda settings: SimpleNamespace(user_id="loki-user"),
+    )
+    database = tmp_path / "runs" / "api.sqlite"
+
+    run = run_private_api_observer(
+        AppSettings(state_root=tmp_path / "state"),
+        PrivateApiRunConfig(
+            database=database,
+            catalog_snapshot=snapshot_path,
+            room_id="private-room",
+            enter_match=True,
+            policy=ApiPolicyName.HEURISTIC,
+            max_in_match_actions=5,
+            max_seconds=10,
+            no_progress_seconds=10,
+        ),
+    )
+
+    assert run.status is RunStatus.FAILED
+    assert run.outcome == {
+        "error_type": "TransportError",
+        "reason": "pygodfield private-room operation failed",
+    }
+    assert client.commands == [{"itemIds": [11], "targetPlayerId": 2}]
+    events = RunStore(database).events(run.run_id)
+    action_results = [event.payload for event in events if event.kind is EventKind.ACTION_RESULT]
+    assert [result["server_acknowledged"] for result in action_results] == [None]
+    assert not any(event.payload.get("operation") == "submit-command" for event in events)
+    assert "must-not-be-stored" not in "".join(event.model_dump_json() for event in events)
+
+
+def test_private_api_cancels_rejected_command_retry_when_state_changes(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    snapshot_path = tmp_path / "catalog.json"
+    write_api_catalog_snapshot(catalog_snapshot(), snapshot_path)
+
+    class FakeChangedAfterRejectionClient(FakeClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.states = iter([active_room(), terminal_room()])
+            self.commands: list[dict[str, object]] = []
+
+        def state(self) -> RoomState:
+            return next(self.states)
+
+        def submit(self, command) -> None:
+            self.commands.append(command.to_dict())
+            raise ApiError("submit-command", 400)
+
+    client = FakeChangedAfterRejectionClient()
+
+    @contextmanager
+    def fake_open_api_client(*args, **kwargs):
+        yield client
+
+    monkeypatch.setattr("godfield_bot.api_runtime.open_api_client", fake_open_api_client)
+    monkeypatch.setattr(
+        "godfield_bot.api_runtime.validate_api_credentials",
+        lambda settings: SimpleNamespace(user_id="loki-user"),
+    )
+    monkeypatch.setattr("godfield_bot.api_runtime.time.sleep", lambda seconds: None)
+    database = tmp_path / "runs" / "api.sqlite"
+
+    run = run_private_api_observer(
+        AppSettings(state_root=tmp_path / "state"),
+        PrivateApiRunConfig(
+            database=database,
+            catalog_snapshot=snapshot_path,
+            room_id="private-room",
+            enter_match=True,
+            policy=ApiPolicyName.HEURISTIC,
+            max_in_match_actions=5,
+            max_seconds=10,
+            no_progress_seconds=10,
+        ),
+    )
+
+    assert run.status is RunStatus.COMPLETED
+    assert run.outcome is not None
+    assert run.outcome["in_match_actions"] == 0
+    assert client.commands == [{"itemIds": [11], "targetPlayerId": 2}]
+    events = RunStore(database).events(run.run_id)
+    action_results = [event.payload for event in events if event.kind is EventKind.ACTION_RESULT]
+    assert [result["server_acknowledged"] for result in action_results] == [False]
+    transitions = [event.payload for event in events if event.kind is EventKind.TRANSITION]
+    assert [transition["state_changed"] for transition in transitions] == [True]
+
+
+def test_private_api_command_rejection_retries_are_bounded(tmp_path, monkeypatch) -> None:
+    snapshot_path = tmp_path / "catalog.json"
+    write_api_catalog_snapshot(catalog_snapshot(), snapshot_path)
+    unchanged = active_room()
+
+    class FakeRejectedClient(FakeClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.state_calls = 0
+            self.commands: list[dict[str, object]] = []
+
+        def state(self) -> RoomState:
+            self.state_calls += 1
+            return unchanged
+
+        def submit(self, command) -> None:
+            self.commands.append(command.to_dict())
+            raise ApiError("submit-command", 400)
+
+    client = FakeRejectedClient()
+
+    @contextmanager
+    def fake_open_api_client(*args, **kwargs):
+        yield client
+
+    monkeypatch.setattr("godfield_bot.api_runtime.open_api_client", fake_open_api_client)
+    monkeypatch.setattr(
+        "godfield_bot.api_runtime.validate_api_credentials",
+        lambda settings: SimpleNamespace(user_id="loki-user"),
+    )
+    monkeypatch.setattr("godfield_bot.api_runtime.time.sleep", lambda seconds: None)
+    database = tmp_path / "runs" / "api.sqlite"
+
+    run = run_private_api_observer(
+        AppSettings(state_root=tmp_path / "state"),
+        PrivateApiRunConfig(
+            database=database,
+            catalog_snapshot=snapshot_path,
+            room_id="private-room",
+            enter_match=True,
+            policy=ApiPolicyName.HEURISTIC,
+            max_in_match_actions=5,
+            max_seconds=10,
+            no_progress_seconds=10,
+            command_retries=2,
+        ),
+    )
+
+    assert run.status is RunStatus.FAILED
+    assert run.outcome is not None
+    assert run.outcome["error_type"] == "ApiError"
+    assert run.outcome["http_status"] == 400
+    assert len(client.commands) == 3
+    assert client.state_calls == 3
+    events = RunStore(database).events(run.run_id)
+    retry_events = [
+        event.payload
+        for event in events
+        if event.kind is EventKind.ERROR and event.payload.get("operation") == "submit-command"
+    ]
+    assert [event["consecutive_failure"] for event in retry_events] == [1, 2, 3]
+    assert [event["retry_scheduled"] for event in retry_events] == [True, True, False]
 
 
 def test_private_api_tactical_policy_dispatches_verified_combo(tmp_path, monkeypatch) -> None:

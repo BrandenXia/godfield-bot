@@ -6,11 +6,13 @@ from pydantic import ValidationError
 
 from godfield_bot.config import AppSettings
 from godfield_bot.domain.game import GameState, PlayerState
+from godfield_bot.domain.observation import ScreenKind, ScreenObservation
 from godfield_bot.domain.run import RunMode, RunRecord, RunStatus
 from godfield_bot.runner import (
     RunnerPolicyName,
     TrainingCampaignConfig,
     TrainingRunConfig,
+    _screen_departure_reason,
     build_action_transition,
     run_training_campaign,
 )
@@ -56,6 +58,7 @@ def test_safe_observer_defaults_to_zero_action_budget() -> None:
     assert config.policy is RunnerPolicyName.SAFE_OBSERVER
     assert config.max_in_match_actions == 0
     assert config.no_progress_seconds == 60
+    assert config.unknown_screen_grace_seconds == 15
 
 
 def test_no_progress_limit_is_bounded() -> None:
@@ -64,6 +67,54 @@ def test_no_progress_limit_is_bounded() -> None:
             expected_client_sha256="a" * 64,
             no_progress_seconds=9,
         )
+
+
+def test_unknown_screen_requires_sustained_evidence_before_departure() -> None:
+    unknown = ScreenObservation(
+        observed_at=datetime.now(UTC),
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.UNKNOWN,
+        viewport_width=1280,
+        viewport_height=800,
+        text=(),
+        text_elements=(),
+        controls=(),
+        images=(),
+    )
+
+    assert (
+        _screen_departure_reason(
+            unknown,
+            unknown_seconds=14.9,
+            unknown_grace_seconds=15,
+        )
+        is None
+    )
+    assert (
+        _screen_departure_reason(
+            unknown,
+            unknown_seconds=15,
+            unknown_grace_seconds=15,
+        )
+        == "unknown_screen_timeout"
+    )
+    assert (
+        _screen_departure_reason(
+            unknown.model_copy(update={"kind": ScreenKind.TRAINING_SETUP}),
+            unknown_seconds=0,
+            unknown_grace_seconds=15,
+        )
+        == "left_gameplay_screen"
+    )
+    assert (
+        _screen_departure_reason(
+            unknown.model_copy(update={"kind": ScreenKind.GAME}),
+            unknown_seconds=0,
+            unknown_grace_seconds=15,
+        )
+        is None
+    )
 
 
 def test_action_transition_records_state_and_hp_changes() -> None:

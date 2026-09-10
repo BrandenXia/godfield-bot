@@ -191,7 +191,11 @@ terminal reward remains a valid replay episode. `--max-games 0` continues
 through completed games and stops on the first gameplay abort or failure,
 making the first unsupported state easy to inspect. Transient pre-game room
 failures are retried three times by default; use `--max-setup-retries` to
-change that bounded allowance:
+change that bounded allowance. A single `unknown` gameplay capture is treated
+as a transient render for 15 seconds rather than immediate terminal evidence;
+`--unknown-screen-grace-seconds` tunes that bounded recovery window. Each
+distinct unknown frame is recorded and screenshotted when screenshot capture
+is enabled:
 
 ```console
 PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot play-training \
@@ -200,6 +204,7 @@ PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot play-training \
   --max-seconds 3600 \
   --max-actions 100 \
   --no-progress-seconds 60 \
+  --unknown-screen-grace-seconds 15 \
   --max-setup-retries 3
 ```
 

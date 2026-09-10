@@ -158,3 +158,27 @@ with a classified terminal result after 40 dispatched actions and no parse
 errors. It directly exercised the corrected two-step utility path: Heart Flower
 selection was followed by `confirm:utility:heart-flower:MP+10`, whose recorded
 transition changed normalized state before the game advanced.
+
+Continuous campaign run `125c421e-51e9-4ab9-863d-53a4f01eba3a` exposed a
+screen-transition false positive after nine accepted actions. The last stored
+gameplay frame remained internally consistent, but one subsequent capture had
+kind `unknown` and no visible text. The runner immediately classified that
+single blank sample as leaving gameplay and discarded the raw observation,
+preventing both recovery and diagnosis.
+
+Unknown gameplay captures now receive a configurable 15-second grace period,
+bounded by the independent no-progress limit. Distinct unknown frames are
+stored with a diagnostic event and optional owner-only screenshot. Returning
+to a game clears the transient state; a sustained unknown frame ends with the
+specific `unknown_screen_timeout` reason. Known non-game screens still end the
+episode immediately, so this does not reinterpret setup or menu screens as
+gameplay and does not fabricate a terminal reward.
+
+The post-fix two-game soak crossed the campaign boundary and completed runs
+`741d2c58-32d5-4f55-9f02-c990eecdd06d` and
+`c3d19de4-d774-4e26-adf0-80e49398bcac` with classified terminal losses after
+22 and 25 dispatched actions. The campaign stopped at its requested game limit
+with two completed episodes and no aborts. Three incomplete frames immediately
+before the second terminal classification recovered through the existing
+parse-frame retry path, confirming that transient animation remains distinct
+from the new screen-level recovery path.

@@ -50,6 +50,7 @@ class TrainingRunConfig(BaseModel):
     room_timeout_seconds: float = Field(default=60.0, ge=5.0, le=300.0)
     poll_seconds: float = Field(default=2.0, ge=0.25, le=10.0)
     no_progress_seconds: float = Field(default=60.0, ge=10.0, le=600.0)
+    unknown_screen_grace_seconds: float = Field(default=15.0, ge=1.0, le=60.0)
     render_settle_seconds: float = Field(default=5.0, ge=1.0, le=30.0)
     screenshot_directory: Path | None = None
     policy: RunnerPolicyName = RunnerPolicyName.SAFE_OBSERVER
@@ -242,6 +243,19 @@ def build_action_transition(
     )
 
 
+def _screen_departure_reason(
+    observation: ScreenObservation,
+    *,
+    unknown_seconds: float,
+    unknown_grace_seconds: float,
+) -> str | None:
+    if observation.kind is ScreenKind.GAME:
+        return None
+    if observation.kind is ScreenKind.UNKNOWN:
+        return "unknown_screen_timeout" if unknown_seconds >= unknown_grace_seconds else None
+    return "left_gameplay_screen"
+
+
 def _policy_from_name(
     name: RunnerPolicyName,
     verified_weapon_attacks: dict[str, WeaponAttackRule],
@@ -302,6 +316,7 @@ async def run_training_observer(
                         "max_seconds": config.max_seconds,
                         "poll_seconds": config.poll_seconds,
                         "no_progress_seconds": config.no_progress_seconds,
+                        "unknown_screen_grace_seconds": config.unknown_screen_grace_seconds,
                         "max_in_match_actions": config.max_in_match_actions,
                     },
                 ),
@@ -322,21 +337,87 @@ async def run_training_observer(
             previous_digest: str | None = None
             previous_state: GameState | None = None
             previous_parse_error_digest: str | None = None
+            unknown_screen_started_at: float | None = None
+            previous_unknown_screen_digest: str | None = None
             loop = asyncio.get_running_loop()
             deadline = loop.time() + config.max_seconds
             last_progress_at = loop.time()
             while loop.time() < deadline:
-                if observation.kind is not ScreenKind.GAME:
+                now = loop.time()
+                if observation.kind is ScreenKind.UNKNOWN:
+                    if unknown_screen_started_at is None:
+                        unknown_screen_started_at = now
+                    unknown_seconds = now - unknown_screen_started_at
+                    unknown_digest = hashlib.sha256(
+                        observation.model_dump_json(exclude={"observed_at"}).encode()
+                    ).hexdigest()
+                    if unknown_digest != previous_unknown_screen_digest:
+                        store.append_event(run.run_id, EventKind.OBSERVATION, observation)
+                        store.append_event(
+                            run.run_id,
+                            EventKind.ERROR,
+                            {
+                                "error_type": "TransientUnknownScreen",
+                                "reason": "gameplay capture temporarily became unknown",
+                                "observation_digest": unknown_digest,
+                            },
+                        )
+                        if config.screenshot_directory is not None:
+                            prepare_private_directory(config.screenshot_directory)
+                            unknown_path = (
+                                config.screenshot_directory
+                                / f"{run.run_id}-unknown-{unknown_digest[:12]}.png"
+                            )
+                            await page.screenshot(path=str(unknown_path), full_page=True)
+                            os.chmod(unknown_path, 0o600)
+                        previous_unknown_screen_digest = unknown_digest
+                    departure_reason = _screen_departure_reason(
+                        observation,
+                        unknown_seconds=unknown_seconds,
+                        unknown_grace_seconds=min(
+                            config.unknown_screen_grace_seconds,
+                            config.no_progress_seconds,
+                        ),
+                    )
+                    if departure_reason is None:
+                        log.warning(
+                            "transient_unknown_gameplay_screen",
+                            run_id=run.run_id,
+                            unknown_seconds=unknown_seconds,
+                        )
+                        await page.wait_for_timeout(config.poll_seconds * 1_000)
+                        observation = await capture_screen(page)
+                        continue
+                else:
+                    unknown_screen_started_at = None
+                    previous_unknown_screen_digest = None
+                    departure_reason = _screen_departure_reason(
+                        observation,
+                        unknown_seconds=0,
+                        unknown_grace_seconds=config.unknown_screen_grace_seconds,
+                    )
+                if departure_reason is not None:
+                    if observation.kind is not ScreenKind.UNKNOWN:
+                        store.append_event(run.run_id, EventKind.OBSERVATION, observation)
                     store.append_event(
                         run.run_id,
                         EventKind.MATCH_END,
                         {
-                            "classification": "unclassified_terminal_candidate",
+                            "classification": (
+                                "sustained_unknown_terminal_candidate"
+                                if observation.kind is ScreenKind.UNKNOWN
+                                else "unclassified_terminal_candidate"
+                            ),
                             "screen_kind": observation.kind.value,
                             "visible_text": list(observation.text),
+                            "unknown_seconds": (
+                                now - unknown_screen_started_at
+                                if unknown_screen_started_at is not None
+                                else 0
+                            ),
                         },
                     )
-                    outcome_reason = "left_gameplay_screen"
+                    outcome_reason = departure_reason
                     break
                 try:
                     prior_digest = previous_digest

@@ -609,6 +609,14 @@ def run_bot(
             help="Stop after this many seconds without a normalized state change.",
         ),
     ] = 60.0,
+    unknown_screen_grace_seconds: Annotated[
+        float,
+        typer.Option(
+            min=1.0,
+            max=60.0,
+            help="Grace period for a transient unknown gameplay render.",
+        ),
+    ] = 15.0,
     screenshot_directory: Annotated[
         Path | None,
         typer.Option(help="Owner-only ignored screenshots for changed game states."),
@@ -640,6 +648,7 @@ def run_bot(
                     room_timeout_seconds=room_timeout_seconds,
                     poll_seconds=poll_seconds,
                     no_progress_seconds=no_progress_seconds,
+                    unknown_screen_grace_seconds=unknown_screen_grace_seconds,
                     screenshot_directory=screenshot_directory,
                     policy=policy,
                     max_in_match_actions=max_actions,
@@ -708,6 +717,14 @@ def play_official_training_computers(
             help="Stop the campaign on this many seconds without normalized progress.",
         ),
     ] = 60.0,
+    unknown_screen_grace_seconds: Annotated[
+        float,
+        typer.Option(
+            min=1.0,
+            max=60.0,
+            help="Grace period for a transient unknown gameplay render.",
+        ),
+    ] = 15.0,
     restart_delay_seconds: Annotated[
         float,
         typer.Option(min=0.0, max=60.0, help="Delay between completed Training games."),
@@ -748,6 +765,7 @@ def play_official_training_computers(
                         room_timeout_seconds=room_timeout_seconds,
                         poll_seconds=poll_seconds,
                         no_progress_seconds=no_progress_seconds,
+                        unknown_screen_grace_seconds=unknown_screen_grace_seconds,
                         screenshot_directory=screenshot_directory,
                         policy=RunnerPolicyName.HEURISTIC_V0,
                         max_in_match_actions=max_actions,

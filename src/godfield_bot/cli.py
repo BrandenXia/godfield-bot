@@ -1314,11 +1314,23 @@ def models_train_outcomes(
     epochs: Annotated[
         int,
         typer.Option(min=1, max=10_000, help="Offline passes over terminal episodes."),
-    ] = 20,
+    ] = 4,
     learning_rate: Annotated[
         float,
         typer.Option(min=1e-8, max=1.0, help="Outcome-supervised learning rate."),
-    ] = 1e-3,
+    ] = 1e-4,
+    minimum_episodes: Annotated[
+        int,
+        typer.Option(min=1, help="Minimum completed official games required."),
+    ] = 20,
+    minimum_wins: Annotated[
+        int,
+        typer.Option(min=0, help="Minimum official wins required."),
+    ] = 2,
+    minimum_losses: Annotated[
+        int,
+        typer.Option(min=0, help="Minimum official losses required."),
+    ] = 2,
     seed: Annotated[int, typer.Option()] = 67,
 ) -> None:
     """Create a non-deployable policy/value candidate from terminal episodes."""
@@ -1339,6 +1351,9 @@ def models_train_outcomes(
             config=OutcomeTrainingConfig(
                 epochs=epochs,
                 learning_rate=learning_rate,
+                minimum_episodes=minimum_episodes,
+                minimum_wins=minimum_wins,
+                minimum_losses=minimum_losses,
                 seed=seed,
             ),
         )

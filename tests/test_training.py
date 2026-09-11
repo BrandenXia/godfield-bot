@@ -603,26 +603,62 @@ def test_outcome_training_writes_immutable_candidate_lineage(tmp_path) -> None:
         encoding="utf-8",
     )
 
+    with pytest.raises(ValueError, match="at least 20 are required"):
+        train_outcome_candidate(
+            base_model_directory=root / parent.model_id,
+            model_root=root,
+            outcome_replay_path=outcome_replay,
+            snapshot_path=SNAPSHOT,
+            config=OutcomeTrainingConfig(),
+        )
+
+    with pytest.raises(ValueError, match=r"parameter RMS change .* exceeds"):
+        train_outcome_candidate(
+            base_model_directory=root / parent.model_id,
+            model_root=root,
+            outcome_replay_path=outcome_replay,
+            snapshot_path=SNAPSHOT,
+            config=OutcomeTrainingConfig(
+                epochs=1,
+                minimum_episodes=1,
+                minimum_wins=1,
+                minimum_losses=0,
+                max_parameter_rms_change=1e-12,
+            ),
+        )
+
     candidate = train_outcome_candidate(
         base_model_directory=root / parent.model_id,
         model_root=root,
         outcome_replay_path=outcome_replay,
         snapshot_path=SNAPSHOT,
-        config=OutcomeTrainingConfig(epochs=2),
+        config=OutcomeTrainingConfig(
+            epochs=2,
+            minimum_episodes=1,
+            minimum_wins=1,
+            minimum_losses=0,
+        ),
     )
     loaded_manifest, candidate_model = load_model(root / candidate.model_id)
 
     assert candidate.status is ModelStatus.CANDIDATE
     assert candidate.parent_model_id == parent.model_id
-    assert candidate.training_algorithm == "official-training-outcome-actor-critic-v1"
+    assert candidate.training_algorithm == "official-training-proximal-outcome-v2"
     assert candidate.training_dataset_sha256 is not None
     assert candidate.training_run_ids == ("fixture-run",)
     assert candidate.metrics["training_episodes"] == 1
     assert candidate.metrics["training_steps"] == 1
     assert candidate.metrics["training_wins"] == 1
+    assert candidate.metrics["training_losses"] == 0
     assert candidate.feature_schema_version == RESOURCE_FEATURE_SCHEMA_VERSION
     assert candidate.training_context["simulation"] == parent.training_context["simulation"]
     assert candidate.training_context["official_training"]["base_model_id"] == parent.model_id
+    assert candidate.training_context["official_training"]["schema_version"] == 2
+    assert candidate.metrics["policy_kl_after"] <= candidate.metrics["max_policy_kl"]
+    assert (
+        candidate.metrics["parameter_rms_change_after"]
+        <= candidate.metrics["max_parameter_rms_change"]
+    )
     assert candidate.metrics["value_loss_after"] < candidate.metrics["value_loss_before"]
     assert not torch.equal(parent_value_head, candidate_model.value_head.weight.detach())
     assert loaded_manifest == candidate

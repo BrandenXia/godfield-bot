@@ -249,8 +249,11 @@ uv run godfield-bot models train-outcomes \
 ```
 
 The final command creates a child candidate; it does not replace the model or
-promote it. Evaluate that child on the matching native ruleset before another
-official batch. See
+promote it. Outcome training requires at least 20 completed games, including
+two wins and two losses, by default. It performs a clipped full-batch update
+anchored to the frozen parent, then rejects the update if policy or parameter
+drift crosses its trust-region limit. Evaluate the child on the matching native
+ruleset before another official batch. See
 [ADR 0026](docs/architecture/0026-official-training-learning-loop.md).
 
 Official Training also has a narrow liveness fallback for a Dream-masked hand:
@@ -347,13 +350,17 @@ evaluate, promote, or allow it to control the browser, and it does not train
 the value head from invented returns.
 
 `models train-outcomes` accepts only the stricter outcome-replay-v2 dataset from
-official Training games controlled by the exact base model. It uses the
-undiscounted sparse terminal result both as the value target and as a signed
-policy advantage: winning actions are reinforced and losing actions are
-suppressed. Hidden-stat heuristic fallback steps are excluded at their neural
-memory-reset boundary. The command writes another immutable candidate with
-before/after policy-value metrics and inherited simulator provenance; it never
-changes a running policy or promotes the child automatically.
+official Training games controlled by the exact base model. The proximal-v2
+trainer uses the undiscounted sparse terminal result as the value target and a
+normalized advantage relative to the frozen behavior policy. Action probability
+ratios and value changes are clipped, while KL and global parameter drift are
+measured against that parent. Small or one-sided datasets are refused by
+default, and an update beyond either drift ceiling is not saved. Hidden-stat
+heuristic fallback steps are excluded at their neural memory-reset boundary.
+The command writes another immutable candidate with before/after policy-value
+and drift metrics and inherited simulator provenance; it never changes a
+running policy or promotes the child automatically. See
+[ADR 0028](docs/architecture/0028-proximal-official-outcome-training.md).
 
 Training and operator-owned private rooms are the only approved early play
 scope. Public Duel and automated chat are disabled. The live private adapter is

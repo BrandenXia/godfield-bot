@@ -22,6 +22,11 @@ class TrainingMetrics(BaseModel):
     gradient_norm: float
 
 
+class ProximalOutcomeMetrics(TrainingMetrics):
+    policy_kl: float
+    parameter_rms_change: float
+
+
 class ImitationMetrics(BaseModel):
     loss: float
     accuracy: float
@@ -176,6 +181,202 @@ def outcome_supervised_sequence_step(
     return metrics
 
 
+def proximal_outcome_batch_step(
+    model: RecurrentPolicyValueNet,
+    parent_model: RecurrentPolicyValueNet,
+    optimizer: torch.optim.Optimizer,
+    episodes: Sequence[tuple[Sequence[StateFeatures], Sequence[int], float]],
+    *,
+    policy_clip: float = 0.1,
+    value_clip: float = 0.2,
+    value_weight: float = 0.5,
+    entropy_weight: float = 0.01,
+    kl_weight: float = 0.1,
+    parameter_anchor_weight: float = 0.01,
+    max_gradient_norm: float = 1.0,
+) -> ProximalOutcomeMetrics:
+    """Apply one full-batch update constrained to the behavior policy."""
+
+    if not episodes or any(
+        not features or len(features) != len(actions)
+        for features, actions, _ in episodes
+    ):
+        raise TrainingError("proximal outcome training requires aligned episodes")
+    if any(terminal_return not in {-1.0, 0.0, 1.0} for _, _, terminal_return in episodes):
+        raise TrainingError("proximal outcome training requires sparse terminal returns")
+    if policy_clip <= 0 or value_clip <= 0:
+        raise TrainingError("proximal outcome clips must be positive")
+
+    model.train()
+    parent_model.eval()
+    optimizer.zero_grad(set_to_none=True)
+    logits_rows: list[Tensor] = []
+    value_rows: list[Tensor] = []
+    parent_logits_rows: list[Tensor] = []
+    parent_value_rows: list[Tensor] = []
+    action_rows: list[int] = []
+    return_rows: list[float] = []
+    for features, actions, terminal_return in episodes:
+        recurrent_state: Tensor | None = None
+        parent_recurrent_state: Tensor | None = None
+        for state_features, target_action in zip(features, actions, strict=True):
+            inputs = features_to_tensors([state_features])
+            logits, values, recurrent_state = model(
+                *inputs,
+                recurrent_state=recurrent_state,
+            )
+            with torch.no_grad():
+                parent_logits, parent_values, parent_recurrent_state = parent_model(
+                    *inputs,
+                    recurrent_state=parent_recurrent_state,
+                )
+            logits_rows.append(logits)
+            value_rows.append(values)
+            parent_logits_rows.append(parent_logits)
+            parent_value_rows.append(parent_values)
+            action_rows.append(target_action)
+            return_rows.append(terminal_return)
+
+    logits = torch.cat(logits_rows)
+    values = torch.cat(value_rows)
+    parent_logits = torch.cat(parent_logits_rows)
+    parent_values = torch.cat(parent_value_rows)
+    target_actions_tensor = torch.tensor(action_rows, dtype=torch.long, device=logits.device)
+    returns = torch.tensor(return_rows, dtype=values.dtype, device=values.device)
+    selected_logits = logits.gather(1, target_actions_tensor.unsqueeze(1)).squeeze(1)
+    if bool((selected_logits == torch.finfo(logits.dtype).min).any()):
+        raise TrainingError("outcome replay selected an action masked as illegal")
+
+    log_probabilities = functional.log_softmax(logits, dim=-1)
+    parent_log_probabilities = functional.log_softmax(parent_logits, dim=-1)
+    selected_log_probabilities = log_probabilities.gather(
+        1, target_actions_tensor.unsqueeze(1)
+    ).squeeze(1)
+    parent_selected_log_probabilities = parent_log_probabilities.gather(
+        1, target_actions_tensor.unsqueeze(1)
+    ).squeeze(1)
+    advantages = returns - parent_values
+    if advantages.numel() > 1:
+        advantages = (advantages - advantages.mean()) / advantages.std(unbiased=False).clamp_min(
+            1e-6
+        )
+    ratios = torch.exp(
+        (selected_log_probabilities - parent_selected_log_probabilities).clamp(
+            min=-20,
+            max=20,
+        )
+    )
+    clipped_ratios = ratios.clamp(min=1 - policy_clip, max=1 + policy_clip)
+    policy_loss = -torch.minimum(ratios * advantages, clipped_ratios * advantages).mean()
+
+    clipped_values = parent_values + (values - parent_values).clamp(
+        min=-value_clip,
+        max=value_clip,
+    )
+    value_loss = torch.maximum(
+        (values - returns).square(),
+        (clipped_values - returns).square(),
+    ).mean()
+    probabilities = functional.softmax(logits, dim=-1)
+    parent_probabilities = functional.softmax(parent_logits, dim=-1)
+    entropy = -(probabilities * log_probabilities).sum(dim=-1).mean()
+    policy_kl = (
+        torch.where(
+            parent_probabilities > 0,
+            parent_probabilities * (parent_log_probabilities - log_probabilities),
+            0,
+        )
+        .sum(dim=-1)
+        .mean()
+    )
+
+    squared_parameter_change = values.new_zeros(())
+    parameter_count = 0
+    for parameter, parent_parameter in zip(
+        model.parameters(), parent_model.parameters(), strict=True
+    ):
+        squared_parameter_change = (
+            squared_parameter_change + (parameter - parent_parameter.detach()).square().sum()
+        )
+        parameter_count += parameter.numel()
+    parameter_mean_square_change = squared_parameter_change / parameter_count
+    total_loss = (
+        policy_loss
+        + value_weight * value_loss
+        - entropy_weight * entropy
+        + kl_weight * policy_kl
+        + parameter_anchor_weight * parameter_mean_square_change
+    )
+    total_loss.backward()  # type: ignore[no-untyped-call]
+    gradient_norm = nn.utils.clip_grad_norm_(model.parameters(), max_gradient_norm)
+    optimizer.step()
+    metrics = ProximalOutcomeMetrics(
+        total_loss=float(total_loss.detach()),
+        policy_loss=float(policy_loss.detach()),
+        value_loss=float(value_loss.detach()),
+        entropy=float(entropy.detach()),
+        gradient_norm=float(gradient_norm.detach()),
+        policy_kl=float(policy_kl.detach()),
+        parameter_rms_change=float(parameter_mean_square_change.detach().sqrt()),
+    )
+    if not all(math.isfinite(value) for value in metrics.model_dump().values()):
+        raise TrainingError("proximal outcome training produced non-finite metrics")
+    return metrics
+
+
+def evaluate_policy_drift(
+    model: RecurrentPolicyValueNet,
+    parent_model: RecurrentPolicyValueNet,
+    episodes: Sequence[tuple[Sequence[StateFeatures], Sequence[int], float]],
+) -> tuple[float, float]:
+    """Measure mean behavior-policy KL and global parameter RMS change."""
+
+    if not episodes:
+        raise TrainingError("policy drift evaluation requires episodes")
+    model.eval()
+    parent_model.eval()
+    divergence_sum = 0.0
+    state_count = 0
+    with torch.no_grad():
+        for features, _, _ in episodes:
+            recurrent_state: Tensor | None = None
+            parent_recurrent_state: Tensor | None = None
+            for state_features in features:
+                inputs = features_to_tensors([state_features])
+                logits, _, recurrent_state = model(
+                    *inputs,
+                    recurrent_state=recurrent_state,
+                )
+                parent_logits, _, parent_recurrent_state = parent_model(
+                    *inputs,
+                    recurrent_state=parent_recurrent_state,
+                )
+                log_probabilities = functional.log_softmax(logits, dim=-1)
+                parent_log_probabilities = functional.log_softmax(parent_logits, dim=-1)
+                parent_probabilities = functional.softmax(parent_logits, dim=-1)
+                divergence = torch.where(
+                    parent_probabilities > 0,
+                    parent_probabilities * (parent_log_probabilities - log_probabilities),
+                    0,
+                ).sum()
+                divergence_sum += float(divergence)
+                state_count += 1
+        squared_parameter_change = 0.0
+        parameter_count = 0
+        for parameter, parent_parameter in zip(
+            model.parameters(), parent_model.parameters(), strict=True
+        ):
+            squared_parameter_change += float((parameter - parent_parameter).square().sum())
+            parameter_count += parameter.numel()
+    if state_count == 0 or parameter_count == 0:
+        raise TrainingError("policy drift evaluation found no model states")
+    policy_kl = max(divergence_sum / state_count, 0.0)
+    parameter_rms_change = math.sqrt(squared_parameter_change / parameter_count)
+    if not math.isfinite(policy_kl) or not math.isfinite(parameter_rms_change):
+        raise TrainingError("policy drift evaluation produced non-finite metrics")
+    return policy_kl, parameter_rms_change
+
+
 def evaluate_outcome_sequences(
     model: RecurrentPolicyValueNet,
     episodes: Sequence[tuple[Sequence[StateFeatures], Sequence[int], float]],
@@ -184,8 +385,7 @@ def evaluate_outcome_sequences(
     entropy_weight: float = 0.01,
 ) -> TrainingMetrics:
     if not episodes or any(
-        not features or len(features) != len(actions)
-        for features, actions, _ in episodes
+        not features or len(features) != len(actions) for features, actions, _ in episodes
     ):
         raise TrainingError("outcome evaluation requires aligned episodes")
     if any(terminal_return not in {-1.0, 0.0, 1.0} for _, _, terminal_return in episodes):

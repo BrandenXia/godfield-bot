@@ -27,18 +27,28 @@ from godfield_bot.outcome_replay import load_outcome_replay_jsonl
 from godfield_bot.policy import OFFICIAL_TRAINING_NEURAL_POLICY_ID
 from godfield_bot.training import (
     evaluate_outcome_sequences,
-    outcome_supervised_sequence_step,
+    evaluate_policy_drift,
+    proximal_outcome_batch_step,
 )
 
-ALGORITHM = "official-training-outcome-actor-critic-v1"
+ALGORITHM = "official-training-proximal-outcome-v2"
 
 
 class OutcomeTrainingConfig(BaseModel):
-    epochs: int = Field(default=20, ge=1, le=10_000)
-    learning_rate: float = Field(default=1e-3, gt=0, le=1)
+    epochs: int = Field(default=4, ge=1, le=10_000)
+    learning_rate: float = Field(default=1e-4, gt=0, le=1)
     value_weight: float = Field(default=0.5, ge=0, le=100)
     entropy_weight: float = Field(default=0.01, ge=0, le=100)
+    policy_clip: float = Field(default=0.1, gt=0, lt=1)
+    value_clip: float = Field(default=0.2, gt=0, le=10)
+    kl_weight: float = Field(default=0.1, ge=0, le=100)
+    parameter_anchor_weight: float = Field(default=0.01, ge=0, le=100)
+    max_policy_kl: float = Field(default=0.02, gt=0, le=10)
+    max_parameter_rms_change: float = Field(default=0.01, gt=0, le=10)
     max_gradient_norm: float = Field(default=1.0, gt=0, le=100)
+    minimum_episodes: int = Field(default=20, ge=1, le=100_000)
+    minimum_wins: int = Field(default=2, ge=0, le=100_000)
+    minimum_losses: int = Field(default=2, ge=0, le=100_000)
     seed: int = 67
 
 
@@ -88,13 +98,29 @@ def train_outcome_candidate(
     if any(episode.model_id != parent.model_id for episode in episodes):
         raise ValueError("every outcome episode must be controlled by the base model")
 
+    outcome_counts: Counter[str] = Counter(episode.outcome.result.value for episode in episodes)
+    if len(episodes) < config.minimum_episodes:
+        raise ValueError(
+            "outcome replay has "
+            f"{len(episodes)} episodes; at least {config.minimum_episodes} are required"
+        )
+    if outcome_counts["win"] < config.minimum_wins:
+        raise ValueError(
+            "outcome replay has "
+            f"{outcome_counts['win']} wins; at least {config.minimum_wins} are required"
+        )
+    if outcome_counts["loss"] < config.minimum_losses:
+        raise ValueError(
+            "outcome replay has "
+            f"{outcome_counts['loss']} losses; at least {config.minimum_losses} are required"
+        )
+
     encoder = StateFeatureEncoder(
         artifact_vocabulary,
         snapshot,
         feature_schema_version=parent.feature_schema_version,
     )
     encoded_episodes: list[tuple[list[StateFeatures], list[int], float]] = []
-    outcome_counts: Counter[str] = Counter()
     skipped_unencodable_steps = 0
     for episode in episodes:
         trajectory_features: list[StateFeatures] = []
@@ -127,11 +153,14 @@ def train_outcome_candidate(
             actions.append(target)
         if trajectory_features:
             encoded_episodes.append((trajectory_features, actions, episode.reward.value))
-        outcome_counts[episode.outcome.result.value] += 1
     if not encoded_episodes:
         raise ValueError("outcome replay has no model-representable neural decisions")
 
     torch.manual_seed(config.seed)
+    _, parent_model = load_model(base_model_directory)
+    parent_model.eval()
+    for parameter in parent_model.parameters():
+        parameter.requires_grad_(False)
     before = evaluate_outcome_sequences(
         model,
         encoded_episodes,
@@ -140,28 +169,45 @@ def train_outcome_candidate(
     )
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
     for _ in range(config.epochs):
-        for trajectory_features, actions, terminal_return in encoded_episodes:
-            outcome_supervised_sequence_step(
-                model,
-                optimizer,
-                trajectory_features,
-                actions,
-                terminal_return,
-                value_weight=config.value_weight,
-                entropy_weight=config.entropy_weight,
-                max_gradient_norm=config.max_gradient_norm,
-            )
+        proximal_outcome_batch_step(
+            model,
+            parent_model,
+            optimizer,
+            encoded_episodes,
+            policy_clip=config.policy_clip,
+            value_clip=config.value_clip,
+            value_weight=config.value_weight,
+            entropy_weight=config.entropy_weight,
+            kl_weight=config.kl_weight,
+            parameter_anchor_weight=config.parameter_anchor_weight,
+            max_gradient_norm=config.max_gradient_norm,
+        )
     after = evaluate_outcome_sequences(
         model,
         encoded_episodes,
         value_weight=config.value_weight,
         entropy_weight=config.entropy_weight,
     )
+    policy_kl, parameter_rms_change = evaluate_policy_drift(
+        model,
+        parent_model,
+        encoded_episodes,
+    )
+    if policy_kl > config.max_policy_kl:
+        raise ValueError(
+            f"outcome update policy KL {policy_kl:.6f} exceeds "
+            f"the {config.max_policy_kl:.6f} trust-region limit"
+        )
+    if parameter_rms_change > config.max_parameter_rms_change:
+        raise ValueError(
+            f"outcome update parameter RMS change {parameter_rms_change:.6f} exceeds "
+            f"the {config.max_parameter_rms_change:.6f} trust-region limit"
+        )
     if _file_digest(outcome_replay_path) != dataset_sha256:
         raise ValueError("outcome replay changed during training")
     training_context = dict(parent.training_context)
     training_context["official_training"] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "algorithm": ALGORITHM,
         "base_model_id": parent.model_id,
         "source_episode_count": len(episodes),
@@ -188,6 +234,14 @@ def train_outcome_candidate(
             "value_weight": config.value_weight,
             "entropy_weight": config.entropy_weight,
             "max_gradient_norm": config.max_gradient_norm,
+            "policy_clip": config.policy_clip,
+            "value_clip": config.value_clip,
+            "kl_weight": config.kl_weight,
+            "parameter_anchor_weight": config.parameter_anchor_weight,
+            "policy_kl_after": policy_kl,
+            "parameter_rms_change_after": parameter_rms_change,
+            "max_policy_kl": config.max_policy_kl,
+            "max_parameter_rms_change": config.max_parameter_rms_change,
             "training_wins": float(outcome_counts["win"]),
             "training_losses": float(outcome_counts["loss"]),
             "training_draws": float(outcome_counts["draw"]),

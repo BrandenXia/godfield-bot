@@ -7,6 +7,8 @@ from godfield_bot.browser.controls import (
     click_action_panel,
     click_chance_panel,
     click_empty_action_panel,
+    click_exchange_command,
+    click_exchange_panel,
     click_hand_artifact,
     click_phase_control,
     click_player_target,
@@ -34,6 +36,34 @@ async def execute_action(
         if action.actor_player_name is None or action.control_panel != "left":
             raise ActionExecutionError("pass is missing its verified actor or panel")
         await click_empty_action_panel(page, actor_name=action.actor_player_name)
+    elif action.kind is ActionKind.EXCHANGE:
+        if (
+            action.artifact_asset_path is None
+            or action.actor_player_name is None
+            or action.expected_action_display != "Pray"
+        ):
+            raise ActionExecutionError("Exchange is missing its verified phase identities")
+        await click_exchange_command(
+            page,
+            asset_path=action.artifact_asset_path,
+            actor_name=action.actor_player_name,
+            action_display=action.expected_action_display,
+        )
+    elif action.kind is ActionKind.CONFIRM_EXCHANGE:
+        if (
+            action.artifact_asset_path is None
+            or action.actor_player_name is None
+            or action.expected_action_display is not None
+            or action.control_panel != "left"
+        ):
+            raise ActionExecutionError(
+                "Exchange confirmation is missing its verified phase identities"
+            )
+        await click_exchange_panel(
+            page,
+            asset_path=action.artifact_asset_path,
+            actor_name=action.actor_player_name,
+        )
     elif action.kind is ActionKind.SELECT_ARTIFACT:
         if action.artifact_slot is None or action.artifact_asset_path is None:
             raise ActionExecutionError("artifact selection is missing its verified identity")

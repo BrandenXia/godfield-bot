@@ -253,6 +253,15 @@ promote it. Evaluate that child on the matching native ruleset before another
 official batch. See
 [ADR 0026](docs/architecture/0026-official-training-learning-loop.md).
 
+Official Training also has a narrow liveness fallback for a Dream-masked hand:
+when a displayed weapon blocks Prayer, no reviewed artifact is clickable, and
+the client exposes exactly one verified Exchange control, the heuristic redraws
+the hand. Neural control resets its recurrent state across that fallback, so
+the outcome trainer does not attribute the unmodeled trade decision to the
+candidate. Buy remains unsupported because it has target and purchase-response
+phases. See
+[ADR 0027](docs/architecture/0027-official-training-exchange-liveness.md).
+
 Use `--headed` to watch the official client. Each game is stored separately in
 `runs/godfield.sqlite`; a campaign summary reports its run IDs and aggregate
 wins, losses, and draws. See

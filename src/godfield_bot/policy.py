@@ -20,9 +20,7 @@ if TYPE_CHECKING:
 
 OFFICIAL_TRAINING_NEURAL_POLICY_ID = "official-training-neural-v1"
 _COMBO_RULESET_ID = "plain-elemental-combo-attack-defense-redraw-duel-v1"
-_RESOURCE_RULESET_ID = (
-    "plain-elemental-combo-resource-miracle-attack-defense-redraw-duel-v1"
-)
+_RESOURCE_RULESET_ID = "plain-elemental-combo-resource-miracle-attack-defense-redraw-duel-v1"
 
 
 class Policy(Protocol):
@@ -95,6 +93,12 @@ class HeuristicV0Policy:
         pass_actions = [
             action for action in legal_actions.actions if action.kind is ActionKind.PASS
         ]
+        exchange_actions = [
+            action for action in legal_actions.actions if action.kind is ActionKind.EXCHANGE
+        ]
+        exchange_confirm_actions = [
+            action for action in legal_actions.actions if action.kind is ActionKind.CONFIRM_EXCHANGE
+        ]
         confirm_actions = [
             action for action in legal_actions.actions if action.kind is ActionKind.CONFIRM
         ]
@@ -102,9 +106,7 @@ class HeuristicV0Policy:
             action for action in legal_actions.actions if action.kind is ActionKind.CONFIRM_CHANCE
         ]
         utility_confirm_actions = [
-            action
-            for action in legal_actions.actions
-            if action.kind is ActionKind.CONFIRM_UTILITY
+            action for action in legal_actions.actions if action.kind is ActionKind.CONFIRM_UTILITY
         ]
         if len(target_actions) > 1:
             raise ValueError("heuristic policy requires at most one verified target")
@@ -118,6 +120,10 @@ class HeuristicV0Policy:
             raise ValueError("heuristic policy requires at most one utility confirmation")
         if len(pass_actions) > 1:
             raise ValueError("heuristic policy requires at most one verified pass")
+        if len(exchange_actions) > 1:
+            raise ValueError("heuristic policy requires at most one verified Exchange action")
+        if len(exchange_confirm_actions) > 1:
+            raise ValueError("heuristic policy requires at most one verified Exchange confirmation")
         artifacts_by_slot = {artifact.slot: artifact for artifact in state.hand}
 
         def artifact_for(action: LegalAction) -> HandArtifact | None:
@@ -210,7 +216,9 @@ class HeuristicV0Policy:
             selected_artifact = best_attack or best_hp_utility or best_mp_utility
 
         chosen = (
-            confirm_actions[0]
+            exchange_confirm_actions[0]
+            if exchange_confirm_actions
+            else confirm_actions[0]
             if confirm_actions
             else chance_actions[0]
             if chance_actions
@@ -224,6 +232,8 @@ class HeuristicV0Policy:
             if pass_actions
             else forgive_actions[0]
             if forgive_actions
+            else exchange_actions[0]
+            if exchange_actions
             else wait_actions[0]
         )
         executable = chosen.kind is not ActionKind.WAIT
@@ -240,6 +250,8 @@ class HeuristicV0Policy:
             rationale=(
                 "select the sole verified opponent target"
                 if chosen.kind is ActionKind.SELECT_TARGET
+                else "confirm the selected untargeted Exchange command"
+                if chosen.kind is ActionKind.CONFIRM_EXCHANGE
                 else "resolve the selected Bible-audited untargeted attack"
                 if chosen.kind is ActionKind.CONFIRM_CHANCE
                 else "confirm the selected deterministic Bible-audited utility"
@@ -256,6 +268,8 @@ class HeuristicV0Policy:
                 if chosen.kind is ActionKind.FORGIVE
                 else "pass an attack turn because no reviewed attack is usable"
                 if chosen.kind is ActionKind.PASS
+                else "redraw a blocked hand with the uniquely verified Exchange command"
+                if chosen.kind is ActionKind.EXCHANGE
                 else legal_actions.blocked_reason or "no executable action verified"
             ),
             executable=executable,
@@ -327,9 +341,7 @@ class OfficialTrainingNeuralPolicy:
             simulation.get("ruleset_id") != expected_ruleset
             or simulation.get("action_semantics") != "sequential-combo-selection"
         ):
-            raise ValueError(
-                "model was not trained on matching sequential action semantics"
-            )
+            raise ValueError("model was not trained on matching sequential action semantics")
 
         self.manifest: ModelManifest = manifest
         self.model: RecurrentPolicyValueNet = model
@@ -377,12 +389,6 @@ class OfficialTrainingNeuralPolicy:
                 "no reviewed executable action is available",
                 reset_memory=False,
             )
-        indexed_actions: dict[int, LegalAction] = {}
-        for action in executable_actions:
-            index = action_index(action)
-            if index in indexed_actions:
-                raise ValueError("reviewed browser actions collide in the neural action head")
-            indexed_actions[index] = action
         try:
             features = self.encoder.encode(state, legal_actions)
         except FeatureEncodingError as error:
@@ -392,6 +398,12 @@ class OfficialTrainingNeuralPolicy:
                 str(error),
                 reset_memory=True,
             )
+        indexed_actions: dict[int, LegalAction] = {}
+        for action in executable_actions:
+            index = action_index(action)
+            if index in indexed_actions:
+                raise ValueError("reviewed browser actions collide in the neural action head")
+            indexed_actions[index] = action
 
         action_mask = list(features.action_mask)
         action_mask[0] = False

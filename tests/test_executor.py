@@ -93,6 +93,63 @@ def test_pass_dispatches_through_verified_empty_pray_panel(monkeypatch) -> None:
     assert captured == {"page": page, "actor_name": "ロキ-67"}
 
 
+def test_exchange_dispatches_through_verified_trade_control(monkeypatch) -> None:
+    captured: dict[str, Any] = {}
+
+    async def fake_click_exchange_command(page: object, **kwargs: object) -> None:
+        captured["page"] = page
+        captured.update(kwargs)
+
+    monkeypatch.setattr(executor, "click_exchange_command", fake_click_exchange_command)
+    page = object()
+    action = LegalAction(
+        action_id="exchange",
+        kind=ActionKind.EXCHANGE,
+        label="Exchange a blocked hand",
+        artifact_asset_path="/images/items/trade/exchange.webp",
+        actor_player_name="ロキ-67",
+        expected_action_display="Pray",
+    )
+
+    result = asyncio.run(executor.execute_action(page, action))  # type: ignore[arg-type]
+
+    assert result.dispatched is True
+    assert captured == {
+        "page": page,
+        "asset_path": "/images/items/trade/exchange.webp",
+        "actor_name": "ロキ-67",
+        "action_display": "Pray",
+    }
+
+
+def test_exchange_confirmation_dispatches_through_verified_action_panel(monkeypatch) -> None:
+    captured: dict[str, Any] = {}
+
+    async def fake_click_exchange_panel(page: object, **kwargs: object) -> None:
+        captured["page"] = page
+        captured.update(kwargs)
+
+    monkeypatch.setattr(executor, "click_exchange_panel", fake_click_exchange_panel)
+    page = object()
+    action = LegalAction(
+        action_id="confirm:exchange",
+        kind=ActionKind.CONFIRM_EXCHANGE,
+        label="Confirm Exchange",
+        artifact_asset_path="/images/items/trade/exchange.webp",
+        actor_player_name="ロキ-67",
+        control_panel="left",
+    )
+
+    result = asyncio.run(executor.execute_action(page, action))  # type: ignore[arg-type]
+
+    assert result.dispatched is True
+    assert captured == {
+        "page": page,
+        "asset_path": "/images/items/trade/exchange.webp",
+        "actor_name": "ロキ-67",
+    }
+
+
 def test_chance_attack_dispatches_through_verified_untargeted_panel(monkeypatch) -> None:
     captured: dict[str, Any] = {}
 

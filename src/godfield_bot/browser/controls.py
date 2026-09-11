@@ -154,6 +154,165 @@ async def click_hand_artifact(page: Page, *, slot: int, asset_path: str) -> None
     await target.click(force=True)
 
 
+async def click_exchange_command(
+    page: Page,
+    *,
+    asset_path: str,
+    actor_name: str,
+    action_display: str,
+) -> None:
+    """Click the unique Exchange control after revalidating the empty Pray phase."""
+
+    descriptor = cast(
+        dict[str, Any] | None,
+        await page.evaluate(
+            r"""
+            ({wantedPath, wantedActor, wantedDisplay}) => {
+              const rendered = (element) => {
+                const style = getComputedStyle(element);
+                const rect = element.getBoundingClientRect();
+                return style.display !== 'none' && style.visibility !== 'hidden' &&
+                  rect.width > 0 && rect.height > 0;
+              };
+              const exchanges = [...document.querySelectorAll('img')].filter((element) => {
+                if (!rendered(element) || new URL(element.src).pathname !== wantedPath) {
+                  return false;
+                }
+                const rect = element.getBoundingClientRect();
+                return rect.x >= 100 && rect.x <= 850 && rect.y >= 480 && rect.y <= 690 &&
+                  rect.width >= 60 && rect.width <= 100 &&
+                  rect.height >= 60 && rect.height <= 100;
+              });
+              const spans = [...document.querySelectorAll('span')].filter(rendered);
+              const actors = spans.filter((element) => {
+                const rect = element.getBoundingClientRect();
+                return element.innerText.trim() === wantedActor &&
+                  rect.x >= 100 && rect.x <= 450 && rect.y >= 40 && rect.y <= 80;
+              });
+              const displays = spans.filter((element) => {
+                const rect = element.getBoundingClientRect();
+                return element.innerText.trim() === wantedDisplay &&
+                  rect.x >= 100 && rect.x <= 450 && rect.y >= 390 && rect.y <= 450;
+              });
+              const selectedItems = [...document.querySelectorAll('img[src*="/images/items/"]')]
+                .filter((element) => {
+                  if (!rendered(element)) return false;
+                  const rect = element.getBoundingClientRect();
+                  return rect.x >= 100 && rect.x <= 450 && rect.y >= 80 && rect.y <= 300 &&
+                    rect.width >= 60 && rect.width <= 100 &&
+                    rect.height >= 60 && rect.height <= 100;
+                });
+              if (exchanges.length !== 1 || actors.length !== 1 || displays.length !== 1 ||
+                  selectedItems.length !== 0) return null;
+              const selected = exchanges[0];
+              const selectedRect = selected.getBoundingClientRect();
+              let target = selected.nextElementSibling;
+              while (target?.tagName === 'IMG' && rendered(target)) {
+                const overlayRect = target.getBoundingClientRect();
+                const sameBounds = Math.abs(overlayRect.x - selectedRect.x) <= 1.5 &&
+                  Math.abs(overlayRect.y - selectedRect.y) <= 1.5 &&
+                  Math.abs(overlayRect.width - selectedRect.width) <= 1.5 &&
+                  Math.abs(overlayRect.height - selectedRect.height) <= 1.5;
+                if (!sameBounds) return null;
+                target = target.nextElementSibling;
+              }
+              if (!target || target.tagName !== 'DIV' || !rendered(target) ||
+                  getComputedStyle(target).cursor !== 'pointer') return null;
+              const allDivs = [...document.querySelectorAll('div')];
+              return {targetDomIndex: allDivs.indexOf(target)};
+            }
+            """,
+            {
+                "wantedPath": asset_path,
+                "wantedActor": actor_name,
+                "wantedDisplay": action_display,
+            },
+        ),
+    )
+    if descriptor is None:
+        raise BrowserContractError("Exchange no longer matches the verified empty Pray phase")
+    target = page.locator("div").nth(cast(int, descriptor["targetDomIndex"]))
+    if not await target.is_visible():
+        raise BrowserContractError("unique visible Exchange hit target was not found")
+    await target.click(force=True)
+
+
+async def click_exchange_panel(
+    page: Page,
+    *,
+    asset_path: str,
+    actor_name: str,
+) -> None:
+    """Confirm a selected Exchange after revalidating its untargeted left panel."""
+
+    descriptor = cast(
+        dict[str, Any] | None,
+        await page.evaluate(
+            """
+            ({wantedPath, wantedActor}) => {
+              const rendered = (element) => {
+                const style = getComputedStyle(element);
+                const rect = element.getBoundingClientRect();
+                return style.display !== 'none' && style.visibility !== 'hidden' &&
+                  rect.width > 0 && rect.height > 0;
+              };
+              const selected = [...document.querySelectorAll('img')].filter((element) => {
+                if (!rendered(element) || new URL(element.src).pathname !== wantedPath) {
+                  return false;
+                }
+                const rect = element.getBoundingClientRect();
+                return rect.x >= 100 && rect.x <= 200 && rect.y >= 80 && rect.y <= 200 &&
+                  rect.width >= 60 && rect.width <= 100 &&
+                  rect.height >= 60 && rect.height <= 100;
+              });
+              const spans = [...document.querySelectorAll('span')].filter(rendered);
+              const actors = spans.filter((element) => {
+                const rect = element.getBoundingClientRect();
+                return element.innerText.trim() === wantedActor &&
+                  rect.x >= 100 && rect.x <= 450 && rect.y >= 40 && rect.y <= 80;
+              });
+              const displays = spans.filter((element) => {
+                const rect = element.getBoundingClientRect();
+                return rect.x >= 100 && rect.x <= 450 && rect.y >= 390 && rect.y <= 450;
+              });
+              const targets = spans.filter((element) => {
+                const rect = element.getBoundingClientRect();
+                return rect.x >= 451 && rect.x <= 750 && rect.y >= 40 && rect.y <= 80;
+              });
+              if (selected.length !== 1 || actors.length !== 1 || displays.length !== 0 ||
+                  targets.length !== 0) return null;
+              const allDivs = [...document.querySelectorAll('div')];
+              const candidates = allDivs.filter((element) => {
+                if (!rendered(element) || getComputedStyle(element).cursor !== 'pointer') {
+                  return false;
+                }
+                const rect = element.getBoundingClientRect();
+                const parentCursor = element.parentElement
+                  ? getComputedStyle(element.parentElement).cursor
+                  : '';
+                return parentCursor !== 'pointer' && element.innerText.trim() === '' &&
+                  rect.x >= 100 && rect.x <= 150 && rect.y >= 80 && rect.y <= 120 &&
+                  rect.width >= 250 && rect.width <= 350 &&
+                  rect.height >= 250 && rect.height <= 350;
+              });
+              if (candidates.length !== 1) return null;
+              return {domIndex: allDivs.indexOf(candidates[0])};
+            }
+            """,
+            {
+                "wantedPath": asset_path,
+                "wantedActor": actor_name,
+            },
+        ),
+    )
+    if descriptor is None:
+        raise BrowserContractError("Exchange no longer matches the verified left action panel")
+    target = page.locator("div").nth(cast(int, descriptor["domIndex"]))
+    if not await target.is_visible():
+        raise BrowserContractError("unique visible Exchange action-panel target was not found")
+    await target.click(force=True)
+
+
 async def click_player_target(page: Page, *, player_index: int, player_name: str) -> None:
     """Click one player row after re-deriving its index and name from live stats."""
 

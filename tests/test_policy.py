@@ -155,6 +155,54 @@ def test_neural_training_policy_uses_only_reviewed_actions_and_falls_back(tmp_pa
     assert fallback.rationale.startswith("neural fallback:")
     assert policy.recurrent_state is None
 
+    oversized_hand = tuple(
+        game_state.hand[0].model_copy(update={"slot": slot}) for slot in range(13)
+    )
+    oversized_state = game_state.model_copy(update={"hand": oversized_hand})
+    late_action = action.model_copy(
+        update={
+            "action_id": "artifact:9:weapons/bronze-club",
+            "artifact_slot": 9,
+        }
+    )
+    oversized_legal = LegalActionSet(
+        state_digest=game_state_digest(oversized_state),
+        actions=(
+            LegalAction(action_id="wait", kind=ActionKind.WAIT, label="Wait"),
+            late_action,
+        ),
+        coverage_complete=False,
+        blocked_reason="fixture reviews one late hand slot",
+    )
+
+    oversized_fallback = policy.decide(oversized_state, oversized_legal)
+
+    assert oversized_fallback.chosen_action_id == late_action.action_id
+    assert "hand size exceeds model capacity" in oversized_fallback.rationale
+
+    exchange_action = LegalAction(
+        action_id="exchange",
+        kind=ActionKind.EXCHANGE,
+        label="Exchange a blocked hand",
+        artifact_asset_path="/images/items/trade/exchange.webp",
+        actor_player_name="ロキ-67",
+        expected_action_display="Pray",
+    )
+    exchange_legal = LegalActionSet(
+        state_digest=game_state_digest(game_state),
+        actions=(
+            LegalAction(action_id="wait", kind=ActionKind.WAIT, label="Wait"),
+            exchange_action,
+        ),
+        coverage_complete=False,
+        blocked_reason="fixture reviews Exchange",
+    )
+
+    exchange_fallback = policy.decide(game_state, exchange_legal)
+
+    assert exchange_fallback.chosen_action_id == "exchange"
+    assert "outside the neural action head" in exchange_fallback.rationale
+
 
 def test_heuristic_selects_weapon_only_in_verified_self_phase() -> None:
     initial = state()
@@ -943,6 +991,87 @@ def test_heuristic_does_not_pass_when_a_displayed_weapon_is_disabled() -> None:
     assert [action.action_id for action in actions.actions] == ["wait"]
     assert decision.chosen_action_id == "wait"
     assert decision.executable is False
+
+
+def test_heuristic_uses_exchange_only_for_a_weapon_blocked_pray() -> None:
+    initial = state()
+    blocked_weapon = initial.hand[0].model_copy(update={"hit_target_bounds": None})
+    game_state = initial.model_copy(
+        update={
+            "hand": (blocked_weapon,),
+            "action_actor": "ロキ-67",
+            "action_display": "Pray",
+            "action_hit_target_bounds": Bounds(x=115, y=93, width=310, height=300),
+        }
+    )
+    exchange = VisibleImage(
+        path="/images/items/trade/exchange.webp",
+        bounds=Bounds(x=110, y=493, width=80, height=80),
+        hit_target_bounds=Bounds(x=110, y=493, width=80, height=80),
+    )
+    observation = ScreenObservation(
+        observed_at=game_state.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.15", "Pray", "HP"),
+        text_elements=(),
+        controls=(),
+        images=(exchange,),
+    )
+    weapon_rules = {"bronze-club": ("ATK1", 1.0)}
+    policy = HeuristicV0Policy(weapon_rules, {"iron-shield": 4})
+
+    blocked_actions = verified_browser_actions(
+        game_state,
+        observation,
+        verified_weapon_attacks=weapon_rules,
+    )
+    blocked_decision = policy.decide(game_state, blocked_actions)
+
+    assert [action.action_id for action in blocked_actions.actions] == ["wait", "exchange"]
+    assert blocked_decision.chosen_action_id == "exchange"
+    assert blocked_decision.executable is True
+
+    confirmation_state = game_state.model_copy(
+        update={
+            "action_display": None,
+            "action_artifact_asset_path": "/images/items/trade/exchange.webp",
+        }
+    )
+    confirmation_actions = verified_browser_actions(
+        confirmation_state,
+        observation,
+        verified_weapon_attacks=weapon_rules,
+    )
+    confirmation_decision = policy.decide(confirmation_state, confirmation_actions)
+
+    assert [action.action_id for action in confirmation_actions.actions] == [
+        "wait",
+        "confirm:exchange",
+    ]
+    assert confirmation_decision.chosen_action_id == "confirm:exchange"
+    assert confirmation_decision.executable is True
+
+    playable_state = game_state.model_copy(
+        update={
+            "hand": (
+                blocked_weapon.model_copy(update={"hit_target_bounds": blocked_weapon.bounds}),
+            )
+        }
+    )
+    playable_actions = verified_browser_actions(
+        playable_state,
+        observation,
+        verified_weapon_attacks=weapon_rules,
+    )
+
+    assert [action.action_id for action in playable_actions.actions] == [
+        "wait",
+        "artifact:0:weapons/bronze-club",
+    ]
 
 
 def test_pray_transition_without_hit_target_does_not_expose_pass() -> None:

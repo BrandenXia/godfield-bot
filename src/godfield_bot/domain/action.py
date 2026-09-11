@@ -10,6 +10,8 @@ from godfield_bot.domain.game import GameState
 class ActionKind(StrEnum):
     WAIT = "wait"
     PASS = "pass"
+    EXCHANGE = "exchange"
+    CONFIRM_EXCHANGE = "confirm_exchange"
     SELECT_ARTIFACT = "select_artifact"
     SELECT_TARGET = "select_target"
     FORGIVE = "forgive"
@@ -64,6 +66,30 @@ class LegalAction(BaseModel):
             or self.target_player_name is not None
         ):
             raise ValueError("pass requires the verified actor and empty left panel")
+        if self.kind is ActionKind.EXCHANGE and (
+            self.artifact_slot is not None
+            or self.artifact_asset_path != "/images/items/trade/exchange.webp"
+            or not self.actor_player_name
+            or self.expected_action_display != "Pray"
+            or self.control_panel is not None
+            or self.target_player_index is not None
+            or self.target_player_name is not None
+        ):
+            raise ValueError(
+                "exchange requires the exact trade control, verified actor, and Pray phase"
+            )
+        if self.kind is ActionKind.CONFIRM_EXCHANGE and (
+            self.artifact_slot is not None
+            or self.artifact_asset_path != "/images/items/trade/exchange.webp"
+            or not self.actor_player_name
+            or self.expected_action_display is not None
+            or self.control_panel != "left"
+            or self.target_player_index is not None
+            or self.target_player_name is not None
+        ):
+            raise ValueError(
+                "exchange confirmation requires the selected trade, actor, and left panel"
+            )
         if self.kind is ActionKind.CONFIRM_CHANCE and (
             self.artifact_asset_path is None
             or not self.actor_player_name

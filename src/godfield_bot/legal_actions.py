@@ -15,6 +15,7 @@ SUNDRY_ASSET_PATTERN = re.compile(r"^/images/items/sundries/([^/]+)\.(?:png|svg|
 ITEM_ASSET_PATTERN = re.compile(r"^/images/items/[^/]+/[^/]+\.(?:png|svg|webp)$")
 PROBABILISTIC_ATTACK_PATTERN = re.compile(r"^\d+%ATK(\d+)$")
 VERIFIED_RANDOM_TARGET_WEAPONS = frozenset({"dangerous-pestle"})
+EXCHANGE_ASSET_PATH = "/images/items/trade/exchange.webp"
 
 
 def game_state_digest(state: GameState) -> str:
@@ -237,6 +238,13 @@ def verified_browser_actions(
         and selected_utility_display_matches
         and state.action_hit_target_bounds is not None
     )
+    self_exchange_confirmation = (
+        state.action_actor == self_player.name
+        and state.action_target is None
+        and state.action_display is None
+        and state.action_artifact_asset_path == EXCHANGE_ASSET_PATH
+        and state.action_hit_target_bounds is not None
+    )
     if self_attack_selection:
         candidates = [
             artifact
@@ -261,6 +269,9 @@ def verified_browser_actions(
                 and artifact.hit_target_bounds is not None
             )
         ]
+        displayed_weapon_blocks_pass = any(
+            artifact.category == "weapons" for artifact in state.hand
+        )
         if state.action_hit_target_bounds is not None and not any(
             artifact.category == "weapons" for artifact in state.hand
         ):
@@ -271,6 +282,32 @@ def verified_browser_actions(
                     label="Confirm an empty Pray action with no displayed weapon in hand",
                     actor_player_name=self_player.name,
                     control_panel="left",
+                )
+            )
+        exchange_controls = [
+            image
+            for image in observation.images
+            if image.path == EXCHANGE_ASSET_PATH
+            and image.hit_target_bounds is not None
+            and 100 <= image.bounds.x <= 850
+            and 480 <= image.bounds.y <= 690
+            and 60 <= image.bounds.width <= 100
+            and 60 <= image.bounds.height <= 100
+        ]
+        if (
+            not candidates
+            and displayed_weapon_blocks_pass
+            and state.action_hit_target_bounds is not None
+            and len(exchange_controls) == 1
+        ):
+            actions.append(
+                LegalAction(
+                    action_id="exchange",
+                    kind=ActionKind.EXCHANGE,
+                    label="Use the verified Exchange command to redraw a blocked hand",
+                    artifact_asset_path=EXCHANGE_ASSET_PATH,
+                    actor_player_name=self_player.name,
+                    expected_action_display="Pray",
                 )
             )
     elif self_neutral_defense and state.phase_control == "Forgive":
@@ -346,6 +383,17 @@ def verified_browser_actions(
                 control_panel="left",
             )
         )
+    if self_exchange_confirmation:
+        actions.append(
+            LegalAction(
+                action_id="confirm:exchange",
+                kind=ActionKind.CONFIRM_EXCHANGE,
+                label="Confirm the selected Exchange command",
+                artifact_asset_path=EXCHANGE_ASSET_PATH,
+                actor_player_name=self_player.name,
+                control_panel="left",
+            )
+        )
     if self_plain_armor_confirmation and selected_armor is not None:
         actions.append(
             LegalAction(
@@ -395,6 +443,7 @@ def verified_browser_actions(
         blocked_reason=(
             "only verified weapon, fixed miracle, or deterministic HP/MP utility selection "
             "and confirmation, weapon-free Pray, incoming or reflected "
-            "Forgive, and neutral plain-armor selection and confirmation are supported"
+            "Forgive, last-resort Exchange, and neutral plain-armor selection and "
+            "confirmation are supported"
         ),
     )

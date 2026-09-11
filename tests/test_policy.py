@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
+from pathlib import Path
 
-from godfield_bot.domain.action import ActionKind
+from godfield_bot.domain.action import ActionKind, LegalAction, LegalActionSet
 from godfield_bot.domain.game import GameState, HandArtifact, PlayerState
 from godfield_bot.domain.observation import (
     Bounds,
@@ -9,12 +10,23 @@ from godfield_bot.domain.observation import (
     VisibleImage,
     VisibleText,
 )
+from godfield_bot.domain.reference import BibleSnapshot
+from godfield_bot.features import RESOURCE_FEATURE_SCHEMA_VERSION, ArtifactVocabulary
 from godfield_bot.legal_actions import (
     game_state_digest,
     observation_only_actions,
     verified_browser_actions,
 )
-from godfield_bot.policy import HeuristicV0Policy, SafeObserverPolicy
+from godfield_bot.model_registry import ModelStatus, initialize_model
+from godfield_bot.policy import (
+    OFFICIAL_TRAINING_NEURAL_POLICY_ID,
+    HeuristicV0Policy,
+    OfficialTrainingNeuralPolicy,
+    SafeObserverPolicy,
+)
+
+SNAPSHOT = Path("data/snapshots/2026-09-07/bible.json")
+BIBLE = BibleSnapshot.model_validate_json(SNAPSHOT.read_text(encoding="utf-8"))
 
 
 def state() -> GameState:
@@ -57,6 +69,91 @@ def test_safe_policy_only_selects_non_executable_wait() -> None:
     assert decision.chosen_action_id == "wait"
     assert decision.executable is False
     assert decision.state_digest == actions.state_digest
+
+
+def test_neural_training_policy_uses_only_reviewed_actions_and_falls_back(tmp_path: Path) -> None:
+    vocabulary = ArtifactVocabulary.from_snapshot(BIBLE)
+    model_root = tmp_path / "models"
+    initialized = initialize_model(
+        model_root,
+        vocabulary,
+        client_sha256=BIBLE.client.sha256,
+        feature_schema_version=RESOURCE_FEATURE_SCHEMA_VERSION,
+    )
+    candidate = initialized.model_copy(
+        update={
+            "status": ModelStatus.CANDIDATE,
+            "training_context": {
+                "simulation": {
+                    "ruleset_id": (
+                        "plain-elemental-combo-resource-miracle-attack-defense-redraw-duel-v1"
+                    ),
+                    "action_semantics": "sequential-combo-selection",
+                }
+            },
+        }
+    )
+    model_directory = model_root / candidate.model_id
+    (model_directory / "manifest.json").write_text(
+        candidate.model_dump_json(indent=2) + "\n",
+        encoding="utf-8",
+    )
+    policy = OfficialTrainingNeuralPolicy(
+        model_directory,
+        BIBLE,
+        {"bronze-club": ("ATK1", 1.0)},
+        {"iron-shield": 4},
+    )
+    game_state = state()
+    action = LegalAction(
+        action_id="artifact:0:weapons/bronze-club",
+        kind=ActionKind.SELECT_ARTIFACT,
+        label="Select bronze club",
+        artifact_slot=0,
+        artifact_asset_path=game_state.hand[0].asset_path,
+    )
+    legal = LegalActionSet(
+        state_digest=game_state_digest(game_state),
+        actions=(LegalAction(action_id="wait", kind=ActionKind.WAIT, label="Wait"), action),
+        coverage_complete=False,
+        blocked_reason="fixture reviews one browser action",
+    )
+
+    decision = policy.decide(game_state, legal)
+
+    assert policy.encoder.feature_schema_version == RESOURCE_FEATURE_SCHEMA_VERSION
+    assert decision.policy_id == OFFICIAL_TRAINING_NEURAL_POLICY_ID
+    assert decision.chosen_action_id == action.action_id
+    assert decision.executable is True
+    assert decision.scores["wait"] == 0.0
+
+    memory = policy.recurrent_state
+    wait_only = LegalActionSet(
+        state_digest=legal.state_digest,
+        actions=(LegalAction(action_id="wait", kind=ActionKind.WAIT, label="Wait"),),
+        coverage_complete=False,
+        blocked_reason="opponent turn",
+    )
+    waiting = policy.decide(game_state, wait_only)
+
+    assert waiting.chosen_action_id == "wait"
+    assert policy.recurrent_state is memory
+
+    hidden_state = game_state.model_copy(
+        update={
+            "players": (
+                game_state.players[0],
+                game_state.players[1].model_copy(update={"stats_visible": False}),
+            )
+        }
+    )
+    hidden_legal = legal.model_copy(update={"state_digest": game_state_digest(hidden_state)})
+    fallback = policy.decide(hidden_state, hidden_legal)
+
+    assert fallback.policy_id == OFFICIAL_TRAINING_NEURAL_POLICY_ID
+    assert fallback.chosen_action_id == action.action_id
+    assert fallback.rationale.startswith("neural fallback:")
+    assert policy.recurrent_state is None
 
 
 def test_heuristic_selects_weapon_only_in_verified_self_phase() -> None:

@@ -748,6 +748,30 @@ def play_official_training_computers(
         int,
         typer.Option(min=1, max=100, help="Hard browser-click budget for each game."),
     ] = 100,
+    neural_model: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True,
+            file_okay=False,
+            readable=True,
+            help="Candidate directory allowed to choose reviewed Training actions.",
+        ),
+    ] = None,
+    neural_seed: Annotated[
+        int,
+        typer.Option(
+            min=0,
+            max=2**63 - 1,
+            help="Reproducible first action-sampling seed; each game increments it.",
+        ),
+    ] = 67,
+    confirm_neural_control: Annotated[
+        bool,
+        typer.Option(
+            "--confirm-neural-control",
+            help="Confirm that the selected candidate may control official Training games.",
+        ),
+    ] = False,
 ) -> None:
     """Continuously play God Field's official browser-local Training computer."""
 
@@ -755,7 +779,16 @@ def play_official_training_computers(
     from godfield_bot.domain.run import RunStatus
 
     try:
+        if neural_model is not None and not confirm_neural_control:
+            raise RunnerError("neural Training control requires --confirm-neural-control")
+        if neural_model is None and confirm_neural_control:
+            raise RunnerError("--confirm-neural-control requires --neural-model")
         bible = BibleSnapshot.model_validate_json(snapshot.read_text(encoding="utf-8"))
+        policy = (
+            RunnerPolicyName.OFFICIAL_TRAINING_NEURAL
+            if neural_model is not None
+            else RunnerPolicyName.HEURISTIC_V0
+        )
         summary = asyncio.run(
             run_training_campaign(
                 AppSettings(),
@@ -770,7 +803,10 @@ def play_official_training_computers(
                         no_progress_seconds=no_progress_seconds,
                         unknown_screen_grace_seconds=unknown_screen_grace_seconds,
                         screenshot_directory=screenshot_directory,
-                        policy=RunnerPolicyName.HEURISTIC_V0,
+                        policy=policy,
+                        model_directory=neural_model,
+                        bible_snapshot=snapshot if neural_model is not None else None,
+                        neural_sampling_seed=neural_seed,
                         max_in_match_actions=max_actions,
                         verified_weapon_attacks=verified_browser_weapon_attacks(bible),
                         verified_miracle_attacks=verified_attack_miracle_cards(bible),
@@ -787,7 +823,14 @@ def play_official_training_computers(
     except KeyboardInterrupt:
         typer.echo("Official Training campaign interrupted by operator", err=True)
         raise typer.Exit(code=130) from None
-    except (OSError, ValueError, RunnerError, ProfileStorageError, PlaywrightError) as error:
+    except (
+        ImportError,
+        OSError,
+        ValueError,
+        RunnerError,
+        ProfileStorageError,
+        PlaywrightError,
+    ) as error:
         structlog.get_logger().error(
             "training_campaign_failed_before_summary",
             error_type=type(error).__name__,
@@ -975,11 +1018,19 @@ def runs_export_outcomes(
         Path,
         typer.Option(help="Ignored local SQLite trajectory database."),
     ] = Path("runs", "godfield.sqlite"),
+    model_id: Annotated[
+        str | None,
+        typer.Option(help="Include only runs controlled by this immutable model ID."),
+    ] = None,
 ) -> None:
     """Export complete episodes with verified sparse terminal rewards."""
 
     try:
-        summary = export_outcome_replay_jsonl(RunStore(database), destination)
+        summary = export_outcome_replay_jsonl(
+            RunStore(database),
+            destination,
+            model_id=model_id,
+        )
     except (OSError, RunStoreError, OutcomeReplayExportError) as error:
         typer.echo(str(error), err=True)
         raise typer.Exit(code=1) from None

@@ -97,12 +97,17 @@ def _outcome_matches_run(
 
 def collect_outcome_replay(
     store: RunStore,
+    *,
+    model_id: str | None = None,
 ) -> tuple[tuple[OutcomeReplayEpisode, ...], OutcomeReplayExportSummary]:
     runs = store.all_runs()
     episodes: list[OutcomeReplayEpisode] = []
     skipped: Counter[str] = Counter()
     completed_runs_seen = 0
     for run in runs:
+        if model_id is not None and run.model_id != model_id:
+            skipped["model_id_mismatch"] += 1
+            continue
         if run.status is not RunStatus.COMPLETED:
             skipped[f"run_status_{run.status.value}"] += 1
             continue
@@ -132,6 +137,7 @@ def collect_outcome_replay(
             episodes.append(
                 OutcomeReplayEpisode(
                     run_id=run.run_id,
+                    mode=run.mode,
                     client_sha256=run.client_sha256,
                     policy_id=run.policy_id,
                     model_id=run.model_id,
@@ -194,10 +200,12 @@ def load_outcome_replay_jsonl(source: Path) -> tuple[OutcomeReplayEpisode, ...]:
 def export_outcome_replay_jsonl(
     store: RunStore,
     destination: Path,
+    *,
+    model_id: str | None = None,
 ) -> OutcomeReplayExportSummary:
     """Atomically export complete terminal-labeled episodes as owner-only JSONL."""
 
-    episodes, summary = collect_outcome_replay(store)
+    episodes, summary = collect_outcome_replay(store, model_id=model_id)
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary_path: Path | None = None
     try:

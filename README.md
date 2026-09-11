@@ -63,7 +63,7 @@ uv run godfield-bot runs list
 uv run godfield-bot runs events <run-id> --include-payload
 uv run godfield-bot runs record-probe <observation.json> --client-sha256 <sha256>
 uv run godfield-bot runs export-replay runs/replay.jsonl
-uv run godfield-bot runs export-outcomes runs/outcomes.jsonl
+uv run godfield-bot runs export-outcomes runs/outcomes.jsonl --model-id <base-model-id>
 uv run godfield-bot models init
 uv run godfield-bot models train-replay models/<base-model-id> runs/replay.jsonl
 uv run godfield-bot models train-outcomes models/<base-model-id> runs/outcomes.jsonl
@@ -229,6 +229,30 @@ PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot play-training \
   --max-setup-retries 3
 ```
 
+To collect candidate-controlled games against the official computer, install
+the learning dependency and explicitly authorize one immutable schema-v4/v5
+candidate. The model can choose only among the same reviewed browser actions;
+unsupported observations fall back to the heuristic:
+
+```console
+uv sync --extra training --group dev
+PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot play-training \
+  --neural-model models/d349d664-bfce-4997-9ff9-eb94482c20d1 \
+  --confirm-neural-control \
+  --max-games 20 \
+  --max-actions 100
+uv run godfield-bot runs export-outcomes runs/official-d349d664.jsonl \
+  --model-id d349d664-bfce-4997-9ff9-eb94482c20d1
+uv run godfield-bot models train-outcomes \
+  models/d349d664-bfce-4997-9ff9-eb94482c20d1 \
+  runs/official-d349d664.jsonl
+```
+
+The final command creates a child candidate; it does not replace the model or
+promote it. Evaluate that child on the matching native ruleset before another
+official batch. See
+[ADR 0026](docs/architecture/0026-official-training-learning-loop.md).
+
 Use `--headed` to watch the official client. Each game is stored separately in
 `runs/godfield.sqlite`; a campaign summary reports its run IDs and aggregate
 wins, losses, and draws. See
@@ -241,8 +265,10 @@ interface and strict fidelity boundary are documented in
 [ADR 0002](docs/architecture/0002-native-simulator.md).
 `models init` creates a checksum-protected, ignored model directory whose
 manifest is tied to the current Bible client hash and artifact vocabulary. Its
-status is `initialized`; evaluation and explicit promotion are required before
-any learned checkpoint can control the browser.
+status is `initialized` and cannot control the browser. A compatible candidate
+can control only the official Training computer after the operator supplies
+both `--neural-model` and `--confirm-neural-control`; broader live use retains
+its separate evaluation and promotion gates.
 
 `run` defaults to an observation-only Training policy. It is headed by default,
 checks the live client bundle against the accepted snapshot, permits one
@@ -311,12 +337,14 @@ metrics. A replay-trained model remains a candidate: this command does not
 evaluate, promote, or allow it to control the browser, and it does not train
 the value head from invented returns.
 
-`models train-outcomes` accepts only the stricter terminal-labeled episode
-dataset. It uses the undiscounted sparse terminal result as the value target
-for each recorded action in an episode while continuing to imitate only the
-accepted action evidence. It writes another immutable candidate with before
-and after policy/value metrics; it also cannot control the browser until a
-separate evaluation and promotion gate exists.
+`models train-outcomes` accepts only the stricter outcome-replay-v2 dataset from
+official Training games controlled by the exact base model. It uses the
+undiscounted sparse terminal result both as the value target and as a signed
+policy advantage: winning actions are reinforced and losing actions are
+suppressed. Hidden-stat heuristic fallback steps are excluded at their neural
+memory-reset boundary. The command writes another immutable candidate with
+before/after policy-value metrics and inherited simulator provenance; it never
+changes a running policy or promotes the child automatically.
 
 Training and operator-owned private rooms are the only approved early play
 scope. Public Duel and automated chat are disabled. The live private adapter is

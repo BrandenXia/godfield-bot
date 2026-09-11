@@ -25,7 +25,12 @@ from godfield_bot.game_state import GameStateParseError, parse_game_state
 from godfield_bot.legal_actions import game_state_digest, verified_browser_actions
 from godfield_bot.observer import capture_screen
 from godfield_bot.outcomes import append_sparse_terminal_events
-from godfield_bot.policy import HeuristicV0Policy, Policy, SafeObserverPolicy
+from godfield_bot.policy import (
+    HeuristicV0Policy,
+    OfficialTrainingNeuralPolicy,
+    Policy,
+    SafeObserverPolicy,
+)
 from godfield_bot.reference import fingerprint_client
 from godfield_bot.run_store import RunStore
 from godfield_bot.weapon_rules import WeaponAttackRule
@@ -36,6 +41,7 @@ log = structlog.get_logger()
 class RunnerPolicyName(StrEnum):
     SAFE_OBSERVER = "safe-observer-v0"
     HEURISTIC_V0 = "heuristic-v0"
+    OFFICIAL_TRAINING_NEURAL = "official-training-neural-v1"
 
 
 class TrainingRunConfig(BaseModel):
@@ -54,6 +60,9 @@ class TrainingRunConfig(BaseModel):
     render_settle_seconds: float = Field(default=5.0, ge=1.0, le=30.0)
     screenshot_directory: Path | None = None
     policy: RunnerPolicyName = RunnerPolicyName.SAFE_OBSERVER
+    model_directory: Path | None = None
+    bible_snapshot: Path | None = None
+    neural_sampling_seed: int = Field(default=67, ge=0, le=2**63 - 1)
     max_in_match_actions: int = Field(default=0, ge=0, le=100)
     verified_weapon_attacks: dict[str, WeaponAttackRule] = Field(default_factory=dict)
     verified_miracle_attacks: dict[str, tuple[int, int, CombatElement]] = Field(
@@ -65,12 +74,20 @@ class TrainingRunConfig(BaseModel):
 
     @model_validator(mode="after")
     def executable_policy_has_action_budget(self) -> "TrainingRunConfig":
-        if self.policy is RunnerPolicyName.HEURISTIC_V0 and self.max_in_match_actions < 1:
-            raise ValueError("heuristic-v0 requires a positive in-match action budget")
-        if self.policy is RunnerPolicyName.HEURISTIC_V0 and (
+        executable_policies = {
+            RunnerPolicyName.HEURISTIC_V0,
+            RunnerPolicyName.OFFICIAL_TRAINING_NEURAL,
+        }
+        if self.policy in executable_policies and self.max_in_match_actions < 1:
+            raise ValueError("executable policy requires a positive in-match action budget")
+        if self.policy in executable_policies and (
             not self.verified_weapon_attacks or not self.plain_armor_defenses
         ):
-            raise ValueError("heuristic-v0 requires Bible-audited artifact values")
+            raise ValueError("executable policy requires Bible-audited artifact values")
+        if self.policy is RunnerPolicyName.OFFICIAL_TRAINING_NEURAL and (
+            self.model_directory is None or self.bible_snapshot is None
+        ):
+            raise ValueError("neural Training control requires a model and Bible snapshot")
         return self
 
 
@@ -170,23 +187,38 @@ def _record_policy_state(
     digest = game_state_digest(state)
     if digest == previous_digest:
         return digest, None, None, state
+    executable_policy = (
+        policy
+        if isinstance(policy, (HeuristicV0Policy, OfficialTrainingNeuralPolicy))
+        else None
+    )
     legal_actions = verified_browser_actions(
         state,
         observation,
         verified_weapon_attacks=(
-            policy.verified_weapon_attacks if isinstance(policy, HeuristicV0Policy) else None
+            executable_policy.verified_weapon_attacks
+            if executable_policy is not None
+            else None
         ),
         plain_armor_defenses=(
-            policy.plain_armor_defenses if isinstance(policy, HeuristicV0Policy) else None
+            executable_policy.plain_armor_defenses
+            if executable_policy is not None
+            else None
         ),
         verified_miracle_attacks=(
-            policy.verified_miracle_attacks if isinstance(policy, HeuristicV0Policy) else None
+            executable_policy.verified_miracle_attacks
+            if executable_policy is not None
+            else None
         ),
         plain_hp_utilities=(
-            policy.plain_hp_utilities if isinstance(policy, HeuristicV0Policy) else None
+            executable_policy.plain_hp_utilities
+            if executable_policy is not None
+            else None
         ),
         plain_mp_utilities=(
-            policy.plain_mp_utilities if isinstance(policy, HeuristicV0Policy) else None
+            executable_policy.plain_mp_utilities
+            if executable_policy is not None
+            else None
         ),
     )
     decision = policy.decide(state, legal_actions)
@@ -263,6 +295,10 @@ def _policy_from_name(
     plain_hp_utilities: dict[str, int],
     plain_mp_utilities: dict[str, int],
     plain_armor_defenses: dict[str, int],
+    *,
+    model_directory: Path | None = None,
+    bible_snapshot: Path | None = None,
+    neural_sampling_seed: int = 67,
 ) -> Policy:
     if name is RunnerPolicyName.SAFE_OBSERVER:
         return SafeObserverPolicy()
@@ -273,6 +309,24 @@ def _policy_from_name(
             verified_miracle_attacks,
             plain_hp_utilities,
             plain_mp_utilities,
+        )
+    if name is RunnerPolicyName.OFFICIAL_TRAINING_NEURAL:
+        if model_directory is None or bible_snapshot is None:
+            raise RunnerError("neural Training control requires a model and Bible snapshot")
+        from godfield_bot.domain.reference import BibleSnapshot
+
+        snapshot = BibleSnapshot.model_validate_json(
+            bible_snapshot.read_text(encoding="utf-8")
+        )
+        return OfficialTrainingNeuralPolicy(
+            model_directory,
+            snapshot,
+            verified_weapon_attacks,
+            plain_armor_defenses,
+            verified_miracle_attacks,
+            plain_hp_utilities,
+            plain_mp_utilities,
+            neural_sampling_seed,
         )
     raise RunnerError(f"unsupported policy: {name}")
 
@@ -291,6 +345,9 @@ async def run_training_observer(
         config.plain_hp_utilities,
         config.plain_mp_utilities,
         config.plain_armor_defenses,
+        model_directory=config.model_directory,
+        bible_snapshot=config.bible_snapshot,
+        neural_sampling_seed=config.neural_sampling_seed,
     )
     store = RunStore(config.database)
     started = datetime.now(UTC)
@@ -311,6 +368,11 @@ async def run_training_observer(
                     identity=settings.identity,
                     client_sha256=client.sha256,
                     policy_id=policy.policy_id,
+                    model_id=(
+                        policy.manifest.model_id
+                        if isinstance(policy, OfficialTrainingNeuralPolicy)
+                        else None
+                    ),
                     config={
                         "max_games": 1,
                         "max_seconds": config.max_seconds,
@@ -318,6 +380,21 @@ async def run_training_observer(
                         "no_progress_seconds": config.no_progress_seconds,
                         "unknown_screen_grace_seconds": config.unknown_screen_grace_seconds,
                         "max_in_match_actions": config.max_in_match_actions,
+                        "neural_weights_sha256": (
+                            policy.manifest.weights_sha256
+                            if isinstance(policy, OfficialTrainingNeuralPolicy)
+                            else None
+                        ),
+                        "neural_feature_schema_version": (
+                            policy.manifest.feature_schema_version
+                            if isinstance(policy, OfficialTrainingNeuralPolicy)
+                            else None
+                        ),
+                        "neural_sampling_seed": (
+                            config.neural_sampling_seed
+                            if isinstance(policy, OfficialTrainingNeuralPolicy)
+                            else None
+                        ),
                     },
                 ),
                 started_at=started,
@@ -619,7 +696,17 @@ async def run_training_campaign(
     setup_failures = 0
     consecutive_setup_failures = 0
     while True:
-        run = await run_training_observer(settings, config.game)
+        game_config = config.game
+        if game_config.policy is RunnerPolicyName.OFFICIAL_TRAINING_NEURAL:
+            game_config = game_config.model_copy(
+                update={
+                    "neural_sampling_seed": (
+                        config.game.neural_sampling_seed + len(run_ids)
+                    )
+                    % (2**63)
+                }
+            )
+        run = await run_training_observer(settings, game_config)
         run_ids.append(run.run_id)
         outcome_reason = (
             str(run.outcome.get("reason", "unknown")) if run.outcome is not None else "unknown"

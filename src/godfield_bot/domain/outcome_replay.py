@@ -6,13 +6,15 @@ from pydantic import BaseModel, Field, model_validator
 from godfield_bot.domain.game import GameState
 from godfield_bot.domain.outcome import MatchOutcome, SparseTerminalReward
 from godfield_bot.domain.replay import ReplaySample
+from godfield_bot.domain.run import RunMode
 
 
 class OutcomeReplayEpisode(BaseModel):
     """A complete, terminal-labeled sequence of verified browser actions."""
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     run_id: str
+    mode: RunMode
     client_sha256: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
     policy_id: str
     model_id: str | None = None

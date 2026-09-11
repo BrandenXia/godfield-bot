@@ -52,6 +52,17 @@ def test_executable_policy_requires_bible_artifact_knowledge() -> None:
         )
 
 
+def test_neural_policy_requires_model_and_snapshot_paths() -> None:
+    with pytest.raises(ValidationError, match="requires a model and Bible snapshot"):
+        TrainingRunConfig(
+            expected_client_sha256="a" * 64,
+            policy=RunnerPolicyName.OFFICIAL_TRAINING_NEURAL,
+            max_in_match_actions=1,
+            verified_weapon_attacks={"bronze-club": ("ATK1", 1.0)},
+            plain_armor_defenses={"iron-shield": 4},
+        )
+
+
 def test_safe_observer_defaults_to_zero_action_budget() -> None:
     config = TrainingRunConfig(expected_client_sha256="a" * 64)
 

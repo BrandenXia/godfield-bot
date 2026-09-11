@@ -9,6 +9,7 @@ from godfield_bot.domain.game import GameState, HandArtifact, PlayerState
 from godfield_bot.domain.observation import Bounds
 from godfield_bot.domain.reference import BibleSnapshot
 from godfield_bot.features import (
+    RESOURCE_FEATURE_SCHEMA_VERSION,
     FeatureEncodingError,
     StateFeatureEncoder,
     action_index,
@@ -60,6 +61,18 @@ def test_snapshot_vocabulary_and_feature_shapes() -> None:
     assert len(features.action_mask) == 21
     assert features.action_mask[0] is True
     assert not any(features.action_mask[1:])
+
+
+def test_browser_encoder_can_bind_resource_candidate_schema() -> None:
+    vocabulary = load_vocabulary(SNAPSHOT)
+
+    features = StateFeatureEncoder(
+        vocabulary,
+        BIBLE,
+        feature_schema_version=RESOURCE_FEATURE_SCHEMA_VERSION,
+    ).encode(state(), observation_only_actions(state()))
+
+    assert features.schema_version == RESOURCE_FEATURE_SCHEMA_VERSION
 
 
 def test_hidden_player_stats_do_not_enter_current_neural_features() -> None:

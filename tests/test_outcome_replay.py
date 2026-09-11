@@ -42,13 +42,19 @@ def game_state(*, field_number: int, opponent_hp: int) -> GameState:
     )
 
 
-def start_run(store: RunStore) -> str:
+def start_run(
+    store: RunStore,
+    *,
+    mode: RunMode = RunMode.TRAINING,
+    model_id: str | None = None,
+) -> str:
     return store.start_run(
         RunSpec(
-            mode=RunMode.TRAINING,
+            mode=mode,
             identity="ロキ-67",
             client_sha256=CLIENT_SHA256,
             policy_id="heuristic-v0",
+            model_id=model_id,
         )
     ).run_id
 
@@ -137,6 +143,8 @@ def test_exports_and_loads_complete_terminal_labeled_episode(tmp_path) -> None:
     assert summary.steps_exported == 1
     assert summary.skipped == {}
     assert len(episodes) == 1
+    assert episodes[0].schema_version == 2
+    assert episodes[0].mode is RunMode.TRAINING
     assert episodes[0].run_id == run_id
     assert episodes[0].reward.value == 1.0
     assert episodes[0].steps[0].transition.player_hp_deltas == {"CPU": -5}
@@ -172,3 +180,22 @@ def test_loader_rejects_tampered_terminal_state(tmp_path) -> None:
 
     with pytest.raises(OutcomeReplayDatasetError, match="terminal state digest"):
         load_outcome_replay_jsonl(destination)
+
+
+def test_export_can_filter_outcomes_to_one_model(tmp_path) -> None:
+    store = RunStore(tmp_path / "runs.sqlite")
+    included_id = start_run(store, model_id="candidate-a")
+    append_complete_episode(store, included_id)
+    excluded_id = start_run(store, model_id="candidate-b")
+    append_complete_episode(store, excluded_id)
+
+    destination = tmp_path / "candidate-a.jsonl"
+    summary = export_outcome_replay_jsonl(
+        store,
+        destination,
+        model_id="candidate-a",
+    )
+    episodes = load_outcome_replay_jsonl(destination)
+
+    assert [episode.run_id for episode in episodes] == [included_id]
+    assert summary.skipped == {"model_id_mismatch": 1}

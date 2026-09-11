@@ -55,6 +55,38 @@ def actor_critic_loss(
     return total_loss, policy_loss, value_loss, entropy
 
 
+def sparse_outcome_actor_critic_loss(
+    logits: Tensor,
+    values: Tensor,
+    target_actions: Tensor,
+    returns: Tensor,
+    *,
+    value_weight: float = 0.5,
+    entropy_weight: float = 0.01,
+) -> tuple[Tensor, Tensor, Tensor, Tensor]:
+    """Apply signed terminal advantage to actions observed in official games."""
+
+    if logits.ndim != 2 or values.ndim != 1:
+        raise TrainingError("policy logits and values have invalid dimensions")
+    if target_actions.shape != values.shape or returns.shape != values.shape:
+        raise TrainingError("training targets do not match batch size")
+    selected_logits = logits.gather(1, target_actions.unsqueeze(1)).squeeze(1)
+    if bool((selected_logits == torch.finfo(logits.dtype).min).any()):
+        raise TrainingError("replay selected an action masked as illegal")
+
+    log_probabilities = functional.log_softmax(logits, dim=-1)
+    selected_log_probabilities = log_probabilities.gather(
+        1, target_actions.unsqueeze(1)
+    ).squeeze(1)
+    advantages = returns - values.detach()
+    policy_loss = -(selected_log_probabilities * advantages).mean()
+    value_loss = functional.mse_loss(values, returns)
+    probabilities = functional.softmax(logits, dim=-1)
+    entropy = -(probabilities * log_probabilities).sum(dim=-1).mean()
+    total_loss = policy_loss + value_weight * value_loss - entropy_weight * entropy
+    return total_loss, policy_loss, value_loss, entropy
+
+
 def train_step(
     model: RecurrentPolicyValueNet,
     optimizer: torch.optim.Optimizer,
@@ -99,7 +131,7 @@ def outcome_supervised_sequence_step(
     entropy_weight: float = 0.01,
     max_gradient_norm: float = 1.0,
 ) -> TrainingMetrics:
-    """Train one recurrent episode from accepted actions and its sparse return."""
+    """Train one recurrent episode using its signed sparse terminal advantage."""
 
     if not features or len(features) != len(target_actions):
         raise TrainingError("outcome features and actions must be a non-empty aligned sequence")
@@ -121,7 +153,7 @@ def outcome_supervised_sequence_step(
     values = torch.cat(value_rows)
     actions = torch.tensor(target_actions, dtype=torch.long, device=logits.device)
     returns = torch.full_like(values, terminal_return)
-    total_loss, policy_loss, value_loss, entropy = actor_critic_loss(
+    total_loss, policy_loss, value_loss, entropy = sparse_outcome_actor_critic_loss(
         logits,
         values,
         actions,
@@ -179,7 +211,7 @@ def evaluate_outcome_sequences(
         values = torch.cat(value_rows)
         targets = torch.tensor(action_rows, dtype=torch.long, device=logits.device)
         returns = torch.tensor(return_rows, dtype=values.dtype, device=values.device)
-        total_loss, policy_loss, value_loss, entropy = actor_critic_loss(
+        total_loss, policy_loss, value_loss, entropy = sparse_outcome_actor_critic_loss(
             logits,
             values,
             targets,

@@ -1,10 +1,28 @@
+from __future__ import annotations
+
 from collections.abc import Mapping
 from datetime import UTC, datetime
-from typing import Protocol
+from pathlib import Path
+from typing import TYPE_CHECKING, Protocol
 
 from godfield_bot.domain.action import ActionKind, LegalAction, LegalActionSet, PolicyDecision
 from godfield_bot.domain.game import GameState, HandArtifact
+from godfield_bot.domain.reference import BibleSnapshot
+from godfield_bot.elements import CombatElement
 from godfield_bot.weapon_rules import WeaponAttackRule, weapon_attack_value
+
+if TYPE_CHECKING:
+    from torch import Tensor
+
+    from godfield_bot.features import ArtifactVocabulary, StateFeatureEncoder
+    from godfield_bot.model_registry import ModelManifest
+    from godfield_bot.neural import RecurrentPolicyValueNet
+
+OFFICIAL_TRAINING_NEURAL_POLICY_ID = "official-training-neural-v1"
+_COMBO_RULESET_ID = "plain-elemental-combo-attack-defense-redraw-duel-v1"
+_RESOURCE_RULESET_ID = (
+    "plain-elemental-combo-resource-miracle-attack-defense-redraw-duel-v1"
+)
 
 
 class Policy(Protocol):
@@ -241,4 +259,176 @@ class HeuristicV0Policy:
                 else legal_actions.blocked_reason or "no executable action verified"
             ),
             executable=executable,
+        )
+
+
+class OfficialTrainingNeuralPolicy:
+    """Sample a candidate only across reviewed official-Training actions."""
+
+    policy_id = OFFICIAL_TRAINING_NEURAL_POLICY_ID
+
+    def __init__(
+        self,
+        model_directory: Path,
+        snapshot: BibleSnapshot,
+        verified_weapon_attacks: Mapping[str, WeaponAttackRule],
+        plain_armor_defenses: Mapping[str, int],
+        verified_miracle_attacks: Mapping[str, tuple[int, int, CombatElement]] | None = None,
+        plain_hp_utilities: Mapping[str, int] | None = None,
+        plain_mp_utilities: Mapping[str, int] | None = None,
+        sampling_seed: int = 67,
+    ) -> None:
+        import torch
+
+        from godfield_bot.features import (
+            FEATURE_SCHEMA_VERSION,
+            GLOBAL_FEATURE_COUNT,
+            RESOURCE_FEATURE_SCHEMA_VERSION,
+            ArtifactVocabulary,
+            StateFeatureEncoder,
+        )
+        from godfield_bot.model_registry import ModelStatus, load_model, vocabulary_digest
+
+        self.fallback = HeuristicV0Policy(
+            verified_weapon_attacks,
+            plain_armor_defenses,
+            verified_miracle_attacks,
+            plain_hp_utilities,
+            plain_mp_utilities,
+        )
+        self.verified_weapon_attacks = self.fallback.verified_weapon_attacks
+        self.verified_miracle_attacks = self.fallback.verified_miracle_attacks
+        self.plain_hp_utilities = self.fallback.plain_hp_utilities
+        self.plain_mp_utilities = self.fallback.plain_mp_utilities
+        self.plain_armor_defenses = self.fallback.plain_armor_defenses
+
+        vocabulary = ArtifactVocabulary.from_snapshot(snapshot)
+        manifest, model = load_model(model_directory)
+        if manifest.status not in {ModelStatus.CANDIDATE, ModelStatus.CHAMPION}:
+            raise ValueError("official Training neural control requires a candidate or champion")
+        expected_ruleset = {
+            FEATURE_SCHEMA_VERSION: _COMBO_RULESET_ID,
+            RESOURCE_FEATURE_SCHEMA_VERSION: _RESOURCE_RULESET_ID,
+        }.get(manifest.feature_schema_version)
+        if expected_ruleset is None:
+            raise ValueError("official Training neural control requires feature schema v4 or v5")
+        if (
+            manifest.architecture.action_count != 21
+            or manifest.architecture.global_feature_count != GLOBAL_FEATURE_COUNT
+            or manifest.architecture.vocabulary_size != len(vocabulary.tokens)
+        ):
+            raise ValueError("model architecture differs from the official Training bridge")
+        if manifest.client_sha256 != snapshot.client.sha256:
+            raise ValueError("model client fingerprint differs from the Bible snapshot")
+        if manifest.vocabulary_sha256 != vocabulary_digest(vocabulary):
+            raise ValueError("model vocabulary differs from the Bible snapshot")
+        simulation = manifest.training_context.get("simulation")
+        if not isinstance(simulation, dict) or (
+            simulation.get("ruleset_id") != expected_ruleset
+            or simulation.get("action_semantics") != "sequential-combo-selection"
+        ):
+            raise ValueError(
+                "model was not trained on matching sequential action semantics"
+            )
+
+        self.manifest: ModelManifest = manifest
+        self.model: RecurrentPolicyValueNet = model
+        self.vocabulary: ArtifactVocabulary = vocabulary
+        self.encoder: StateFeatureEncoder = StateFeatureEncoder(
+            vocabulary,
+            snapshot,
+            feature_schema_version=manifest.feature_schema_version,
+        )
+        self.recurrent_state: Tensor | None = None
+        self.generator = torch.Generator(device="cpu").manual_seed(sampling_seed)
+        self.model.eval()
+
+    def _fallback_decision(
+        self,
+        state: GameState,
+        legal_actions: LegalActionSet,
+        reason: str,
+        *,
+        reset_memory: bool,
+    ) -> PolicyDecision:
+        if reset_memory:
+            self.recurrent_state = None
+        fallback = self.fallback.decide(state, legal_actions)
+        return fallback.model_copy(
+            update={
+                "policy_id": self.policy_id,
+                "rationale": f"neural fallback: {reason}; {fallback.rationale}",
+            }
+        )
+
+    def decide(self, state: GameState, legal_actions: LegalActionSet) -> PolicyDecision:
+        import torch
+
+        from godfield_bot.features import FeatureEncodingError, action_index
+        from godfield_bot.neural import features_to_tensors
+
+        executable_actions = [
+            action for action in legal_actions.actions if action.kind is not ActionKind.WAIT
+        ]
+        if not executable_actions:
+            return self._fallback_decision(
+                state,
+                legal_actions,
+                "no reviewed executable action is available",
+                reset_memory=False,
+            )
+        indexed_actions: dict[int, LegalAction] = {}
+        for action in executable_actions:
+            index = action_index(action)
+            if index in indexed_actions:
+                raise ValueError("reviewed browser actions collide in the neural action head")
+            indexed_actions[index] = action
+        try:
+            features = self.encoder.encode(state, legal_actions)
+        except FeatureEncodingError as error:
+            return self._fallback_decision(
+                state,
+                legal_actions,
+                str(error),
+                reset_memory=True,
+            )
+
+        action_mask = list(features.action_mask)
+        action_mask[0] = False
+        features = features.model_copy(update={"action_mask": tuple(action_mask)})
+        with torch.no_grad():
+            logits, _, recurrent_state = self.model(
+                *features_to_tensors([features]),
+                recurrent_state=self.recurrent_state,
+            )
+            probabilities = torch.softmax(logits, dim=-1)
+        chosen_index = int(
+            torch.multinomial(
+                probabilities[0],
+                num_samples=1,
+                generator=self.generator,
+            ).item()
+        )
+        chosen = indexed_actions.get(chosen_index)
+        if chosen is None:
+            raise ValueError("neural policy chose an action outside the reviewed browser set")
+        self.recurrent_state = recurrent_state.detach()
+        return PolicyDecision(
+            decided_at=datetime.now(UTC),
+            policy_id=self.policy_id,
+            state_digest=legal_actions.state_digest,
+            chosen_action_id=chosen.action_id,
+            scores={
+                action.action_id: (
+                    0.0
+                    if action.kind is ActionKind.WAIT
+                    else float(probabilities[0, action_index(action)].item())
+                )
+                for action in legal_actions.actions
+            },
+            rationale=(
+                f"sampled immutable candidate {self.manifest.model_id} choice "
+                "within the reviewed official-Training action set"
+            ),
+            executable=True,
         )

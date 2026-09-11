@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 
 from pydantic import BaseModel, model_validator
 
@@ -113,12 +113,19 @@ class StateFeatureEncoder:
         *,
         max_players: int = 9,
         max_hand_slots: int = 9,
+        feature_schema_version: int = FEATURE_SCHEMA_VERSION,
     ) -> None:
         if max_players < 2 or max_hand_slots < 1:
             raise ValueError("feature limits must support a playable game")
+        if feature_schema_version not in {
+            FEATURE_SCHEMA_VERSION,
+            RESOURCE_FEATURE_SCHEMA_VERSION,
+        }:
+            raise ValueError("browser features require feature schema v4 or v5")
         self.vocabulary = vocabulary
         self.max_players = max_players
         self.max_hand_slots = max_hand_slots
+        self.feature_schema_version = cast(Literal[4, 5], feature_schema_version)
         self.artifact_element_ids: dict[str, int] = {}
         for category in snapshot.catalog.values():
             for artifact in category.items:
@@ -209,6 +216,7 @@ class StateFeatureEncoder:
             raise FeatureEncodingError("neural action mask has no legal action")
 
         return StateFeatures(
+            schema_version=self.feature_schema_version,
             global_features=global_features,
             player_features=tuple(players),
             player_mask=tuple(player_mask),

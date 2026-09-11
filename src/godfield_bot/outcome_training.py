@@ -6,10 +6,13 @@ import torch
 from pydantic import BaseModel, Field
 
 from godfield_bot.domain.reference import BibleSnapshot
+from godfield_bot.domain.run import RunMode
 from godfield_bot.features import (
     FEATURE_SCHEMA_VERSION,
     GLOBAL_FEATURE_COUNT,
+    RESOURCE_FEATURE_SCHEMA_VERSION,
     ArtifactVocabulary,
+    FeatureEncodingError,
     StateFeatureEncoder,
     StateFeatures,
     action_index,
@@ -21,12 +24,13 @@ from godfield_bot.model_registry import (
     vocabulary_digest,
 )
 from godfield_bot.outcome_replay import load_outcome_replay_jsonl
+from godfield_bot.policy import OFFICIAL_TRAINING_NEURAL_POLICY_ID
 from godfield_bot.training import (
     evaluate_outcome_sequences,
     outcome_supervised_sequence_step,
 )
 
-ALGORITHM = "outcome-supervised-v0"
+ALGORITHM = "official-training-outcome-actor-critic-v1"
 
 
 class OutcomeTrainingConfig(BaseModel):
@@ -59,10 +63,13 @@ def train_outcome_candidate(
     snapshot = BibleSnapshot.model_validate_json(snapshot_path.read_text(encoding="utf-8"))
     artifact_vocabulary = ArtifactVocabulary.from_snapshot(snapshot)
     parent, model = load_model(base_model_directory)
-    if parent.feature_schema_version != FEATURE_SCHEMA_VERSION or (
+    if parent.feature_schema_version not in {
+        FEATURE_SCHEMA_VERSION,
+        RESOURCE_FEATURE_SCHEMA_VERSION,
+    } or (
         parent.architecture.global_feature_count != GLOBAL_FEATURE_COUNT
     ):
-        raise ValueError("outcome training requires a feature-schema-v3 base model")
+        raise ValueError("official outcome training requires a feature-schema-v4/v5 base model")
     if parent.client_sha256 != snapshot.client.sha256:
         raise ValueError("base model client fingerprint differs from the Bible snapshot")
     if parent.vocabulary_sha256 != vocabulary_digest(artifact_vocabulary):
@@ -74,26 +81,55 @@ def train_outcome_candidate(
         raise ValueError("outcome replay changed while it was being loaded")
     if any(episode.client_sha256 != parent.client_sha256 for episode in episodes):
         raise ValueError("outcome replay client fingerprint differs from the base model")
+    if any(episode.mode is not RunMode.TRAINING for episode in episodes):
+        raise ValueError("outcome training accepts only official Training episodes")
+    if any(episode.policy_id != OFFICIAL_TRAINING_NEURAL_POLICY_ID for episode in episodes):
+        raise ValueError("outcome training accepts only neural-controlled Training episodes")
+    if any(episode.model_id != parent.model_id for episode in episodes):
+        raise ValueError("every outcome episode must be controlled by the base model")
 
-    encoder = StateFeatureEncoder(artifact_vocabulary, snapshot)
+    encoder = StateFeatureEncoder(
+        artifact_vocabulary,
+        snapshot,
+        feature_schema_version=parent.feature_schema_version,
+    )
     encoded_episodes: list[tuple[list[StateFeatures], list[int], float]] = []
     outcome_counts: Counter[str] = Counter()
+    skipped_unencodable_steps = 0
     for episode in episodes:
         trajectory_features: list[StateFeatures] = []
         actions: list[int] = []
         for step in episode.steps:
-            encoded_state = encoder.encode(step.before_state, step.legal_actions)
+            try:
+                encoded_state = encoder.encode(step.before_state, step.legal_actions)
+            except FeatureEncodingError:
+                skipped_unencodable_steps += 1
+                if trajectory_features:
+                    encoded_episodes.append(
+                        (trajectory_features, actions, episode.reward.value)
+                    )
+                    trajectory_features = []
+                    actions = []
+                continue
             target = action_index(step.chosen_action)
-            if (
+            if target == 0 or (
                 len(encoded_state.action_mask) != parent.architecture.action_count
                 or target >= parent.architecture.action_count
                 or not encoded_state.action_mask[target]
             ):
                 raise ValueError("outcome replay action is incompatible with the model head")
+            action_mask = list(encoded_state.action_mask)
+            action_mask[0] = False
+            encoded_state = encoded_state.model_copy(
+                update={"action_mask": tuple(action_mask)}
+            )
             trajectory_features.append(encoded_state)
             actions.append(target)
-        encoded_episodes.append((trajectory_features, actions, episode.reward.value))
+        if trajectory_features:
+            encoded_episodes.append((trajectory_features, actions, episode.reward.value))
         outcome_counts[episode.outcome.result.value] += 1
+    if not encoded_episodes:
+        raise ValueError("outcome replay has no model-representable neural decisions")
 
     torch.manual_seed(config.seed)
     before = evaluate_outcome_sequences(
@@ -123,6 +159,16 @@ def train_outcome_candidate(
     )
     if _file_digest(outcome_replay_path) != dataset_sha256:
         raise ValueError("outcome replay changed during training")
+    training_context = dict(parent.training_context)
+    training_context["official_training"] = {
+        "schema_version": 1,
+        "algorithm": ALGORITHM,
+        "base_model_id": parent.model_id,
+        "source_episode_count": len(episodes),
+        "training_sequence_count": len(encoded_episodes),
+        "skipped_unencodable_steps": skipped_unencodable_steps,
+        "run_ids": [episode.run_id for episode in episodes],
+    }
     return save_candidate(
         model_root,
         model,
@@ -134,7 +180,9 @@ def train_outcome_candidate(
         training_run_ids=tuple(episode.run_id for episode in episodes),
         metrics={
             "training_episodes": float(len(episodes)),
+            "training_sequences": float(len(encoded_episodes)),
             "training_steps": float(sum(len(episode.steps) for episode in episodes)),
+            "skipped_unencodable_steps": float(skipped_unencodable_steps),
             "training_epochs": float(config.epochs),
             "learning_rate": config.learning_rate,
             "value_weight": config.value_weight,
@@ -152,4 +200,5 @@ def train_outcome_candidate(
             "entropy_before": before.entropy,
             "entropy_after": after.entropy,
         },
+        training_context=training_context,
     )

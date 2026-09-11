@@ -3,6 +3,8 @@ from pathlib import Path
 
 import pytest
 
+from godfield_bot.domain.reference import BibleSnapshot
+from godfield_bot.features import ArtifactVocabulary
 from godfield_bot.simulation import (
     benchmark_attack_defense_simulation,
     benchmark_fixed_attack_simulation,
@@ -12,6 +14,7 @@ from godfield_bot.simulation import (
 )
 from godfield_bot.simulation_policy import (
     CurriculumHeuristic,
+    build_curriculum_heuristic,
     curriculum_heuristic_actions,
 )
 
@@ -22,6 +25,7 @@ AttackDefenseBatch = godfield_sim.AttackDefenseBatch
 ElementalAttackDefenseBatch = godfield_sim.ElementalAttackDefenseBatch
 ComboAttackDefenseBatch = godfield_sim.ComboAttackDefenseBatch
 ResourceAttackDefenseBatch = godfield_sim.ResourceAttackDefenseBatch
+StochasticResourceAttackDefenseBatch = godfield_sim.StochasticResourceAttackDefenseBatch
 
 SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-07" / "bible.json"
 
@@ -126,6 +130,48 @@ def resource_batch(
         seed,
         initial_hp,
         initial_mp,
+    )
+
+
+def stochastic_resource_batch(
+    *,
+    seed: int = 0,
+    chance_hit_rate: int = 50,
+) -> StochasticResourceAttackDefenseBatch:
+    return StochasticResourceAttackDefenseBatch(
+        1,
+        np.asarray([2], dtype=np.uint32),
+        np.asarray([10], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_FIRE], dtype=np.uint8),
+        np.asarray([3], dtype=np.uint32),
+        np.asarray([3], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_LIGHT], dtype=np.uint8),
+        np.asarray([4], dtype=np.uint32),
+        np.asarray([8], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_WATER], dtype=np.uint8),
+        np.asarray([5], dtype=np.uint32),
+        np.asarray([10], dtype=np.uint16),
+        np.asarray([6], dtype=np.uint32),
+        np.asarray([5], dtype=np.uint16),
+        np.asarray([7], dtype=np.uint32),
+        np.asarray([25], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_WATER], dtype=np.uint8),
+        np.asarray([4], dtype=np.uint16),
+        np.asarray([8], dtype=np.uint32),
+        np.asarray([10], dtype=np.uint16),
+        np.asarray([3], dtype=np.uint16),
+        np.asarray([9], dtype=np.uint32),
+        np.asarray([20], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_FIRE], dtype=np.uint8),
+        np.asarray([4], dtype=np.uint16),
+        np.asarray([chance_hit_rate], dtype=np.uint16),
+        np.asarray([10], dtype=np.uint32),
+        np.asarray([10], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_LIGHT], dtype=np.uint8),
+        np.asarray([4], dtype=np.uint16),
+        seed,
+        40,
+        10,
     )
 
 
@@ -275,6 +321,88 @@ def test_resource_factory_versions_catalog_resources_and_initial_deal() -> None:
     )
 
 
+def test_stochastic_resource_factory_versions_catalog_effect_signal_and_initial_deal() -> None:
+    simulation = create_attack_defense_simulation(
+        SNAPSHOT_PATH,
+        batch_size=128,
+        ruleset="stochastic-resource-hand",
+    )
+    batch = simulation.batch
+    kinds = batch.hand_card_kinds
+
+    assert simulation.metadata.observation_schema_version == 6
+    assert simulation.metadata.ruleset_id == (
+        "plain-elemental-combo-stochastic-resource-miracle-attack-defense-redraw-duel-v1"
+    )
+    assert simulation.metadata.rule_catalog_size == 124
+    assert simulation.metadata.global_feature_count == 14
+    assert simulation.metadata.sampling_distribution == (
+        "elemental-stochastic-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness"
+    )
+    assert batch.stochastic_resource_curriculum is True
+    assert batch.global_features.shape == (128, 14)
+    assert np.all(np.count_nonzero(kinds == godfield_sim.CARD_KIND_WEAPON, axis=1) == 2)
+    assert np.all(np.count_nonzero(kinds == godfield_sim.CARD_KIND_ARMOR, axis=1) == 2)
+    assert np.all(np.count_nonzero(kinds == godfield_sim.CARD_KIND_ATTACK_BOOSTER, axis=1) == 1)
+    assert np.all(np.count_nonzero(kinds == godfield_sim.CARD_KIND_ATTACK_MIRACLE, axis=1) == 1)
+    assert np.all(
+        np.count_nonzero(kinds == godfield_sim.CARD_KIND_CHANCE_ATTACK_MIRACLE, axis=1) == 1
+    )
+    assert np.all(
+        np.count_nonzero(kinds == godfield_sim.CARD_KIND_EFFECT_ATTACK_MIRACLE, axis=1) == 1
+    )
+
+
+@pytest.mark.parametrize(
+    ("seed", "expected_phase", "expected_attack", "expected_turn"),
+    [
+        (0, godfield_sim.PHASE_DEFENSE, 20, 0),
+        (1, godfield_sim.PHASE_ATTACK, 0, 1),
+    ],
+)
+def test_chance_miracle_resolves_deterministic_hit_or_miss_and_always_charges_mp(
+    seed: int,
+    expected_phase: int,
+    expected_attack: int,
+    expected_turn: int,
+) -> None:
+    batch = stochastic_resource_batch(seed=seed)
+    attacker = int(batch.active_players[0])
+    slot = int(
+        np.flatnonzero(
+            batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_CHANCE_ATTACK_MIRACLE
+        )[0]
+    )
+
+    batch.step(np.asarray([slot + 1], dtype=np.int64))
+    batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+
+    assert batch.magic_points[0, attacker] == 6
+    assert batch.phases[0] == expected_phase
+    assert batch.pending_attacks[0] == expected_attack
+    assert batch.turn_numbers[0] == expected_turn
+
+
+def test_absorption_heals_actual_hp_damage_and_is_visible_during_defense() -> None:
+    batch = stochastic_resource_batch()
+    attacker = int(batch.active_players[0])
+    slot = int(
+        np.flatnonzero(
+            batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_EFFECT_ATTACK_MIRACLE
+        )[0]
+    )
+
+    batch.step(np.asarray([slot + 1], dtype=np.int64))
+    batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+
+    assert batch.global_features[0, 13] == 1.0
+    assert batch.magic_points[0, attacker] == 6
+    batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+    assert batch.player_features[0, 0, 0] == pytest.approx(0.30)
+    assert batch.player_features[0, 1, 0] == pytest.approx(0.50)
+    assert batch.global_features[0, 13] == 0.0
+
+
 def test_resource_utilities_apply_once_and_pass_the_turn() -> None:
     mp_batch = resource_batch(seed=14)
     mp_actor = int(mp_batch.active_players[0])
@@ -379,6 +507,26 @@ def test_resource_heuristic_restores_mp_only_to_unlock_a_stronger_miracle() -> N
         policy,
     )[0]
     assert affordable.hand_card_kinds[0, action - 1] == (godfield_sim.CARD_KIND_ATTACK_MIRACLE)
+
+
+def test_resource_heuristics_index_miracle_attacks_in_the_miracle_namespace() -> None:
+    snapshot = BibleSnapshot.model_validate_json(SNAPSHOT_PATH.read_text(encoding="utf-8"))
+    vocabulary = ArtifactVocabulary.from_snapshot(snapshot)
+
+    resource = build_curriculum_heuristic(snapshot, vocabulary, ruleset="resource-hand")
+    assert resource.attack_miracles
+    assert resource.attack_miracles.keys() <= resource.attacks.keys()
+    assert 1 not in resource.attack_miracles
+
+    stochastic = build_curriculum_heuristic(
+        snapshot,
+        vocabulary,
+        ruleset="stochastic-resource-hand",
+    )
+    assert stochastic.attack_miracles
+    assert stochastic.attack_miracles.keys() <= stochastic.attacks.keys()
+    assert stochastic.chance_attack_tokens
+    assert stochastic.chance_attack_tokens <= stochastic.attack_miracles.keys()
 
 
 def test_combo_selection_aggregates_attack_and_defense_before_consuming() -> None:

@@ -25,12 +25,14 @@ from godfield_bot.model_registry import (
     COMBO_FEATURE_MIGRATION,
     ELEMENT_FEATURE_MIGRATION,
     RESOURCE_FEATURE_MIGRATION,
+    STOCHASTIC_RESOURCE_FEATURE_MIGRATION,
     ModelStatus,
     initialize_model,
     load_model,
     migrate_combo_features,
     migrate_element_features,
     migrate_resource_features,
+    migrate_stochastic_resource_features,
 )
 from godfield_bot.neural import RecurrentPolicyValueNet, features_to_tensors
 from godfield_bot.outcome_training import OutcomeTrainingConfig, train_outcome_candidate
@@ -267,6 +269,43 @@ def test_resource_feature_migration_preserves_weights_exactly(tmp_path) -> None:
     assert resource.training_context["tensor_transform"] == "identity"
     for name, value in combo_model.state_dict().items():
         torch.testing.assert_close(value, resource_model.state_dict()[name], rtol=0, atol=0)
+
+
+def test_stochastic_resource_migration_adds_zero_initialized_effect_input(tmp_path) -> None:
+    vocabulary = load_vocabulary(SNAPSHOT)
+    root = tmp_path / "models"
+    resource = initialize_model(
+        root,
+        vocabulary,
+        client_sha256=BIBLE.client.sha256,
+        feature_schema_version=5,
+        global_feature_count=13,
+    )
+    stochastic = migrate_stochastic_resource_features(
+        root / resource.model_id,
+        root,
+        vocabulary,
+        client_sha256=BIBLE.client.sha256,
+    )
+    _, resource_model = load_model(root / resource.model_id)
+    _, stochastic_model = load_model(root / stochastic.model_id)
+    resource_state = resource_model.state_dict()
+    stochastic_state = stochastic_model.state_dict()
+
+    assert stochastic.feature_schema_version == 6
+    assert stochastic.architecture.global_feature_count == 14
+    assert stochastic.parent_model_id == resource.model_id
+    assert stochastic.training_algorithm == STOCHASTIC_RESOURCE_FEATURE_MIGRATION
+    torch.testing.assert_close(
+        stochastic_state["global_encoder.0.weight"][:, :13],
+        resource_state["global_encoder.0.weight"],
+        rtol=0,
+        atol=0,
+    )
+    assert torch.count_nonzero(stochastic_state["global_encoder.0.weight"][:, 13]) == 0
+    for name, value in resource_state.items():
+        if name != "global_encoder.0.weight":
+            torch.testing.assert_close(value, stochastic_state[name], rtol=0, atol=0)
 
 
 def test_schema_v3_model_requires_explicit_policy_architecture(tmp_path) -> None:

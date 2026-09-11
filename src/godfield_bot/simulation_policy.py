@@ -16,6 +16,8 @@ from godfield_bot.reference import (
     plain_hp_utility_sundries,
     plain_mp_utility_sundries,
     verified_attack_miracle_cards,
+    verified_chance_attack_miracle_cards,
+    verified_effect_attack_miracle_cards,
     verified_hp_utility_miracle_cards,
 )
 from godfield_bot.simulation import AttackDefenseRuleset, AttackDefenseSimulation
@@ -24,6 +26,7 @@ HEURISTIC_POLICY_ID = "plain-max-attack-conservative-defense-v0"
 ELEMENTAL_HEURISTIC_POLICY_ID = "plain-element-aware-max-attack-conservative-defense-v1"
 COMBO_HEURISTIC_POLICY_ID = "plain-elemental-greedy-combo-v2"
 RESOURCE_HEURISTIC_POLICY_ID = "plain-resource-aware-combo-v1"
+STOCHASTIC_RESOURCE_HEURISTIC_POLICY_ID = "expected-value-stochastic-resource-combo-v1"
 FORGIVE_ACTION_INDEX = 19
 CONFIRM_ACTION_INDEX = 20
 
@@ -40,6 +43,7 @@ class CurriculumHeuristic:
     hp_utilities: dict[int, tuple[int, int]] | None = None
     mp_utilities: dict[int, int] | None = None
     attack_miracles: dict[int, tuple[int, int]] | None = None
+    chance_attack_tokens: frozenset[int] = frozenset()
     policy_id: str = HEURISTIC_POLICY_ID
 
 
@@ -50,7 +54,12 @@ def build_curriculum_heuristic(
     ruleset: AttackDefenseRuleset = "fixed-role",
 ) -> CurriculumHeuristic:
     boosters: dict[str, int] = {}
-    if ruleset in {"elemental-hand", "combo-hand", "resource-hand"}:
+    if ruleset in {
+        "elemental-hand",
+        "combo-hand",
+        "resource-hand",
+        "stochastic-resource-hand",
+    }:
         attacks = {
             slug: attack for slug, (attack, _element) in plain_attack_weapon_cards(snapshot).items()
         }
@@ -58,7 +67,7 @@ def build_curriculum_heuristic(
             slug: defense
             for slug, (defense, _element) in plain_defense_armor_cards(snapshot).items()
         }
-        if ruleset in {"combo-hand", "resource-hand"}:
+        if ruleset in {"combo-hand", "resource-hand", "stochastic-resource-hand"}:
             boosters = {
                 slug: boost
                 for slug, (boost, _element) in plain_attack_booster_cards(snapshot).items()
@@ -73,7 +82,8 @@ def build_curriculum_heuristic(
     hp_utilities: dict[str, tuple[int, int]] = {}
     mp_utilities: dict[str, int] = {}
     attack_miracles: dict[str, tuple[int, int]] = {}
-    if ruleset == "resource-hand":
+    chance_attack_slugs: set[str] = set()
+    if ruleset in {"resource-hand", "stochastic-resource-hand"}:
         hp_utilities.update(
             (slug, (utility, 0)) for slug, utility in plain_hp_utility_sundries(snapshot).items()
         )
@@ -83,10 +93,36 @@ def build_curriculum_heuristic(
             slug: (attack, cost)
             for slug, (attack, cost, _element) in verified_attack_miracle_cards(snapshot).items()
         }
-        attacks.update({slug: attack for slug, (attack, _cost) in attack_miracles.items()})
         policy_id = RESOURCE_HEURISTIC_POLICY_ID
+        if ruleset == "stochastic-resource-hand":
+            chance_miracles = {
+                slug: (round(hit_rate * attack / 100), cost)
+                for slug, (hit_rate, attack, cost, _element) in (
+                    verified_chance_attack_miracle_cards(snapshot).items()
+                )
+            }
+            chance_attack_slugs = set(chance_miracles)
+            effect_miracles = {
+                slug: (attack, cost)
+                for slug, (attack, cost, _element, effect) in (
+                    verified_effect_attack_miracle_cards(snapshot).items()
+                )
+                if effect == "absorbHP"
+            }
+            attack_miracles.update(chance_miracles)
+            attack_miracles.update(effect_miracles)
+            policy_id = STOCHASTIC_RESOURCE_HEURISTIC_POLICY_ID
+    attack_token_values = {
+        vocabulary.token_id("weapons", slug): attack for slug, attack in attacks.items()
+    }
+    attack_token_values.update(
+        {
+            vocabulary.token_id("miracles", slug): attack
+            for slug, (attack, _cost) in attack_miracles.items()
+        }
+    )
     return CurriculumHeuristic(
-        attacks={vocabulary.token_id("weapons", slug): attack for slug, attack in attacks.items()},
+        attacks=attack_token_values,
         defenses={
             vocabulary.token_id("armor", slug): defense for slug, defense in defenses.items()
         },
@@ -101,6 +137,9 @@ def build_curriculum_heuristic(
         attack_miracles={
             vocabulary.token_id("miracles", slug): value for slug, value in attack_miracles.items()
         },
+        chance_attack_tokens=frozenset(
+            vocabulary.token_id("miracles", slug) for slug in chance_attack_slugs
+        ),
         policy_id=policy_id,
     )
 
@@ -139,7 +178,12 @@ def curriculum_heuristic_actions(
                     if legal[action] and int(hand[action - 1]) in attacks
                 ]
                 opponent_hp = round(float(batch.player_features[environment, 1, 0]) * 100)
-                lethal = [item for item in attack_candidates if item[0] >= opponent_hp]
+                lethal = [
+                    item
+                    for item in attack_candidates
+                    if item[0] >= opponent_hp
+                    and int(hand[item[1] - 1]) not in policy.chance_attack_tokens
+                ]
                 if lethal:
                     actions[output_index] = max(lethal, key=lambda item: (item[0], -item[1]))[1]
                     continue

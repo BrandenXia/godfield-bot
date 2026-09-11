@@ -31,6 +31,13 @@ inline constexpr std::uint32_t kResourceAttackDefenseObservationSchemaVersion =
     5;
 inline constexpr const char *kResourceAttackDefenseRulesetId =
     "plain-elemental-combo-resource-miracle-attack-defense-redraw-duel-v1";
+inline constexpr std::uint32_t
+    kStochasticResourceAttackDefenseKernelSchemaVersion = 1;
+inline constexpr std::uint32_t
+    kStochasticResourceAttackDefenseObservationSchemaVersion = 6;
+inline constexpr const char *kStochasticResourceAttackDefenseRulesetId =
+    "plain-elemental-combo-stochastic-resource-miracle-attack-defense-redraw-"
+    "duel-v1";
 inline constexpr std::size_t kWeaponSlots = 5;
 inline constexpr std::size_t kArmorSlots = kHandSlots - kWeaponSlots;
 inline constexpr std::size_t kComboWeaponSlots = 4;
@@ -41,6 +48,15 @@ inline constexpr std::size_t kResourceBoosterSlots = 1;
 inline constexpr std::size_t kResourceArmorSlots = 2;
 inline constexpr std::size_t kResourceUtilitySlots = 2;
 inline constexpr std::size_t kResourceAttackMiracleSlots = 1;
+inline constexpr std::size_t kStochasticResourceWeaponSlots = 2;
+inline constexpr std::size_t kStochasticResourceBoosterSlots = 1;
+inline constexpr std::size_t kStochasticResourceArmorSlots = 2;
+inline constexpr std::size_t kStochasticResourceUtilitySlots = 1;
+inline constexpr std::size_t kStochasticResourceAttackMiracleSlots = 1;
+inline constexpr std::size_t kStochasticResourceChanceMiracleSlots = 1;
+inline constexpr std::size_t kStochasticResourceEffectMiracleSlots = 1;
+inline constexpr std::size_t kStochasticResourceGlobalFeatureCount =
+    kElementalGlobalFeatureCount + 1U;
 
 enum class TurnPhase : std::uint8_t {
   Attack = 0,
@@ -75,6 +91,9 @@ public:
   [[nodiscard]] bool combo() const noexcept { return combo_; }
   [[nodiscard]] bool resource_curriculum() const noexcept {
     return resource_curriculum_;
+  }
+  [[nodiscard]] bool stochastic_resource_curriculum() const noexcept {
+    return stochastic_resource_curriculum_;
   }
   [[nodiscard]] std::uint16_t initial_mp() const noexcept {
     return initial_mp_;
@@ -125,7 +144,17 @@ protected:
       ElementInput attack_miracle_elements = {},
       ValueInput attack_miracle_costs = {},
       TokenInput hp_miracle_token_ids = {}, ValueInput hp_miracle_values = {},
-      ValueInput hp_miracle_costs = {}, std::uint16_t initial_mp = 0U);
+      ValueInput hp_miracle_costs = {}, std::uint16_t initial_mp = 0U,
+      bool stochastic_resource_curriculum = false,
+      TokenInput chance_miracle_token_ids = {},
+      ValueInput chance_miracle_values = {},
+      ElementInput chance_miracle_elements = {},
+      ValueInput chance_miracle_costs = {},
+      ValueInput chance_miracle_hit_rates = {},
+      TokenInput effect_miracle_token_ids = {},
+      ValueInput effect_miracle_values = {},
+      ElementInput effect_miracle_elements = {},
+      ValueInput effect_miracle_costs = {});
 
 private:
   static constexpr std::size_t kMaximumBatchSize = 1'000'000;
@@ -154,6 +183,10 @@ private:
                            std::size_t slot);
   void draw_hp_miracle(std::size_t environment, std::size_t player,
                        std::size_t slot);
+  void draw_chance_miracle(std::size_t environment, std::size_t player,
+                           std::size_t slot);
+  void draw_effect_miracle(std::size_t environment, std::size_t player,
+                           std::size_t slot);
   [[nodiscard]] bool has_weapon(std::size_t environment,
                                 std::size_t player) const noexcept;
   void redraw_consumed(std::size_t environment, std::size_t player,
@@ -178,6 +211,7 @@ private:
   bool elemental_;
   bool combo_;
   bool resource_curriculum_;
+  bool stochastic_resource_curriculum_;
   std::size_t global_feature_count_;
   std::uint16_t initial_mp_;
   std::vector<std::uint32_t> weapon_token_ids_;
@@ -200,12 +234,23 @@ private:
   std::vector<std::uint32_t> hp_miracle_token_ids_;
   std::vector<std::uint16_t> hp_miracle_values_;
   std::vector<std::uint16_t> hp_miracle_costs_;
+  std::vector<std::uint32_t> chance_miracle_token_ids_;
+  std::vector<std::uint16_t> chance_miracle_values_;
+  std::vector<std::uint8_t> chance_miracle_elements_;
+  std::vector<std::uint16_t> chance_miracle_costs_;
+  std::vector<std::uint16_t> chance_miracle_hit_rates_;
+  std::vector<std::uint32_t> effect_miracle_token_ids_;
+  std::vector<std::uint16_t> effect_miracle_values_;
+  std::vector<std::uint8_t> effect_miracle_elements_;
+  std::vector<std::uint16_t> effect_miracle_costs_;
   std::vector<std::uint64_t> rng_states_;
   std::vector<std::uint64_t> episode_ids_;
   std::vector<std::uint16_t> hit_points_;
   std::vector<std::uint16_t> magic_points_;
   std::vector<std::uint16_t> hand_values_;
   std::vector<std::uint16_t> hand_costs_;
+  std::vector<std::uint16_t> hand_hit_rates_;
+  std::vector<std::uint8_t> hand_effects_;
   std::vector<std::int64_t> hand_token_ids_by_player_;
   std::vector<std::uint8_t> hand_card_kinds_by_player_;
   std::vector<std::uint8_t> hand_elements_by_player_;
@@ -214,12 +259,15 @@ private:
   std::vector<std::uint8_t> pending_attackers_;
   std::vector<std::uint16_t> pending_attacks_;
   std::vector<std::uint8_t> pending_elements_;
+  std::vector<std::uint8_t> pending_effects_;
   std::unique_ptr<bool[]> selected_hand_mask_;
   std::vector<std::uint8_t> selected_counts_;
   std::vector<std::uint16_t> selected_values_;
   std::vector<std::uint8_t> selected_elements_;
   std::vector<std::uint16_t> selected_costs_;
   std::vector<std::uint8_t> selected_base_kinds_;
+  std::vector<std::uint16_t> selected_hit_rates_;
+  std::vector<std::uint8_t> selected_effects_;
   std::vector<std::uint16_t> turn_numbers_;
   std::unique_ptr<bool[]> terminated_;
   std::vector<float> terminal_returns_;
@@ -274,6 +322,27 @@ public:
       TokenInput hp_miracle_token_ids, ValueInput hp_miracle_values,
       ValueInput hp_miracle_costs, std::uint64_t seed, std::uint16_t initial_hp,
       std::uint16_t initial_mp);
+};
+
+class StochasticResourceAttackDefenseBatch final : public AttackDefenseBatch {
+public:
+  StochasticResourceAttackDefenseBatch(
+      std::size_t batch_size, TokenInput weapon_token_ids,
+      ValueInput attack_values, ElementInput weapon_elements,
+      TokenInput booster_token_ids, ValueInput booster_values,
+      ElementInput booster_elements, TokenInput armor_token_ids,
+      ValueInput defense_values, ElementInput armor_elements,
+      TokenInput hp_utility_token_ids, ValueInput hp_utility_values,
+      TokenInput mp_utility_token_ids, ValueInput mp_utility_values,
+      TokenInput attack_miracle_token_ids, ValueInput attack_miracle_values,
+      ElementInput attack_miracle_elements, ValueInput attack_miracle_costs,
+      TokenInput hp_miracle_token_ids, ValueInput hp_miracle_values,
+      ValueInput hp_miracle_costs, TokenInput chance_miracle_token_ids,
+      ValueInput chance_miracle_values, ElementInput chance_miracle_elements,
+      ValueInput chance_miracle_costs, ValueInput chance_miracle_hit_rates,
+      TokenInput effect_miracle_token_ids, ValueInput effect_miracle_values,
+      ElementInput effect_miracle_elements, ValueInput effect_miracle_costs,
+      std::uint64_t seed, std::uint16_t initial_hp, std::uint16_t initial_mp);
 };
 
 } // namespace godfield_sim

@@ -26,11 +26,13 @@ the browser client.
 
 `--max-games 0` means no completed-game limit. A classified terminal game is
 counted and followed by another isolated game after a configurable delay. The
-campaign stops on the first gameplay abort or failure and returns a nonzero
-status; it does not restart an unsupported state indefinitely. Pre-game setup
-failures can be transient, so they receive a separate bounded retry allowance
-and remain recorded as failed runs. The summary includes the ordered run IDs,
-setup-failure count, completed-game count, and win/loss/draw totals.
+campaign stops on an unsupported gameplay abort or failure and returns a
+nonzero status. A client frame that remains unchanged through the no-progress
+limit is a game-local freeze: that run stays aborted and training-ineligible,
+then the campaign starts a clean game. Both setup failures and game freezes
+have separate consecutive retry allowances, defaulting to three; a completed
+game resets both streaks. The summary includes the ordered run IDs, setup- and
+gameplay-failure counts, completed-game count, and win/loss/draw totals.
 
 Per-game wall-clock, no-progress, browser-click, room-entry, and client-hash
 checks remain mandatory. Public Duel remains disabled.
@@ -204,3 +206,11 @@ live reflected attack inside a Fog scene at G.F.4: `forgive:reflected` was
 dispatched from the left panel and produced a changed normalized state. This
 live frame retained both stats rows, while the archived G.F.33 replay covers
 the hidden-row recovery branch that caused the original stall.
+
+On 2026-09-11, run `28927649-33a0-4d64-8858-96e0cfaf81eb` reached a stable
+incoming Direct Smash Axe frame after 34 accepted actions. The official client
+exposed no clickable armor, Forgive, target, or action panel and remained
+byte-for-byte unchanged through the no-progress limit. Because there was no
+verified action to execute, restarting that isolated game is the only safe
+recovery. Bounded gameplay retry now prevents this client-local freeze from
+terminating an otherwise healthy long-running collection campaign.

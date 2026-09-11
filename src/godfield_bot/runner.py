@@ -100,10 +100,11 @@ class TrainingCampaignConfig(BaseModel):
     max_games: int = Field(default=0, ge=0, le=100_000)
     restart_delay_seconds: float = Field(default=2.0, ge=0.0, le=60.0)
     max_setup_retries: int = Field(default=3, ge=0, le=100)
+    max_gameplay_retries: int = Field(default=3, ge=0, le=100)
 
 
 class TrainingCampaignSummary(BaseModel):
-    schema_version: int = 1
+    schema_version: int = 2
     max_games: int = Field(ge=0)
     games_started: int = Field(ge=0)
     games_completed: int = Field(ge=0)
@@ -111,6 +112,7 @@ class TrainingCampaignSummary(BaseModel):
     losses: int = Field(ge=0)
     draws: int = Field(ge=0)
     setup_failures: int = Field(default=0, ge=0)
+    gameplay_failures: int = Field(default=0, ge=0)
     run_ids: tuple[str, ...]
     stop_reason: str
     last_run_status: RunStatus
@@ -692,13 +694,15 @@ async def run_training_campaign(
     settings: AppSettings,
     config: TrainingCampaignConfig,
 ) -> TrainingCampaignSummary:
-    """Play official Training computers until the game limit or first gameplay anomaly."""
+    """Play official Training computers with bounded setup and freeze recovery."""
 
     run_ids: list[str] = []
     outcomes = {"win": 0, "loss": 0, "draw": 0}
     games_completed = 0
     setup_failures = 0
     consecutive_setup_failures = 0
+    gameplay_failures = 0
+    consecutive_gameplay_failures = 0
     while True:
         game_config = config.game
         if game_config.policy is RunnerPolicyName.OFFICIAL_TRAINING_NEURAL:
@@ -736,6 +740,24 @@ async def run_training_campaign(
                 if config.restart_delay_seconds > 0:
                     await asyncio.sleep(config.restart_delay_seconds)
                 continue
+        if (
+            run.status is RunStatus.ABORTED
+            and outcome_reason == "no_progress_limit"
+        ):
+            consecutive_setup_failures = 0
+            gameplay_failures += 1
+            consecutive_gameplay_failures += 1
+            if consecutive_gameplay_failures <= config.max_gameplay_retries:
+                log.warning(
+                    "training_campaign_gameplay_retry",
+                    run_id=run.run_id,
+                    consecutive_failures=consecutive_gameplay_failures,
+                    max_retries=config.max_gameplay_retries,
+                    outcome_reason=outcome_reason,
+                )
+                if config.restart_delay_seconds > 0:
+                    await asyncio.sleep(config.restart_delay_seconds)
+                continue
         if run.status is not RunStatus.COMPLETED:
             return TrainingCampaignSummary(
                 max_games=config.max_games,
@@ -745,11 +767,13 @@ async def run_training_campaign(
                 losses=outcomes["loss"],
                 draws=outcomes["draw"],
                 setup_failures=setup_failures,
+                gameplay_failures=gameplay_failures,
                 run_ids=tuple(run_ids),
                 stop_reason=f"{run.status.value}:{outcome_reason}",
                 last_run_status=run.status,
             )
         consecutive_setup_failures = 0
+        consecutive_gameplay_failures = 0
         result = run.outcome.get("result") if run.outcome is not None else None
         if not isinstance(result, str) or result not in outcomes:
             raise RunnerError("completed Training run has no classified result")
@@ -764,6 +788,7 @@ async def run_training_campaign(
                 losses=outcomes["loss"],
                 draws=outcomes["draw"],
                 setup_failures=setup_failures,
+                gameplay_failures=gameplay_failures,
                 run_ids=tuple(run_ids),
                 stop_reason="game_limit",
                 last_run_status=run.status,

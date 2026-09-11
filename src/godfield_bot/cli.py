@@ -744,6 +744,14 @@ def play_official_training_computers(
             help="Consecutive pre-game failures tolerated before stopping.",
         ),
     ] = 3,
+    max_gameplay_retries: Annotated[
+        int,
+        typer.Option(
+            min=0,
+            max=100,
+            help="Consecutive frozen games tolerated before stopping.",
+        ),
+    ] = 3,
     screenshot_directory: Annotated[
         Path | None,
         typer.Option(help="Optional owner-only screenshots for changed game states."),
@@ -821,6 +829,7 @@ def play_official_training_computers(
                     max_games=max_games,
                     restart_delay_seconds=restart_delay_seconds,
                     max_setup_retries=max_setup_retries,
+                    max_gameplay_retries=max_gameplay_retries,
                 ),
             )
         )

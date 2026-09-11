@@ -234,7 +234,7 @@ def test_training_campaign_keeps_one_run_per_completed_game(monkeypatch) -> None
     assert summary.run_ids == ("run-win", "run-loss")
 
 
-def test_unlimited_training_campaign_stops_on_first_anomaly(monkeypatch) -> None:
+def test_training_campaign_stops_when_gameplay_retries_are_disabled(monkeypatch) -> None:
     runs = iter(
         [
             training_run(
@@ -256,13 +256,47 @@ def test_unlimited_training_campaign_stops_on_first_anomaly(monkeypatch) -> None
 
     monkeypatch.setattr("godfield_bot.runner.run_training_observer", fake_run)
 
-    summary = asyncio.run(run_training_campaign(AppSettings(), campaign_config(max_games=0)))
+    config = campaign_config(max_games=0).model_copy(update={"max_gameplay_retries": 0})
+    summary = asyncio.run(run_training_campaign(AppSettings(), config))
 
     assert summary.stop_reason == "aborted:no_progress_limit"
     assert summary.games_started == 2
     assert summary.games_completed == 1
+    assert summary.gameplay_failures == 1
     assert summary.draws == 1
     assert summary.last_run_status is RunStatus.ABORTED
+
+
+def test_training_campaign_restarts_after_frozen_game(monkeypatch) -> None:
+    runs = iter(
+        [
+            training_run(
+                "run-stalled",
+                status=RunStatus.ABORTED,
+                reason="no_progress_limit",
+            ),
+            training_run(
+                "run-win",
+                status=RunStatus.COMPLETED,
+                reason="classified_terminal",
+                result="win",
+            ),
+        ]
+    )
+
+    async def fake_run(*args, **kwargs):
+        return next(runs)
+
+    monkeypatch.setattr("godfield_bot.runner.run_training_observer", fake_run)
+
+    summary = asyncio.run(run_training_campaign(AppSettings(), campaign_config(max_games=1)))
+
+    assert summary.stop_reason == "game_limit"
+    assert summary.games_started == 2
+    assert summary.games_completed == 1
+    assert summary.gameplay_failures == 1
+    assert summary.wins == 1
+    assert summary.run_ids == ("run-stalled", "run-win")
 
 
 def test_training_campaign_retries_transient_setup_failure(monkeypatch) -> None:

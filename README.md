@@ -226,8 +226,14 @@ PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot play-training \
   --max-actions 100 \
   --no-progress-seconds 60 \
   --unknown-screen-grace-seconds 15 \
-  --max-setup-retries 3
+  --max-setup-retries 3 \
+  --max-gameplay-retries 3
 ```
+
+A game whose official client exposes no progress for the configured interval is
+stored as an aborted, training-ineligible episode. The campaign starts a clean
+Training game and tolerates three consecutive frozen games by default; a
+completed game resets that retry streak.
 
 To collect candidate-controlled games against the official computer, install
 the learning dependency and explicitly authorize one immutable schema-v4/v5

@@ -33,6 +33,13 @@ the policy resets recurrent memory and delegates that decision to
 `heuristic-v0`. Each campaign game increments a recorded seed so
 the action sampling is reproducible without repeating one exploration stream.
 
+An over-capacity hand is representable when every legal artifact selection is
+still within the model's first nine slots. The encoder truncates only the
+non-selectable overflow cards; if an overflow slot is selectable, neural control
+continues to fail closed and delegates the decision. This keeps the immutable
+21-action head safe while retaining forced pass/confirmation decisions that
+occur during temporary ten-card hands.
+
 Outcome-replay schema v2 records the source run mode. Export can be restricted
 to one model ID. Official outcome training accepts a dataset only when every
 episode:
@@ -46,7 +53,9 @@ Representable neural decisions use a signed sparse terminal advantage: winning
 actions are reinforced, losing actions are suppressed, draws use the learned
 value baseline, and the value head learns the final result. The training mask
 also removes Wait, matching the control-time policy. Hidden-stat fallback steps
-are excluded and split recurrent sequences at the same memory-reset boundary.
+and selectable overflow steps are excluded and split recurrent sequences at
+the same memory-reset boundary. Candidate provenance records both the skipped
+step count and a count grouped by encoding failure reason.
 
 Training writes a new immutable candidate. It preserves the parent's native
 simulation contract, adds official-training provenance, and never changes the

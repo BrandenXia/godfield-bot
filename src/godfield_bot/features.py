@@ -145,8 +145,15 @@ class StateFeatureEncoder:
             )
         if len(state.players) > self.max_players:
             raise FeatureEncodingError("player count exceeds model capacity")
-        if len(state.hand) > self.max_hand_slots:
-            raise FeatureEncodingError("hand size exceeds model capacity")
+        if len(state.hand) > self.max_hand_slots and any(
+            action.kind is ActionKind.SELECT_ARTIFACT
+            and action.artifact_slot is not None
+            and action.artifact_slot >= self.max_hand_slots
+            for action in legal_actions.actions
+        ):
+            raise FeatureEncodingError(
+                "hand size exceeds model capacity with a selectable overflow slot"
+            )
 
         self_player = state.players[state.self_player_index]
         is_response_phase = (
@@ -196,7 +203,8 @@ class StateFeatureEncoder:
             player_mask.append(False)
 
         hand_tokens = [
-            self.vocabulary.token_id(artifact.category, artifact.slug) for artifact in state.hand
+            self.vocabulary.token_id(artifact.category, artifact.slug)
+            for artifact in state.hand[: self.max_hand_slots]
         ]
         hand_mask = [True] * len(hand_tokens)
         while len(hand_tokens) < self.max_hand_slots:

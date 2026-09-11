@@ -122,14 +122,16 @@ def train_outcome_candidate(
     )
     encoded_episodes: list[tuple[list[StateFeatures], list[int], float]] = []
     skipped_unencodable_steps = 0
+    skipped_unencodable_reasons: Counter[str] = Counter()
     for episode in episodes:
         trajectory_features: list[StateFeatures] = []
         actions: list[int] = []
         for step in episode.steps:
             try:
                 encoded_state = encoder.encode(step.before_state, step.legal_actions)
-            except FeatureEncodingError:
+            except FeatureEncodingError as error:
                 skipped_unencodable_steps += 1
+                skipped_unencodable_reasons[str(error)] += 1
                 if trajectory_features:
                     encoded_episodes.append(
                         (trajectory_features, actions, episode.reward.value)
@@ -213,6 +215,7 @@ def train_outcome_candidate(
         "source_episode_count": len(episodes),
         "training_sequence_count": len(encoded_episodes),
         "skipped_unencodable_steps": skipped_unencodable_steps,
+        "skipped_unencodable_reasons": dict(sorted(skipped_unencodable_reasons.items())),
         "run_ids": [episode.run_id for episode in episodes],
     }
     return save_candidate(

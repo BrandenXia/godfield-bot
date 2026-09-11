@@ -261,6 +261,10 @@ anchored to the frozen parent, then rejects the update if policy or parameter
 drift crosses its trust-region limit. Evaluate the child on the matching native
 ruleset before another official batch. See
 [ADR 0026](docs/architecture/0026-official-training-learning-loop.md).
+Temporary hands larger than the nine-slot model input are truncated only when
+no overflow card is selectable; selectable overflow states still use the safe
+heuristic fallback. The child manifest reports skipped decision counts grouped
+by encoding reason so lost training coverage remains visible.
 
 Official Training also has a narrow liveness fallback for a Dream-masked hand:
 when a displayed weapon blocks Prayer, no reviewed artifact is clickable, and

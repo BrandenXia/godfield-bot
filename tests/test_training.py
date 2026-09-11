@@ -654,6 +654,9 @@ def test_outcome_training_writes_immutable_candidate_lineage(tmp_path) -> None:
     assert candidate.training_context["simulation"] == parent.training_context["simulation"]
     assert candidate.training_context["official_training"]["base_model_id"] == parent.model_id
     assert candidate.training_context["official_training"]["schema_version"] == 2
+    assert candidate.training_context["official_training"][
+        "skipped_unencodable_reasons"
+    ] == {}
     assert candidate.metrics["policy_kl_after"] <= candidate.metrics["max_policy_kl"]
     assert (
         candidate.metrics["parameter_rms_change_after"]

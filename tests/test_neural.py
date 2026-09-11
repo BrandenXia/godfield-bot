@@ -75,6 +75,73 @@ def test_browser_encoder_can_bind_resource_candidate_schema() -> None:
     assert features.schema_version == RESOURCE_FEATURE_SCHEMA_VERSION
 
 
+def test_browser_encoder_truncates_unselectable_overflow_hand() -> None:
+    vocabulary = load_vocabulary(SNAPSHOT)
+    game_state = state()
+    overflow_state = game_state.model_copy(
+        update={
+            "hand": tuple(
+                game_state.hand[0].model_copy(update={"slot": slot})
+                for slot in range(10)
+            )
+        }
+    )
+    legal_actions = LegalActionSet(
+        state_digest=game_state_digest(overflow_state),
+        actions=(
+            LegalAction(action_id="wait", kind=ActionKind.WAIT, label="Wait"),
+            LegalAction(
+                action_id="pass",
+                kind=ActionKind.PASS,
+                label="Pass",
+                actor_player_name="ロキ-67",
+                control_panel="left",
+            ),
+        ),
+        coverage_complete=True,
+    )
+
+    features = StateFeatureEncoder(vocabulary, BIBLE).encode(
+        overflow_state,
+        legal_actions,
+    )
+
+    assert len(features.hand_token_ids) == 9
+    assert all(features.hand_mask)
+    assert [index for index, allowed in enumerate(features.action_mask) if allowed] == [0, 19]
+
+
+def test_browser_encoder_rejects_selectable_overflow_hand_slot() -> None:
+    vocabulary = load_vocabulary(SNAPSHOT)
+    game_state = state()
+    overflow_state = game_state.model_copy(
+        update={
+            "hand": tuple(
+                game_state.hand[0].model_copy(update={"slot": slot})
+                for slot in range(10)
+            )
+        }
+    )
+    legal_actions = LegalActionSet(
+        state_digest=game_state_digest(overflow_state),
+        actions=(
+            LegalAction(action_id="wait", kind=ActionKind.WAIT, label="Wait"),
+            LegalAction(
+                action_id="artifact:9:weapons/bronze-club",
+                kind=ActionKind.SELECT_ARTIFACT,
+                label="Select overflow card",
+                artifact_slot=9,
+                artifact_asset_path=overflow_state.hand[9].asset_path,
+            ),
+        ),
+        coverage_complete=False,
+        blocked_reason="fixture includes one unsupported overflow action",
+    )
+
+    with pytest.raises(FeatureEncodingError, match="selectable overflow slot"):
+        StateFeatureEncoder(vocabulary, BIBLE).encode(overflow_state, legal_actions)
+
+
 def test_hidden_player_stats_do_not_enter_current_neural_features() -> None:
     vocabulary = load_vocabulary(SNAPSHOT)
     game_state = state()

@@ -222,7 +222,7 @@ is enabled:
 PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot play-training \
   --headless \
   --max-games 0 \
-  --max-seconds 3600 \
+  --max-seconds 0 \
   --max-actions 100 \
   --no-progress-seconds 60 \
   --unknown-screen-grace-seconds 15 \

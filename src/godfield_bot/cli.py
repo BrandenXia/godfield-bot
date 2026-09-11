@@ -702,7 +702,11 @@ def play_official_training_computers(
     ] = 0,
     max_seconds: Annotated[
         float,
-        typer.Option(min=10.0, max=3600.0, help="Maximum time for each Training game."),
+        typer.Option(
+            min=0.0,
+            max=3600.0,
+            help="Maximum time for each Training game; 0 disables this limit.",
+        ),
     ] = 3600.0,
     room_timeout_seconds: Annotated[
         float,

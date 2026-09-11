@@ -72,6 +72,14 @@ def test_safe_observer_defaults_to_zero_action_budget() -> None:
     assert config.unknown_screen_grace_seconds == 15
 
 
+def test_zero_max_seconds_disables_training_wall_clock_limit() -> None:
+    config = TrainingRunConfig(expected_client_sha256="a" * 64, max_seconds=0)
+
+    assert config.max_seconds == 0
+    with pytest.raises(ValidationError, match="must be 0 or at least 10"):
+        TrainingRunConfig(expected_client_sha256="a" * 64, max_seconds=1)
+
+
 def test_no_progress_limit_is_bounded() -> None:
     with pytest.raises(ValidationError):
         TrainingRunConfig(

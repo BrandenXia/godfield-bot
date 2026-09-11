@@ -52,7 +52,7 @@ class TrainingRunConfig(BaseModel):
         pattern=r"^[0-9a-f]{64}$",
     )
     headed: bool = True
-    max_seconds: float = Field(default=90.0, ge=10.0, le=3600.0)
+    max_seconds: float = Field(default=90.0, ge=0.0, le=3600.0)
     room_timeout_seconds: float = Field(default=60.0, ge=5.0, le=300.0)
     poll_seconds: float = Field(default=2.0, ge=0.25, le=10.0)
     no_progress_seconds: float = Field(default=60.0, ge=10.0, le=600.0)
@@ -74,6 +74,8 @@ class TrainingRunConfig(BaseModel):
 
     @model_validator(mode="after")
     def executable_policy_has_action_budget(self) -> "TrainingRunConfig":
+        if 0 < self.max_seconds < 10:
+            raise ValueError("max seconds must be 0 or at least 10")
         executable_policies = {
             RunnerPolicyName.HEURISTIC_V0,
             RunnerPolicyName.OFFICIAL_TRAINING_NEURAL,
@@ -417,9 +419,11 @@ async def run_training_observer(
             unknown_screen_started_at: float | None = None
             previous_unknown_screen_digest: str | None = None
             loop = asyncio.get_running_loop()
-            deadline = loop.time() + config.max_seconds
+            deadline = (
+                None if config.max_seconds == 0 else loop.time() + config.max_seconds
+            )
             last_progress_at = loop.time()
-            while loop.time() < deadline:
+            while deadline is None or loop.time() < deadline:
                 now = loop.time()
                 if observation.kind is ScreenKind.UNKNOWN:
                     if unknown_screen_started_at is None:

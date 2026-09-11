@@ -33,7 +33,7 @@ from godfield_bot.simulation_evaluation import (
 )
 from godfield_bot.simulation_policy import RESOURCE_HEURISTIC_POLICY_ID
 
-LIVE_RESOURCE_SHADOW_GATE_ID: Final = "live-resource-shadow-readiness-v5"
+LIVE_RESOURCE_SHADOW_GATE_ID: Final = "live-resource-shadow-readiness-v6"
 RESOURCE_KINDS: Final = ("hp-sundry", "mp-sundry", "attack-miracle", "hp-miracle")
 
 
@@ -96,14 +96,16 @@ class LiveShadowMetrics(BaseModel):
 
 
 class LiveShadowEvaluationReport(BaseModel):
-    schema_version: Literal[5] = 5
+    schema_version: Literal[6] = 6
     evaluation_id: str
-    gate_id: Literal["live-resource-shadow-readiness-v5"] = LIVE_RESOURCE_SHADOW_GATE_ID
+    gate_id: Literal["live-resource-shadow-readiness-v6"] = LIVE_RESOURCE_SHADOW_GATE_ID
     created_at: datetime
     candidate_model_id: str
     candidate_weights_sha256: str
     shadow_policy_id: Literal["api-resource-neural-shadow-v2"] = "api-resource-neural-shadow-v2"
-    behavior_policy_id: Literal["api-combo-utility-heuristic-v5"] = "api-combo-utility-heuristic-v5"
+    behavior_policy_id: Literal["api-combo-utility-heuristic-v6"] = (
+        "api-combo-utility-heuristic-v6"
+    )
     feature_schema_version: Literal[5] = 5
     native_evaluation_id: str
     native_evaluation_input_sha256: str
@@ -342,15 +344,31 @@ def _evaluate_state_group(
             counts.resource_agreements += 1
 
 
+def _two_player_evidence_reason(events: tuple[RunEvent, ...]) -> str | None:
+    """Reject whole runs that mix the two-player gate with other match sizes."""
+
+    saw_state = False
+    for event in events:
+        if event.kind is not EventKind.GAME_STATE:
+            continue
+        try:
+            state = ApiGameState.model_validate(event.payload)
+        except ValidationError:
+            return None
+        saw_state = True
+        if len(state.players) != 2:
+            return "non-two-player-run"
+    return None if saw_state else "no-game-state"
+
+
 def _evaluate_run(
-    store: RunStore,
+    events: tuple[RunEvent, ...],
     run: RunRecord,
     counts: _Counts,
     *,
     model_id: str,
     weights_sha256: str,
 ) -> tuple[RunEvent, ...]:
-    events = store.events(run.run_id)
     match_open = False
     for index, event in enumerate(events):
         if event.kind is EventKind.GAME_STATE:
@@ -386,7 +404,7 @@ def _evidence_digest(
 ) -> str:
     digest = hashlib.sha256()
     header = {
-        "schema_version": 4,
+        "schema_version": 5,
         "gate_id": LIVE_RESOURCE_SHADOW_GATE_ID,
         "model_id": model_id,
         "weights_sha256": weights_sha256,
@@ -541,9 +559,14 @@ def evaluate_live_shadow_candidate(
         if reason is not None:
             excluded[reason] += 1
             continue
+        events = store.events(run.run_id)
+        reason = _two_player_evidence_reason(events)
+        if reason is not None:
+            excluded[reason] += 1
+            continue
         if run.status is RunStatus.FAILED:
             failed_runs += 1
-        if (
+        ended_in_operational_abort = (
             run.status is RunStatus.ABORTED
             and run.outcome is not None
             and run.outcome.get("reason")
@@ -553,11 +576,17 @@ def evaluate_live_shadow_candidate(
                 "unclassified_terminal",
                 "unsupported_self_turn",
             }
-        ):
+        )
+        recovered_operational_failure = any(
+            event.kind is EventKind.OBSERVATION
+            and event.payload.get("phase") == "match_recovery_requested"
+            for event in events
+        )
+        if ended_in_operational_abort or recovered_operational_failure:
             operational_abort_runs += 1
         completed_before = counts.completed_games
         events = _evaluate_run(
-            store,
+            events,
             run,
             counts,
             model_id=manifest.model_id,
@@ -653,7 +682,8 @@ def evaluate_live_shadow_candidate(
         )
     if metrics.operational_abort_runs > config.maximum_operational_aborts:
         reasons.append(
-            f"{metrics.operational_abort_runs} matching runs ended in operational aborts; "
+            f"{metrics.operational_abort_runs} matching runs contained operational aborts or "
+            "recoveries; "
             f"maximum is {config.maximum_operational_aborts}"
         )
     if metrics.evidence_error_count:

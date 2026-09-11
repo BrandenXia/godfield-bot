@@ -251,7 +251,7 @@ def observe_private_api_game(
         typer.Option(
             min=0,
             max=20,
-            help="Transient room-state read retries before stopping.",
+            help="Transient room-state read retries before a finite session stops.",
         ),
     ] = 5,
     state_read_retry_seconds: Annotated[
@@ -388,7 +388,10 @@ def play_private_api_game(
         typer.Option(
             min=10.0,
             max=600.0,
-            help="Stop after this many seconds without normalized progress.",
+            help=(
+                "Stop after this many seconds without normalized progress; unlimited "
+                "sessions rejoin an active stalled match."
+            ),
         ),
     ] = 180.0,
     max_actions: Annotated[
@@ -404,7 +407,7 @@ def play_private_api_game(
         typer.Option(
             min=0,
             max=20,
-            help="Transient room-state read retries before stopping.",
+            help="Transient room-state read retries before a finite session stops.",
         ),
     ] = 5,
     state_read_retry_seconds: Annotated[

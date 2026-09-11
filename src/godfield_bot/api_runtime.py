@@ -65,7 +65,7 @@ class ApiRuntimeError(RuntimeError):
 class ApiPolicyName(StrEnum):
     OBSERVER = "api-observer-v0"
     HEURISTIC = "api-heuristic-v0"
-    TACTICAL_HEURISTIC = "api-combo-utility-heuristic-v5"
+    TACTICAL_HEURISTIC = "api-combo-utility-heuristic-v6"
     NEURAL_SHADOW = "api-combo-neural-shadow-v1"
 
 
@@ -280,7 +280,7 @@ def _is_retryable_state_read_error(error: Exception) -> bool:
 
 def _state_read_retry_delay(*, failure_number: int, base_seconds: float) -> float:
     return min(
-        base_seconds * (2.0 ** max(0, failure_number - 1)),
+        base_seconds * (2.0 ** min(max(0, failure_number - 1), 16)),
         MAX_STATE_READ_RETRY_DELAY_SECONDS,
     )
 
@@ -637,8 +637,11 @@ def _decide_tactical_api_action(
                 and action_items(action)
             )
         ]
-        cleansers = [
+        full_cleansers = [
             action for action in candidates if action_items(action)[0].ability == "removeAllCurses"
+        ]
+        mild_cleansers = [
+            action for action in candidates if action_items(action)[0].ability == "removeMildCurses"
         ]
         chance_attacks = [
             action for action in candidates if action.action_id.startswith("chance-miracle-attack:")
@@ -652,6 +655,11 @@ def _decide_tactical_api_action(
         heals = [action for action in candidates if action_items(action)[0].ability == "boostHP"]
         mana = [action for action in candidates if action_items(action)[0].ability == "boostMP"]
         capital = [action for action in candidates if action_items(action)[0].ability == "boostCP"]
+        stochastic_hp = [
+            action
+            for action in candidates
+            if action_items(action)[0].ability == "boostHPOrDealDamage"
+        ]
         curse_attacks = [
             action for action in candidates if action_items(action)[0].ability == "addCurse"
         ]
@@ -670,12 +678,18 @@ def _decide_tactical_api_action(
             and attack_value(action) >= target.hp
         ]
         me = next(player for player in state.players if player.is_self)
-        if state.has_active_curses and cleansers:
+        if state.has_active_curses and full_cleansers:
             chosen = min(
-                cleansers,
+                full_cleansers,
                 key=lambda action: (action_cost(action), action.item_instance_ids),
             )
             rationale = "remove all active curses before committing another action"
+        elif state.has_active_curses and mild_cleansers:
+            chosen = min(
+                mild_cleansers,
+                key=lambda action: (action_cost(action), action.item_instance_ids),
+            )
+            rationale = "remove any mild active curses before committing another action"
         elif lethal:
             chosen = min(
                 lethal,
@@ -734,6 +748,12 @@ def _decide_tactical_api_action(
             rationale = "use a Bible-verified chance attack rather than stall"
         elif (chosen := best_utility(capital)) is not None:
             rationale = "gain verified CP rather than stall"
+        elif stochastic_hp:
+            chosen = min(
+                stochastic_hp,
+                key=lambda action: (action_cost(action), action.item_instance_ids),
+            )
+            rationale = "use an audited HP-or-damage sundry rather than stall"
         elif armor_sales:
             chosen = min(
                 armor_sales,
@@ -826,7 +846,7 @@ def decide_api_action(
             for action in candidates
             if (
                 (item := hand_by_instance.get(action.item_instance_ids[0])) is not None
-                and item.ability == "removeAllCurses"
+                and item.ability in {"removeAllCurses", "removeMildCurses"}
             )
         ]
         if state.phase is ApiPhase.TURN and state.has_active_curses and curse_cleansers:
@@ -1087,6 +1107,7 @@ def run_private_api_observer(
     states_recorded = 0
     in_match_actions = 0
     games_completed = 0
+    operational_recoveries = 0
     outcome_reason = "wall_clock_limit"
     pending_action: tuple[ApiLegalAction, ApiGameState] | None = None
     rejected_action: tuple[ApiLegalAction, ApiGameState, int] | None = None
@@ -1138,6 +1159,87 @@ def run_private_api_observer(
                 consecutive_entry_failures = 0
                 terminal_recorded = False
                 consecutive_state_read_failures = 0
+
+                def recover_continuous_session(
+                    reason: str,
+                    state: ApiGameState,
+                ) -> None:
+                    """Abandon one unrecoverable match and rejoin without ending the process."""
+
+                    nonlocal ambiguous_action
+                    nonlocal consecutive_entry_failures
+                    nonlocal consecutive_state_read_failures
+                    nonlocal entry_request_pending
+                    nonlocal in_match_actions
+                    nonlocal last_progress_at
+                    nonlocal membership_request_pending
+                    nonlocal operational_recoveries
+                    nonlocal pending_action
+                    nonlocal previous_digest
+                    nonlocal rejected_action
+                    nonlocal terminal_recorded
+
+                    for unresolved in (ambiguous_action, rejected_action, pending_action):
+                        if unresolved is None:
+                            continue
+                        action = unresolved[0]
+                        before_state = unresolved[1]
+                        store.append_event(
+                            run.run_id,
+                            EventKind.TRANSITION,
+                            build_api_action_transition(action, before_state, None),
+                        )
+                    ambiguous_action = None
+                    rejected_action = None
+                    pending_action = None
+                    if shadow_policy is not None:
+                        shadow_policy.reset()
+                    store.append_event(
+                        run.run_id,
+                        EventKind.OBSERVATION,
+                        {
+                            "schema_version": 1,
+                            "mode": "private",
+                            "phase": "match_recovery_requested",
+                            "reason": reason,
+                            "field_number": state.field_number,
+                            "player_count": len(state.players),
+                        },
+                    )
+                    client.leave_room()
+                    client.join_room(
+                        joined_room_id,
+                        mode=Mode.PRIVATE,
+                        password=password,
+                    )
+                    client.start_keepalive()
+                    operational_recoveries += 1
+                    in_match_actions = 0
+                    previous_digest = None
+                    entry_request_pending = False
+                    membership_request_pending = True
+                    consecutive_entry_failures = 0
+                    consecutive_state_read_failures = 0
+                    terminal_recorded = False
+                    last_progress_at = time.monotonic()
+                    store.append_event(
+                        run.run_id,
+                        EventKind.OBSERVATION,
+                        {
+                            "schema_version": 1,
+                            "mode": "private",
+                            "phase": "session_rejoined",
+                            "reason": reason,
+                            "recovery_number": operational_recoveries,
+                        },
+                    )
+                    log.warning(
+                        "api_private_session_rejoined",
+                        run_id=run.run_id,
+                        reason=reason,
+                        recovery_number=operational_recoveries,
+                    )
+
                 while _within_wall_clock_limit(
                     elapsed=time.monotonic() - started,
                     max_seconds=config.max_seconds,
@@ -1149,7 +1251,10 @@ def run_private_api_observer(
                         retryable = _is_retryable_state_read_error(error)
                         retry_scheduled = (
                             retryable
-                            and consecutive_state_read_failures <= config.state_read_retries
+                            and (
+                                config.max_seconds == 0
+                                or consecutive_state_read_failures <= config.state_read_retries
+                            )
                         )
                         retry_delay_seconds = (
                             _state_read_retry_delay(
@@ -1224,6 +1329,7 @@ def run_private_api_observer(
                     game = room.game
                     me = game.player_by_user(user_id) if game is not None else None
                     if game is None or me is None:
+                        in_match_actions = 0
                         if ambiguous_action is not None:
                             action, before_state, _ambiguous_since = ambiguous_action
                             store.append_event(
@@ -1347,16 +1453,12 @@ def run_private_api_observer(
                                 time.monotonic() - ambiguous_since
                                 >= config.command_reconcile_seconds
                             ):
-                                store.append_event(
-                                    run.run_id,
-                                    EventKind.TRANSITION,
-                                    build_api_action_transition(
-                                        action,
-                                        ambiguous_state,
-                                        None,
-                                    ),
-                                )
-                                ambiguous_action = None
+                                if config.max_seconds == 0:
+                                    recover_continuous_session(
+                                        "ambiguous_submit_timeout",
+                                        state,
+                                    )
+                                    continue
                                 raise ApiRuntimeError(
                                     "ambiguous submit could not be reconciled before timeout"
                                 )
@@ -1536,6 +1638,8 @@ def run_private_api_observer(
                                     games_completed += 1
                                     terminal_recorded = True
                             else:
+                                if terminal_recorded:
+                                    in_match_actions = 0
                                 terminal_recorded = False
                             if state.phase is not ApiPhase.TERMINAL and decision.executable:
                                 if chosen_action is None:
@@ -1543,6 +1647,12 @@ def run_private_api_observer(
                                         "executable API decision has no legal action"
                                     )
                                 if in_match_actions >= config.max_in_match_actions:
+                                    if config.max_seconds == 0:
+                                        recover_continuous_session(
+                                            "action_limit",
+                                            state,
+                                        )
+                                        continue
                                     outcome_reason = "action_limit"
                                     break
                                 if shadow_policy is not None:
@@ -1603,6 +1713,12 @@ def run_private_api_observer(
                                 in {ApiPhase.TURN, ApiPhase.DEFENSE, ApiPhase.PURCHASE}
                                 and state.awaiting_player_id == state.self_player_id
                             ):
+                                if config.max_seconds == 0:
+                                    recover_continuous_session(
+                                        "unsupported_self_turn",
+                                        state,
+                                    )
+                                    continue
                                 outcome_reason = "unsupported_self_turn"
                                 log.warning(
                                     "api_private_unsupported_self_turn",
@@ -1613,8 +1729,16 @@ def run_private_api_observer(
                                 break
                     if (
                         ambiguous_action is None
+                        and game is not None
+                        and me is not None
                         and time.monotonic() - last_progress_at >= config.no_progress_seconds
                     ):
+                        if config.max_seconds == 0:
+                            recover_continuous_session(
+                                "no_progress_limit",
+                                state,
+                            )
+                            continue
                         outcome_reason = "no_progress_limit"
                         break
                     time.sleep(config.poll_seconds)
@@ -1686,5 +1810,6 @@ def run_private_api_observer(
             "states_recorded": states_recorded,
             "in_match_actions": in_match_actions,
             "games_completed": games_completed,
+            "operational_recoveries": operational_recoveries,
         },
     )

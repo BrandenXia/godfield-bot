@@ -127,7 +127,7 @@ backoff; the normal no-progress safeguard still terminates a persistent fault.
 Use `--team 0` for solo/free-for-all entry, or `--team 1` through `--team 4`
 for allied teams A through D. The selected team is retained across automatic
 entry into subsequent matches. Active curse presence is recorded in the
-normalized API state. `api-combo-utility-heuristic-v5` uses strict
+normalized API state. `api-combo-utility-heuristic-v6` uses strict
 base-plus-booster attacks, compatible multi-armor defenses, affordable
 targeted fixed-damage, `<Absorption>`, and curse miracles, special
 block/bounce/reflect defenses admitted by the API, Bible-verified untargeted
@@ -136,12 +136,14 @@ potentially lethal power before healing and otherwise restores HP at 25 or
 less. Chance miracles are a late fallback after deterministic attacks and
 HP/MP utility. The Bible-verified `<Treasure>` CP miracle is a final
 reliable-card fallback before Sell.
-On a cursed turn, it prefers a verified all-curse cleanser and otherwise uses
-only individually reliable, undisguised actions. When no attack or recovery is
-available, Sell can offer the weakest verified plain armor to an opponent. If
-no supported action remains, it abstains locally rather than submit an empty
-turn command, which the live service rejects in this state; the run records an
-`unsupported_self_turn` outcome instead of waiting for the no-progress timer.
+On a cursed turn, it prefers a verified all-curse cleanser, then a mild-curse
+cleanser, and otherwise uses only individually reliable, undisguised actions.
+The Bible-audited Thump-thump Tear HP-or-damage effect is a last-resort turn
+leader, after reliable CP utility and before Sell, covering a dead end observed
+under Dream. When no attack or recovery is available, Sell can offer the weakest
+verified plain armor to an opponent. If no supported action remains, it abstains
+locally rather than submit an empty turn command, which the live service rejects
+in this state.
 An empty attack-turn command is never offered while the displayed hand contains
 a weapon, including a `+ATK` weapon that cannot lead the attack by itself.
 
@@ -181,9 +183,11 @@ uv run godfield-bot models evaluate-live-shadow \
   models/evaluations/74c09a6c-e682-46b9-88e4-79032677ce62.json
 ```
 
-`live-resource-shadow-readiness-v5` accepts only runs that carry the exact v5
-behavior identity, schema-v5 shadow adapter, model, and weight checksum. It
-validates state/legal-action/decision pairing and terminal rewards, then gates
+`live-resource-shadow-readiness-v6` accepts only runs that carry the exact v6
+behavior identity, schema-v5 shadow adapter, model, and weight checksum. Whole
+runs containing any non-two-player game are excluded because the candidate
+abstains outside its two-player curriculum. It validates state/legal-action/
+decision pairing and terminal rewards, then gates
 on completed games, attack and defense opportunities, all four resource action
 families, proposal coverage, behavior agreement, and operational failures.
 Proportions use Wilson lower confidence bounds. The resulting owner-only report
@@ -191,6 +195,14 @@ can mark a candidate ready for a separately authorized controlled trial, but its
 `promotion_eligible` field remains false: outcomes from heuristic-controlled
 shadow games are not candidate performance. See
 [ADR 0015](docs/architecture/0015-live-shadow-readiness-gate.md).
+
+With `--max-seconds 0`, transient room-read failures continue retrying with a
+capped delay. An unresolved command response is never replayed; after the
+reconciliation window the runner leaves that match, rejoins the same private
+room, and continues. The same recovery applies to a truly unsupported self turn,
+an in-match no-progress limit, or the per-match action limit. Lobby waiting does
+not trigger no-progress recovery, and the action counter resets for each match.
+Finite sessions retain bounded fail-closed exits for diagnosis.
 
 God Field's official Training computer runs inside the web client rather than
 the server-side API. `play-training` therefore drives the official browser in

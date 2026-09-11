@@ -841,6 +841,100 @@ def test_latest_live_additive_weapon_dead_end_uses_absorption_instead_of_pass() 
     assert decision.executable is True
 
 
+def test_latest_live_dream_dead_end_uses_audited_stochastic_sundry() -> None:
+    api_snapshot = read_api_catalog_snapshot(Path("data/snapshots/2026-09-09/api-catalog-en.json"))
+    bible = BibleSnapshot.model_validate_json(
+        Path("data/snapshots/2026-09-07/bible.json").read_text(encoding="utf-8")
+    )
+    room = RoomState(
+        {
+            "game": {
+                "players": [
+                    {
+                        "id": 1,
+                        "userId": "loki-user",
+                        "name": "ロキ-67",
+                        "hp": 52,
+                        "mp": 10,
+                        "cp": 21,
+                        "curses": ["dream"],
+                        "items": [
+                            {"id": 4, "modelId": 202},
+                            {"id": 7, "modelId": 56},
+                            {"id": 2, "modelId": 9},
+                            {"id": 1, "modelId": 31},
+                        ],
+                    },
+                    {
+                        "id": 2,
+                        "userId": "opponent-user",
+                        "name": "Opponent",
+                        "hp": 33,
+                        "mp": 25,
+                        "cp": 19,
+                        "items": [],
+                    },
+                ],
+                "attackTurnPlayerId": 1,
+                "attacks": [],
+                "gf": 15,
+                "updateCount": 24,
+                "isOver": False,
+            }
+        },
+        item_catalog_from_snapshot(api_snapshot),
+    )
+    state = normalize_api_game_state(room, user_id="loki-user")
+    legal_actions = verified_api_tactical_actions(
+        room,
+        user_id="loki-user",
+        bible_snapshot=bible,
+    )
+
+    decision, chosen = decide_api_action(
+        ApiPolicyName.TACTICAL_HEURISTIC,
+        state,
+        legal_actions,
+    )
+
+    assert chosen is not None
+    assert chosen.action_id == "random-utility:boostHPOrDealDamage:4:202"
+    assert command_for_api_action(chosen).to_dict() == {"itemIds": [4]}
+    assert decision.rationale == "use an audited HP-or-damage sundry rather than stall"
+
+
+def test_latest_live_mild_cleanser_is_a_verified_cursed_turn_action() -> None:
+    api_snapshot = read_api_catalog_snapshot(Path("data/snapshots/2026-09-09/api-catalog-en.json"))
+    bible = BibleSnapshot.model_validate_json(
+        Path("data/snapshots/2026-09-07/bible.json").read_text(encoding="utf-8")
+    )
+    room = active_room()
+    room.bind_catalog(item_catalog_from_snapshot(api_snapshot))
+    room.raw["game"]["players"][0].update(
+        {
+            "curses": ["cold"],
+            "items": [{"id": 8, "modelId": 199}],
+        }
+    )
+    state = normalize_api_game_state(room, user_id="loki-user")
+    legal_actions = verified_api_tactical_actions(
+        room,
+        user_id="loki-user",
+        bible_snapshot=bible,
+    )
+
+    decision, chosen = decide_api_action(
+        ApiPolicyName.TACTICAL_HEURISTIC,
+        state,
+        legal_actions,
+    )
+
+    assert chosen is not None
+    assert chosen.action_id == "use:8:199:untargeted"
+    assert command_for_api_action(chosen).to_dict() == {"itemIds": [8]}
+    assert decision.rationale == "remove any mild active curses before committing another action"
+
+
 def empty_lobby() -> RoomState:
     return RoomState(
         {
@@ -1217,6 +1311,73 @@ def test_unlimited_session_retries_a_rejected_post_game_entry(tmp_path, monkeypa
         "http_status": 403,
     }
     assert "must-not-be-stored" not in entry_errors[0].model_dump_json()
+
+
+def test_unlimited_session_resets_the_action_budget_for_each_match(tmp_path, monkeypatch) -> None:
+    snapshot_path = tmp_path / "catalog.json"
+    write_api_catalog_snapshot(catalog_snapshot(), snapshot_path)
+    second_active = active_room(update_count=30)
+    second_terminal = terminal_room()
+    second_terminal.raw["game"]["updateCount"] = 31
+
+    class FakeTwoMatchClient(FakeClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.responses = iter(
+                [
+                    active_room(),
+                    terminal_room(),
+                    second_active,
+                    second_terminal,
+                    KeyboardInterrupt(),
+                ]
+            )
+            self.commands: list[dict[str, object]] = []
+
+        def state(self) -> RoomState:
+            response = next(self.responses)
+            if isinstance(response, BaseException):
+                raise response
+            return response
+
+        def submit(self, command) -> None:
+            self.commands.append(command.to_dict())
+
+    client = FakeTwoMatchClient()
+
+    @contextmanager
+    def fake_open_api_client(*args, **kwargs):
+        yield client
+
+    monkeypatch.setattr("godfield_bot.api_runtime.open_api_client", fake_open_api_client)
+    monkeypatch.setattr(
+        "godfield_bot.api_runtime.validate_api_credentials",
+        lambda settings: SimpleNamespace(user_id="loki-user"),
+    )
+    monkeypatch.setattr("godfield_bot.api_runtime.time.sleep", lambda seconds: None)
+
+    run = run_private_api_observer(
+        AppSettings(state_root=tmp_path / "state"),
+        PrivateApiRunConfig(
+            database=tmp_path / "runs" / "api.sqlite",
+            catalog_snapshot=snapshot_path,
+            room_id="private-room",
+            enter_match=True,
+            policy=ApiPolicyName.HEURISTIC,
+            max_in_match_actions=1,
+            max_seconds=0,
+            no_progress_seconds=10,
+        ),
+    )
+
+    assert run.status is RunStatus.ABORTED
+    assert run.outcome is not None
+    assert run.outcome["games_completed"] == 2
+    assert run.outcome["operational_recoveries"] == 0
+    assert client.commands == [
+        {"itemIds": [11], "targetPlayerId": 2},
+        {"itemIds": [11], "targetPlayerId": 2},
+    ]
 
 
 def test_private_api_rejoins_when_membership_drops_during_a_game(tmp_path, monkeypatch) -> None:
@@ -1783,6 +1944,247 @@ def test_private_api_ambiguous_submit_reconciliation_is_bounded(
     transitions = [event.payload for event in events if event.kind is EventKind.TRANSITION]
     assert [transition["state_changed"] for transition in transitions] == [None]
     assert "must-not-be-stored" not in "".join(event.model_dump_json() for event in events)
+
+
+def test_unlimited_session_rejoins_after_ambiguous_submit_timeout(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    snapshot_path = tmp_path / "catalog.json"
+    write_api_catalog_snapshot(catalog_snapshot(), snapshot_path)
+    unchanged = active_room()
+
+    class FakeRecoveringSubmitClient(FakeClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.join_calls = 0
+            self.state_calls = 0
+            self.leave_calls = 0
+            self.commands: list[dict[str, object]] = []
+            self.returned_terminal = False
+
+        def join_room(self, room_id, *, mode, password) -> None:
+            super().join_room(room_id, mode=mode, password=password)
+            self.join_calls += 1
+
+        def leave_room(self) -> None:
+            self.leave_calls += 1
+            super().leave_room()
+
+        def state(self) -> RoomState:
+            self.state_calls += 1
+            if self.join_calls == 1:
+                return unchanged
+            if not self.returned_terminal:
+                self.returned_terminal = True
+                return terminal_room()
+            raise KeyboardInterrupt
+
+        def submit(self, command) -> None:
+            self.commands.append(command.to_dict())
+            raise TransportError("unresolved must-not-be-stored")
+
+    class AdvancingClock:
+        def __init__(self) -> None:
+            self.value = 0.0
+
+        def __call__(self) -> float:
+            self.value += 0.25
+            return self.value
+
+    client = FakeRecoveringSubmitClient()
+
+    @contextmanager
+    def fake_open_api_client(*args, **kwargs):
+        yield client
+
+    monkeypatch.setattr("godfield_bot.api_runtime.open_api_client", fake_open_api_client)
+    monkeypatch.setattr(
+        "godfield_bot.api_runtime.validate_api_credentials",
+        lambda settings: SimpleNamespace(user_id="loki-user"),
+    )
+    monkeypatch.setattr("godfield_bot.api_runtime.time.monotonic", AdvancingClock())
+    monkeypatch.setattr("godfield_bot.api_runtime.time.sleep", lambda seconds: None)
+    database = tmp_path / "runs" / "api.sqlite"
+
+    run = run_private_api_observer(
+        AppSettings(state_root=tmp_path / "state"),
+        PrivateApiRunConfig(
+            database=database,
+            catalog_snapshot=snapshot_path,
+            room_id="private-room",
+            enter_match=True,
+            policy=ApiPolicyName.HEURISTIC,
+            max_in_match_actions=5,
+            max_seconds=0,
+            no_progress_seconds=10,
+            command_reconcile_seconds=1,
+        ),
+    )
+
+    assert run.status is RunStatus.ABORTED
+    assert run.outcome is not None
+    assert run.outcome["reason"] == "operator_interrupt"
+    assert run.outcome["games_completed"] == 1
+    assert run.outcome["operational_recoveries"] == 1
+    assert client.commands == [{"itemIds": [11], "targetPlayerId": 2}]
+    assert client.join_calls == 2
+    assert client.leave_calls == 2
+    events = RunStore(database).events(run.run_id)
+    recovery_events = [
+        event.payload
+        for event in events
+        if event.kind is EventKind.OBSERVATION
+        and event.payload.get("phase") in {"match_recovery_requested", "session_rejoined"}
+    ]
+    assert [event["phase"] for event in recovery_events] == [
+        "match_recovery_requested",
+        "session_rejoined",
+    ]
+    transitions = [event.payload for event in events if event.kind is EventKind.TRANSITION]
+    assert [transition["state_changed"] for transition in transitions] == [None]
+
+
+def test_unlimited_session_keeps_retrying_transient_state_reads(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    snapshot_path = tmp_path / "catalog.json"
+    write_api_catalog_snapshot(catalog_snapshot(), snapshot_path)
+
+    class FakeEventuallyReadableClient(FakeClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.responses = iter(
+                [
+                    TransportError("one"),
+                    TransportError("two"),
+                    TransportError("three"),
+                    terminal_room(),
+                    KeyboardInterrupt(),
+                ]
+            )
+
+        def state(self) -> RoomState:
+            response = next(self.responses)
+            if isinstance(response, BaseException):
+                raise response
+            return response
+
+    client = FakeEventuallyReadableClient()
+
+    @contextmanager
+    def fake_open_api_client(*args, **kwargs):
+        yield client
+
+    monkeypatch.setattr("godfield_bot.api_runtime.open_api_client", fake_open_api_client)
+    monkeypatch.setattr(
+        "godfield_bot.api_runtime.validate_api_credentials",
+        lambda settings: SimpleNamespace(user_id="loki-user"),
+    )
+    monkeypatch.setattr("godfield_bot.api_runtime.time.sleep", lambda seconds: None)
+    database = tmp_path / "runs" / "api.sqlite"
+
+    run = run_private_api_observer(
+        AppSettings(state_root=tmp_path / "state"),
+        PrivateApiRunConfig(
+            database=database,
+            catalog_snapshot=snapshot_path,
+            room_id="private-room",
+            max_seconds=0,
+            no_progress_seconds=10,
+            state_read_retries=1,
+        ),
+    )
+
+    assert run.status is RunStatus.ABORTED
+    assert run.outcome is not None
+    assert run.outcome["reason"] == "operator_interrupt"
+    assert run.outcome["games_completed"] == 1
+    read_errors = [
+        event.payload
+        for event in RunStore(database).events(run.run_id)
+        if event.kind is EventKind.ERROR
+        and event.payload.get("operation") == "read-room-state"
+    ]
+    assert len(read_errors) == 3
+    assert all(event["retry_scheduled"] is True for event in read_errors)
+
+
+def test_unlimited_session_rejoins_an_active_game_after_no_progress(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    snapshot_path = tmp_path / "catalog.json"
+    write_api_catalog_snapshot(catalog_snapshot(), snapshot_path)
+    waiting = active_room()
+    waiting.raw["game"]["attackTurnPlayerId"] = 2
+
+    class FakeNoProgressClient(FakeClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.join_calls = 0
+            self.returned_terminal = False
+
+        def join_room(self, room_id, *, mode, password) -> None:
+            super().join_room(room_id, mode=mode, password=password)
+            self.join_calls += 1
+
+        def state(self) -> RoomState:
+            if self.join_calls == 1:
+                return waiting
+            if not self.returned_terminal:
+                self.returned_terminal = True
+                return terminal_room()
+            raise KeyboardInterrupt
+
+    class AdvancingClock:
+        def __init__(self) -> None:
+            self.value = 0.0
+
+        def __call__(self) -> float:
+            self.value += 4.0
+            return self.value
+
+    client = FakeNoProgressClient()
+
+    @contextmanager
+    def fake_open_api_client(*args, **kwargs):
+        yield client
+
+    monkeypatch.setattr("godfield_bot.api_runtime.open_api_client", fake_open_api_client)
+    monkeypatch.setattr(
+        "godfield_bot.api_runtime.validate_api_credentials",
+        lambda settings: SimpleNamespace(user_id="loki-user"),
+    )
+    monkeypatch.setattr("godfield_bot.api_runtime.time.monotonic", AdvancingClock())
+    monkeypatch.setattr("godfield_bot.api_runtime.time.sleep", lambda seconds: None)
+    database = tmp_path / "runs" / "api.sqlite"
+
+    run = run_private_api_observer(
+        AppSettings(state_root=tmp_path / "state"),
+        PrivateApiRunConfig(
+            database=database,
+            catalog_snapshot=snapshot_path,
+            room_id="private-room",
+            max_seconds=0,
+            no_progress_seconds=10,
+        ),
+    )
+
+    assert run.status is RunStatus.ABORTED
+    assert run.outcome is not None
+    assert run.outcome["reason"] == "operator_interrupt"
+    assert run.outcome["games_completed"] == 1
+    assert run.outcome["operational_recoveries"] == 1
+    assert client.join_calls == 2
+    recovery = [
+        event.payload
+        for event in RunStore(database).events(run.run_id)
+        if event.kind is EventKind.OBSERVATION
+        and event.payload.get("phase") == "match_recovery_requested"
+    ]
+    assert recovery[0]["reason"] == "no_progress_limit"
 
 
 def test_private_api_cancels_rejected_command_retry_when_state_changes(

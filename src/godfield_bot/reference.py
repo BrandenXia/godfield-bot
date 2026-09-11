@@ -638,6 +638,30 @@ def plain_mp_utility_sundries(snapshot: BibleSnapshot) -> dict[str, int]:
     return result
 
 
+def verified_stochastic_hp_sundries(
+    snapshot: BibleSnapshot,
+) -> dict[str, tuple[int, int]]:
+    """Return self-targeting HP-or-damage sundries with both outcomes audited."""
+
+    sundries = snapshot.catalog.get("sundries")
+    if sundries is None:
+        return {}
+    result: dict[str, tuple[int, int]] = {}
+    for artifact in sundries.items:
+        if artifact.element_image_paths or len(artifact.detail) != 5:
+            continue
+        utility = HP_UTILITY_PATTERN.fullmatch(artifact.detail[1])
+        damage = re.fullmatch(r"or (\d+) damage", artifact.detail[2])
+        if (
+            utility is not None
+            and damage is not None
+            and re.fullmatch(r"\$\d+", artifact.detail[3]) is not None
+            and artifact.detail[4].startswith("Gift Rate:")
+        ):
+            result[artifact.asset] = (int(utility.group(1)), int(damage.group(1)))
+    return result
+
+
 def verified_hp_utility_miracle_cards(
     snapshot: BibleSnapshot,
 ) -> dict[str, tuple[int, int]]:

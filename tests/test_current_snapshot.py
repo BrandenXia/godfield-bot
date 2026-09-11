@@ -18,6 +18,7 @@ from godfield_bot.reference import (
     verified_cp_utility_miracle_cards,
     verified_effect_attack_miracle_cards,
     verified_hp_utility_miracle_cards,
+    verified_stochastic_hp_sundries,
 )
 
 SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-07" / "bible.json"
@@ -145,3 +146,4 @@ def test_committed_snapshot_matches_validated_live_catalog() -> None:
         "romance-fragrance": 15,
     }
     assert verified_hp_utility_miracle_cards(snapshot) == {"spring": (10, 7)}
+    assert verified_stochastic_hp_sundries(snapshot) == {"thump-thump-tear": (10, 10)}

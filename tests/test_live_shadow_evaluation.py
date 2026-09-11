@@ -487,9 +487,9 @@ def test_live_shadow_gate_persists_reproducible_non_promoting_report(tmp_path: P
         report_path.read_text(encoding="utf-8")
     )
     assert reloaded == stored.report
-    assert stored.report.schema_version == 5
-    assert stored.report.gate_id == "live-resource-shadow-readiness-v5"
-    assert stored.report.behavior_policy_id == "api-combo-utility-heuristic-v5"
+    assert stored.report.schema_version == 6
+    assert stored.report.gate_id == "live-resource-shadow-readiness-v6"
+    assert stored.report.behavior_policy_id == "api-combo-utility-heuristic-v6"
     assert stored.report.passed is True
     assert stored.report.ready_for_controlled_trial is True
     assert stored.report.promotion_eligible is False
@@ -527,6 +527,57 @@ def test_live_shadow_gate_reports_missing_schema_v5_evidence(tmp_path: Path) -> 
     assert stored.report.metrics.matching_runs == 0
     assert stored.report.metrics.completed_games == 0
     assert "no schema-v5 resource shadow runs" in stored.report.gate_reasons[0]
+
+
+def test_live_shadow_gate_excludes_failed_multiplayer_runs_from_two_player_evidence(
+    tmp_path: Path,
+) -> None:
+    model_directory, manifest = candidate(tmp_path)
+    native_path = native_evaluation(tmp_path, manifest)
+    database = evidence_database(tmp_path, manifest)
+    with sqlite3.connect(database) as connection:
+        rows = connection.execute(
+            "SELECT event_id, payload_json FROM events WHERE kind = 'game_state'"
+        ).fetchall()
+        for event_id, encoded in rows:
+            payload = json.loads(encoded)
+            payload["players"].append(
+                {
+                    "player_id": 3,
+                    "name": "Another opponent",
+                    "hp": 30,
+                    "mp": 10,
+                    "cp": 10,
+                    "team": None,
+                    "is_self": False,
+                    "is_bot": False,
+                    "hand_count": 3,
+                }
+            )
+            connection.execute(
+                "UPDATE events SET payload_json = ? WHERE event_id = ?",
+                (json.dumps(payload), event_id),
+            )
+        connection.execute(
+            "UPDATE runs SET status = 'failed', outcome_json = ?",
+            (json.dumps({"reason": "multiplayer transport failure"}),),
+        )
+        connection.commit()
+
+    stored = evaluate_live_shadow_candidate(
+        candidate_model_directory=model_directory,
+        bible_snapshot_path=SNAPSHOT,
+        native_evaluation_path=native_path,
+        database_path=database,
+        evaluation_directory=tmp_path / "evaluations",
+        config=permissive_config(),
+    )
+
+    assert stored.report.passed is False
+    assert stored.report.metrics.matching_runs == 0
+    assert stored.report.metrics.failed_runs == 0
+    assert stored.report.metrics.evidence_error_count == 0
+    assert stored.report.metrics.excluded_runs["non-two-player-run"] == 1
 
 
 def test_live_shadow_gate_fails_closed_on_tampered_decision_identity(tmp_path: Path) -> None:

@@ -30,6 +30,7 @@ ExpandedResourceAttackDefenseBatch = godfield_sim.ExpandedResourceAttackDefenseB
 ReflectionResourceAttackDefenseBatch = godfield_sim.ReflectionResourceAttackDefenseBatch
 ReflectionWeaponResourceAttackDefenseBatch = godfield_sim.ReflectionWeaponResourceAttackDefenseBatch
 DualRoleResourceAttackDefenseBatch = godfield_sim.DualRoleResourceAttackDefenseBatch
+ChanceWeaponResourceAttackDefenseBatch = godfield_sim.ChanceWeaponResourceAttackDefenseBatch
 
 SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-07" / "bible.json"
 
@@ -379,6 +380,68 @@ def dual_role_resource_batch(
     )
 
 
+def chance_weapon_resource_batch(
+    *,
+    seed: int = 0,
+    chance_hit_rate: int = 50,
+) -> ChanceWeaponResourceAttackDefenseBatch:
+    return ChanceWeaponResourceAttackDefenseBatch(
+        1,
+        np.asarray([2], dtype=np.uint32),
+        np.asarray([10], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_NON_ELEMENT], dtype=np.uint8),
+        np.asarray([3], dtype=np.uint32),
+        np.asarray([3], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_LIGHT], dtype=np.uint8),
+        np.asarray([4], dtype=np.uint32),
+        np.asarray([8], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_NON_ELEMENT], dtype=np.uint8),
+        np.asarray([5], dtype=np.uint32),
+        np.asarray([10], dtype=np.uint16),
+        np.asarray([6], dtype=np.uint32),
+        np.asarray([5], dtype=np.uint16),
+        np.asarray([7], dtype=np.uint32),
+        np.asarray([25], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_WATER], dtype=np.uint8),
+        np.asarray([4], dtype=np.uint16),
+        np.asarray([8], dtype=np.uint32),
+        np.asarray([10], dtype=np.uint16),
+        np.asarray([3], dtype=np.uint16),
+        np.asarray([9], dtype=np.uint32),
+        np.asarray([20], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_FIRE], dtype=np.uint8),
+        np.asarray([4], dtype=np.uint16),
+        np.asarray([50], dtype=np.uint16),
+        np.asarray([10], dtype=np.uint32),
+        np.asarray([10], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_LIGHT], dtype=np.uint8),
+        np.asarray([4], dtype=np.uint16),
+        np.asarray([11], dtype=np.uint32),
+        np.asarray([5], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_LIGHT], dtype=np.uint8),
+        np.asarray([2], dtype=np.uint16),
+        np.asarray([12], dtype=np.uint32),
+        np.asarray([13], dtype=np.uint32),
+        np.asarray([10], dtype=np.uint16),
+        np.asarray([14], dtype=np.uint32),
+        np.asarray([5], dtype=np.uint16),
+        np.asarray([7], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_NON_ELEMENT], dtype=np.uint8),
+        np.asarray([15], dtype=np.uint32),
+        np.asarray([10], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_FIRE], dtype=np.uint8),
+        np.asarray([chance_hit_rate], dtype=np.uint16),
+        np.asarray([16], dtype=np.uint32),
+        np.asarray([8], dtype=np.uint16),
+        np.asarray([6], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_WOOD], dtype=np.uint8),
+        np.asarray([75], dtype=np.uint16),
+        seed,
+        40,
+        10,
+    )
+
+
 def first_legal_actions(batch: FixedAttackBatch) -> np.ndarray:
     return batch.action_mask.argmax(axis=1).astype(np.int64)
 
@@ -682,6 +745,30 @@ def test_dual_role_factory_versions_atk_def_weapon_catalog() -> None:
     assert np.any(batch.hand_card_kinds == godfield_sim.CARD_KIND_DUAL_ROLE)
 
 
+def test_chance_weapon_factory_versions_effect_free_chance_catalog() -> None:
+    simulation = create_attack_defense_simulation(
+        SNAPSHOT_PATH,
+        batch_size=512,
+        ruleset="chance-weapon-resource-hand",
+    )
+    batch = simulation.batch
+
+    assert simulation.metadata.observation_schema_version == 6
+    assert simulation.metadata.ruleset_id == (
+        "plain-elemental-combo-stochastic-chance-weapon-additive-reflection-"
+        "dual-role-resource-miracle-attack-defense-redraw-duel-v1"
+    )
+    assert simulation.metadata.rule_catalog_size == 150
+    assert simulation.metadata.global_feature_count == 14
+    assert simulation.metadata.sampling_distribution == (
+        "elemental-chance-weapon-resource-2-1-2-1-1-1-1-"
+        "initial-uniform-redraw-with-base-liveness"
+    )
+    assert batch.chance_weapon_curriculum is True
+    assert np.any(batch.hand_card_kinds == godfield_sim.CARD_KIND_CHANCE_WEAPON)
+    assert np.any(batch.hand_card_kinds == godfield_sim.CARD_KIND_CHANCE_DUAL_ROLE)
+
+
 def reflected_attack_batch(
     *, initial_hp: int = 40
 ) -> tuple[ReflectionResourceAttackDefenseBatch, int, int]:
@@ -866,6 +953,75 @@ def test_elemental_dual_role_defense_uses_armor_compatibility(
         assert bool(batch.action_mask[0, int(fire_slots[0]) + 1]) is expected_legal
         return
     raise AssertionError("fixture seeds did not produce a Fire dual-role defense")
+
+
+def test_chance_weapon_can_hit_or_miss_and_is_consumed() -> None:
+    outcomes: set[str] = set()
+    for seed in range(4096):
+        batch = chance_weapon_resource_batch(seed=seed, chance_hit_rate=50)
+        slots = np.flatnonzero(batch.hand_token_ids[0] == 15)
+        if not slots.size:
+            continue
+        slot = int(slots[0])
+        batch.step(np.asarray([slot + 1], dtype=np.int64))
+        assert batch.selected_values[0] == 10
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        assert batch.selected_counts[0] == 0
+        if batch.phases[0] == godfield_sim.PHASE_DEFENSE:
+            assert batch.pending_attacks[0] == 10
+            outcomes.add("hit")
+        else:
+            assert batch.phases[0] == godfield_sim.PHASE_ATTACK
+            assert batch.pending_attacks[0] == 0
+            assert batch.turn_numbers[0] == 1
+            outcomes.add("miss")
+        if outcomes == {"hit", "miss"}:
+            return
+    raise AssertionError(f"fixture seeds did not produce both chance outcomes: {outcomes}")
+
+
+def test_chance_dual_role_uses_hit_rate_when_attacking() -> None:
+    outcomes: set[str] = set()
+    for seed in range(4096):
+        batch = chance_weapon_resource_batch(seed=seed)
+        slots = np.flatnonzero(batch.hand_token_ids[0] == 16)
+        if not slots.size:
+            continue
+        batch.step(np.asarray([int(slots[0]) + 1], dtype=np.int64))
+        assert batch.selected_values[0] == 8
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        if batch.phases[0] == godfield_sim.PHASE_DEFENSE:
+            assert batch.pending_attacks[0] == 8
+            outcomes.add("hit")
+        else:
+            assert batch.phases[0] == godfield_sim.PHASE_ATTACK
+            assert batch.pending_attacks[0] == 0
+            outcomes.add("miss")
+        if outcomes == {"hit", "miss"}:
+            return
+    raise AssertionError(f"fixture seeds did not produce both Jinn outcomes: {outcomes}")
+
+
+def test_chance_dual_role_uses_fixed_defense_without_rolling() -> None:
+    for seed in range(4096):
+        batch = chance_weapon_resource_batch(seed=seed)
+        ordinary_weapon_slots = np.flatnonzero(batch.hand_token_ids[0] == 2)
+        if not ordinary_weapon_slots.size:
+            continue
+        batch.step(np.asarray([int(ordinary_weapon_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        jinn_slots = np.flatnonzero(batch.hand_token_ids[0] == 16)
+        if not jinn_slots.size:
+            continue
+        slot = int(jinn_slots[0])
+        assert batch.action_mask[0, slot + 1]
+        batch.step(np.asarray([slot + 1], dtype=np.int64))
+        assert batch.selected_values[0] == 6
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        assert batch.player_features[0, 0, 0] == pytest.approx(0.36)
+        assert batch.turn_numbers[0] == 1
+        return
+    raise AssertionError("fixture seeds did not produce an ordinary attack and Jinn defense")
 
 
 def test_super_mirror_redirects_full_attack_into_one_hop_defense() -> None:
@@ -1133,6 +1289,17 @@ def test_resource_heuristics_index_miracle_attacks_in_the_miracle_namespace() ->
     )
     assert dual_role.attacks[vocabulary.token_id("weapons", "sword-shield")] == 10
     assert dual_role.defenses[vocabulary.token_id("weapons", "sword-shield")] == 10
+
+    chance_weapon = build_curriculum_heuristic(
+        snapshot,
+        vocabulary,
+        ruleset="chance-weapon-resource-hand",
+    )
+    jinn = vocabulary.token_id("weapons", "jinn-s-rocking-horse")
+    assert chance_weapon.attacks[jinn] == 6
+    assert chance_weapon.defenses[jinn] == 6
+    assert chance_weapon.attacks[vocabulary.token_id("weapons", "petit-saturn")] == 5
+    assert jinn in chance_weapon.chance_attack_tokens
 
 
 def test_combo_selection_aggregates_attack_and_defense_before_consuming() -> None:

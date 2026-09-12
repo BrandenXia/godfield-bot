@@ -61,6 +61,9 @@ reflection and blocking, repeated reflections, counterattack rings, status
 effects, guardians, phenomena, and the CP purchase economy remain separate
 evidence-gated increments.
 
+Effect-free chance weapons and the chance/defense dual role of Jinn's Rocking
+Horse are addressed by ADR 0033.
+
 ## Validation
 
 - The full Python and native-integrated suite passes with 324 tests.

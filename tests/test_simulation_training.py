@@ -51,6 +51,10 @@ def test_training_config_selects_versioned_mixed_hand_ruleset() -> None:
         SimulationTrainingConfig(ruleset="dual-role-resource-hand").ruleset
         == "dual-role-resource-hand"
     )
+    assert (
+        SimulationTrainingConfig(ruleset="chance-weapon-resource-hand").ruleset
+        == "chance-weapon-resource-hand"
+    )
 
 
 def initialize_fixed_simulation_model(

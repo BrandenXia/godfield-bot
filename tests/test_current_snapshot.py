@@ -7,6 +7,8 @@ from godfield_bot.reference import (
     plain_attack_booster_cards,
     plain_attack_weapon_cards,
     plain_attack_weapon_values,
+    plain_chance_dual_role_weapon_cards,
+    plain_chance_weapon_cards,
     plain_defense_armor_cards,
     plain_defense_armor_values,
     plain_dual_role_weapon_cards,
@@ -143,6 +145,17 @@ def test_committed_snapshot_matches_validated_live_catalog() -> None:
         "saver-rod": (2, 6, "non-element"),
         "spiked-belt": (4, 2, "non-element"),
         "sword-shield": (10, 10, "non-element"),
+    }
+    chance_weapons = plain_chance_weapon_cards(snapshot)
+    assert len(chance_weapons) == 14
+    assert chance_weapons["spark-bag"] == (75, 1, "fire")
+    assert chance_weapons["shadow-hand"] == (50, 2, "darkness")
+    assert chance_weapons["petit-saturn"] == (25, 20, "stone")
+    assert "fog-fan" not in chance_weapons
+    assert "vine-shoot" not in chance_weapons
+    assert "ascension-bow" not in chance_weapons
+    assert plain_chance_dual_role_weapon_cards(snapshot) == {
+        "jinn-s-rocking-horse": (75, 8, 6, "wood")
     }
     assert verified_effect_attack_miracle_cards(snapshot) == {
         "absorption": (10, 10, "light", "absorbHP")

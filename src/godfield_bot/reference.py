@@ -666,6 +666,65 @@ def plain_dual_role_weapon_cards(
     return result
 
 
+def plain_chance_weapon_cards(
+    snapshot: BibleSnapshot,
+) -> dict[str, tuple[int, int, CombatElement]]:
+    """Return effect-free chance weapons with exact hit rate and ATK."""
+
+    weapons = snapshot.catalog.get("weapons")
+    if weapons is None:
+        return {}
+    result: dict[str, tuple[int, int, CombatElement]] = {}
+    for artifact in weapons.items:
+        element = _combat_element(artifact)
+        if element is None or len(artifact.detail) != 4:
+            continue
+        attack = PROBABILISTIC_ATTACK_PATTERN.fullmatch(artifact.detail[1])
+        if (
+            attack is not None
+            and re.fullmatch(r"\$\d+", artifact.detail[2]) is not None
+            and artifact.detail[3].startswith("Gift Rate:")
+        ):
+            hit_rate = int(attack.group(1))
+            attack_value = int(attack.group(2))
+            if 1 <= hit_rate <= 100 and attack_value > 0:
+                result[artifact.asset] = (hit_rate, attack_value, element)
+    return result
+
+
+def plain_chance_dual_role_weapon_cards(
+    snapshot: BibleSnapshot,
+) -> dict[str, tuple[int, int, int, CombatElement]]:
+    """Return chance weapons with exact hit rate, ATK, DEF, and element."""
+
+    weapons = snapshot.catalog.get("weapons")
+    if weapons is None:
+        return {}
+    result: dict[str, tuple[int, int, int, CombatElement]] = {}
+    for artifact in weapons.items:
+        element = _combat_element(artifact)
+        if element is None or len(artifact.detail) != 5:
+            continue
+        attack = PROBABILISTIC_ATTACK_PATTERN.fullmatch(artifact.detail[1])
+        defense = PLAIN_DEFENSE_PATTERN.fullmatch(artifact.detail[2])
+        if (
+            attack is not None
+            and defense is not None
+            and re.fullmatch(r"\$\d+", artifact.detail[3]) is not None
+            and artifact.detail[4].startswith("Gift Rate:")
+        ):
+            hit_rate = int(attack.group(1))
+            attack_value = int(attack.group(2))
+            if 1 <= hit_rate <= 100 and attack_value > 0:
+                result[artifact.asset] = (
+                    hit_rate,
+                    attack_value,
+                    int(defense.group(1)),
+                    element,
+                )
+    return result
+
+
 def verified_chance_attack_miracle_cards(
     snapshot: BibleSnapshot,
 ) -> dict[str, tuple[int, int, int, CombatElement]]:

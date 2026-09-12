@@ -54,6 +54,7 @@ class SimulationTrainingConfig(BaseModel):
         "reflection-resource-hand",
         "reflection-weapon-resource-hand",
         "dual-role-resource-hand",
+        "chance-weapon-resource-hand",
     ] = "fixed-role"
     batch_size: int = Field(default=256, ge=1, le=1_000_000)
     rollout_steps: int = Field(default=32, ge=2, le=4096)

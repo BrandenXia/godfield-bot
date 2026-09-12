@@ -11,6 +11,8 @@ from godfield_bot.reference import (
     plain_attack_booster_cards,
     plain_attack_weapon_cards,
     plain_attack_weapon_values,
+    plain_chance_dual_role_weapon_cards,
+    plain_chance_weapon_cards,
     plain_defense_armor_cards,
     plain_defense_armor_values,
     plain_dual_role_weapon_cards,
@@ -35,6 +37,7 @@ EXPANDED_RESOURCE_HEURISTIC_POLICY_ID = "expected-value-additive-miracle-resourc
 REFLECTION_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-reflection-resource-combo-v1"
 REFLECTION_WEAPON_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-reflection-weapon-resource-combo-v1"
 DUAL_ROLE_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-dual-role-resource-combo-v1"
+CHANCE_WEAPON_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-chance-weapon-resource-combo-v1"
 FORGIVE_ACTION_INDEX = 19
 CONFIRM_ACTION_INDEX = 20
 
@@ -64,6 +67,7 @@ def build_curriculum_heuristic(
 ) -> CurriculumHeuristic:
     boosters: dict[str, int] = {}
     dual_role_defenses: dict[str, int] = {}
+    chance_weapon_slugs: set[str] = set()
     if ruleset in {
         "elemental-hand",
         "combo-hand",
@@ -73,6 +77,7 @@ def build_curriculum_heuristic(
         "reflection-resource-hand",
         "reflection-weapon-resource-hand",
         "dual-role-resource-hand",
+        "chance-weapon-resource-hand",
     }:
         attacks = {
             slug: attack for slug, (attack, _element) in plain_attack_weapon_cards(snapshot).items()
@@ -89,6 +94,7 @@ def build_curriculum_heuristic(
             "reflection-resource-hand",
             "reflection-weapon-resource-hand",
             "dual-role-resource-hand",
+            "chance-weapon-resource-hand",
         }:
             boosters = {
                 slug: boost
@@ -97,9 +103,13 @@ def build_curriculum_heuristic(
             policy_id = COMBO_HEURISTIC_POLICY_ID
         else:
             policy_id = ELEMENTAL_HEURISTIC_POLICY_ID
-        if ruleset in {"reflection-weapon-resource-hand", "dual-role-resource-hand"}:
+        if ruleset in {
+            "reflection-weapon-resource-hand",
+            "dual-role-resource-hand",
+            "chance-weapon-resource-hand",
+        }:
             attacks.update(verified_reflection_weapon_cards(snapshot))
-        if ruleset == "dual-role-resource-hand":
+        if ruleset in {"dual-role-resource-hand", "chance-weapon-resource-hand"}:
             dual_roles = plain_dual_role_weapon_cards(snapshot)
             attacks.update(
                 {slug: attack for slug, (attack, _defense, _element) in dual_roles.items()}
@@ -107,6 +117,33 @@ def build_curriculum_heuristic(
             dual_role_defenses = {
                 slug: defense for slug, (_attack, defense, _element) in dual_roles.items()
             }
+        if ruleset == "chance-weapon-resource-hand":
+            chance_weapons = plain_chance_weapon_cards(snapshot)
+            chance_dual_roles = plain_chance_dual_role_weapon_cards(snapshot)
+            chance_weapon_slugs.update(chance_weapons)
+            chance_weapon_slugs.update(chance_dual_roles)
+            attacks.update(
+                {
+                    slug: round(hit_rate * attack / 100)
+                    for slug, (hit_rate, attack, _element) in chance_weapons.items()
+                }
+            )
+            attacks.update(
+                {
+                    slug: round(hit_rate * attack / 100)
+                    for slug, (hit_rate, attack, _defense, _element) in (
+                        chance_dual_roles.items()
+                    )
+                }
+            )
+            dual_role_defenses.update(
+                {
+                    slug: defense
+                    for slug, (_hit_rate, _attack, defense, _element) in (
+                        chance_dual_roles.items()
+                    )
+                }
+            )
     else:
         attacks = plain_attack_weapon_values(snapshot)
         defenses = plain_defense_armor_values(snapshot)
@@ -123,6 +160,7 @@ def build_curriculum_heuristic(
         "reflection-resource-hand",
         "reflection-weapon-resource-hand",
         "dual-role-resource-hand",
+        "chance-weapon-resource-hand",
     }:
         hp_utilities.update(
             (slug, (utility, 0)) for slug, utility in plain_hp_utility_sundries(snapshot).items()
@@ -140,6 +178,7 @@ def build_curriculum_heuristic(
             "reflection-resource-hand",
             "reflection-weapon-resource-hand",
             "dual-role-resource-hand",
+            "chance-weapon-resource-hand",
         }:
             chance_miracles = {
                 slug: (round(hit_rate * attack / 100), cost)
@@ -163,6 +202,7 @@ def build_curriculum_heuristic(
                 "reflection-resource-hand",
                 "reflection-weapon-resource-hand",
                 "dual-role-resource-hand",
+                "chance-weapon-resource-hand",
             }:
                 miracle_boosters = {
                     slug: boost
@@ -177,6 +217,8 @@ def build_curriculum_heuristic(
                     policy_id = REFLECTION_WEAPON_RESOURCE_HEURISTIC_POLICY_ID
                 elif ruleset == "dual-role-resource-hand":
                     policy_id = DUAL_ROLE_RESOURCE_HEURISTIC_POLICY_ID
+                elif ruleset == "chance-weapon-resource-hand":
+                    policy_id = CHANCE_WEAPON_RESOURCE_HEURISTIC_POLICY_ID
     attack_token_values = {
         vocabulary.token_id("weapons", slug): attack for slug, attack in attacks.items()
     }
@@ -197,11 +239,16 @@ def build_curriculum_heuristic(
         "reflection-resource-hand",
         "reflection-weapon-resource-hand",
         "dual-role-resource-hand",
+        "chance-weapon-resource-hand",
     }:
         reflection_defense_tokens.update(
             vocabulary.token_id("armor", slug) for slug in verified_reflection_armor_cards(snapshot)
         )
-    if ruleset in {"reflection-weapon-resource-hand", "dual-role-resource-hand"}:
+    if ruleset in {
+        "reflection-weapon-resource-hand",
+        "dual-role-resource-hand",
+        "chance-weapon-resource-hand",
+    }:
         reflection_defense_tokens.update(
             vocabulary.token_id("weapons", slug)
             for slug in verified_reflection_weapon_cards(snapshot)
@@ -230,7 +277,8 @@ def build_curriculum_heuristic(
             vocabulary.token_id("miracles", slug): value for slug, value in attack_miracles.items()
         },
         chance_attack_tokens=frozenset(
-            vocabulary.token_id("miracles", slug) for slug in chance_attack_slugs
+            [vocabulary.token_id("miracles", slug) for slug in chance_attack_slugs]
+            + [vocabulary.token_id("weapons", slug) for slug in chance_weapon_slugs]
         ),
         reflection_defenses=frozenset(reflection_defense_tokens),
         policy_id=policy_id,

@@ -75,6 +75,10 @@ def test_evaluation_config_accepts_expanded_resource_ruleset() -> None:
         SimulationEvaluationConfig(ruleset="dual-role-resource-hand").ruleset
         == "dual-role-resource-hand"
     )
+    assert (
+        SimulationEvaluationConfig(ruleset="chance-weapon-resource-hand").ruleset
+        == "chance-weapon-resource-hand"
+    )
 
 
 def test_paired_score_statistics_use_seed_pairs_as_samples() -> None:

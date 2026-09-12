@@ -9,8 +9,8 @@ uv sync --extra simulation --group dev
 
 Every included curriculum is intentionally incomplete and its generated
 trajectories are not eligible for live model promotion. The broadest current
-ruleset, `reflection-weapon-resource-hand`, includes elemental multi-card
-combat, HP/MP utility, fixed and chance miracles, Absorption, reusable additive
-miracles, and evidence-bounded one-hop reflection with Super Mirror and the
-dual-role Reflection Sword. See ADR 0002, ADR 0029, ADR 0030, and ADR 0031 in
-the root project for the interface and safety boundary.
+ruleset, `dual-role-resource-hand`, includes elemental multi-card combat, HP/MP
+utility, fixed and chance miracles, Absorption, reusable additive miracles,
+evidence-bounded one-hop reflection, and seven ATK/DEF weapons. See ADR 0002 and
+ADRs 0029 through 0032 in the root project for the interface and safety
+boundary.

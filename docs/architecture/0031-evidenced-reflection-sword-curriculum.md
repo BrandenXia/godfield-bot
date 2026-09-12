@@ -76,4 +76,4 @@ fingerprints isolate its trajectories and evaluations.
 This ruleset remains non-promotable. Bouncing Sword target selection, repeated
 reflections, miracle reflection and blocking, counterattack rings, status
 effects, guardians, phenomena, and the CP purchase economy remain separate
-evidence-gated increments.
+evidence-gated increments. Numeric dual-role weapons are addressed by ADR 0032.

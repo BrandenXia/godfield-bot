@@ -9,6 +9,7 @@ from godfield_bot.reference import (
     plain_attack_weapon_values,
     plain_defense_armor_cards,
     plain_defense_armor_values,
+    plain_dual_role_weapon_cards,
     plain_hp_utility_sundries,
     plain_mp_utility_sundries,
     verified_attack_booster_miracle_cards,
@@ -134,6 +135,15 @@ def test_committed_snapshot_matches_validated_live_catalog() -> None:
     }
     assert verified_reflection_armor_cards(snapshot) == {"super-mirror"}
     assert verified_reflection_weapon_cards(snapshot) == {"reflection-sword": 10}
+    assert plain_dual_role_weapon_cards(snapshot) == {
+        "elbow-sack": (6, 3, "non-element"),
+        "flaming-roll": (4, 4, "fire"),
+        "legendary-scabbard": (13, 1, "non-element"),
+        "plate-of-strike": (5, 7, "non-element"),
+        "saver-rod": (2, 6, "non-element"),
+        "spiked-belt": (4, 2, "non-element"),
+        "sword-shield": (10, 10, "non-element"),
+    }
     assert verified_effect_attack_miracle_cards(snapshot) == {
         "absorption": (10, 10, "light", "absorbHP")
     }

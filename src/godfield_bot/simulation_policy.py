@@ -23,6 +23,7 @@ from godfield_bot.reference import (
     verified_attack_miracle_cards,
     verified_chance_absorption_weapon_cards,
     verified_chance_attack_miracle_cards,
+    verified_dynamic_mp_weapon_cards,
     verified_effect_attack_miracle_cards,
     verified_hp_utility_miracle_cards,
     verified_reflection_armor_cards,
@@ -41,6 +42,7 @@ REFLECTION_WEAPON_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-reflection-weapon-re
 DUAL_ROLE_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-dual-role-resource-combo-v1"
 CHANCE_WEAPON_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-chance-weapon-resource-combo-v1"
 ABSORPTION_WEAPON_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-absorption-weapon-resource-combo-v1"
+DYNAMIC_MP_WEAPON_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-dynamic-mp-weapon-resource-combo-v1"
 FORGIVE_ACTION_INDEX = 19
 CONFIRM_ACTION_INDEX = 20
 
@@ -58,8 +60,19 @@ class CurriculumHeuristic:
     mp_utilities: dict[int, int] | None = None
     attack_miracles: dict[int, tuple[int, int]] | None = None
     chance_attack_tokens: frozenset[int] = frozenset()
+    dynamic_mp_attacks: dict[int, int] | None = None
     reflection_defenses: frozenset[int] = frozenset()
     policy_id: str = HEURISTIC_POLICY_ID
+
+
+def _resolved_attack_value(
+    token: int,
+    attacks: dict[int, int],
+    dynamic_mp_attacks: dict[int, int],
+    mp: int,
+) -> int:
+    coefficient = dynamic_mp_attacks.get(token)
+    return attacks[token] if coefficient is None else coefficient * mp
 
 
 def build_curriculum_heuristic(
@@ -71,6 +84,7 @@ def build_curriculum_heuristic(
     boosters: dict[str, int] = {}
     dual_role_defenses: dict[str, int] = {}
     chance_weapon_slugs: set[str] = set()
+    dynamic_mp_attacks: dict[str, int] = {}
     if ruleset in {
         "elemental-hand",
         "combo-hand",
@@ -82,6 +96,7 @@ def build_curriculum_heuristic(
         "dual-role-resource-hand",
         "chance-weapon-resource-hand",
         "absorption-weapon-resource-hand",
+        "dynamic-mp-weapon-resource-hand",
     }:
         attacks = {
             slug: attack for slug, (attack, _element) in plain_attack_weapon_cards(snapshot).items()
@@ -100,6 +115,7 @@ def build_curriculum_heuristic(
             "dual-role-resource-hand",
             "chance-weapon-resource-hand",
             "absorption-weapon-resource-hand",
+            "dynamic-mp-weapon-resource-hand",
         }:
             boosters = {
                 slug: boost
@@ -113,12 +129,14 @@ def build_curriculum_heuristic(
             "dual-role-resource-hand",
             "chance-weapon-resource-hand",
             "absorption-weapon-resource-hand",
+            "dynamic-mp-weapon-resource-hand",
         }:
             attacks.update(verified_reflection_weapon_cards(snapshot))
         if ruleset in {
             "dual-role-resource-hand",
             "chance-weapon-resource-hand",
             "absorption-weapon-resource-hand",
+            "dynamic-mp-weapon-resource-hand",
         }:
             dual_roles = plain_dual_role_weapon_cards(snapshot)
             attacks.update(
@@ -127,7 +145,11 @@ def build_curriculum_heuristic(
             dual_role_defenses = {
                 slug: defense for slug, (_attack, defense, _element) in dual_roles.items()
             }
-        if ruleset in {"chance-weapon-resource-hand", "absorption-weapon-resource-hand"}:
+        if ruleset in {
+            "chance-weapon-resource-hand",
+            "absorption-weapon-resource-hand",
+            "dynamic-mp-weapon-resource-hand",
+        }:
             chance_weapons = plain_chance_weapon_cards(snapshot)
             chance_dual_roles = plain_chance_dual_role_weapon_cards(snapshot)
             chance_weapon_slugs.update(chance_weapons)
@@ -150,7 +172,10 @@ def build_curriculum_heuristic(
                     for slug, (_hit_rate, _attack, defense, _element) in (chance_dual_roles.items())
                 }
             )
-        if ruleset == "absorption-weapon-resource-hand":
+        if ruleset in {
+            "absorption-weapon-resource-hand",
+            "dynamic-mp-weapon-resource-hand",
+        }:
             absorption_weapons = verified_absorption_weapon_cards(snapshot)
             chance_absorption_weapons = verified_chance_absorption_weapon_cards(snapshot)
             attacks.update(
@@ -163,6 +188,14 @@ def build_curriculum_heuristic(
                 }
             )
             chance_weapon_slugs.update(chance_absorption_weapons)
+        if ruleset == "dynamic-mp-weapon-resource-hand":
+            dynamic_mp_attacks = {
+                slug: coefficient
+                for slug, (coefficient, _element) in verified_dynamic_mp_weapon_cards(
+                    snapshot
+                ).items()
+            }
+            attacks.update(dynamic_mp_attacks)
     else:
         attacks = plain_attack_weapon_values(snapshot)
         defenses = plain_defense_armor_values(snapshot)
@@ -181,6 +214,7 @@ def build_curriculum_heuristic(
         "dual-role-resource-hand",
         "chance-weapon-resource-hand",
         "absorption-weapon-resource-hand",
+        "dynamic-mp-weapon-resource-hand",
     }:
         hp_utilities.update(
             (slug, (utility, 0)) for slug, utility in plain_hp_utility_sundries(snapshot).items()
@@ -200,6 +234,7 @@ def build_curriculum_heuristic(
             "dual-role-resource-hand",
             "chance-weapon-resource-hand",
             "absorption-weapon-resource-hand",
+            "dynamic-mp-weapon-resource-hand",
         }:
             chance_miracles = {
                 slug: (round(hit_rate * attack / 100), cost)
@@ -225,6 +260,7 @@ def build_curriculum_heuristic(
                 "dual-role-resource-hand",
                 "chance-weapon-resource-hand",
                 "absorption-weapon-resource-hand",
+                "dynamic-mp-weapon-resource-hand",
             }:
                 miracle_boosters = {
                     slug: boost
@@ -243,6 +279,8 @@ def build_curriculum_heuristic(
                     policy_id = CHANCE_WEAPON_RESOURCE_HEURISTIC_POLICY_ID
                 elif ruleset == "absorption-weapon-resource-hand":
                     policy_id = ABSORPTION_WEAPON_RESOURCE_HEURISTIC_POLICY_ID
+                elif ruleset == "dynamic-mp-weapon-resource-hand":
+                    policy_id = DYNAMIC_MP_WEAPON_RESOURCE_HEURISTIC_POLICY_ID
     attack_token_values = {
         vocabulary.token_id("weapons", slug): attack for slug, attack in attacks.items()
     }
@@ -265,6 +303,7 @@ def build_curriculum_heuristic(
         "dual-role-resource-hand",
         "chance-weapon-resource-hand",
         "absorption-weapon-resource-hand",
+        "dynamic-mp-weapon-resource-hand",
     }:
         reflection_defense_tokens.update(
             vocabulary.token_id("armor", slug) for slug in verified_reflection_armor_cards(snapshot)
@@ -274,6 +313,7 @@ def build_curriculum_heuristic(
         "dual-role-resource-hand",
         "chance-weapon-resource-hand",
         "absorption-weapon-resource-hand",
+        "dynamic-mp-weapon-resource-hand",
     }:
         reflection_defense_tokens.update(
             vocabulary.token_id("weapons", slug)
@@ -306,6 +346,10 @@ def build_curriculum_heuristic(
             [vocabulary.token_id("miracles", slug) for slug in chance_attack_slugs]
             + [vocabulary.token_id("weapons", slug) for slug in chance_weapon_slugs]
         ),
+        dynamic_mp_attacks={
+            vocabulary.token_id("weapons", slug): coefficient
+            for slug, coefficient in dynamic_mp_attacks.items()
+        },
         reflection_defenses=frozenset(reflection_defense_tokens),
         policy_id=policy_id,
     )
@@ -339,8 +383,20 @@ def curriculum_heuristic_actions(
                 continue
             if batch.resource_curriculum:
                 attacks = policy.attacks
+                actor = int(batch.active_players[environment])
+                mp = int(batch.magic_points[environment, actor])
+                dynamic_mp_attacks = policy.dynamic_mp_attacks or {}
+                hand_tokens = set(map(int, hand))
                 attack_candidates = [
-                    (attacks[int(hand[action - 1])], action)
+                    (
+                        _resolved_attack_value(
+                            int(hand[action - 1]),
+                            attacks,
+                            dynamic_mp_attacks,
+                            mp,
+                        ),
+                        action,
+                    )
                     for action in range(1, 10)
                     if legal[action] and int(hand[action - 1]) in attacks
                 ]
@@ -366,13 +422,11 @@ def curriculum_heuristic_actions(
                     continue
                 miracle_attacks = policy.attack_miracles or {}
                 strongest_legal = max((value for value, _action in attack_candidates), default=0)
-                actor = int(batch.active_players[environment])
-                mp = int(batch.magic_points[environment, actor])
-                blocked_upgrade = any(
+                blocked_miracle_upgrade = any(
                     token in miracle_attacks
                     and miracle_attacks[token][0] > strongest_legal
                     and miracle_attacks[token][1] > mp
-                    for token in map(int, hand)
+                    for token in hand_tokens
                 )
                 mp_utilities = policy.mp_utilities or {}
                 restoration = [
@@ -380,10 +434,22 @@ def curriculum_heuristic_actions(
                     for action in range(1, 10)
                     if legal[action] and int(hand[action - 1]) in mp_utilities
                 ]
-                if blocked_upgrade and restoration:
+                best_restoration = max((utility for utility, _action in restoration), default=0)
+                dynamic_upgrade = any(
+                    coefficient * min(100, mp + best_restoration) > strongest_legal
+                    for token, coefficient in dynamic_mp_attacks.items()
+                    if token in hand_tokens
+                )
+                if restoration and (blocked_miracle_upgrade or dynamic_upgrade):
                     actions[output_index] = max(restoration, key=lambda item: (item[0], -item[1]))[
                         1
                     ]
+                    continue
+                if attack_candidates:
+                    actions[output_index] = max(
+                        attack_candidates,
+                        key=lambda item: (item[0], -item[1]),
+                    )[1]
                     continue
             candidates = [
                 (policy.attacks[int(hand[action - 1])], action)

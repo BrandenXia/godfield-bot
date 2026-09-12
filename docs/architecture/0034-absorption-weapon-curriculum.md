@@ -56,6 +56,8 @@ effect feature. Status effects, Ascension, multi-hit attacks, miracle
 reflection and blocking, bounce, counterattacks, guardians, phenomena, and the
 CP purchase economy remain separate evidence-gated increments.
 
+ADR 0035 extends this boundary with the separately evidenced dynamic-MP weapon.
+
 ## Validation
 
 - The full Python and native-integrated suite passes with 332 tests.

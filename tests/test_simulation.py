@@ -32,6 +32,7 @@ ReflectionWeaponResourceAttackDefenseBatch = godfield_sim.ReflectionWeaponResour
 DualRoleResourceAttackDefenseBatch = godfield_sim.DualRoleResourceAttackDefenseBatch
 ChanceWeaponResourceAttackDefenseBatch = godfield_sim.ChanceWeaponResourceAttackDefenseBatch
 AbsorptionWeaponResourceAttackDefenseBatch = godfield_sim.AbsorptionWeaponResourceAttackDefenseBatch
+DynamicMpWeaponResourceAttackDefenseBatch = godfield_sim.DynamicMpWeaponResourceAttackDefenseBatch
 
 SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-07" / "bible.json"
 
@@ -443,13 +444,8 @@ def chance_weapon_resource_batch(
     )
 
 
-def absorption_weapon_resource_batch(
-    *,
-    seed: int = 0,
-    initial_hp: int = 30,
-    chance_hit_rate: int = 50,
-) -> AbsorptionWeaponResourceAttackDefenseBatch:
-    return AbsorptionWeaponResourceAttackDefenseBatch(
+def absorption_weapon_resource_args(*, chance_hit_rate: int = 50) -> tuple[object, ...]:
+    return (
         1,
         np.asarray([2], dtype=np.uint32),
         np.asarray([10], dtype=np.uint16),
@@ -507,9 +503,38 @@ def absorption_weapon_resource_batch(
         np.asarray([8], dtype=np.uint16),
         np.asarray([godfield_sim.ELEMENT_WOOD], dtype=np.uint8),
         np.asarray([chance_hit_rate], dtype=np.uint16),
+    )
+
+
+def absorption_weapon_resource_batch(
+    *,
+    seed: int = 0,
+    initial_hp: int = 30,
+    initial_mp: int = 10,
+    chance_hit_rate: int = 50,
+) -> AbsorptionWeaponResourceAttackDefenseBatch:
+    return AbsorptionWeaponResourceAttackDefenseBatch(
+        *absorption_weapon_resource_args(chance_hit_rate=chance_hit_rate),
         seed,
         initial_hp,
-        10,
+        initial_mp,
+    )
+
+
+def dynamic_mp_weapon_resource_batch(
+    *,
+    seed: int = 0,
+    initial_hp: int = 40,
+    initial_mp: int = 10,
+) -> DynamicMpWeaponResourceAttackDefenseBatch:
+    return DynamicMpWeaponResourceAttackDefenseBatch(
+        *absorption_weapon_resource_args(),
+        np.asarray([19], dtype=np.uint32),
+        np.asarray([2], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_NON_ELEMENT], dtype=np.uint8),
+        seed,
+        initial_hp,
+        initial_mp,
     )
 
 
@@ -863,6 +888,30 @@ def test_absorption_weapon_factory_versions_effect_weapon_catalog() -> None:
     assert np.any(batch.hand_card_kinds == godfield_sim.CARD_KIND_CHANCE_ABSORPTION_WEAPON)
 
 
+def test_dynamic_mp_weapon_factory_versions_consuming_weapon_catalog() -> None:
+    simulation = create_attack_defense_simulation(
+        SNAPSHOT_PATH,
+        batch_size=512,
+        ruleset="dynamic-mp-weapon-resource-hand",
+    )
+    batch = simulation.batch
+
+    assert simulation.metadata.observation_schema_version == 6
+    assert simulation.metadata.ruleset_id == (
+        "plain-elemental-combo-stochastic-chance-absorption-weapon-dynamic-mp-"
+        "additive-reflection-dual-role-resource-miracle-attack-defense-redraw-"
+        "duel-v1"
+    )
+    assert simulation.metadata.rule_catalog_size == 154
+    assert simulation.metadata.global_feature_count == 14
+    assert simulation.metadata.sampling_distribution == (
+        "elemental-dynamic-mp-weapon-resource-2-1-2-1-1-1-1-"
+        "initial-uniform-redraw-with-base-liveness"
+    )
+    assert batch.dynamic_mp_weapon_curriculum is True
+    assert np.any(batch.hand_card_kinds == godfield_sim.CARD_KIND_DYNAMIC_MP_WEAPON)
+
+
 def reflected_attack_batch(
     *, initial_hp: int = 40
 ) -> tuple[ReflectionResourceAttackDefenseBatch, int, int]:
@@ -1181,6 +1230,50 @@ def test_reflected_absorption_transfers_healing_to_reflector() -> None:
     raise AssertionError("fixture seeds did not produce reflected absorption")
 
 
+def test_dynamic_mp_weapon_snapshots_attack_and_consumes_all_mp_on_confirm() -> None:
+    for seed in range(4096):
+        batch = dynamic_mp_weapon_resource_batch(seed=seed, initial_mp=13)
+        dynamic_slots = np.flatnonzero(batch.hand_token_ids[0] == 19)
+        if not dynamic_slots.size:
+            continue
+        attacker = int(batch.active_players[0])
+        batch.step(np.asarray([int(dynamic_slots[0]) + 1], dtype=np.int64))
+        assert batch.selected_values[0] == 26
+        assert batch.magic_points[0, attacker] == 13
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        assert batch.pending_attacks[0] == 26
+        assert batch.magic_points[0, attacker] == 0
+        batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+        assert batch.player_features[0, 0, 0] == pytest.approx(0.14)
+        return
+    raise AssertionError("fixture seeds did not produce Magical Stick")
+
+
+def test_dynamic_mp_weapon_allows_free_boost_but_blocks_paid_miracle_boost() -> None:
+    observed: set[str] = set()
+    for seed in range(8192):
+        batch = dynamic_mp_weapon_resource_batch(seed=seed)
+        dynamic_slots = np.flatnonzero(batch.hand_token_ids[0] == 19)
+        if not dynamic_slots.size:
+            continue
+        ordinary_boosters = np.flatnonzero(batch.hand_token_ids[0] == 3)
+        miracle_boosters = np.flatnonzero(batch.hand_token_ids[0] == 11)
+        batch.step(np.asarray([int(dynamic_slots[0]) + 1], dtype=np.int64))
+        if ordinary_boosters.size:
+            action = int(ordinary_boosters[0]) + 1
+            assert batch.action_mask[0, action]
+            batch.step(np.asarray([action], dtype=np.int64))
+            assert batch.selected_values[0] == 23
+            observed.add("free")
+        if miracle_boosters.size:
+            action = int(miracle_boosters[0]) + 1
+            assert not batch.action_mask[0, action]
+            observed.add("paid")
+        if observed == {"free", "paid"}:
+            return
+    raise AssertionError(f"fixture seeds did not expose both booster classes: {observed}")
+
+
 def test_super_mirror_redirects_full_attack_into_one_hop_defense() -> None:
     batch, attacker, reflection_slot = reflected_attack_batch()
     reflector = int(batch.active_players[0])
@@ -1472,6 +1565,37 @@ def test_resource_heuristics_index_miracle_attacks_in_the_miracle_namespace() ->
     assert ghost_sword not in absorption_weapon.chance_attack_tokens
     assert vine_shoot in absorption_weapon.chance_attack_tokens
     assert absorption_weapon.policy_id == "evidenced-absorption-weapon-resource-combo-v1"
+
+    dynamic_mp_weapon = build_curriculum_heuristic(
+        snapshot,
+        vocabulary,
+        ruleset="dynamic-mp-weapon-resource-hand",
+    )
+    magical_stick = vocabulary.token_id("weapons", "magical-stick")
+    assert dynamic_mp_weapon.attacks[magical_stick] == 2
+    assert dynamic_mp_weapon.dynamic_mp_attacks == {magical_stick: 2}
+    assert dynamic_mp_weapon.policy_id == "evidenced-dynamic-mp-weapon-resource-combo-v1"
+
+
+def test_dynamic_mp_heuristic_ranks_attack_using_current_mp() -> None:
+    policy = CurriculumHeuristic(
+        attacks={2: 10, 19: 2},
+        defenses={4: 8},
+        dynamic_mp_attacks={19: 2},
+    )
+    for seed in range(8192):
+        batch = dynamic_mp_weapon_resource_batch(seed=seed)
+        if not np.any(batch.hand_token_ids[0] == 2) or not np.any(batch.hand_token_ids[0] == 19):
+            continue
+        simulation = type("DynamicMpSimulation", (), {"batch": batch})()
+        action = curriculum_heuristic_actions(
+            simulation,
+            np.asarray([0], dtype=np.int64),
+            policy,
+        )[0]
+        assert batch.hand_token_ids[0, action - 1] == 19
+        return
+    raise AssertionError("fixture seeds did not produce fixed and dynamic attacks together")
 
 
 def test_combo_selection_aggregates_attack_and_defense_before_consuming() -> None:

@@ -80,6 +80,14 @@ inline constexpr std::uint32_t
 inline constexpr const char *kAbsorptionWeaponResourceAttackDefenseRulesetId =
     "plain-elemental-combo-stochastic-chance-absorption-weapon-additive-"
     "reflection-dual-role-resource-miracle-attack-defense-redraw-duel-v1";
+inline constexpr std::uint32_t
+    kDynamicMpWeaponResourceAttackDefenseKernelSchemaVersion = 1;
+inline constexpr std::uint32_t
+    kDynamicMpWeaponResourceAttackDefenseObservationSchemaVersion = 6;
+inline constexpr const char *kDynamicMpWeaponResourceAttackDefenseRulesetId =
+    "plain-elemental-combo-stochastic-chance-absorption-weapon-dynamic-mp-"
+    "additive-reflection-dual-role-resource-miracle-attack-defense-redraw-duel-"
+    "v1";
 inline constexpr std::size_t kWeaponSlots = 5;
 inline constexpr std::size_t kArmorSlots = kHandSlots - kWeaponSlots;
 inline constexpr std::size_t kComboWeaponSlots = 4;
@@ -154,6 +162,9 @@ public:
   }
   [[nodiscard]] bool absorption_weapon_curriculum() const noexcept {
     return absorption_weapon_curriculum_;
+  }
+  [[nodiscard]] bool dynamic_mp_weapon_curriculum() const noexcept {
+    return dynamic_mp_weapon_curriculum_;
   }
   [[nodiscard]] std::uint16_t initial_mp() const noexcept {
     return initial_mp_;
@@ -247,7 +258,11 @@ protected:
       TokenInput chance_absorption_weapon_token_ids = {},
       ValueInput chance_absorption_weapon_attack_values = {},
       ElementInput chance_absorption_weapon_elements = {},
-      ValueInput chance_absorption_weapon_hit_rates = {});
+      ValueInput chance_absorption_weapon_hit_rates = {},
+      bool dynamic_mp_weapon_curriculum = false,
+      TokenInput dynamic_mp_weapon_token_ids = {},
+      ValueInput dynamic_mp_weapon_coefficients = {},
+      ElementInput dynamic_mp_weapon_elements = {});
 
 private:
   static constexpr std::size_t kMaximumBatchSize = 1'000'000;
@@ -296,6 +311,8 @@ private:
                               std::size_t slot);
   void draw_chance_absorption_weapon(std::size_t environment,
                                      std::size_t player, std::size_t slot);
+  void draw_dynamic_mp_weapon(std::size_t environment, std::size_t player,
+                              std::size_t slot);
   void draw_weapon_family(std::size_t environment, std::size_t player,
                           std::size_t slot);
   void draw_armor_family(std::size_t environment, std::size_t player,
@@ -335,6 +352,7 @@ private:
   bool dual_role_curriculum_;
   bool chance_weapon_curriculum_;
   bool absorption_weapon_curriculum_;
+  bool dynamic_mp_weapon_curriculum_;
   std::size_t global_feature_count_;
   std::uint16_t initial_mp_;
   std::vector<std::uint32_t> weapon_token_ids_;
@@ -393,6 +411,9 @@ private:
   std::vector<std::uint16_t> chance_absorption_weapon_attack_values_;
   std::vector<std::uint8_t> chance_absorption_weapon_elements_;
   std::vector<std::uint16_t> chance_absorption_weapon_hit_rates_;
+  std::vector<std::uint32_t> dynamic_mp_weapon_token_ids_;
+  std::vector<std::uint16_t> dynamic_mp_weapon_coefficients_;
+  std::vector<std::uint8_t> dynamic_mp_weapon_elements_;
   std::vector<std::uint64_t> rng_states_;
   std::vector<std::uint64_t> episode_ids_;
   std::vector<std::uint16_t> hit_points_;
@@ -674,6 +695,52 @@ public:
       ValueInput chance_absorption_weapon_attack_values,
       ElementInput chance_absorption_weapon_elements,
       ValueInput chance_absorption_weapon_hit_rates, std::uint64_t seed,
+      std::uint16_t initial_hp, std::uint16_t initial_mp);
+};
+
+class DynamicMpWeaponResourceAttackDefenseBatch final
+    : public AttackDefenseBatch {
+public:
+  DynamicMpWeaponResourceAttackDefenseBatch(
+      std::size_t batch_size, TokenInput weapon_token_ids,
+      ValueInput attack_values, ElementInput weapon_elements,
+      TokenInput booster_token_ids, ValueInput booster_values,
+      ElementInput booster_elements, TokenInput armor_token_ids,
+      ValueInput defense_values, ElementInput armor_elements,
+      TokenInput hp_utility_token_ids, ValueInput hp_utility_values,
+      TokenInput mp_utility_token_ids, ValueInput mp_utility_values,
+      TokenInput attack_miracle_token_ids, ValueInput attack_miracle_values,
+      ElementInput attack_miracle_elements, ValueInput attack_miracle_costs,
+      TokenInput hp_miracle_token_ids, ValueInput hp_miracle_values,
+      ValueInput hp_miracle_costs, TokenInput chance_miracle_token_ids,
+      ValueInput chance_miracle_values, ElementInput chance_miracle_elements,
+      ValueInput chance_miracle_costs, ValueInput chance_miracle_hit_rates,
+      TokenInput effect_miracle_token_ids, ValueInput effect_miracle_values,
+      ElementInput effect_miracle_elements, ValueInput effect_miracle_costs,
+      TokenInput additive_miracle_token_ids, ValueInput additive_miracle_values,
+      ElementInput additive_miracle_elements, ValueInput additive_miracle_costs,
+      TokenInput reflection_armor_token_ids,
+      TokenInput reflection_weapon_token_ids,
+      ValueInput reflection_weapon_values, TokenInput dual_role_token_ids,
+      ValueInput dual_role_attack_values, ValueInput dual_role_defense_values,
+      ElementInput dual_role_elements, TokenInput chance_weapon_token_ids,
+      ValueInput chance_weapon_attack_values,
+      ElementInput chance_weapon_elements, ValueInput chance_weapon_hit_rates,
+      TokenInput chance_dual_role_token_ids,
+      ValueInput chance_dual_role_attack_values,
+      ValueInput chance_dual_role_defense_values,
+      ElementInput chance_dual_role_elements,
+      ValueInput chance_dual_role_hit_rates,
+      TokenInput absorption_weapon_token_ids,
+      ValueInput absorption_weapon_attack_values,
+      ElementInput absorption_weapon_elements,
+      TokenInput chance_absorption_weapon_token_ids,
+      ValueInput chance_absorption_weapon_attack_values,
+      ElementInput chance_absorption_weapon_elements,
+      ValueInput chance_absorption_weapon_hit_rates,
+      TokenInput dynamic_mp_weapon_token_ids,
+      ValueInput dynamic_mp_weapon_coefficients,
+      ElementInput dynamic_mp_weapon_elements, std::uint64_t seed,
       std::uint16_t initial_hp, std::uint16_t initial_mp);
 };
 

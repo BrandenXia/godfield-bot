@@ -28,6 +28,7 @@ from godfield_bot.reference import (
     verified_attack_miracle_cards,
     verified_chance_absorption_weapon_cards,
     verified_chance_attack_miracle_cards,
+    verified_dynamic_mp_weapon_cards,
     verified_effect_attack_miracle_cards,
     verified_hp_utility_miracle_cards,
     verified_reflection_armor_cards,
@@ -51,6 +52,7 @@ AttackDefenseRuleset = Literal[
     "dual-role-resource-hand",
     "chance-weapon-resource-hand",
     "absorption-weapon-resource-hand",
+    "dynamic-mp-weapon-resource-hand",
 ]
 
 
@@ -97,6 +99,7 @@ class SimulationMetadata(BaseModel):
         "elemental-dual-role-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-chance-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-absorption-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
+        "elemental-dynamic-mp-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
     ] = "uniform-redraw-with-replacement"
     promotion_eligible: Literal[False] = False
 
@@ -256,6 +259,9 @@ def create_attack_defense_simulation(
             DUAL_ROLE_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
             DUAL_ROLE_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
             DUAL_ROLE_RESOURCE_ATTACK_DEFENSE_RULESET_ID,
+            DYNAMIC_MP_WEAPON_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
+            DYNAMIC_MP_WEAPON_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
+            DYNAMIC_MP_WEAPON_RESOURCE_ATTACK_DEFENSE_RULESET_ID,
             ELEMENTAL_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
             ELEMENTAL_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
             ELEMENTAL_ATTACK_DEFENSE_RULESET_ID,
@@ -285,6 +291,7 @@ def create_attack_defense_simulation(
             ChanceWeaponResourceAttackDefenseBatch,
             ComboAttackDefenseBatch,
             DualRoleResourceAttackDefenseBatch,
+            DynamicMpWeaponResourceAttackDefenseBatch,
             ElementalAttackDefenseBatch,
             ExpandedResourceAttackDefenseBatch,
             ReflectionResourceAttackDefenseBatch,
@@ -310,6 +317,7 @@ def create_attack_defense_simulation(
         "dual-role-resource-hand",
         "chance-weapon-resource-hand",
         "absorption-weapon-resource-hand",
+        "dynamic-mp-weapon-resource-hand",
     }
     if ruleset in expanded_rulesets:
         attacks = plain_attack_weapon_cards(snapshot)
@@ -372,6 +380,7 @@ def create_attack_defense_simulation(
         "dual-role-resource-hand",
         "chance-weapon-resource-hand",
         "absorption-weapon-resource-hand",
+        "dynamic-mp-weapon-resource-hand",
     }:
         boosters = plain_attack_booster_cards(snapshot)
         if not boosters:
@@ -407,6 +416,7 @@ def create_attack_defense_simulation(
             "dual-role-resource-hand",
             "chance-weapon-resource-hand",
             "absorption-weapon-resource-hand",
+            "dynamic-mp-weapon-resource-hand",
         }:
             hp_utilities = plain_hp_utility_sundries(snapshot)
             mp_utilities = plain_mp_utility_sundries(snapshot)
@@ -488,6 +498,7 @@ def create_attack_defense_simulation(
                 "dual-role-resource-hand",
                 "chance-weapon-resource-hand",
                 "absorption-weapon-resource-hand",
+                "dynamic-mp-weapon-resource-hand",
             }:
                 chance_miracles = verified_chance_attack_miracle_cards(snapshot)
                 effect_miracles = {
@@ -544,6 +555,7 @@ def create_attack_defense_simulation(
                 chance_dual_role_catalog: list[dict[str, object]] = []
                 absorption_weapon_catalog: list[dict[str, object]] = []
                 chance_absorption_weapon_catalog: list[dict[str, object]] = []
+                dynamic_mp_weapon_catalog: list[dict[str, object]] = []
                 if ruleset in {
                     "expanded-resource-hand",
                     "reflection-resource-hand",
@@ -551,6 +563,7 @@ def create_attack_defense_simulation(
                     "dual-role-resource-hand",
                     "chance-weapon-resource-hand",
                     "absorption-weapon-resource-hand",
+                    "dynamic-mp-weapon-resource-hand",
                 }:
                     additive_miracles = verified_attack_booster_miracle_cards(snapshot)
                     if not additive_miracles:
@@ -584,6 +597,7 @@ def create_attack_defense_simulation(
                         "dual-role-resource-hand",
                         "chance-weapon-resource-hand",
                         "absorption-weapon-resource-hand",
+                        "dynamic-mp-weapon-resource-hand",
                     }:
                         reflection_armor = verified_reflection_armor_cards(snapshot)
                         if not reflection_armor:
@@ -608,6 +622,7 @@ def create_attack_defense_simulation(
                             "dual-role-resource-hand",
                             "chance-weapon-resource-hand",
                             "absorption-weapon-resource-hand",
+                            "dynamic-mp-weapon-resource-hand",
                         }:
                             reflection_weapons = verified_reflection_weapon_cards(snapshot)
                             if not reflection_weapons:
@@ -638,6 +653,7 @@ def create_attack_defense_simulation(
                                 "dual-role-resource-hand",
                                 "chance-weapon-resource-hand",
                                 "absorption-weapon-resource-hand",
+                                "dynamic-mp-weapon-resource-hand",
                             }:
                                 dual_roles = plain_dual_role_weapon_cards(snapshot)
                                 if not dual_roles:
@@ -679,6 +695,7 @@ def create_attack_defense_simulation(
                                 if ruleset in {
                                     "chance-weapon-resource-hand",
                                     "absorption-weapon-resource-hand",
+                                    "dynamic-mp-weapon-resource-hand",
                                 }:
                                     chance_weapons = plain_chance_weapon_cards(snapshot)
                                     chance_dual_roles = plain_chance_dual_role_weapon_cards(
@@ -754,7 +771,10 @@ def create_attack_defense_simulation(
                                         [row["hit_rate"] for row in chance_dual_role_catalog],
                                         dtype=np.uint16,
                                     )
-                                    if ruleset == "absorption-weapon-resource-hand":
+                                    if ruleset in {
+                                        "absorption-weapon-resource-hand",
+                                        "dynamic-mp-weapon-resource-hand",
+                                    }:
                                         absorption_weapons = verified_absorption_weapon_cards(
                                             snapshot
                                         )
@@ -795,76 +815,152 @@ def create_attack_defense_simulation(
                                                 chance_absorption_weapons.items()
                                             )
                                         ]
-                                        batch = AbsorptionWeaponResourceAttackDefenseBatch(
-                                            *resource_args,
-                                            *stochastic_args,
-                                            *additive_args,
-                                            reflection_armor_token_ids,
-                                            reflection_weapon_token_ids,
-                                            reflection_weapon_values,
-                                            *dual_role_args,
-                                            chance_weapon_token_ids,
-                                            chance_weapon_values,
-                                            chance_weapon_elements,
-                                            chance_weapon_hit_rates,
-                                            chance_dual_role_token_ids,
-                                            chance_dual_role_attack_values,
-                                            chance_dual_role_defense_values,
-                                            chance_dual_role_elements,
-                                            chance_dual_role_hit_rates,
-                                            np.asarray(
-                                                [
-                                                    row["token_id"]
-                                                    for row in absorption_weapon_catalog
-                                                ],
-                                                dtype=np.uint32,
-                                            ),
-                                            np.asarray(
-                                                [
-                                                    row["attack"]
-                                                    for row in absorption_weapon_catalog
-                                                ],
-                                                dtype=np.uint16,
-                                            ),
-                                            np.asarray(
-                                                [
-                                                    row["element_id"]
-                                                    for row in absorption_weapon_catalog
-                                                ],
-                                                dtype=np.uint8,
-                                            ),
-                                            np.asarray(
-                                                [
-                                                    row["token_id"]
-                                                    for row in chance_absorption_weapon_catalog
-                                                ],
-                                                dtype=np.uint32,
-                                            ),
-                                            np.asarray(
-                                                [
-                                                    row["attack"]
-                                                    for row in chance_absorption_weapon_catalog
-                                                ],
-                                                dtype=np.uint16,
-                                            ),
-                                            np.asarray(
-                                                [
-                                                    row["element_id"]
-                                                    for row in chance_absorption_weapon_catalog
-                                                ],
-                                                dtype=np.uint8,
-                                            ),
-                                            np.asarray(
-                                                [
-                                                    row["hit_rate"]
-                                                    for row in chance_absorption_weapon_catalog
-                                                ],
-                                                dtype=np.uint16,
-                                            ),
-                                            seed,
-                                            initial_hp,
-                                            initial_mp,
+                                        absorption_weapon_token_ids = np.asarray(
+                                            [row["token_id"] for row in absorption_weapon_catalog],
+                                            dtype=np.uint32,
                                         )
+                                        absorption_weapon_values = np.asarray(
+                                            [row["attack"] for row in absorption_weapon_catalog],
+                                            dtype=np.uint16,
+                                        )
+                                        absorption_weapon_elements = np.asarray(
+                                            [
+                                                row["element_id"]
+                                                for row in absorption_weapon_catalog
+                                            ],
+                                            dtype=np.uint8,
+                                        )
+                                        chance_absorption_weapon_token_ids = np.asarray(
+                                            [
+                                                row["token_id"]
+                                                for row in chance_absorption_weapon_catalog
+                                            ],
+                                            dtype=np.uint32,
+                                        )
+                                        chance_absorption_weapon_values = np.asarray(
+                                            [
+                                                row["attack"]
+                                                for row in chance_absorption_weapon_catalog
+                                            ],
+                                            dtype=np.uint16,
+                                        )
+                                        chance_absorption_weapon_elements = np.asarray(
+                                            [
+                                                row["element_id"]
+                                                for row in chance_absorption_weapon_catalog
+                                            ],
+                                            dtype=np.uint8,
+                                        )
+                                        chance_absorption_weapon_hit_rates = np.asarray(
+                                            [
+                                                row["hit_rate"]
+                                                for row in chance_absorption_weapon_catalog
+                                            ],
+                                            dtype=np.uint16,
+                                        )
+                                        if ruleset == "dynamic-mp-weapon-resource-hand":
+                                            dynamic_mp_weapons = verified_dynamic_mp_weapon_cards(
+                                                snapshot
+                                            )
+                                            if not dynamic_mp_weapons:
+                                                raise ValueError(
+                                                    "accepted snapshot contains no supported "
+                                                    "dynamic MP weapon"
+                                                )
+                                            dynamic_mp_weapon_catalog = [
+                                                {
+                                                    "coefficient": coefficient,
+                                                    "effect": "consumeAllMP",
+                                                    "element": element,
+                                                    "element_id": COMBAT_ELEMENT_IDS[element],
+                                                    "kind": "dynamic-mp-weapon",
+                                                    "slug": slug,
+                                                    "token_id": vocabulary.token_id(
+                                                        "weapons", slug
+                                                    ),
+                                                }
+                                                for slug, (coefficient, element) in sorted(
+                                                    dynamic_mp_weapons.items()
+                                                )
+                                            ]
+                                            batch = DynamicMpWeaponResourceAttackDefenseBatch(
+                                                *resource_args,
+                                                *stochastic_args,
+                                                *additive_args,
+                                                reflection_armor_token_ids,
+                                                reflection_weapon_token_ids,
+                                                reflection_weapon_values,
+                                                *dual_role_args,
+                                                chance_weapon_token_ids,
+                                                chance_weapon_values,
+                                                chance_weapon_elements,
+                                                chance_weapon_hit_rates,
+                                                chance_dual_role_token_ids,
+                                                chance_dual_role_attack_values,
+                                                chance_dual_role_defense_values,
+                                                chance_dual_role_elements,
+                                                chance_dual_role_hit_rates,
+                                                absorption_weapon_token_ids,
+                                                absorption_weapon_values,
+                                                absorption_weapon_elements,
+                                                chance_absorption_weapon_token_ids,
+                                                chance_absorption_weapon_values,
+                                                chance_absorption_weapon_elements,
+                                                chance_absorption_weapon_hit_rates,
+                                                np.asarray(
+                                                    [
+                                                        row["token_id"]
+                                                        for row in dynamic_mp_weapon_catalog
+                                                    ],
+                                                    dtype=np.uint32,
+                                                ),
+                                                np.asarray(
+                                                    [
+                                                        row["coefficient"]
+                                                        for row in dynamic_mp_weapon_catalog
+                                                    ],
+                                                    dtype=np.uint16,
+                                                ),
+                                                np.asarray(
+                                                    [
+                                                        row["element_id"]
+                                                        for row in dynamic_mp_weapon_catalog
+                                                    ],
+                                                    dtype=np.uint8,
+                                                ),
+                                                seed,
+                                                initial_hp,
+                                                initial_mp,
+                                            )
+                                        else:
+                                            batch = AbsorptionWeaponResourceAttackDefenseBatch(
+                                                *resource_args,
+                                                *stochastic_args,
+                                                *additive_args,
+                                                reflection_armor_token_ids,
+                                                reflection_weapon_token_ids,
+                                                reflection_weapon_values,
+                                                *dual_role_args,
+                                                chance_weapon_token_ids,
+                                                chance_weapon_values,
+                                                chance_weapon_elements,
+                                                chance_weapon_hit_rates,
+                                                chance_dual_role_token_ids,
+                                                chance_dual_role_attack_values,
+                                                chance_dual_role_defense_values,
+                                                chance_dual_role_elements,
+                                                chance_dual_role_hit_rates,
+                                                absorption_weapon_token_ids,
+                                                absorption_weapon_values,
+                                                absorption_weapon_elements,
+                                                chance_absorption_weapon_token_ids,
+                                                chance_absorption_weapon_values,
+                                                chance_absorption_weapon_elements,
+                                                chance_absorption_weapon_hit_rates,
+                                                seed,
+                                                initial_hp,
+                                                initial_mp,
+                                            )
                                     else:
                                         batch = ChanceWeaponResourceAttackDefenseBatch(
                                             *resource_args,
@@ -950,6 +1046,7 @@ def create_attack_defense_simulation(
                     + chance_dual_role_catalog
                     + absorption_weapon_catalog
                     + chance_absorption_weapon_catalog
+                    + dynamic_mp_weapon_catalog
                 )
             else:
                 batch = ResourceAttackDefenseBatch(
@@ -1019,11 +1116,24 @@ def create_attack_defense_simulation(
         "elemental-dual-role-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-chance-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-absorption-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
+        "elemental-dynamic-mp-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
     ]
     action_semantics: Literal["atomic-attack-defense-macro", "sequential-combo-selection"] = (
         "atomic-attack-defense-macro"
     )
-    if ruleset == "absorption-weapon-resource-hand":
+    if ruleset == "dynamic-mp-weapon-resource-hand":
+        kernel_schema_version = DYNAMIC_MP_WEAPON_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION
+        observation_schema_version = (
+            DYNAMIC_MP_WEAPON_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION
+        )
+        ruleset_id = DYNAMIC_MP_WEAPON_RESOURCE_ATTACK_DEFENSE_RULESET_ID
+        global_feature_count = STOCHASTIC_RESOURCE_GLOBAL_FEATURE_COUNT
+        sampling_distribution = (
+            "elemental-dynamic-mp-weapon-resource-2-1-2-1-1-1-1-"
+            "initial-uniform-redraw-with-base-liveness"
+        )
+        action_semantics = "sequential-combo-selection"
+    elif ruleset == "absorption-weapon-resource-hand":
         kernel_schema_version = ABSORPTION_WEAPON_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION
         observation_schema_version = (
             ABSORPTION_WEAPON_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION

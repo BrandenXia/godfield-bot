@@ -22,6 +22,7 @@ from godfield_bot.reference import (
     verified_chance_absorption_weapon_cards,
     verified_chance_attack_miracle_cards,
     verified_cp_utility_miracle_cards,
+    verified_dynamic_mp_weapon_cards,
     verified_effect_attack_miracle_cards,
     verified_hp_utility_miracle_cards,
     verified_reflection_armor_cards,
@@ -164,6 +165,7 @@ def test_committed_snapshot_matches_validated_live_catalog() -> None:
         "real-ghost-sword": (12, "non-element"),
     }
     assert verified_chance_absorption_weapon_cards(snapshot) == {"vine-shoot": (75, 3, "wood")}
+    assert verified_dynamic_mp_weapon_cards(snapshot) == {"magical-stick": (2, "non-element")}
     assert verified_effect_attack_miracle_cards(snapshot) == {
         "absorption": (10, 10, "light", "absorbHP")
     }

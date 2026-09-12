@@ -83,6 +83,10 @@ def test_evaluation_config_accepts_expanded_resource_ruleset() -> None:
         SimulationEvaluationConfig(ruleset="absorption-weapon-resource-hand").ruleset
         == "absorption-weapon-resource-hand"
     )
+    assert (
+        SimulationEvaluationConfig(ruleset="dynamic-mp-weapon-resource-hand").ruleset
+        == "dynamic-mp-weapon-resource-hand"
+    )
 
 
 def test_paired_score_statistics_use_seed_pairs_as_samples() -> None:

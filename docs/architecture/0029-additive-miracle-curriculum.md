@@ -51,9 +51,10 @@ than saving MP for a fixed, chance, healing, or absorption miracle. Because the
 feature shape is unchanged, an existing schema-v6 checkpoint can enter this
 curriculum without another weight migration.
 
-The simulator remains non-promotable. Multi-hit resolution, special armor,
-curses, guardians, phenomena, stochastic self-damage probabilities, and the CP
-purchase economy still require separately evidenced ruleset increments.
+The simulator remains non-promotable. Multi-hit resolution, curses, guardians,
+phenomena, stochastic self-damage probabilities, and the CP purchase economy
+still require separately evidenced ruleset increments. The first special-armor
+increment is addressed by [ADR 0030](0030-evidenced-super-mirror-curriculum.md).
 
 ## Implementation evidence
 

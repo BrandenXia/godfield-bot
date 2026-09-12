@@ -19,6 +19,7 @@ from godfield_bot.reference import (
     verified_cp_utility_miracle_cards,
     verified_effect_attack_miracle_cards,
     verified_hp_utility_miracle_cards,
+    verified_reflection_armor_cards,
     verified_stochastic_hp_sundries,
 )
 
@@ -130,6 +131,7 @@ def test_committed_snapshot_matches_validated_live_catalog() -> None:
         "fireball": (2, 2, "fire"),
         "meteor": (10, 7, "light"),
     }
+    assert verified_reflection_armor_cards(snapshot) == {"super-mirror"}
     assert verified_effect_attack_miracle_cards(snapshot) == {
         "absorption": (10, 10, "light", "absorbHP")
     }

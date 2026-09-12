@@ -103,6 +103,13 @@ uv run godfield-bot models evaluate-simulation models/<expanded-candidate-id> \
   --heuristic-noninferiority-margin 0.025
 uv run godfield-bot simulation benchmark --ruleset expanded-resource-attack-defense \
   --batch-size 4096 --batch-steps 1000
+uv run godfield-bot models train-simulation models/<schema-v6-model-id> \
+  --ruleset reflection-resource-hand --batch-size 256 --rollout-steps 32 --updates 10
+uv run godfield-bot models evaluate-simulation models/<reflection-candidate-id> \
+  --ruleset reflection-resource-hand --games-per-seat 512 --minimum-score 0.5 \
+  --heuristic-noninferiority-margin 0.025
+uv run godfield-bot simulation benchmark --ruleset reflection-resource-attack-defense \
+  --batch-size 4096 --batch-steps 1000
 ```
 
 `api observe-private --password-stdin` uses God Field's keyed private-room
@@ -411,12 +418,15 @@ seven-way pending-element signal. A recorded model migration preserves the six
 old global inputs and zero-initializes the new columns before elemental
 training. All rulesets are fingerprinted against the accepted client,
 artifact vocabulary, and exact rule catalog, and none is promotion-eligible.
-The broadest `expanded-resource-hand` ruleset builds on schema-v6 stochastic
-combat and adds the Bible-verified Fireball and Meteor additive miracles. Their
-attack, element, and MP cost accumulate after a weapon base; the cost is charged
-on confirmation and the miracle remains reusable. Its 126-card catalog and
-sampling distribution are independently fingerprinted. See
-[ADR 0029](docs/architecture/0029-additive-miracle-curriculum.md).
+The broadest `reflection-resource-hand` ruleset builds on schema-v6 stochastic
+combat and the Bible-verified Fireball and Meteor additive miracles, then adds
+the official-recording-verified Super Mirror. The armor exclusively redirects
+the unchanged pending attack to its original attacker; the reflected response
+allows ordinary defense or Forgive and masks another reflection, keeping the
+evidenced transition bounded. Its 127-card catalog and sampling distribution
+are independently fingerprinted. See
+[ADR 0029](docs/architecture/0029-additive-miracle-curriculum.md) and
+[ADR 0030](docs/architecture/0030-evidenced-super-mirror-curriculum.md).
 
 `models train-simulation` creates a bounded
 `heuristic-warmstart-recurrent-ppo-self-play-v1` candidate. The slot-aware

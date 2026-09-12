@@ -63,6 +63,10 @@ def test_evaluation_config_accepts_expanded_resource_ruleset() -> None:
         SimulationEvaluationConfig(ruleset="expanded-resource-hand").ruleset
         == "expanded-resource-hand"
     )
+    assert (
+        SimulationEvaluationConfig(ruleset="reflection-resource-hand").ruleset
+        == "reflection-resource-hand"
+    )
 
 
 def test_paired_score_statistics_use_seed_pairs_as_samples() -> None:

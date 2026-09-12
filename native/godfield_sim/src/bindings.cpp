@@ -9,6 +9,7 @@ using godfield_sim::ComboAttackDefenseBatch;
 using godfield_sim::ElementalAttackDefenseBatch;
 using godfield_sim::ExpandedResourceAttackDefenseBatch;
 using godfield_sim::FixedAttackBatch;
+using godfield_sim::ReflectionResourceAttackDefenseBatch;
 using godfield_sim::ResourceAttackDefenseBatch;
 using godfield_sim::StochasticResourceAttackDefenseBatch;
 
@@ -67,6 +68,12 @@ NB_MODULE(_native, module) {
       godfield_sim::kExpandedResourceAttackDefenseObservationSchemaVersion;
   module.attr("EXPANDED_RESOURCE_ATTACK_DEFENSE_RULESET_ID") =
       godfield_sim::kExpandedResourceAttackDefenseRulesetId;
+  module.attr("REFLECTION_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION") =
+      godfield_sim::kReflectionResourceAttackDefenseKernelSchemaVersion;
+  module.attr("REFLECTION_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION") =
+      godfield_sim::kReflectionResourceAttackDefenseObservationSchemaVersion;
+  module.attr("REFLECTION_RESOURCE_ATTACK_DEFENSE_RULESET_ID") =
+      godfield_sim::kReflectionResourceAttackDefenseRulesetId;
   module.attr("ELEMENT_COUNT") = godfield_sim::kElementCount;
   module.attr("ELEMENTAL_GLOBAL_FEATURE_COUNT") =
       godfield_sim::kElementalGlobalFeatureCount;
@@ -102,6 +109,7 @@ NB_MODULE(_native, module) {
   module.attr("CARD_KIND_CHANCE_ATTACK_MIRACLE") = std::uint8_t{8U};
   module.attr("CARD_KIND_EFFECT_ATTACK_MIRACLE") = std::uint8_t{9U};
   module.attr("CARD_KIND_ADDITIVE_MIRACLE") = std::uint8_t{10U};
+  module.attr("CARD_KIND_REFLECTION_ARMOR") = std::uint8_t{11U};
 
   nb::class_<FixedAttackBatch>(module, "FixedAttackBatch")
       .def(nb::init<std::size_t, godfield_sim::TokenInput,
@@ -162,6 +170,8 @@ NB_MODULE(_native, module) {
                    &AttackDefenseBatch::stochastic_resource_curriculum)
       .def_prop_ro("additive_miracle_curriculum",
                    &AttackDefenseBatch::additive_miracle_curriculum)
+      .def_prop_ro("reflection_curriculum",
+                   &AttackDefenseBatch::reflection_curriculum)
       .def_prop_ro("initial_mp", &AttackDefenseBatch::initial_mp)
       .def_prop_ro("global_feature_count",
                    &AttackDefenseBatch::global_feature_count)
@@ -189,6 +199,9 @@ NB_MODULE(_native, module) {
                    nb::rv_policy::reference_internal)
       .def_prop_ro("pending_elements",
                    &AttackDefenseBatch::pending_elements_view,
+                   nb::rv_policy::reference_internal)
+      .def_prop_ro("pending_reflected",
+                   &AttackDefenseBatch::pending_reflected_view,
                    nb::rv_policy::reference_internal)
       .def_prop_ro("selected_hand_mask",
                    &AttackDefenseBatch::selected_hand_mask_view,
@@ -350,5 +363,49 @@ NB_MODULE(_native, module) {
           nb::arg("additive_miracle_values"),
           nb::arg("additive_miracle_elements"),
           nb::arg("additive_miracle_costs"), nb::arg("seed") = 67U,
+          nb::arg("initial_hp") = 40U, nb::arg("initial_mp") = 10U);
+
+  nb::class_<ReflectionResourceAttackDefenseBatch, AttackDefenseBatch>(
+      module, "ReflectionResourceAttackDefenseBatch")
+      .def(
+          nb::init<std::size_t, godfield_sim::TokenInput,
+                   godfield_sim::ValueInput, godfield_sim::ElementInput,
+                   godfield_sim::TokenInput, godfield_sim::ValueInput,
+                   godfield_sim::ElementInput, godfield_sim::TokenInput,
+                   godfield_sim::ValueInput, godfield_sim::ElementInput,
+                   godfield_sim::TokenInput, godfield_sim::ValueInput,
+                   godfield_sim::TokenInput, godfield_sim::ValueInput,
+                   godfield_sim::TokenInput, godfield_sim::ValueInput,
+                   godfield_sim::ElementInput, godfield_sim::ValueInput,
+                   godfield_sim::TokenInput, godfield_sim::ValueInput,
+                   godfield_sim::ValueInput, godfield_sim::TokenInput,
+                   godfield_sim::ValueInput, godfield_sim::ElementInput,
+                   godfield_sim::ValueInput, godfield_sim::ValueInput,
+                   godfield_sim::TokenInput, godfield_sim::ValueInput,
+                   godfield_sim::ElementInput, godfield_sim::ValueInput,
+                   godfield_sim::TokenInput, godfield_sim::ValueInput,
+                   godfield_sim::ElementInput, godfield_sim::ValueInput,
+                   godfield_sim::TokenInput, std::uint64_t, std::uint16_t,
+                   std::uint16_t>(),
+          nb::arg("batch_size"), nb::arg("weapon_token_ids"),
+          nb::arg("attack_values"), nb::arg("weapon_elements"),
+          nb::arg("booster_token_ids"), nb::arg("booster_values"),
+          nb::arg("booster_elements"), nb::arg("armor_token_ids"),
+          nb::arg("defense_values"), nb::arg("armor_elements"),
+          nb::arg("hp_utility_token_ids"), nb::arg("hp_utility_values"),
+          nb::arg("mp_utility_token_ids"), nb::arg("mp_utility_values"),
+          nb::arg("attack_miracle_token_ids"), nb::arg("attack_miracle_values"),
+          nb::arg("attack_miracle_elements"), nb::arg("attack_miracle_costs"),
+          nb::arg("hp_miracle_token_ids"), nb::arg("hp_miracle_values"),
+          nb::arg("hp_miracle_costs"), nb::arg("chance_miracle_token_ids"),
+          nb::arg("chance_miracle_values"), nb::arg("chance_miracle_elements"),
+          nb::arg("chance_miracle_costs"), nb::arg("chance_miracle_hit_rates"),
+          nb::arg("effect_miracle_token_ids"), nb::arg("effect_miracle_values"),
+          nb::arg("effect_miracle_elements"), nb::arg("effect_miracle_costs"),
+          nb::arg("additive_miracle_token_ids"),
+          nb::arg("additive_miracle_values"),
+          nb::arg("additive_miracle_elements"),
+          nb::arg("additive_miracle_costs"),
+          nb::arg("reflection_armor_token_ids"), nb::arg("seed") = 67U,
           nb::arg("initial_hp") = 40U, nb::arg("initial_mp") = 10U);
 }

@@ -54,7 +54,8 @@ Reflection, bounce, miracle blocking, curse/status effects, guardians, trade,
 and phenomena remain future ruleset increments. Additive miracles are addressed
 by [ADR 0029](0029-additive-miracle-curriculum.md). Special
 armor should be added only after tests encode the observed official-server
-resolution order.
+resolution order. Super Mirror now meets that bar in
+[ADR 0030](0030-evidenced-super-mirror-curriculum.md).
 
 ## Initial implementation evidence
 

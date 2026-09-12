@@ -599,6 +599,23 @@ def verified_attack_booster_miracle_cards(
     return result
 
 
+def verified_reflection_armor_cards(snapshot: BibleSnapshot) -> frozenset[str]:
+    """Return armor whose complete audited effect is unconditional reflection."""
+
+    armor = snapshot.catalog.get("armor")
+    if armor is None:
+        return frozenset()
+    return frozenset(
+        artifact.asset
+        for artifact in armor.items
+        if not artifact.element_image_paths
+        and len(artifact.detail) == 4
+        and artifact.detail[1] == "Reflect anything"
+        and re.fullmatch(r"\$\d+", artifact.detail[2]) is not None
+        and artifact.detail[3].startswith("Gift Rate:")
+    )
+
+
 def verified_chance_attack_miracle_cards(
     snapshot: BibleSnapshot,
 ) -> dict[str, tuple[int, int, int, CombatElement]]:

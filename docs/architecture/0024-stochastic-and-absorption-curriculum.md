@@ -50,8 +50,9 @@ defensive implications of life-steal. Catalog fingerprints now cover 124
 cards, including chance rates and effect identifiers. Existing schema-v5 live
 shadow evidence remains valid and must not be mixed with schema-v6 evaluation.
 
-Reflection, bounce, miracle blocking, curse/status effects, additive miracles,
-guardians, trade, and phenomena remain future ruleset increments. Special
+Reflection, bounce, miracle blocking, curse/status effects, guardians, trade,
+and phenomena remain future ruleset increments. Additive miracles are addressed
+by [ADR 0029](0029-additive-miracle-curriculum.md). Special
 armor should be added only after tests encode the observed official-server
 resolution order.
 

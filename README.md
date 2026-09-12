@@ -96,6 +96,13 @@ uv run godfield-bot models evaluate-simulation models/<stochastic-candidate-id> 
   --heuristic-noninferiority-margin 0.025
 uv run godfield-bot simulation benchmark --ruleset stochastic-resource-attack-defense \
   --batch-size 4096 --batch-steps 1000
+uv run godfield-bot models train-simulation models/<schema-v6-model-id> \
+  --ruleset expanded-resource-hand --batch-size 256 --rollout-steps 32 --updates 10
+uv run godfield-bot models evaluate-simulation models/<expanded-candidate-id> \
+  --ruleset expanded-resource-hand --games-per-seat 512 --minimum-score 0.5 \
+  --heuristic-noninferiority-margin 0.025
+uv run godfield-bot simulation benchmark --ruleset expanded-resource-attack-defense \
+  --batch-size 4096 --batch-steps 1000
 ```
 
 `api observe-private --password-stdin` uses God Field's keyed private-room
@@ -379,7 +386,7 @@ matches require another participant or separately authorized host account,
 because Training gameplay exists only inside the browser client. Learning will
 be simulator-first with real-game fine-tuning.
 
-The native simulator provides four fast, deterministic curricula. The original
+The native simulator provides a sequence of fast, versioned curricula. The original
 `plain-attack-redraw-duel-v1` ruleset isolates effect-free neutral attacks. The
 default `plain-attack-defense-redraw-duel-v1` benchmark adds a separate defense
 decision: five weapon slots and four armor slots redraw within their own
@@ -404,6 +411,12 @@ seven-way pending-element signal. A recorded model migration preserves the six
 old global inputs and zero-initializes the new columns before elemental
 training. All rulesets are fingerprinted against the accepted client,
 artifact vocabulary, and exact rule catalog, and none is promotion-eligible.
+The broadest `expanded-resource-hand` ruleset builds on schema-v6 stochastic
+combat and adds the Bible-verified Fireball and Meteor additive miracles. Their
+attack, element, and MP cost accumulate after a weapon base; the cost is charged
+on confirmation and the miracle remains reusable. Its 126-card catalog and
+sampling distribution are independently fingerprinted. See
+[ADR 0029](docs/architecture/0029-additive-miracle-curriculum.md).
 
 `models train-simulation` creates a bounded
 `heuristic-warmstart-recurrent-ppo-self-play-v1` candidate. The slot-aware

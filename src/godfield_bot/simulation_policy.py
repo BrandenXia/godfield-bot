@@ -15,6 +15,7 @@ from godfield_bot.reference import (
     plain_defense_armor_values,
     plain_hp_utility_sundries,
     plain_mp_utility_sundries,
+    verified_attack_booster_miracle_cards,
     verified_attack_miracle_cards,
     verified_chance_attack_miracle_cards,
     verified_effect_attack_miracle_cards,
@@ -27,6 +28,7 @@ ELEMENTAL_HEURISTIC_POLICY_ID = "plain-element-aware-max-attack-conservative-def
 COMBO_HEURISTIC_POLICY_ID = "plain-elemental-greedy-combo-v2"
 RESOURCE_HEURISTIC_POLICY_ID = "plain-resource-aware-combo-v1"
 STOCHASTIC_RESOURCE_HEURISTIC_POLICY_ID = "expected-value-stochastic-resource-combo-v1"
+EXPANDED_RESOURCE_HEURISTIC_POLICY_ID = "expected-value-additive-miracle-resource-combo-v1"
 FORGIVE_ACTION_INDEX = 19
 CONFIRM_ACTION_INDEX = 20
 
@@ -59,6 +61,7 @@ def build_curriculum_heuristic(
         "combo-hand",
         "resource-hand",
         "stochastic-resource-hand",
+        "expanded-resource-hand",
     }:
         attacks = {
             slug: attack for slug, (attack, _element) in plain_attack_weapon_cards(snapshot).items()
@@ -67,7 +70,12 @@ def build_curriculum_heuristic(
             slug: defense
             for slug, (defense, _element) in plain_defense_armor_cards(snapshot).items()
         }
-        if ruleset in {"combo-hand", "resource-hand", "stochastic-resource-hand"}:
+        if ruleset in {
+            "combo-hand",
+            "resource-hand",
+            "stochastic-resource-hand",
+            "expanded-resource-hand",
+        }:
             boosters = {
                 slug: boost
                 for slug, (boost, _element) in plain_attack_booster_cards(snapshot).items()
@@ -83,7 +91,8 @@ def build_curriculum_heuristic(
     mp_utilities: dict[str, int] = {}
     attack_miracles: dict[str, tuple[int, int]] = {}
     chance_attack_slugs: set[str] = set()
-    if ruleset in {"resource-hand", "stochastic-resource-hand"}:
+    miracle_boosters: dict[str, int] = {}
+    if ruleset in {"resource-hand", "stochastic-resource-hand", "expanded-resource-hand"}:
         hp_utilities.update(
             (slug, (utility, 0)) for slug, utility in plain_hp_utility_sundries(snapshot).items()
         )
@@ -94,7 +103,7 @@ def build_curriculum_heuristic(
             for slug, (attack, cost, _element) in verified_attack_miracle_cards(snapshot).items()
         }
         policy_id = RESOURCE_HEURISTIC_POLICY_ID
-        if ruleset == "stochastic-resource-hand":
+        if ruleset in {"stochastic-resource-hand", "expanded-resource-hand"}:
             chance_miracles = {
                 slug: (round(hit_rate * attack / 100), cost)
                 for slug, (hit_rate, attack, cost, _element) in (
@@ -112,6 +121,14 @@ def build_curriculum_heuristic(
             attack_miracles.update(chance_miracles)
             attack_miracles.update(effect_miracles)
             policy_id = STOCHASTIC_RESOURCE_HEURISTIC_POLICY_ID
+            if ruleset == "expanded-resource-hand":
+                miracle_boosters = {
+                    slug: boost
+                    for slug, (boost, _cost, _element) in (
+                        verified_attack_booster_miracle_cards(snapshot).items()
+                    )
+                }
+                policy_id = EXPANDED_RESOURCE_HEURISTIC_POLICY_ID
     attack_token_values = {
         vocabulary.token_id("weapons", slug): attack for slug, attack in attacks.items()
     }
@@ -121,12 +138,18 @@ def build_curriculum_heuristic(
             for slug, (attack, _cost) in attack_miracles.items()
         }
     )
+    booster_token_values = {
+        vocabulary.token_id("weapons", slug): boost for slug, boost in boosters.items()
+    }
+    booster_token_values.update(
+        {vocabulary.token_id("miracles", slug): boost for slug, boost in miracle_boosters.items()}
+    )
     return CurriculumHeuristic(
         attacks=attack_token_values,
         defenses={
             vocabulary.token_id("armor", slug): defense for slug, defense in defenses.items()
         },
-        boosters={vocabulary.token_id("weapons", slug): boost for slug, boost in boosters.items()},
+        boosters=booster_token_values,
         hp_utilities={
             vocabulary.token_id("miracles" if cost else "sundries", slug): (utility, cost)
             for slug, (utility, cost) in hp_utilities.items()

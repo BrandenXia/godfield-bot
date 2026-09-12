@@ -58,6 +58,13 @@ def test_wilson_lower_bound_is_conservative() -> None:
     assert wilson_lower_bound(100, 100, 1.96) < 1.0
 
 
+def test_evaluation_config_accepts_expanded_resource_ruleset() -> None:
+    assert (
+        SimulationEvaluationConfig(ruleset="expanded-resource-hand").ruleset
+        == "expanded-resource-hand"
+    )
+
+
 def test_paired_score_statistics_use_seed_pairs_as_samples() -> None:
     scores = np.array([1.0, 0.5, 0.0, 0.5], dtype=np.float64)
 

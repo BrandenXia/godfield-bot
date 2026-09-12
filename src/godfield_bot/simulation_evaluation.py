@@ -45,6 +45,7 @@ class SimulationEvaluationConfig(BaseModel):
         "combo-hand",
         "resource-hand",
         "stochastic-resource-hand",
+        "expanded-resource-hand",
     ] = "fixed-role"
     games_per_seat: int = Field(default=512, ge=1, le=100_000)
     max_decisions_per_game: int = Field(default=512, ge=2, le=100_000)
@@ -185,6 +186,7 @@ def _evaluate_side(
         "combo-hand",
         "resource-hand",
         "stochastic-resource-hand",
+        "expanded-resource-hand",
     ],
 ) -> _SideEvaluation:
     simulation = create_attack_defense_simulation(
@@ -430,10 +432,7 @@ def evaluate_simulation_candidate(
         != candidate_manifest.architecture.global_feature_count
     ):
         raise ValueError("simulator global features differ from the candidate")
-    if (
-        simulation.metadata.observation_schema_version
-        != candidate_manifest.feature_schema_version
-    ):
+    if simulation.metadata.observation_schema_version != candidate_manifest.feature_schema_version:
         raise ValueError("simulator observation schema differs from the candidate")
 
     device = _resolve_device(config.device)

@@ -21,6 +21,9 @@ STOCHASTIC_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION: Final[int]
 STOCHASTIC_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION: Final[int]
 STOCHASTIC_RESOURCE_ATTACK_DEFENSE_RULESET_ID: Final[str]
 STOCHASTIC_RESOURCE_GLOBAL_FEATURE_COUNT: Final[int]
+EXPANDED_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION: Final[int]
+EXPANDED_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION: Final[int]
+EXPANDED_RESOURCE_ATTACK_DEFENSE_RULESET_ID: Final[str]
 MIXED_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION: Final[int]
 MIXED_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION: Final[int]
 MIXED_ATTACK_DEFENSE_RULESET_ID: Final[str]
@@ -50,6 +53,7 @@ CARD_KIND_ATTACK_MIRACLE: Final[int]
 CARD_KIND_HP_MIRACLE: Final[int]
 CARD_KIND_CHANCE_ATTACK_MIRACLE: Final[int]
 CARD_KIND_EFFECT_ATTACK_MIRACLE: Final[int]
+CARD_KIND_ADDITIVE_MIRACLE: Final[int]
 FORGIVE_ACTION_INDEX: Final[int]
 CONFIRM_ACTION_INDEX: Final[int]
 GLOBAL_FEATURE_COUNT: Final[int]
@@ -123,6 +127,8 @@ class AttackDefenseBatch:
     def resource_curriculum(self) -> bool: ...
     @property
     def stochastic_resource_curriculum(self) -> bool: ...
+    @property
+    def additive_miracle_curriculum(self) -> bool: ...
     @property
     def initial_mp(self) -> int: ...
     @property
@@ -266,6 +272,48 @@ class StochasticResourceAttackDefenseBatch(AttackDefenseBatch):
         effect_miracle_values: npt.NDArray[np.uint16],
         effect_miracle_elements: npt.NDArray[np.uint8],
         effect_miracle_costs: npt.NDArray[np.uint16],
+        seed: int = ...,
+        initial_hp: int = ...,
+        initial_mp: int = ...,
+    ) -> None: ...
+
+class ExpandedResourceAttackDefenseBatch(AttackDefenseBatch):
+    def __init__(
+        self,
+        batch_size: int,
+        weapon_token_ids: npt.NDArray[np.uint32],
+        attack_values: npt.NDArray[np.uint16],
+        weapon_elements: npt.NDArray[np.uint8],
+        booster_token_ids: npt.NDArray[np.uint32],
+        booster_values: npt.NDArray[np.uint16],
+        booster_elements: npt.NDArray[np.uint8],
+        armor_token_ids: npt.NDArray[np.uint32],
+        defense_values: npt.NDArray[np.uint16],
+        armor_elements: npt.NDArray[np.uint8],
+        hp_utility_token_ids: npt.NDArray[np.uint32],
+        hp_utility_values: npt.NDArray[np.uint16],
+        mp_utility_token_ids: npt.NDArray[np.uint32],
+        mp_utility_values: npt.NDArray[np.uint16],
+        attack_miracle_token_ids: npt.NDArray[np.uint32],
+        attack_miracle_values: npt.NDArray[np.uint16],
+        attack_miracle_elements: npt.NDArray[np.uint8],
+        attack_miracle_costs: npt.NDArray[np.uint16],
+        hp_miracle_token_ids: npt.NDArray[np.uint32],
+        hp_miracle_values: npt.NDArray[np.uint16],
+        hp_miracle_costs: npt.NDArray[np.uint16],
+        chance_miracle_token_ids: npt.NDArray[np.uint32],
+        chance_miracle_values: npt.NDArray[np.uint16],
+        chance_miracle_elements: npt.NDArray[np.uint8],
+        chance_miracle_costs: npt.NDArray[np.uint16],
+        chance_miracle_hit_rates: npt.NDArray[np.uint16],
+        effect_miracle_token_ids: npt.NDArray[np.uint32],
+        effect_miracle_values: npt.NDArray[np.uint16],
+        effect_miracle_elements: npt.NDArray[np.uint8],
+        effect_miracle_costs: npt.NDArray[np.uint16],
+        additive_miracle_token_ids: npt.NDArray[np.uint32],
+        additive_miracle_values: npt.NDArray[np.uint16],
+        additive_miracle_elements: npt.NDArray[np.uint8],
+        additive_miracle_costs: npt.NDArray[np.uint16],
         seed: int = ...,
         initial_hp: int = ...,
         initial_mp: int = ...,

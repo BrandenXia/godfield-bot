@@ -35,6 +35,10 @@ def test_training_config_selects_versioned_mixed_hand_ruleset() -> None:
     assert SimulationTrainingConfig(ruleset="elemental-hand").ruleset == "elemental-hand"
     assert SimulationTrainingConfig(ruleset="combo-hand").ruleset == "combo-hand"
     assert SimulationTrainingConfig(ruleset="resource-hand").ruleset == "resource-hand"
+    assert (
+        SimulationTrainingConfig(ruleset="expanded-resource-hand").ruleset
+        == "expanded-resource-hand"
+    )
 
 
 def initialize_fixed_simulation_model(

@@ -11,6 +11,7 @@ from godfield_bot.reference import (
     plain_defense_armor_values,
     plain_hp_utility_sundries,
     plain_mp_utility_sundries,
+    verified_attack_booster_miracle_cards,
     verified_attack_miracle_cards,
     verified_attack_weapon_values,
     verified_browser_weapon_attacks,
@@ -125,6 +126,10 @@ def test_committed_snapshot_matches_validated_live_catalog() -> None:
     assert verified_miracles["waterfall"] == (25, 12, "water")
     assert "absorption" not in verified_miracles
     assert "fireball" not in verified_miracles
+    assert verified_attack_booster_miracle_cards(snapshot) == {
+        "fireball": (2, 2, "fire"),
+        "meteor": (10, 7, "light"),
+    }
     assert verified_effect_attack_miracle_cards(snapshot) == {
         "absorption": (10, 10, "light", "absorbHP")
     }

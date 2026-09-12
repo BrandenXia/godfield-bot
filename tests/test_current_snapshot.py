@@ -14,10 +14,12 @@ from godfield_bot.reference import (
     plain_dual_role_weapon_cards,
     plain_hp_utility_sundries,
     plain_mp_utility_sundries,
+    verified_absorption_weapon_cards,
     verified_attack_booster_miracle_cards,
     verified_attack_miracle_cards,
     verified_attack_weapon_values,
     verified_browser_weapon_attacks,
+    verified_chance_absorption_weapon_cards,
     verified_chance_attack_miracle_cards,
     verified_cp_utility_miracle_cards,
     verified_effect_attack_miracle_cards,
@@ -157,6 +159,11 @@ def test_committed_snapshot_matches_validated_live_catalog() -> None:
     assert plain_chance_dual_role_weapon_cards(snapshot) == {
         "jinn-s-rocking-horse": (75, 8, 6, "wood")
     }
+    assert verified_absorption_weapon_cards(snapshot) == {
+        "ghost-sword": (7, "non-element"),
+        "real-ghost-sword": (12, "non-element"),
+    }
+    assert verified_chance_absorption_weapon_cards(snapshot) == {"vine-shoot": (75, 3, "wood")}
     assert verified_effect_attack_miracle_cards(snapshot) == {
         "absorption": (10, 10, "light", "absorbHP")
     }

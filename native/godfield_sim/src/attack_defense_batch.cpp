@@ -28,6 +28,8 @@ constexpr std::uint8_t kReflectionWeaponCardKind = 12U;
 constexpr std::uint8_t kDualRoleCardKind = 13U;
 constexpr std::uint8_t kChanceWeaponCardKind = 14U;
 constexpr std::uint8_t kChanceDualRoleCardKind = 15U;
+constexpr std::uint8_t kAbsorptionWeaponCardKind = 16U;
+constexpr std::uint8_t kChanceAbsorptionWeaponCardKind = 17U;
 constexpr std::uint8_t kNoAttackEffect = 0U;
 constexpr std::uint8_t kAbsorbHpAttackEffect = 1U;
 constexpr std::uint16_t kMaximumResource = 100U;
@@ -201,7 +203,14 @@ AttackDefenseBatch::AttackDefenseBatch(
     ValueInput chance_dual_role_attack_values,
     ValueInput chance_dual_role_defense_values,
     ElementInput chance_dual_role_elements,
-    ValueInput chance_dual_role_hit_rates)
+    ValueInput chance_dual_role_hit_rates, bool absorption_weapon_curriculum,
+    TokenInput absorption_weapon_token_ids,
+    ValueInput absorption_weapon_attack_values,
+    ElementInput absorption_weapon_elements,
+    TokenInput chance_absorption_weapon_token_ids,
+    ValueInput chance_absorption_weapon_attack_values,
+    ElementInput chance_absorption_weapon_elements,
+    ValueInput chance_absorption_weapon_hit_rates)
     : batch_size_(batch_size), base_seed_(seed), initial_hp_(initial_hp),
       mixed_hands_(mixed_hands), elemental_(elemental), combo_(combo),
       resource_curriculum_(resource_curriculum),
@@ -211,6 +220,7 @@ AttackDefenseBatch::AttackDefenseBatch(
       reflection_weapon_curriculum_(reflection_weapon_curriculum),
       dual_role_curriculum_(dual_role_curriculum),
       chance_weapon_curriculum_(chance_weapon_curriculum),
+      absorption_weapon_curriculum_(absorption_weapon_curriculum),
       global_feature_count_(stochastic_resource_curriculum
                                 ? kStochasticResourceGlobalFeatureCount
                                 : (elemental ? kElementalGlobalFeatureCount
@@ -253,6 +263,10 @@ AttackDefenseBatch::AttackDefenseBatch(
     throw std::invalid_argument(
         "chance weapon curriculum requires dual-role semantics");
   }
+  if (absorption_weapon_curriculum_ && !chance_weapon_curriculum_) {
+    throw std::invalid_argument(
+        "absorption weapon curriculum requires chance weapon semantics");
+  }
 
   std::unordered_set<std::uint32_t> unique_token_ids;
   const auto booster_catalog_size = combo_ ? booster_token_ids.shape(0) : 0U;
@@ -278,12 +292,18 @@ AttackDefenseBatch::AttackDefenseBatch(
       chance_weapon_curriculum_ ? chance_weapon_token_ids.shape(0) +
                                       chance_dual_role_token_ids.shape(0)
                                 : 0U;
+  const auto absorption_weapon_catalog_size =
+      absorption_weapon_curriculum_
+          ? absorption_weapon_token_ids.shape(0) +
+                chance_absorption_weapon_token_ids.shape(0)
+          : 0U;
   unique_token_ids.reserve(weapon_token_ids.shape(0) + booster_catalog_size +
                            armor_token_ids.shape(0) + resource_catalog_size +
                            stochastic_catalog_size + additive_catalog_size +
                            reflection_catalog_size +
                            reflection_weapon_catalog_size +
-                           dual_role_catalog_size + chance_weapon_catalog_size);
+                           dual_role_catalog_size + chance_weapon_catalog_size +
+                           absorption_weapon_catalog_size);
   append_catalog(weapon_token_ids, attack_values, "attack", unique_token_ids,
                  weapon_token_ids_, attack_values_);
   if (combo_) {
@@ -413,6 +433,29 @@ AttackDefenseBatch::AttackDefenseBatch(
                     copy_hit_rates(chance_dual_role_hit_rates,
                                    chance_dual_role_token_ids_.size(),
                                    "chance dual-role weapon");
+                if (absorption_weapon_curriculum_) {
+                  append_catalog(absorption_weapon_token_ids,
+                                 absorption_weapon_attack_values,
+                                 "absorption weapon", unique_token_ids,
+                                 absorption_weapon_token_ids_,
+                                 absorption_weapon_attack_values_);
+                  absorption_weapon_elements_ = copy_elements(
+                      absorption_weapon_elements,
+                      absorption_weapon_token_ids_.size(), "absorption weapon");
+                  append_catalog(chance_absorption_weapon_token_ids,
+                                 chance_absorption_weapon_attack_values,
+                                 "chance absorption weapon", unique_token_ids,
+                                 chance_absorption_weapon_token_ids_,
+                                 chance_absorption_weapon_attack_values_);
+                  chance_absorption_weapon_elements_ =
+                      copy_elements(chance_absorption_weapon_elements,
+                                    chance_absorption_weapon_token_ids_.size(),
+                                    "chance absorption weapon");
+                  chance_absorption_weapon_hit_rates_ =
+                      copy_hit_rates(chance_absorption_weapon_hit_rates,
+                                     chance_absorption_weapon_token_ids_.size(),
+                                     "chance absorption weapon");
+                }
               }
             }
           }
@@ -788,9 +831,81 @@ void AttackDefenseBatch::draw_chance_dual_role(std::size_t environment,
   hand_elements_by_player_[offset] = chance_dual_role_elements_[index];
 }
 
+void AttackDefenseBatch::draw_absorption_weapon(std::size_t environment,
+                                                std::size_t player,
+                                                std::size_t slot) {
+  const auto index = static_cast<std::size_t>(
+      next_random(environment) % absorption_weapon_token_ids_.size());
+  const auto offset = hand_offset(environment, player, slot);
+  hand_token_ids_by_player_[offset] =
+      static_cast<std::int64_t>(absorption_weapon_token_ids_[index]);
+  hand_values_[offset] = absorption_weapon_attack_values_[index];
+  hand_costs_[offset] = 0U;
+  hand_hit_rates_[offset] = 100U;
+  hand_effects_[offset] = kAbsorbHpAttackEffect;
+  hand_card_kinds_by_player_[offset] = kAbsorptionWeaponCardKind;
+  hand_elements_by_player_[offset] = absorption_weapon_elements_[index];
+}
+
+void AttackDefenseBatch::draw_chance_absorption_weapon(std::size_t environment,
+                                                       std::size_t player,
+                                                       std::size_t slot) {
+  const auto index = static_cast<std::size_t>(
+      next_random(environment) % chance_absorption_weapon_token_ids_.size());
+  const auto offset = hand_offset(environment, player, slot);
+  hand_token_ids_by_player_[offset] =
+      static_cast<std::int64_t>(chance_absorption_weapon_token_ids_[index]);
+  hand_values_[offset] = chance_absorption_weapon_attack_values_[index];
+  hand_costs_[offset] = 0U;
+  hand_hit_rates_[offset] = chance_absorption_weapon_hit_rates_[index];
+  hand_effects_[offset] = kAbsorbHpAttackEffect;
+  hand_card_kinds_by_player_[offset] = kChanceAbsorptionWeaponCardKind;
+  hand_elements_by_player_[offset] = chance_absorption_weapon_elements_[index];
+}
+
 void AttackDefenseBatch::draw_weapon_family(std::size_t environment,
                                             std::size_t player,
                                             std::size_t slot) {
+  if (absorption_weapon_curriculum_) {
+    auto index = static_cast<std::size_t>(
+        next_random(environment) %
+        (weapon_token_ids_.size() + reflection_weapon_token_ids_.size() +
+         dual_role_token_ids_.size() + chance_weapon_token_ids_.size() +
+         chance_dual_role_token_ids_.size() +
+         absorption_weapon_token_ids_.size() +
+         chance_absorption_weapon_token_ids_.size()));
+    if (index < weapon_token_ids_.size()) {
+      draw_weapon(environment, player, slot);
+      return;
+    }
+    index -= weapon_token_ids_.size();
+    if (index < reflection_weapon_token_ids_.size()) {
+      draw_reflection_weapon(environment, player, slot);
+      return;
+    }
+    index -= reflection_weapon_token_ids_.size();
+    if (index < dual_role_token_ids_.size()) {
+      draw_dual_role(environment, player, slot);
+      return;
+    }
+    index -= dual_role_token_ids_.size();
+    if (index < chance_weapon_token_ids_.size()) {
+      draw_chance_weapon(environment, player, slot);
+      return;
+    }
+    index -= chance_weapon_token_ids_.size();
+    if (index < chance_dual_role_token_ids_.size()) {
+      draw_chance_dual_role(environment, player, slot);
+      return;
+    }
+    index -= chance_dual_role_token_ids_.size();
+    if (index < absorption_weapon_token_ids_.size()) {
+      draw_absorption_weapon(environment, player, slot);
+      return;
+    }
+    draw_chance_absorption_weapon(environment, player, slot);
+    return;
+  }
   if (chance_weapon_curriculum_) {
     auto index = static_cast<std::size_t>(
         next_random(environment) %
@@ -869,7 +984,8 @@ void AttackDefenseBatch::draw_resource(std::size_t environment,
       effect_miracle_token_ids_.size() + additive_miracle_token_ids_.size() +
       reflection_armor_token_ids_.size() + reflection_weapon_token_ids_.size() +
       dual_role_token_ids_.size() + chance_weapon_token_ids_.size() +
-      chance_dual_role_token_ids_.size();
+      chance_dual_role_token_ids_.size() + absorption_weapon_token_ids_.size() +
+      chance_absorption_weapon_token_ids_.size();
   auto index =
       static_cast<std::size_t>(next_random(environment) % catalog_size);
   if (index < weapon_token_ids_.size()) {
@@ -897,6 +1013,16 @@ void AttackDefenseBatch::draw_resource(std::size_t environment,
     return;
   }
   index -= chance_dual_role_token_ids_.size();
+  if (index < absorption_weapon_token_ids_.size()) {
+    draw_absorption_weapon(environment, player, slot);
+    return;
+  }
+  index -= absorption_weapon_token_ids_.size();
+  if (index < chance_absorption_weapon_token_ids_.size()) {
+    draw_chance_absorption_weapon(environment, player, slot);
+    return;
+  }
+  index -= chance_absorption_weapon_token_ids_.size();
   if (index < booster_token_ids_.size()) {
     draw_booster(environment, player, slot);
     return;
@@ -947,7 +1073,8 @@ void AttackDefenseBatch::draw_resource(std::size_t environment,
 bool AttackDefenseBatch::is_weapon_kind(std::uint8_t kind) noexcept {
   return kind == kWeaponCardKind || kind == kReflectionWeaponCardKind ||
          kind == kDualRoleCardKind || kind == kChanceWeaponCardKind ||
-         kind == kChanceDualRoleCardKind;
+         kind == kChanceDualRoleCardKind || kind == kAbsorptionWeaponCardKind ||
+         kind == kChanceAbsorptionWeaponCardKind;
 }
 
 std::uint16_t AttackDefenseBatch::defense_value_for_card(
@@ -2020,5 +2147,79 @@ ChanceWeaponResourceAttackDefenseBatch::ChanceWeaponResourceAttackDefenseBatch(
           chance_dual_role_token_ids, chance_dual_role_attack_values,
           chance_dual_role_defense_values, chance_dual_role_elements,
           chance_dual_role_hit_rates) {}
+
+AbsorptionWeaponResourceAttackDefenseBatch::
+    AbsorptionWeaponResourceAttackDefenseBatch(
+        std::size_t batch_size, TokenInput weapon_token_ids,
+        ValueInput attack_values, ElementInput weapon_elements,
+        TokenInput booster_token_ids, ValueInput booster_values,
+        ElementInput booster_elements, TokenInput armor_token_ids,
+        ValueInput defense_values, ElementInput armor_elements,
+        TokenInput hp_utility_token_ids, ValueInput hp_utility_values,
+        TokenInput mp_utility_token_ids, ValueInput mp_utility_values,
+        TokenInput attack_miracle_token_ids, ValueInput attack_miracle_values,
+        ElementInput attack_miracle_elements, ValueInput attack_miracle_costs,
+        TokenInput hp_miracle_token_ids, ValueInput hp_miracle_values,
+        ValueInput hp_miracle_costs, TokenInput chance_miracle_token_ids,
+        ValueInput chance_miracle_values, ElementInput chance_miracle_elements,
+        ValueInput chance_miracle_costs, ValueInput chance_miracle_hit_rates,
+        TokenInput effect_miracle_token_ids, ValueInput effect_miracle_values,
+        ElementInput effect_miracle_elements, ValueInput effect_miracle_costs,
+        TokenInput additive_miracle_token_ids,
+        ValueInput additive_miracle_values,
+        ElementInput additive_miracle_elements,
+        ValueInput additive_miracle_costs,
+        TokenInput reflection_armor_token_ids,
+        TokenInput reflection_weapon_token_ids,
+        ValueInput reflection_weapon_values, TokenInput dual_role_token_ids,
+        ValueInput dual_role_attack_values, ValueInput dual_role_defense_values,
+        ElementInput dual_role_elements, TokenInput chance_weapon_token_ids,
+        ValueInput chance_weapon_attack_values,
+        ElementInput chance_weapon_elements, ValueInput chance_weapon_hit_rates,
+        TokenInput chance_dual_role_token_ids,
+        ValueInput chance_dual_role_attack_values,
+        ValueInput chance_dual_role_defense_values,
+        ElementInput chance_dual_role_elements,
+        ValueInput chance_dual_role_hit_rates,
+        TokenInput absorption_weapon_token_ids,
+        ValueInput absorption_weapon_attack_values,
+        ElementInput absorption_weapon_elements,
+        TokenInput chance_absorption_weapon_token_ids,
+        ValueInput chance_absorption_weapon_attack_values,
+        ElementInput chance_absorption_weapon_elements,
+        ValueInput chance_absorption_weapon_hit_rates, std::uint64_t seed,
+        std::uint16_t initial_hp, std::uint16_t initial_mp)
+    : AttackDefenseBatch(
+          batch_size, weapon_token_ids, attack_values,
+          copy_elements(weapon_elements, weapon_token_ids.shape(0), "weapon"),
+          booster_token_ids, booster_values,
+          copy_elements(booster_elements, booster_token_ids.shape(0),
+                        "attack booster"),
+          armor_token_ids, defense_values,
+          copy_elements(armor_elements, armor_token_ids.shape(0), "armor"),
+          seed, initial_hp, true, true, true, true, hp_utility_token_ids,
+          hp_utility_values, mp_utility_token_ids, mp_utility_values,
+          attack_miracle_token_ids, attack_miracle_values,
+          attack_miracle_elements, attack_miracle_costs, hp_miracle_token_ids,
+          hp_miracle_values, hp_miracle_costs, initial_mp, true,
+          chance_miracle_token_ids, chance_miracle_values,
+          chance_miracle_elements, chance_miracle_costs,
+          chance_miracle_hit_rates, effect_miracle_token_ids,
+          effect_miracle_values, effect_miracle_elements, effect_miracle_costs,
+          true, additive_miracle_token_ids, additive_miracle_values,
+          additive_miracle_elements, additive_miracle_costs, true,
+          reflection_armor_token_ids, true, reflection_weapon_token_ids,
+          reflection_weapon_values, true, dual_role_token_ids,
+          dual_role_attack_values, dual_role_defense_values, dual_role_elements,
+          true, chance_weapon_token_ids, chance_weapon_attack_values,
+          chance_weapon_elements, chance_weapon_hit_rates,
+          chance_dual_role_token_ids, chance_dual_role_attack_values,
+          chance_dual_role_defense_values, chance_dual_role_elements,
+          chance_dual_role_hit_rates, true, absorption_weapon_token_ids,
+          absorption_weapon_attack_values, absorption_weapon_elements,
+          chance_absorption_weapon_token_ids,
+          chance_absorption_weapon_attack_values,
+          chance_absorption_weapon_elements,
+          chance_absorption_weapon_hit_rates) {}
 
 } // namespace godfield_sim

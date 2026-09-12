@@ -57,6 +57,9 @@ effects, Ascension state, multi-hit attacks, miracle reflection and blocking,
 bounce, counterattacks, guardians, phenomena, and the CP purchase economy
 remain separate evidence-gated increments.
 
+ADR 0034 extends this boundary with the separately evidenced HP-absorption
+weapon family.
+
 ## Validation
 
 - The full Python and native-integrated suite passes with 328 tests.

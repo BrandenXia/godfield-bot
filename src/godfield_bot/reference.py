@@ -725,6 +725,57 @@ def plain_chance_dual_role_weapon_cards(
     return result
 
 
+def verified_absorption_weapon_cards(
+    snapshot: BibleSnapshot,
+) -> dict[str, tuple[int, CombatElement]]:
+    """Return fixed weapons whose complete audited effect is HP absorption."""
+
+    weapons = snapshot.catalog.get("weapons")
+    if weapons is None:
+        return {}
+    result: dict[str, tuple[int, CombatElement]] = {}
+    for artifact in weapons.items:
+        element = _combat_element(artifact)
+        if element is None or len(artifact.detail) != 5:
+            continue
+        attack = PLAIN_ATTACK_PATTERN.fullmatch(artifact.detail[1])
+        if (
+            attack is not None
+            and artifact.detail[2] == "Absorb HP"
+            and re.fullmatch(r"\$\d+", artifact.detail[3]) is not None
+            and artifact.detail[4].startswith("Gift Rate:")
+        ):
+            result[artifact.asset] = (int(attack.group(1)), element)
+    return result
+
+
+def verified_chance_absorption_weapon_cards(
+    snapshot: BibleSnapshot,
+) -> dict[str, tuple[int, int, CombatElement]]:
+    """Return chance weapons whose complete audited effect is HP absorption."""
+
+    weapons = snapshot.catalog.get("weapons")
+    if weapons is None:
+        return {}
+    result: dict[str, tuple[int, int, CombatElement]] = {}
+    for artifact in weapons.items:
+        element = _combat_element(artifact)
+        if element is None or len(artifact.detail) != 5:
+            continue
+        attack = PROBABILISTIC_ATTACK_PATTERN.fullmatch(artifact.detail[1])
+        if (
+            attack is not None
+            and artifact.detail[2] == "Absorb HP"
+            and re.fullmatch(r"\$\d+", artifact.detail[3]) is not None
+            and artifact.detail[4].startswith("Gift Rate:")
+        ):
+            hit_rate = int(attack.group(1))
+            attack_value = int(attack.group(2))
+            if 1 <= hit_rate <= 100 and attack_value > 0:
+                result[artifact.asset] = (hit_rate, attack_value, element)
+    return result
+
+
 def verified_chance_attack_miracle_cards(
     snapshot: BibleSnapshot,
 ) -> dict[str, tuple[int, int, int, CombatElement]]:

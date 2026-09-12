@@ -135,6 +135,15 @@ uv run godfield-bot models evaluate-simulation models/<chance-weapon-candidate-i
 uv run godfield-bot simulation benchmark \
   --ruleset chance-weapon-resource-attack-defense \
   --batch-size 4096 --batch-steps 1000
+uv run godfield-bot models train-simulation models/<schema-v6-model-id> \
+  --ruleset absorption-weapon-resource-hand --batch-size 256 --rollout-steps 32 \
+  --updates 10
+uv run godfield-bot models evaluate-simulation models/<absorption-weapon-candidate-id> \
+  --ruleset absorption-weapon-resource-hand --games-per-seat 512 --minimum-score 0.5 \
+  --heuristic-noninferiority-margin 0.025
+uv run godfield-bot simulation benchmark \
+  --ruleset absorption-weapon-resource-attack-defense \
+  --batch-size 4096 --batch-steps 1000
 ```
 
 `api observe-private --password-stdin` uses God Field's keyed private-room
@@ -443,18 +452,21 @@ seven-way pending-element signal. A recorded model migration preserves the six
 old global inputs and zero-initializes the new columns before elemental
 training. All rulesets are fingerprinted against the accepted client,
 artifact vocabulary, and exact rule catalog, and none is promotion-eligible.
-The broadest `chance-weapon-resource-hand` ruleset builds on schema-v6 stochastic
+The broadest `absorption-weapon-resource-hand` ruleset builds on schema-v6 stochastic
 combat, additive miracles, Super Mirror, and Reflection Sword, then adds seven
 Bible-exact and API-verified ATK/DEF weapons, 14 effect-free chance weapons,
-and Jinn's Rocking Horse with `75%ATK8`/`DEF6`. Chance attacks sample once on
-confirmation; numeric defense remains deterministic. The reflected response
-remains one-hop bounded. Its 150-card catalog and sampling distribution are
+Jinn's Rocking Horse with `75%ATK8`/`DEF6`, and the three evidenced HP-absorbing
+weapons. Absorption heals only damage that penetrates defense; a reflected
+absorbing attack heals the reflector. Chance attacks sample once on
+confirmation, numeric defense remains deterministic, and the reflected response
+remains one-hop bounded. Its 153-card catalog and sampling distribution are
 independently fingerprinted. See
 [ADR 0029](docs/architecture/0029-additive-miracle-curriculum.md),
 [ADR 0030](docs/architecture/0030-evidenced-super-mirror-curriculum.md),
 [ADR 0031](docs/architecture/0031-evidenced-reflection-sword-curriculum.md),
-[ADR 0032](docs/architecture/0032-dual-role-weapon-curriculum.md), and
-[ADR 0033](docs/architecture/0033-chance-weapon-curriculum.md).
+[ADR 0032](docs/architecture/0032-dual-role-weapon-curriculum.md),
+[ADR 0033](docs/architecture/0033-chance-weapon-curriculum.md), and
+[ADR 0034](docs/architecture/0034-absorption-weapon-curriculum.md).
 
 `models train-simulation` creates a bounded
 `heuristic-warmstart-recurrent-ppo-self-play-v1` candidate. The slot-aware

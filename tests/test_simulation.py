@@ -31,6 +31,7 @@ ReflectionResourceAttackDefenseBatch = godfield_sim.ReflectionResourceAttackDefe
 ReflectionWeaponResourceAttackDefenseBatch = godfield_sim.ReflectionWeaponResourceAttackDefenseBatch
 DualRoleResourceAttackDefenseBatch = godfield_sim.DualRoleResourceAttackDefenseBatch
 ChanceWeaponResourceAttackDefenseBatch = godfield_sim.ChanceWeaponResourceAttackDefenseBatch
+AbsorptionWeaponResourceAttackDefenseBatch = godfield_sim.AbsorptionWeaponResourceAttackDefenseBatch
 
 SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-07" / "bible.json"
 
@@ -442,6 +443,76 @@ def chance_weapon_resource_batch(
     )
 
 
+def absorption_weapon_resource_batch(
+    *,
+    seed: int = 0,
+    initial_hp: int = 30,
+    chance_hit_rate: int = 50,
+) -> AbsorptionWeaponResourceAttackDefenseBatch:
+    return AbsorptionWeaponResourceAttackDefenseBatch(
+        1,
+        np.asarray([2], dtype=np.uint32),
+        np.asarray([10], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_NON_ELEMENT], dtype=np.uint8),
+        np.asarray([3], dtype=np.uint32),
+        np.asarray([3], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_LIGHT], dtype=np.uint8),
+        np.asarray([4], dtype=np.uint32),
+        np.asarray([8], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_NON_ELEMENT], dtype=np.uint8),
+        np.asarray([5], dtype=np.uint32),
+        np.asarray([10], dtype=np.uint16),
+        np.asarray([6], dtype=np.uint32),
+        np.asarray([5], dtype=np.uint16),
+        np.asarray([7], dtype=np.uint32),
+        np.asarray([25], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_WATER], dtype=np.uint8),
+        np.asarray([4], dtype=np.uint16),
+        np.asarray([8], dtype=np.uint32),
+        np.asarray([10], dtype=np.uint16),
+        np.asarray([3], dtype=np.uint16),
+        np.asarray([9], dtype=np.uint32),
+        np.asarray([20], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_FIRE], dtype=np.uint8),
+        np.asarray([4], dtype=np.uint16),
+        np.asarray([50], dtype=np.uint16),
+        np.asarray([10], dtype=np.uint32),
+        np.asarray([10], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_LIGHT], dtype=np.uint8),
+        np.asarray([4], dtype=np.uint16),
+        np.asarray([11], dtype=np.uint32),
+        np.asarray([5], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_LIGHT], dtype=np.uint8),
+        np.asarray([2], dtype=np.uint16),
+        np.asarray([12], dtype=np.uint32),
+        np.asarray([13], dtype=np.uint32),
+        np.asarray([10], dtype=np.uint16),
+        np.asarray([14], dtype=np.uint32),
+        np.asarray([5], dtype=np.uint16),
+        np.asarray([7], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_NON_ELEMENT], dtype=np.uint8),
+        np.asarray([15], dtype=np.uint32),
+        np.asarray([10], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_FIRE], dtype=np.uint8),
+        np.asarray([50], dtype=np.uint16),
+        np.asarray([16], dtype=np.uint32),
+        np.asarray([8], dtype=np.uint16),
+        np.asarray([6], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_WOOD], dtype=np.uint8),
+        np.asarray([75], dtype=np.uint16),
+        np.asarray([17], dtype=np.uint32),
+        np.asarray([10], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_NON_ELEMENT], dtype=np.uint8),
+        np.asarray([18], dtype=np.uint32),
+        np.asarray([8], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_WOOD], dtype=np.uint8),
+        np.asarray([chance_hit_rate], dtype=np.uint16),
+        seed,
+        initial_hp,
+        10,
+    )
+
+
 def first_legal_actions(batch: FixedAttackBatch) -> np.ndarray:
     return batch.action_mask.argmax(axis=1).astype(np.int64)
 
@@ -761,12 +832,35 @@ def test_chance_weapon_factory_versions_effect_free_chance_catalog() -> None:
     assert simulation.metadata.rule_catalog_size == 150
     assert simulation.metadata.global_feature_count == 14
     assert simulation.metadata.sampling_distribution == (
-        "elemental-chance-weapon-resource-2-1-2-1-1-1-1-"
-        "initial-uniform-redraw-with-base-liveness"
+        "elemental-chance-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness"
     )
     assert batch.chance_weapon_curriculum is True
     assert np.any(batch.hand_card_kinds == godfield_sim.CARD_KIND_CHANCE_WEAPON)
     assert np.any(batch.hand_card_kinds == godfield_sim.CARD_KIND_CHANCE_DUAL_ROLE)
+
+
+def test_absorption_weapon_factory_versions_effect_weapon_catalog() -> None:
+    simulation = create_attack_defense_simulation(
+        SNAPSHOT_PATH,
+        batch_size=512,
+        ruleset="absorption-weapon-resource-hand",
+    )
+    batch = simulation.batch
+
+    assert simulation.metadata.observation_schema_version == 6
+    assert simulation.metadata.ruleset_id == (
+        "plain-elemental-combo-stochastic-chance-absorption-weapon-additive-"
+        "reflection-dual-role-resource-miracle-attack-defense-redraw-duel-v1"
+    )
+    assert simulation.metadata.rule_catalog_size == 153
+    assert simulation.metadata.global_feature_count == 14
+    assert simulation.metadata.sampling_distribution == (
+        "elemental-absorption-weapon-resource-2-1-2-1-1-1-1-"
+        "initial-uniform-redraw-with-base-liveness"
+    )
+    assert batch.absorption_weapon_curriculum is True
+    assert np.any(batch.hand_card_kinds == godfield_sim.CARD_KIND_ABSORPTION_WEAPON)
+    assert np.any(batch.hand_card_kinds == godfield_sim.CARD_KIND_CHANCE_ABSORPTION_WEAPON)
 
 
 def reflected_attack_batch(
@@ -1022,6 +1116,69 @@ def test_chance_dual_role_uses_fixed_defense_without_rolling() -> None:
         assert batch.turn_numbers[0] == 1
         return
     raise AssertionError("fixture seeds did not produce an ordinary attack and Jinn defense")
+
+
+def test_absorption_weapon_heals_only_actual_damage_after_defense() -> None:
+    for seed in range(4096):
+        batch = absorption_weapon_resource_batch(seed=seed)
+        absorption_slots = np.flatnonzero(batch.hand_token_ids[0] == 17)
+        if not absorption_slots.size:
+            continue
+        batch.step(np.asarray([int(absorption_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        armor_slots = np.flatnonzero(batch.hand_token_ids[0] == 4)
+        if not armor_slots.size:
+            continue
+        batch.step(np.asarray([int(armor_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        assert batch.player_features[0, 0, 0] == pytest.approx(0.28)
+        assert batch.player_features[0, 1, 0] == pytest.approx(0.32)
+        return
+    raise AssertionError("fixture seeds did not produce absorption against numeric defense")
+
+
+def test_chance_absorption_weapon_heals_on_hit_but_not_miss() -> None:
+    outcomes: set[str] = set()
+    for seed in range(4096):
+        batch = absorption_weapon_resource_batch(seed=seed, chance_hit_rate=50)
+        slots = np.flatnonzero(batch.hand_token_ids[0] == 18)
+        if not slots.size:
+            continue
+        batch.step(np.asarray([int(slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        if batch.phases[0] == godfield_sim.PHASE_DEFENSE:
+            batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+            assert batch.player_features[0, 0, 0] == pytest.approx(0.22)
+            assert batch.player_features[0, 1, 0] == pytest.approx(0.38)
+            outcomes.add("hit")
+        else:
+            assert batch.player_features[0, 0, 0] == pytest.approx(0.30)
+            assert batch.player_features[0, 1, 0] == pytest.approx(0.30)
+            outcomes.add("miss")
+        if outcomes == {"hit", "miss"}:
+            return
+    raise AssertionError(f"fixture seeds did not produce both absorption outcomes: {outcomes}")
+
+
+def test_reflected_absorption_transfers_healing_to_reflector() -> None:
+    for seed in range(8192):
+        batch = absorption_weapon_resource_batch(seed=seed)
+        absorption_slots = np.flatnonzero(batch.hand_token_ids[0] == 17)
+        if not absorption_slots.size:
+            continue
+        batch.step(np.asarray([int(absorption_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        mirror_slots = np.flatnonzero(batch.hand_token_ids[0] == 12)
+        if not mirror_slots.size:
+            continue
+        batch.step(np.asarray([int(mirror_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        assert batch.pending_reflected[0]
+        batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+        assert batch.player_features[0, 0, 0] == pytest.approx(0.20)
+        assert batch.player_features[0, 1, 0] == pytest.approx(0.40)
+        return
+    raise AssertionError("fixture seeds did not produce reflected absorption")
 
 
 def test_super_mirror_redirects_full_attack_into_one_hop_defense() -> None:
@@ -1300,6 +1457,21 @@ def test_resource_heuristics_index_miracle_attacks_in_the_miracle_namespace() ->
     assert chance_weapon.defenses[jinn] == 6
     assert chance_weapon.attacks[vocabulary.token_id("weapons", "petit-saturn")] == 5
     assert jinn in chance_weapon.chance_attack_tokens
+
+    absorption_weapon = build_curriculum_heuristic(
+        snapshot,
+        vocabulary,
+        ruleset="absorption-weapon-resource-hand",
+    )
+    ghost_sword = vocabulary.token_id("weapons", "ghost-sword")
+    real_ghost_sword = vocabulary.token_id("weapons", "real-ghost-sword")
+    vine_shoot = vocabulary.token_id("weapons", "vine-shoot")
+    assert absorption_weapon.attacks[ghost_sword] == 7
+    assert absorption_weapon.attacks[real_ghost_sword] == 12
+    assert absorption_weapon.attacks[vine_shoot] == 2
+    assert ghost_sword not in absorption_weapon.chance_attack_tokens
+    assert vine_shoot in absorption_weapon.chance_attack_tokens
+    assert absorption_weapon.policy_id == "evidenced-absorption-weapon-resource-combo-v1"
 
 
 def test_combo_selection_aggregates_attack_and_defense_before_consuming() -> None:

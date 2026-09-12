@@ -28,6 +28,7 @@ ResourceAttackDefenseBatch = godfield_sim.ResourceAttackDefenseBatch
 StochasticResourceAttackDefenseBatch = godfield_sim.StochasticResourceAttackDefenseBatch
 ExpandedResourceAttackDefenseBatch = godfield_sim.ExpandedResourceAttackDefenseBatch
 ReflectionResourceAttackDefenseBatch = godfield_sim.ReflectionResourceAttackDefenseBatch
+ReflectionWeaponResourceAttackDefenseBatch = godfield_sim.ReflectionWeaponResourceAttackDefenseBatch
 
 SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-07" / "bible.json"
 
@@ -265,6 +266,56 @@ def reflection_resource_batch(
         np.asarray([godfield_sim.ELEMENT_LIGHT], dtype=np.uint8),
         np.asarray([2], dtype=np.uint16),
         np.asarray([12], dtype=np.uint32),
+        seed,
+        initial_hp,
+        10,
+    )
+
+
+def reflection_weapon_resource_batch(
+    *,
+    seed: int = 0,
+    initial_hp: int = 40,
+    weapon_element: int = godfield_sim.ELEMENT_NON_ELEMENT,
+) -> ReflectionWeaponResourceAttackDefenseBatch:
+    return ReflectionWeaponResourceAttackDefenseBatch(
+        1,
+        np.asarray([2], dtype=np.uint32),
+        np.asarray([10], dtype=np.uint16),
+        np.asarray([weapon_element], dtype=np.uint8),
+        np.asarray([3], dtype=np.uint32),
+        np.asarray([3], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_LIGHT], dtype=np.uint8),
+        np.asarray([4], dtype=np.uint32),
+        np.asarray([8], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_NON_ELEMENT], dtype=np.uint8),
+        np.asarray([5], dtype=np.uint32),
+        np.asarray([10], dtype=np.uint16),
+        np.asarray([6], dtype=np.uint32),
+        np.asarray([5], dtype=np.uint16),
+        np.asarray([7], dtype=np.uint32),
+        np.asarray([25], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_WATER], dtype=np.uint8),
+        np.asarray([4], dtype=np.uint16),
+        np.asarray([8], dtype=np.uint32),
+        np.asarray([10], dtype=np.uint16),
+        np.asarray([3], dtype=np.uint16),
+        np.asarray([9], dtype=np.uint32),
+        np.asarray([20], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_FIRE], dtype=np.uint8),
+        np.asarray([4], dtype=np.uint16),
+        np.asarray([50], dtype=np.uint16),
+        np.asarray([10], dtype=np.uint32),
+        np.asarray([10], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_LIGHT], dtype=np.uint8),
+        np.asarray([4], dtype=np.uint16),
+        np.asarray([11], dtype=np.uint32),
+        np.asarray([5], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_LIGHT], dtype=np.uint8),
+        np.asarray([2], dtype=np.uint16),
+        np.asarray([12], dtype=np.uint32),
+        np.asarray([13], dtype=np.uint32),
+        np.asarray([10], dtype=np.uint16),
         seed,
         initial_hp,
         10,
@@ -527,6 +578,31 @@ def test_reflection_resource_factory_versions_super_mirror_catalog() -> None:
     assert np.any(batch.hand_card_kinds == godfield_sim.CARD_KIND_REFLECTION_ARMOR)
 
 
+def test_reflection_weapon_factory_versions_dual_role_catalog() -> None:
+    simulation = create_attack_defense_simulation(
+        SNAPSHOT_PATH,
+        batch_size=512,
+        ruleset="reflection-weapon-resource-hand",
+    )
+    batch = simulation.batch
+
+    assert simulation.metadata.observation_schema_version == 6
+    assert simulation.metadata.ruleset_id == (
+        "plain-elemental-combo-stochastic-additive-reflection-weapon-resource-"
+        "miracle-attack-defense-redraw-duel-v1"
+    )
+    assert simulation.metadata.rule_catalog_size == 128
+    assert simulation.metadata.global_feature_count == 14
+    assert simulation.metadata.sampling_distribution == (
+        "elemental-reflection-weapon-resource-2-1-2-1-1-1-1-"
+        "initial-uniform-redraw-with-base-liveness"
+    )
+    assert batch.reflection_curriculum is True
+    assert batch.reflection_weapon_curriculum is True
+    assert np.any(batch.hand_card_kinds == godfield_sim.CARD_KIND_REFLECTION_ARMOR)
+    assert np.any(batch.hand_card_kinds == godfield_sim.CARD_KIND_REFLECTION_WEAPON)
+
+
 def reflected_attack_batch(
     *, initial_hp: int = 40
 ) -> tuple[ReflectionResourceAttackDefenseBatch, int, int]:
@@ -544,6 +620,101 @@ def reflected_attack_batch(
         if reflection_slots.size:
             return batch, attacker, int(reflection_slots[0])
     raise AssertionError("fixture seeds did not produce reflection armor for the defender")
+
+
+def reflection_weapon_defense_batch() -> tuple[ReflectionWeaponResourceAttackDefenseBatch, int]:
+    for seed in range(512):
+        batch = reflection_weapon_resource_batch(seed=seed)
+        weapon_slots = np.flatnonzero(batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_WEAPON)
+        if not weapon_slots.size:
+            continue
+        batch.step(np.asarray([int(weapon_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        reflection_slots = np.flatnonzero(
+            batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_REFLECTION_WEAPON
+        )
+        if reflection_slots.size:
+            return batch, int(reflection_slots[0])
+    raise AssertionError("fixture seeds did not produce Reflection Sword for the defender")
+
+
+def test_reflection_sword_is_a_consumed_one_hop_defense_against_ne_weapon() -> None:
+    batch, reflection_slot = reflection_weapon_defense_batch()
+    original_attacker = 1 - int(batch.active_players[0])
+
+    assert batch.pending_attacks[0] == 10
+    assert batch.pending_elements[0] == godfield_sim.ELEMENT_NON_ELEMENT
+    assert batch.action_mask[0, reflection_slot + 1]
+    batch.step(np.asarray([reflection_slot + 1], dtype=np.int64))
+    assert np.count_nonzero(batch.action_mask[0]) == 1
+    assert batch.action_mask[0, godfield_sim.CONFIRM_ACTION_INDEX]
+
+    batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+    assert batch.active_players[0] == original_attacker
+    assert batch.pending_attacks[0] == 10
+    assert batch.pending_reflected[0]
+    assert not np.any(
+        batch.action_mask[0, 1:10]
+        & (batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_REFLECTION_WEAPON)
+    )
+
+
+def test_reflection_sword_can_lead_an_attack() -> None:
+    for seed in range(512):
+        batch = reflection_weapon_resource_batch(seed=seed)
+        slots = np.flatnonzero(batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_REFLECTION_WEAPON)
+        if not slots.size:
+            continue
+        action = int(slots[0]) + 1
+        assert batch.action_mask[0, action]
+        batch.step(np.asarray([action], dtype=np.int64))
+        assert batch.selected_values[0] == 10
+        assert batch.action_mask[0, godfield_sim.CONFIRM_ACTION_INDEX]
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        assert batch.pending_attacks[0] == 10
+        return
+    raise AssertionError("fixture seeds did not produce an attackable Reflection Sword")
+
+
+def test_reflection_sword_does_not_reflect_a_miracle() -> None:
+    for seed in range(512):
+        batch = reflection_weapon_resource_batch(seed=seed)
+        miracle_slots = np.flatnonzero(
+            batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_ATTACK_MIRACLE
+        )
+        if not miracle_slots.size:
+            continue
+        batch.step(np.asarray([int(miracle_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        reflection_slots = np.flatnonzero(
+            batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_REFLECTION_WEAPON
+        )
+        if not reflection_slots.size:
+            continue
+        assert all(not batch.action_mask[0, int(slot) + 1] for slot in reflection_slots)
+        return
+    raise AssertionError("fixture seeds did not produce miracle/Reflection Sword response")
+
+
+def test_reflection_sword_does_not_reflect_an_elemental_weapon() -> None:
+    for seed in range(512):
+        batch = reflection_weapon_resource_batch(
+            seed=seed,
+            weapon_element=godfield_sim.ELEMENT_FIRE,
+        )
+        weapon_slots = np.flatnonzero(batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_WEAPON)
+        if not weapon_slots.size:
+            continue
+        batch.step(np.asarray([int(weapon_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        reflection_slots = np.flatnonzero(
+            batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_REFLECTION_WEAPON
+        )
+        if not reflection_slots.size:
+            continue
+        assert all(not batch.action_mask[0, int(slot) + 1] for slot in reflection_slots)
+        return
+    raise AssertionError("fixture seeds did not produce elemental/Reflection Sword response")
 
 
 def test_super_mirror_redirects_full_attack_into_one_hop_defense() -> None:
@@ -789,6 +960,19 @@ def test_resource_heuristics_index_miracle_attacks_in_the_miracle_namespace() ->
     )
     assert reflection.reflection_defenses == frozenset(
         {vocabulary.token_id("armor", "super-mirror")}
+    )
+
+    reflection_weapon = build_curriculum_heuristic(
+        snapshot,
+        vocabulary,
+        ruleset="reflection-weapon-resource-hand",
+    )
+    assert reflection_weapon.attacks[vocabulary.token_id("weapons", "reflection-sword")] == 10
+    assert reflection_weapon.reflection_defenses == frozenset(
+        {
+            vocabulary.token_id("armor", "super-mirror"),
+            vocabulary.token_id("weapons", "reflection-sword"),
+        }
     )
 
 

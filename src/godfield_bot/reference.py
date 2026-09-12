@@ -616,6 +616,27 @@ def verified_reflection_armor_cards(snapshot: BibleSnapshot) -> frozenset[str]:
     )
 
 
+def verified_reflection_weapon_cards(snapshot: BibleSnapshot) -> dict[str, int]:
+    """Return NE weapons with an audited deterministic reflection response."""
+
+    weapons = snapshot.catalog.get("weapons")
+    if weapons is None:
+        return {}
+    result: dict[str, int] = {}
+    for artifact in weapons.items:
+        if artifact.element_image_paths or len(artifact.detail) != 5:
+            continue
+        match = PLAIN_ATTACK_PATTERN.fullmatch(artifact.detail[1])
+        if (
+            match is not None
+            and artifact.detail[2] == "Reflect a NE weapon"
+            and re.fullmatch(r"\$\d+", artifact.detail[3]) is not None
+            and artifact.detail[4].startswith("Gift Rate:")
+        ):
+            result[artifact.asset] = int(match.group(1))
+    return result
+
+
 def verified_chance_attack_miracle_cards(
     snapshot: BibleSnapshot,
 ) -> dict[str, tuple[int, int, int, CombatElement]]:

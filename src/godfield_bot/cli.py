@@ -1410,6 +1410,7 @@ def models_train_simulation(
             "stochastic-resource-hand",
             "expanded-resource-hand",
             "reflection-resource-hand",
+            "reflection-weapon-resource-hand",
         ],
         typer.Option(help="Attack/defense hand-distribution curriculum."),
     ] = "fixed-role",
@@ -1551,6 +1552,7 @@ def models_evaluate_simulation(
             "stochastic-resource-hand",
             "expanded-resource-hand",
             "reflection-resource-hand",
+            "reflection-weapon-resource-hand",
         ],
         typer.Option(help="Attack/defense hand-distribution curriculum."),
     ] = "fixed-role",
@@ -1783,6 +1785,7 @@ def simulation_benchmark(
             "stochastic-resource-attack-defense",
             "expanded-resource-attack-defense",
             "reflection-resource-attack-defense",
+            "reflection-weapon-resource-attack-defense",
         ],
         typer.Option(help="Native curriculum ruleset to benchmark."),
     ] = "attack-defense",
@@ -1813,8 +1816,11 @@ def simulation_benchmark(
                 "stochastic-resource-hand",
                 "expanded-resource-hand",
                 "reflection-resource-hand",
+                "reflection-weapon-resource-hand",
             ]
-            if ruleset == "reflection-resource-attack-defense":
+            if ruleset == "reflection-weapon-resource-attack-defense":
+                attack_defense_ruleset = "reflection-weapon-resource-hand"
+            elif ruleset == "reflection-resource-attack-defense":
                 attack_defense_ruleset = "reflection-resource-hand"
             elif ruleset == "expanded-resource-attack-defense":
                 attack_defense_ruleset = "expanded-resource-hand"

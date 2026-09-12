@@ -52,6 +52,7 @@ class SimulationTrainingConfig(BaseModel):
         "stochastic-resource-hand",
         "expanded-resource-hand",
         "reflection-resource-hand",
+        "reflection-weapon-resource-hand",
     ] = "fixed-role"
     batch_size: int = Field(default=256, ge=1, le=1_000_000)
     rollout_steps: int = Field(default=32, ge=2, le=4096)

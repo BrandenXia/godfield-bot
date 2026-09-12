@@ -26,6 +26,7 @@ from godfield_bot.reference import (
     verified_effect_attack_miracle_cards,
     verified_hp_utility_miracle_cards,
     verified_reflection_armor_cards,
+    verified_reflection_weapon_cards,
 )
 
 if TYPE_CHECKING:
@@ -41,6 +42,7 @@ AttackDefenseRuleset = Literal[
     "stochastic-resource-hand",
     "expanded-resource-hand",
     "reflection-resource-hand",
+    "reflection-weapon-resource-hand",
 ]
 
 
@@ -83,6 +85,7 @@ class SimulationMetadata(BaseModel):
         "elemental-stochastic-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-expanded-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-reflection-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
+        "elemental-reflection-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
     ] = "uniform-redraw-with-replacement"
     promotion_eligible: Literal[False] = False
 
@@ -247,6 +250,9 @@ def create_attack_defense_simulation(
             REFLECTION_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
             REFLECTION_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
             REFLECTION_RESOURCE_ATTACK_DEFENSE_RULESET_ID,
+            REFLECTION_WEAPON_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
+            REFLECTION_WEAPON_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
+            REFLECTION_WEAPON_RESOURCE_ATTACK_DEFENSE_RULESET_ID,
             RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
             RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
             RESOURCE_ATTACK_DEFENSE_RULESET_ID,
@@ -259,6 +265,7 @@ def create_attack_defense_simulation(
             ElementalAttackDefenseBatch,
             ExpandedResourceAttackDefenseBatch,
             ReflectionResourceAttackDefenseBatch,
+            ReflectionWeaponResourceAttackDefenseBatch,
             ResourceAttackDefenseBatch,
             StochasticResourceAttackDefenseBatch,
         )
@@ -276,6 +283,7 @@ def create_attack_defense_simulation(
         "stochastic-resource-hand",
         "expanded-resource-hand",
         "reflection-resource-hand",
+        "reflection-weapon-resource-hand",
     }
     if ruleset in expanded_rulesets:
         attacks = plain_attack_weapon_cards(snapshot)
@@ -334,6 +342,7 @@ def create_attack_defense_simulation(
         "stochastic-resource-hand",
         "expanded-resource-hand",
         "reflection-resource-hand",
+        "reflection-weapon-resource-hand",
     }:
         boosters = plain_attack_booster_cards(snapshot)
         if not boosters:
@@ -365,6 +374,7 @@ def create_attack_defense_simulation(
             "stochastic-resource-hand",
             "expanded-resource-hand",
             "reflection-resource-hand",
+            "reflection-weapon-resource-hand",
         }:
             hp_utilities = plain_hp_utility_sundries(snapshot)
             mp_utilities = plain_mp_utility_sundries(snapshot)
@@ -442,6 +452,7 @@ def create_attack_defense_simulation(
                 "stochastic-resource-hand",
                 "expanded-resource-hand",
                 "reflection-resource-hand",
+                "reflection-weapon-resource-hand",
             }:
                 chance_miracles = verified_chance_attack_miracle_cards(snapshot)
                 effect_miracles = {
@@ -492,7 +503,12 @@ def create_attack_defense_simulation(
                 )
                 additive_catalog: list[dict[str, object]] = []
                 reflection_catalog: list[dict[str, object]] = []
-                if ruleset in {"expanded-resource-hand", "reflection-resource-hand"}:
+                reflection_weapon_catalog: list[dict[str, object]] = []
+                if ruleset in {
+                    "expanded-resource-hand",
+                    "reflection-resource-hand",
+                    "reflection-weapon-resource-hand",
+                }:
                     additive_miracles = verified_attack_booster_miracle_cards(snapshot)
                     if not additive_miracles:
                         raise ValueError(
@@ -519,7 +535,10 @@ def create_attack_defense_simulation(
                         np.asarray([row["element_id"] for row in additive_catalog], dtype=np.uint8),
                         np.asarray([row["cost"] for row in additive_catalog], dtype=np.uint16),
                     )
-                    if ruleset == "reflection-resource-hand":
+                    if ruleset in {
+                        "reflection-resource-hand",
+                        "reflection-weapon-resource-hand",
+                    }:
                         reflection_armor = verified_reflection_armor_cards(snapshot)
                         if not reflection_armor:
                             raise ValueError(
@@ -534,18 +553,55 @@ def create_attack_defense_simulation(
                             }
                             for slug in sorted(reflection_armor)
                         ]
-                        batch = ReflectionResourceAttackDefenseBatch(
-                            *resource_args,
-                            *stochastic_args,
-                            *additive_args,
-                            np.asarray(
-                                [row["token_id"] for row in reflection_catalog],
-                                dtype=np.uint32,
-                            ),
-                            seed,
-                            initial_hp,
-                            initial_mp,
+                        reflection_armor_token_ids = np.asarray(
+                            [row["token_id"] for row in reflection_catalog],
+                            dtype=np.uint32,
                         )
+                        if ruleset == "reflection-weapon-resource-hand":
+                            reflection_weapons = verified_reflection_weapon_cards(snapshot)
+                            if not reflection_weapons:
+                                raise ValueError(
+                                    "accepted snapshot contains no supported reflection weapon"
+                                )
+                            reflection_weapon_catalog = [
+                                {
+                                    "attack": attack,
+                                    "effect": "reflect-non-element-weapon",
+                                    "element": "non-element",
+                                    "element_id": COMBAT_ELEMENT_IDS["non-element"],
+                                    "kind": "reflection-weapon",
+                                    "slug": slug,
+                                    "token_id": vocabulary.token_id("weapons", slug),
+                                }
+                                for slug, attack in sorted(reflection_weapons.items())
+                            ]
+                            batch = ReflectionWeaponResourceAttackDefenseBatch(
+                                *resource_args,
+                                *stochastic_args,
+                                *additive_args,
+                                reflection_armor_token_ids,
+                                np.asarray(
+                                    [row["token_id"] for row in reflection_weapon_catalog],
+                                    dtype=np.uint32,
+                                ),
+                                np.asarray(
+                                    [row["attack"] for row in reflection_weapon_catalog],
+                                    dtype=np.uint16,
+                                ),
+                                seed,
+                                initial_hp,
+                                initial_mp,
+                            )
+                        else:
+                            batch = ReflectionResourceAttackDefenseBatch(
+                                *resource_args,
+                                *stochastic_args,
+                                *additive_args,
+                                reflection_armor_token_ids,
+                                seed,
+                                initial_hp,
+                                initial_mp,
+                            )
                     else:
                         batch = ExpandedResourceAttackDefenseBatch(
                             *resource_args,
@@ -564,7 +620,11 @@ def create_attack_defense_simulation(
                         initial_mp,
                     )
                 stochastic_catalog = (
-                    chance_catalog + effect_catalog + additive_catalog + reflection_catalog
+                    chance_catalog
+                    + effect_catalog
+                    + additive_catalog
+                    + reflection_catalog
+                    + reflection_weapon_catalog
                 )
             else:
                 batch = ResourceAttackDefenseBatch(
@@ -630,11 +690,24 @@ def create_attack_defense_simulation(
         "elemental-stochastic-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-expanded-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-reflection-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
+        "elemental-reflection-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
     ]
     action_semantics: Literal["atomic-attack-defense-macro", "sequential-combo-selection"] = (
         "atomic-attack-defense-macro"
     )
-    if ruleset == "reflection-resource-hand":
+    if ruleset == "reflection-weapon-resource-hand":
+        kernel_schema_version = REFLECTION_WEAPON_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION
+        observation_schema_version = (
+            REFLECTION_WEAPON_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION
+        )
+        ruleset_id = REFLECTION_WEAPON_RESOURCE_ATTACK_DEFENSE_RULESET_ID
+        global_feature_count = STOCHASTIC_RESOURCE_GLOBAL_FEATURE_COUNT
+        sampling_distribution = (
+            "elemental-reflection-weapon-resource-2-1-2-1-1-1-1-"
+            "initial-uniform-redraw-with-base-liveness"
+        )
+        action_semantics = "sequential-combo-selection"
+    elif ruleset == "reflection-resource-hand":
         kernel_schema_version = REFLECTION_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION
         observation_schema_version = REFLECTION_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION
         ruleset_id = REFLECTION_RESOURCE_ATTACK_DEFENSE_RULESET_ID

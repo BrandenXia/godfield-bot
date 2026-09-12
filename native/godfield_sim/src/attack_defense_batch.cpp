@@ -23,6 +23,7 @@ constexpr std::uint8_t kChanceAttackMiracleCardKind = 8U;
 constexpr std::uint8_t kEffectAttackMiracleCardKind = 9U;
 constexpr std::uint8_t kAdditiveMiracleCardKind = 10U;
 constexpr std::uint8_t kReflectionArmorCardKind = 11U;
+constexpr std::uint8_t kReflectionWeaponCardKind = 12U;
 constexpr std::uint8_t kNoAttackEffect = 0U;
 constexpr std::uint8_t kAbsorbHpAttackEffect = 1U;
 constexpr std::uint16_t kMaximumResource = 100U;
@@ -184,13 +185,15 @@ AttackDefenseBatch::AttackDefenseBatch(
     bool additive_miracle_curriculum, TokenInput additive_miracle_token_ids,
     ValueInput additive_miracle_values, ElementInput additive_miracle_elements,
     ValueInput additive_miracle_costs, bool reflection_curriculum,
-    TokenInput reflection_armor_token_ids)
+    TokenInput reflection_armor_token_ids, bool reflection_weapon_curriculum,
+    TokenInput reflection_weapon_token_ids, ValueInput reflection_weapon_values)
     : batch_size_(batch_size), base_seed_(seed), initial_hp_(initial_hp),
       mixed_hands_(mixed_hands), elemental_(elemental), combo_(combo),
       resource_curriculum_(resource_curriculum),
       stochastic_resource_curriculum_(stochastic_resource_curriculum),
       additive_miracle_curriculum_(additive_miracle_curriculum),
       reflection_curriculum_(reflection_curriculum),
+      reflection_weapon_curriculum_(reflection_weapon_curriculum),
       global_feature_count_(stochastic_resource_curriculum
                                 ? kStochasticResourceGlobalFeatureCount
                                 : (elemental ? kElementalGlobalFeatureCount
@@ -221,6 +224,10 @@ AttackDefenseBatch::AttackDefenseBatch(
     throw std::invalid_argument(
         "reflection curriculum requires additive miracle semantics");
   }
+  if (reflection_weapon_curriculum_ && !reflection_curriculum_) {
+    throw std::invalid_argument(
+        "reflection weapon curriculum requires reflection semantics");
+  }
 
   std::unordered_set<std::uint32_t> unique_token_ids;
   const auto booster_catalog_size = combo_ ? booster_token_ids.shape(0) : 0U;
@@ -238,10 +245,13 @@ AttackDefenseBatch::AttackDefenseBatch(
       additive_miracle_curriculum_ ? additive_miracle_token_ids.shape(0) : 0U;
   const auto reflection_catalog_size =
       reflection_curriculum_ ? reflection_armor_token_ids.shape(0) : 0U;
+  const auto reflection_weapon_catalog_size =
+      reflection_weapon_curriculum_ ? reflection_weapon_token_ids.shape(0) : 0U;
   unique_token_ids.reserve(weapon_token_ids.shape(0) + booster_catalog_size +
                            armor_token_ids.shape(0) + resource_catalog_size +
                            stochastic_catalog_size + additive_catalog_size +
-                           reflection_catalog_size);
+                           reflection_catalog_size +
+                           reflection_weapon_catalog_size);
   append_catalog(weapon_token_ids, attack_values, "attack", unique_token_ids,
                  weapon_token_ids_, attack_values_);
   if (combo_) {
@@ -302,6 +312,12 @@ AttackDefenseBatch::AttackDefenseBatch(
         if (reflection_curriculum_) {
           append_token_catalog(reflection_armor_token_ids, "reflection armor",
                                unique_token_ids, reflection_armor_token_ids_);
+          if (reflection_weapon_curriculum_) {
+            append_catalog(reflection_weapon_token_ids,
+                           reflection_weapon_values, "reflection weapon",
+                           unique_token_ids, reflection_weapon_token_ids_,
+                           reflection_weapon_values_);
+          }
         }
       }
     }
@@ -352,6 +368,7 @@ AttackDefenseBatch::AttackDefenseBatch(
   pending_attacks_.resize(batch_size_);
   pending_elements_.resize(batch_size_);
   pending_effects_.assign(batch_size_, kNoAttackEffect);
+  pending_base_kinds_.resize(batch_size_);
   selected_counts_.resize(batch_size_);
   selected_values_.resize(batch_size_);
   selected_elements_.resize(batch_size_);
@@ -609,6 +626,36 @@ void AttackDefenseBatch::draw_reflection_armor(std::size_t environment,
       static_cast<std::uint8_t>(CombatElement::NonElement);
 }
 
+void AttackDefenseBatch::draw_reflection_weapon(std::size_t environment,
+                                                std::size_t player,
+                                                std::size_t slot) {
+  const auto index = static_cast<std::size_t>(
+      next_random(environment) % reflection_weapon_token_ids_.size());
+  const auto offset = hand_offset(environment, player, slot);
+  hand_token_ids_by_player_[offset] =
+      static_cast<std::int64_t>(reflection_weapon_token_ids_[index]);
+  hand_values_[offset] = reflection_weapon_values_[index];
+  hand_costs_[offset] = 0U;
+  hand_hit_rates_[offset] = 100U;
+  hand_effects_[offset] = kNoAttackEffect;
+  hand_card_kinds_by_player_[offset] = kReflectionWeaponCardKind;
+  hand_elements_by_player_[offset] =
+      static_cast<std::uint8_t>(CombatElement::NonElement);
+}
+
+void AttackDefenseBatch::draw_weapon_family(std::size_t environment,
+                                            std::size_t player,
+                                            std::size_t slot) {
+  if (reflection_weapon_curriculum_ &&
+      next_random(environment) % (weapon_token_ids_.size() +
+                                  reflection_weapon_token_ids_.size()) >=
+          weapon_token_ids_.size()) {
+    draw_reflection_weapon(environment, player, slot);
+    return;
+  }
+  draw_weapon(environment, player, slot);
+}
+
 void AttackDefenseBatch::draw_armor_family(std::size_t environment,
                                            std::size_t player,
                                            std::size_t slot) {
@@ -630,7 +677,7 @@ void AttackDefenseBatch::draw_resource(std::size_t environment,
       mp_utility_token_ids_.size() + attack_miracle_token_ids_.size() +
       hp_miracle_token_ids_.size() + chance_miracle_token_ids_.size() +
       effect_miracle_token_ids_.size() + additive_miracle_token_ids_.size() +
-      reflection_armor_token_ids_.size();
+      reflection_armor_token_ids_.size() + reflection_weapon_token_ids_.size();
   auto index =
       static_cast<std::size_t>(next_random(environment) % catalog_size);
   if (index < weapon_token_ids_.size()) {
@@ -638,6 +685,11 @@ void AttackDefenseBatch::draw_resource(std::size_t environment,
     return;
   }
   index -= weapon_token_ids_.size();
+  if (index < reflection_weapon_token_ids_.size()) {
+    draw_reflection_weapon(environment, player, slot);
+    return;
+  }
+  index -= reflection_weapon_token_ids_.size();
   if (index < booster_token_ids_.size()) {
     draw_booster(environment, player, slot);
     return;
@@ -685,11 +737,15 @@ void AttackDefenseBatch::draw_resource(std::size_t environment,
   draw_reflection_armor(environment, player, slot);
 }
 
+bool AttackDefenseBatch::is_weapon_kind(std::uint8_t kind) noexcept {
+  return kind == kWeaponCardKind || kind == kReflectionWeaponCardKind;
+}
+
 bool AttackDefenseBatch::has_weapon(std::size_t environment,
                                     std::size_t player) const noexcept {
   for (std::size_t slot = 0; slot < kHandSlots; ++slot) {
-    if (hand_card_kinds_by_player_[hand_offset(environment, player, slot)] ==
-        kWeaponCardKind) {
+    if (is_weapon_kind(hand_card_kinds_by_player_[hand_offset(environment,
+                                                              player, slot)])) {
       return true;
     }
   }
@@ -714,13 +770,13 @@ void AttackDefenseBatch::redraw_consumed(std::size_t environment,
       draw_combo(environment, player, slot);
     }
     if (!has_weapon(environment, player)) {
-      draw_weapon(environment, player, slot);
+      draw_weapon_family(environment, player, slot);
     }
     return;
   }
   draw_mixed(environment, player, slot);
   if (!has_weapon(environment, player)) {
-    draw_weapon(environment, player, slot);
+    draw_weapon_family(environment, player, slot);
   }
 }
 
@@ -738,6 +794,7 @@ void AttackDefenseBatch::reset_environment(std::size_t environment) {
   pending_elements_[environment] =
       static_cast<std::uint8_t>(CombatElement::NonElement);
   pending_effects_[environment] = kNoAttackEffect;
+  pending_base_kinds_[environment] = 0U;
   pending_reflected_[environment] = false;
   turn_numbers_[environment] = 0U;
   terminated_[environment] = false;
@@ -802,7 +859,7 @@ void AttackDefenseBatch::reset_environment(std::size_t environment) {
     }
     for (std::size_t slot = 0; slot < kHandSlots; ++slot) {
       if (card_kinds[slot] == kWeaponCardKind) {
-        draw_weapon(environment, player, slot);
+        draw_weapon_family(environment, player, slot);
       } else if (card_kinds[slot] == kAttackBoosterCardKind) {
         if (additive_miracle_curriculum_ &&
             next_random(environment) % (booster_token_ids_.size() +
@@ -942,6 +999,7 @@ void AttackDefenseBatch::resolve_defense(std::size_t environment,
     terminal_returns_[environment * kPlayerCount + attacker] = 1.0F;
     terminal_returns_[environment * kPlayerCount + defender] = -1.0F;
     pending_effects_[environment] = kNoAttackEffect;
+    pending_base_kinds_[environment] = 0U;
     pending_reflected_[environment] = false;
     return;
   }
@@ -949,6 +1007,7 @@ void AttackDefenseBatch::resolve_defense(std::size_t environment,
   pending_elements_[environment] =
       static_cast<std::uint8_t>(CombatElement::NonElement);
   pending_effects_[environment] = kNoAttackEffect;
+  pending_base_kinds_[environment] = 0U;
   pending_reflected_[environment] = false;
   phases_[environment] = static_cast<std::uint8_t>(TurnPhase::Attack);
 }
@@ -1000,6 +1059,7 @@ void AttackDefenseBatch::step(ActionInput actions) {
           const auto selected_element = selected_elements_[environment];
           const auto selected_hit_rate = selected_hit_rates_[environment];
           const auto selected_effect = selected_effects_[environment];
+          const auto selected_base_kind = selected_base_kinds_[environment];
           consume_selection(environment, actor);
           clear_selection(environment);
           active_players_[environment] = static_cast<std::uint8_t>(1U - actor);
@@ -1009,6 +1069,7 @@ void AttackDefenseBatch::step(ActionInput actions) {
             pending_elements_[environment] =
                 static_cast<std::uint8_t>(CombatElement::NonElement);
             pending_effects_[environment] = kNoAttackEffect;
+            pending_base_kinds_[environment] = 0U;
             pending_reflected_[environment] = false;
             ++turn_numbers_[environment];
             phases_[environment] = static_cast<std::uint8_t>(TurnPhase::Attack);
@@ -1019,6 +1080,7 @@ void AttackDefenseBatch::step(ActionInput actions) {
           pending_attacks_[environment] = selected_value;
           pending_elements_[environment] = selected_element;
           pending_effects_[environment] = selected_effect;
+          pending_base_kinds_[environment] = selected_base_kind;
           pending_reflected_[environment] = false;
           phases_[environment] = static_cast<std::uint8_t>(TurnPhase::Defense);
         } else {
@@ -1076,7 +1138,8 @@ void AttackDefenseBatch::step(ActionInput actions) {
         const auto selected_kind = selected_base_kinds_[environment];
         consume_selection(environment, actor);
         clear_selection(environment);
-        if (selected_kind == kReflectionArmorCardKind) {
+        if (selected_kind == kReflectionArmorCardKind ||
+            selected_kind == kReflectionWeaponCardKind) {
           resolve_reflection(environment, actor);
         } else {
           resolve_defense(environment, actor, defense);
@@ -1105,6 +1168,7 @@ void AttackDefenseBatch::step(ActionInput actions) {
       pending_attacks_[environment] = hand_values_[card_offset];
       pending_elements_[environment] = hand_elements_by_player_[card_offset];
       pending_effects_[environment] = kNoAttackEffect;
+      pending_base_kinds_[environment] = consumed_kind;
       redraw_consumed(environment, actor, slot, consumed_kind);
       active_players_[environment] = static_cast<std::uint8_t>(1U - actor);
       phases_[environment] = static_cast<std::uint8_t>(TurnPhase::Defense);
@@ -1207,21 +1271,21 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
           const auto mp =
               magic_points_[environment * kPlayerCount + perspective];
           action_mask_[action_offset + slot + 1U] =
-              selected_base_kinds_[environment] == kWeaponCardKind &&
+              is_weapon_kind(selected_base_kinds_[environment]) &&
               (kind == kAttackBoosterCardKind ||
                (kind == kAdditiveMiracleCardKind &&
                 selected_costs_[environment] + hand_costs_[card_offset] <= mp));
           continue;
         }
         if (!resource_curriculum_) {
-          action_mask_[action_offset + slot + 1U] = kind == kWeaponCardKind;
+          action_mask_[action_offset + slot + 1U] = is_weapon_kind(kind);
           continue;
         }
         const auto card_offset = hand_offset(environment, perspective, slot);
         const auto mp = magic_points_[environment * kPlayerCount + perspective];
         const auto hp = hit_points_[environment * kPlayerCount + perspective];
         action_mask_[action_offset + slot + 1U] =
-            kind == kWeaponCardKind ||
+            is_weapon_kind(kind) ||
             ((kind == kAttackMiracleCardKind ||
               kind == kChanceAttackMiracleCardKind ||
               kind == kEffectAttackMiracleCardKind) &&
@@ -1236,7 +1300,8 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
     }
     const auto has_defense = selected_counts_[environment] > 0U;
     const auto selected_reflection =
-        selected_base_kinds_[environment] == kReflectionArmorCardKind;
+        selected_base_kinds_[environment] == kReflectionArmorCardKind ||
+        selected_base_kinds_[environment] == kReflectionWeaponCardKind;
     action_mask_[action_offset + kForgiveActionIndex] = !has_defense;
     action_mask_[action_offset + kConfirmActionIndex] = has_defense;
     for (std::size_t slot = 0; slot < kHandSlots; ++slot) {
@@ -1251,7 +1316,11 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
                pending_elements_[environment],
                hand_elements_by_player_[card_offset])) ||
           (!has_defense && !pending_reflected_[environment] &&
-           kind == kReflectionArmorCardKind);
+           (kind == kReflectionArmorCardKind ||
+            (kind == kReflectionWeaponCardKind &&
+             is_weapon_kind(pending_base_kinds_[environment]) &&
+             pending_elements_[environment] ==
+                 static_cast<std::uint8_t>(CombatElement::NonElement))));
     }
     return;
   }
@@ -1558,5 +1627,52 @@ ReflectionResourceAttackDefenseBatch::ReflectionResourceAttackDefenseBatch(
           true, additive_miracle_token_ids, additive_miracle_values,
           additive_miracle_elements, additive_miracle_costs, true,
           reflection_armor_token_ids) {}
+
+ReflectionWeaponResourceAttackDefenseBatch::
+    ReflectionWeaponResourceAttackDefenseBatch(
+        std::size_t batch_size, TokenInput weapon_token_ids,
+        ValueInput attack_values, ElementInput weapon_elements,
+        TokenInput booster_token_ids, ValueInput booster_values,
+        ElementInput booster_elements, TokenInput armor_token_ids,
+        ValueInput defense_values, ElementInput armor_elements,
+        TokenInput hp_utility_token_ids, ValueInput hp_utility_values,
+        TokenInput mp_utility_token_ids, ValueInput mp_utility_values,
+        TokenInput attack_miracle_token_ids, ValueInput attack_miracle_values,
+        ElementInput attack_miracle_elements, ValueInput attack_miracle_costs,
+        TokenInput hp_miracle_token_ids, ValueInput hp_miracle_values,
+        ValueInput hp_miracle_costs, TokenInput chance_miracle_token_ids,
+        ValueInput chance_miracle_values, ElementInput chance_miracle_elements,
+        ValueInput chance_miracle_costs, ValueInput chance_miracle_hit_rates,
+        TokenInput effect_miracle_token_ids, ValueInput effect_miracle_values,
+        ElementInput effect_miracle_elements, ValueInput effect_miracle_costs,
+        TokenInput additive_miracle_token_ids,
+        ValueInput additive_miracle_values,
+        ElementInput additive_miracle_elements,
+        ValueInput additive_miracle_costs,
+        TokenInput reflection_armor_token_ids,
+        TokenInput reflection_weapon_token_ids,
+        ValueInput reflection_weapon_values, std::uint64_t seed,
+        std::uint16_t initial_hp, std::uint16_t initial_mp)
+    : AttackDefenseBatch(
+          batch_size, weapon_token_ids, attack_values,
+          copy_elements(weapon_elements, weapon_token_ids.shape(0), "weapon"),
+          booster_token_ids, booster_values,
+          copy_elements(booster_elements, booster_token_ids.shape(0),
+                        "attack booster"),
+          armor_token_ids, defense_values,
+          copy_elements(armor_elements, armor_token_ids.shape(0), "armor"),
+          seed, initial_hp, true, true, true, true, hp_utility_token_ids,
+          hp_utility_values, mp_utility_token_ids, mp_utility_values,
+          attack_miracle_token_ids, attack_miracle_values,
+          attack_miracle_elements, attack_miracle_costs, hp_miracle_token_ids,
+          hp_miracle_values, hp_miracle_costs, initial_mp, true,
+          chance_miracle_token_ids, chance_miracle_values,
+          chance_miracle_elements, chance_miracle_costs,
+          chance_miracle_hit_rates, effect_miracle_token_ids,
+          effect_miracle_values, effect_miracle_elements, effect_miracle_costs,
+          true, additive_miracle_token_ids, additive_miracle_values,
+          additive_miracle_elements, additive_miracle_costs, true,
+          reflection_armor_token_ids, true, reflection_weapon_token_ids,
+          reflection_weapon_values) {}
 
 } // namespace godfield_sim

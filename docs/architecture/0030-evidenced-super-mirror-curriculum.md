@@ -69,7 +69,7 @@ redirecting a strong attack. Existing schema-v6 checkpoints can enter the new
 curriculum without weight migration, while the distinct ruleset and catalog
 fingerprints prevent results from being mixed with earlier evaluations.
 
-This ruleset remains non-promotable. Reflection Sword, repeated reflections,
-bounce, miracle blocking, counterattack rings, status effects, guardians,
-phenomena, and the CP purchase economy remain separate evidence-gated
-increments.
+This ruleset remains non-promotable. Reflection Sword is addressed by ADR 0031;
+repeated reflections, bounce, miracle blocking, counterattack rings, status
+effects, guardians, phenomena, and the CP purchase economy remain separate
+evidence-gated increments.

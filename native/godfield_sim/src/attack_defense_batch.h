@@ -52,6 +52,13 @@ inline constexpr std::uint32_t
 inline constexpr const char *kReflectionResourceAttackDefenseRulesetId =
     "plain-elemental-combo-stochastic-additive-reflection-resource-miracle-"
     "attack-defense-redraw-duel-v1";
+inline constexpr std::uint32_t
+    kReflectionWeaponResourceAttackDefenseKernelSchemaVersion = 1;
+inline constexpr std::uint32_t
+    kReflectionWeaponResourceAttackDefenseObservationSchemaVersion = 6;
+inline constexpr const char *kReflectionWeaponResourceAttackDefenseRulesetId =
+    "plain-elemental-combo-stochastic-additive-reflection-weapon-resource-"
+    "miracle-attack-defense-redraw-duel-v1";
 inline constexpr std::size_t kWeaponSlots = 5;
 inline constexpr std::size_t kArmorSlots = kHandSlots - kWeaponSlots;
 inline constexpr std::size_t kComboWeaponSlots = 4;
@@ -114,6 +121,9 @@ public:
   }
   [[nodiscard]] bool reflection_curriculum() const noexcept {
     return reflection_curriculum_;
+  }
+  [[nodiscard]] bool reflection_weapon_curriculum() const noexcept {
+    return reflection_weapon_curriculum_;
   }
   [[nodiscard]] std::uint16_t initial_mp() const noexcept {
     return initial_mp_;
@@ -182,7 +192,10 @@ protected:
       ElementInput additive_miracle_elements = {},
       ValueInput additive_miracle_costs = {},
       bool reflection_curriculum = false,
-      TokenInput reflection_armor_token_ids = {});
+      TokenInput reflection_armor_token_ids = {},
+      bool reflection_weapon_curriculum = false,
+      TokenInput reflection_weapon_token_ids = {},
+      ValueInput reflection_weapon_values = {});
 
 private:
   static constexpr std::size_t kMaximumBatchSize = 1'000'000;
@@ -219,8 +232,13 @@ private:
                              std::size_t slot);
   void draw_reflection_armor(std::size_t environment, std::size_t player,
                              std::size_t slot);
+  void draw_reflection_weapon(std::size_t environment, std::size_t player,
+                              std::size_t slot);
+  void draw_weapon_family(std::size_t environment, std::size_t player,
+                          std::size_t slot);
   void draw_armor_family(std::size_t environment, std::size_t player,
                          std::size_t slot);
+  [[nodiscard]] static bool is_weapon_kind(std::uint8_t kind) noexcept;
   [[nodiscard]] bool has_weapon(std::size_t environment,
                                 std::size_t player) const noexcept;
   void redraw_consumed(std::size_t environment, std::size_t player,
@@ -249,6 +267,7 @@ private:
   bool stochastic_resource_curriculum_;
   bool additive_miracle_curriculum_;
   bool reflection_curriculum_;
+  bool reflection_weapon_curriculum_;
   std::size_t global_feature_count_;
   std::uint16_t initial_mp_;
   std::vector<std::uint32_t> weapon_token_ids_;
@@ -285,6 +304,8 @@ private:
   std::vector<std::uint8_t> additive_miracle_elements_;
   std::vector<std::uint16_t> additive_miracle_costs_;
   std::vector<std::uint32_t> reflection_armor_token_ids_;
+  std::vector<std::uint32_t> reflection_weapon_token_ids_;
+  std::vector<std::uint16_t> reflection_weapon_values_;
   std::vector<std::uint64_t> rng_states_;
   std::vector<std::uint64_t> episode_ids_;
   std::vector<std::uint16_t> hit_points_;
@@ -302,6 +323,7 @@ private:
   std::vector<std::uint16_t> pending_attacks_;
   std::vector<std::uint8_t> pending_elements_;
   std::vector<std::uint8_t> pending_effects_;
+  std::vector<std::uint8_t> pending_base_kinds_;
   std::unique_ptr<bool[]> pending_reflected_;
   std::unique_ptr<bool[]> selected_hand_mask_;
   std::vector<std::uint8_t> selected_counts_;
@@ -432,6 +454,33 @@ public:
       TokenInput additive_miracle_token_ids, ValueInput additive_miracle_values,
       ElementInput additive_miracle_elements, ValueInput additive_miracle_costs,
       TokenInput reflection_armor_token_ids, std::uint64_t seed,
+      std::uint16_t initial_hp, std::uint16_t initial_mp);
+};
+
+class ReflectionWeaponResourceAttackDefenseBatch final
+    : public AttackDefenseBatch {
+public:
+  ReflectionWeaponResourceAttackDefenseBatch(
+      std::size_t batch_size, TokenInput weapon_token_ids,
+      ValueInput attack_values, ElementInput weapon_elements,
+      TokenInput booster_token_ids, ValueInput booster_values,
+      ElementInput booster_elements, TokenInput armor_token_ids,
+      ValueInput defense_values, ElementInput armor_elements,
+      TokenInput hp_utility_token_ids, ValueInput hp_utility_values,
+      TokenInput mp_utility_token_ids, ValueInput mp_utility_values,
+      TokenInput attack_miracle_token_ids, ValueInput attack_miracle_values,
+      ElementInput attack_miracle_elements, ValueInput attack_miracle_costs,
+      TokenInput hp_miracle_token_ids, ValueInput hp_miracle_values,
+      ValueInput hp_miracle_costs, TokenInput chance_miracle_token_ids,
+      ValueInput chance_miracle_values, ElementInput chance_miracle_elements,
+      ValueInput chance_miracle_costs, ValueInput chance_miracle_hit_rates,
+      TokenInput effect_miracle_token_ids, ValueInput effect_miracle_values,
+      ElementInput effect_miracle_elements, ValueInput effect_miracle_costs,
+      TokenInput additive_miracle_token_ids, ValueInput additive_miracle_values,
+      ElementInput additive_miracle_elements, ValueInput additive_miracle_costs,
+      TokenInput reflection_armor_token_ids,
+      TokenInput reflection_weapon_token_ids,
+      ValueInput reflection_weapon_values, std::uint64_t seed,
       std::uint16_t initial_hp, std::uint16_t initial_mp);
 };
 

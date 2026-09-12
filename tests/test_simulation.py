@@ -33,6 +33,7 @@ DualRoleResourceAttackDefenseBatch = godfield_sim.DualRoleResourceAttackDefenseB
 ChanceWeaponResourceAttackDefenseBatch = godfield_sim.ChanceWeaponResourceAttackDefenseBatch
 AbsorptionWeaponResourceAttackDefenseBatch = godfield_sim.AbsorptionWeaponResourceAttackDefenseBatch
 DynamicMpWeaponResourceAttackDefenseBatch = godfield_sim.DynamicMpWeaponResourceAttackDefenseBatch
+SameDamageWeaponResourceAttackDefenseBatch = godfield_sim.SameDamageWeaponResourceAttackDefenseBatch
 
 SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-07" / "bible.json"
 
@@ -538,6 +539,26 @@ def dynamic_mp_weapon_resource_batch(
     )
 
 
+def same_damage_weapon_resource_batch(
+    *,
+    seed: int = 0,
+    initial_hp: int = 40,
+    initial_mp: int = 10,
+) -> SameDamageWeaponResourceAttackDefenseBatch:
+    return SameDamageWeaponResourceAttackDefenseBatch(
+        *absorption_weapon_resource_args(),
+        np.asarray([19], dtype=np.uint32),
+        np.asarray([2], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_NON_ELEMENT], dtype=np.uint8),
+        np.asarray([20], dtype=np.uint32),
+        np.asarray([14], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_NON_ELEMENT], dtype=np.uint8),
+        seed,
+        initial_hp,
+        initial_mp,
+    )
+
+
 def first_legal_actions(batch: FixedAttackBatch) -> np.ndarray:
     return batch.action_mask.argmax(axis=1).astype(np.int64)
 
@@ -912,6 +933,30 @@ def test_dynamic_mp_weapon_factory_versions_consuming_weapon_catalog() -> None:
     assert np.any(batch.hand_card_kinds == godfield_sim.CARD_KIND_DYNAMIC_MP_WEAPON)
 
 
+def test_same_damage_weapon_factory_versions_evil_broadsword_catalog() -> None:
+    simulation = create_attack_defense_simulation(
+        SNAPSHOT_PATH,
+        batch_size=512,
+        ruleset="same-damage-weapon-resource-hand",
+    )
+    batch = simulation.batch
+
+    assert simulation.metadata.observation_schema_version == 6
+    assert simulation.metadata.ruleset_id == (
+        "plain-elemental-combo-stochastic-chance-absorption-weapon-dynamic-mp-"
+        "same-damage-weapon-additive-reflection-dual-role-resource-miracle-"
+        "attack-defense-redraw-duel-v1"
+    )
+    assert simulation.metadata.rule_catalog_size == 155
+    assert simulation.metadata.global_feature_count == 14
+    assert simulation.metadata.sampling_distribution == (
+        "elemental-same-damage-weapon-resource-2-1-2-1-1-1-1-"
+        "initial-uniform-redraw-with-base-liveness"
+    )
+    assert batch.same_damage_weapon_curriculum is True
+    assert np.any(batch.hand_card_kinds == godfield_sim.CARD_KIND_SAME_DAMAGE_WEAPON)
+
+
 def reflected_attack_batch(
     *, initial_hp: int = 40
 ) -> tuple[ReflectionResourceAttackDefenseBatch, int, int]:
@@ -1274,6 +1319,85 @@ def test_dynamic_mp_weapon_allows_free_boost_but_blocks_paid_miracle_boost() -> 
     raise AssertionError(f"fixture seeds did not expose both booster classes: {observed}")
 
 
+def test_same_damage_weapon_applies_post_defense_damage_to_both_players() -> None:
+    for seed in range(4096):
+        batch = same_damage_weapon_resource_batch(seed=seed)
+        weapon_slots = np.flatnonzero(batch.hand_token_ids[0] == 20)
+        if not weapon_slots.size:
+            continue
+        batch.step(np.asarray([int(weapon_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        assert batch.global_features[0, 13] == -1.0
+        armor_slots = np.flatnonzero(batch.hand_token_ids[0] == 4)
+        if not armor_slots.size:
+            continue
+        batch.step(np.asarray([int(armor_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        np.testing.assert_allclose(batch.player_features[0, :, 0], [0.34, 0.34])
+        assert batch.global_features[0, 13] == 0.0
+        return
+    raise AssertionError("fixture seeds did not produce Evil Broadsword against numeric defense")
+
+
+def test_same_damage_weapon_skips_user_damage_after_lethal_target_damage() -> None:
+    for seed in range(4096):
+        batch = same_damage_weapon_resource_batch(seed=seed, initial_hp=10)
+        weapon_slots = np.flatnonzero(batch.hand_token_ids[0] == 20)
+        if not weapon_slots.size:
+            continue
+        attacker = int(batch.active_players[0])
+        batch.step(np.asarray([int(weapon_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+        assert batch.terminated[0]
+        assert batch.terminal_returns[0, attacker] == 1.0
+        assert batch.terminal_returns[0, 1 - attacker] == -1.0
+        np.testing.assert_allclose(batch.player_features[0, :, 0], [0.0, 0.10])
+        return
+    raise AssertionError("fixture seeds did not produce lethal Evil Broadsword")
+
+
+def test_same_damage_weapon_defeats_user_after_nonlethal_target_damage() -> None:
+    for seed in range(8192):
+        batch = same_damage_weapon_resource_batch(seed=seed, initial_hp=15)
+        opening_weapon_slots = np.flatnonzero(batch.hand_token_ids[0] == 2)
+        if not opening_weapon_slots.size:
+            continue
+        batch.step(np.asarray([int(opening_weapon_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+        weapon_slots = np.flatnonzero(batch.hand_token_ids[0] == 20)
+        if not weapon_slots.size:
+            continue
+        source = int(batch.active_players[0])
+        batch.step(np.asarray([int(weapon_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+        assert batch.terminated[0]
+        assert batch.terminal_returns[0, source] == -1.0
+        assert batch.terminal_returns[0, 1 - source] == 1.0
+        np.testing.assert_allclose(batch.player_features[0, :, 0], [0.01, 0.0])
+        return
+    raise AssertionError("fixture seeds did not produce a nonlethal same-damage self-KO")
+
+
+def test_same_damage_weapon_masks_unevidenced_reflection_interaction() -> None:
+    for seed in range(8192):
+        batch = same_damage_weapon_resource_batch(seed=seed)
+        weapon_slots = np.flatnonzero(batch.hand_token_ids[0] == 20)
+        if not weapon_slots.size:
+            continue
+        batch.step(np.asarray([int(weapon_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        mirror_slots = np.flatnonzero(batch.hand_token_ids[0] == 12)
+        if not mirror_slots.size:
+            continue
+        assert all(not batch.action_mask[0, int(slot) + 1] for slot in mirror_slots)
+        assert batch.action_mask[0, godfield_sim.FORGIVE_ACTION_INDEX]
+        return
+    raise AssertionError("fixture seeds did not produce Evil Broadsword with reflection")
+
+
 def test_super_mirror_redirects_full_attack_into_one_hop_defense() -> None:
     batch, attacker, reflection_slot = reflected_attack_batch()
     reflector = int(batch.active_players[0])
@@ -1576,6 +1700,16 @@ def test_resource_heuristics_index_miracle_attacks_in_the_miracle_namespace() ->
     assert dynamic_mp_weapon.dynamic_mp_attacks == {magical_stick: 2}
     assert dynamic_mp_weapon.policy_id == "evidenced-dynamic-mp-weapon-resource-combo-v1"
 
+    same_damage_weapon = build_curriculum_heuristic(
+        snapshot,
+        vocabulary,
+        ruleset="same-damage-weapon-resource-hand",
+    )
+    evil_broadsword = vocabulary.token_id("weapons", "evil-broadsword")
+    assert same_damage_weapon.attacks[evil_broadsword] == 14
+    assert same_damage_weapon.same_damage_attack_tokens == {evil_broadsword}
+    assert same_damage_weapon.policy_id == "evidenced-same-damage-weapon-resource-combo-v1"
+
 
 def test_dynamic_mp_heuristic_ranks_attack_using_current_mp() -> None:
     policy = CurriculumHeuristic(
@@ -1596,6 +1730,52 @@ def test_dynamic_mp_heuristic_ranks_attack_using_current_mp() -> None:
         assert batch.hand_token_ids[0, action - 1] == 19
         return
     raise AssertionError("fixture seeds did not produce fixed and dynamic attacks together")
+
+
+def test_same_damage_heuristic_avoids_nonlethal_self_ko_but_keeps_lethal_finish() -> None:
+    hand = np.zeros((1, 9), dtype=np.int64)
+    hand[0, :2] = [20, 2]
+    legal = np.zeros((1, 21), dtype=np.bool_)
+    legal[0, 1:3] = True
+    player_features = np.zeros((1, 2, 4), dtype=np.float32)
+    player_features[0, 0, 0] = 0.12
+    player_features[0, 1, 0] = 0.40
+    batch = type(
+        "SameDamagePolicyBatch",
+        (),
+        {
+            "hand_token_ids": hand,
+            "action_mask": legal,
+            "phases": np.asarray([godfield_sim.PHASE_ATTACK], dtype=np.uint8),
+            "combo": True,
+            "selected_counts": np.asarray([0], dtype=np.uint8),
+            "resource_curriculum": True,
+            "active_players": np.asarray([0], dtype=np.uint8),
+            "magic_points": np.asarray([[10, 10]], dtype=np.uint16),
+            "player_features": player_features,
+        },
+    )()
+    simulation = type("SameDamagePolicySimulation", (), {"batch": batch})()
+    policy = CurriculumHeuristic(
+        attacks={20: 14, 2: 10},
+        defenses={},
+        same_damage_attack_tokens=frozenset({20}),
+    )
+
+    action = curriculum_heuristic_actions(
+        simulation,
+        np.asarray([0], dtype=np.int64),
+        policy,
+    )[0]
+    assert action == 2
+
+    player_features[0, 1, 0] = 0.10
+    action = curriculum_heuristic_actions(
+        simulation,
+        np.asarray([0], dtype=np.int64),
+        policy,
+    )[0]
+    assert action == 1
 
 
 def test_combo_selection_aggregates_attack_and_defense_before_consuming() -> None:

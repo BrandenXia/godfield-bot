@@ -802,6 +802,30 @@ def verified_dynamic_mp_weapon_cards(
     return result
 
 
+def verified_same_damage_weapon_cards(
+    snapshot: BibleSnapshot,
+) -> dict[str, tuple[int, CombatElement]]:
+    """Return fixed weapons whose user takes the resolved nonlethal damage."""
+
+    weapons = snapshot.catalog.get("weapons")
+    if weapons is None:
+        return {}
+    result: dict[str, tuple[int, CombatElement]] = {}
+    for artifact in weapons.items:
+        element = _combat_element(artifact)
+        if element is None or len(artifact.detail) != 5:
+            continue
+        attack = PLAIN_ATTACK_PATTERN.fullmatch(artifact.detail[1])
+        if (
+            attack is not None
+            and artifact.detail[2] == "Get the same damage"
+            and re.fullmatch(r"\$\d+", artifact.detail[3]) is not None
+            and artifact.detail[4].startswith("Gift Rate:")
+        ):
+            result[artifact.asset] = (int(attack.group(1)), element)
+    return result
+
+
 def verified_chance_attack_miracle_cards(
     snapshot: BibleSnapshot,
 ) -> dict[str, tuple[int, int, int, CombatElement]]:

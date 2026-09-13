@@ -96,6 +96,14 @@ inline constexpr const char *kSameDamageWeaponResourceAttackDefenseRulesetId =
     "plain-elemental-combo-stochastic-chance-absorption-weapon-dynamic-mp-"
     "same-damage-weapon-additive-reflection-dual-role-resource-miracle-attack-"
     "defense-redraw-duel-v1";
+inline constexpr std::uint32_t
+    kAttackTwiceWeaponResourceAttackDefenseKernelSchemaVersion = 1;
+inline constexpr std::uint32_t
+    kAttackTwiceWeaponResourceAttackDefenseObservationSchemaVersion = 6;
+inline constexpr const char *kAttackTwiceWeaponResourceAttackDefenseRulesetId =
+    "plain-elemental-combo-stochastic-chance-absorption-weapon-dynamic-mp-"
+    "same-damage-weapon-attack-twice-weapon-additive-reflection-dual-role-"
+    "resource-miracle-attack-defense-redraw-duel-v1";
 inline constexpr std::size_t kWeaponSlots = 5;
 inline constexpr std::size_t kArmorSlots = kHandSlots - kWeaponSlots;
 inline constexpr std::size_t kComboWeaponSlots = 4;
@@ -177,6 +185,9 @@ public:
   [[nodiscard]] bool same_damage_weapon_curriculum() const noexcept {
     return same_damage_weapon_curriculum_;
   }
+  [[nodiscard]] bool attack_twice_weapon_curriculum() const noexcept {
+    return attack_twice_weapon_curriculum_;
+  }
   [[nodiscard]] std::uint16_t initial_mp() const noexcept {
     return initial_mp_;
   }
@@ -200,6 +211,7 @@ public:
   [[nodiscard]] UInt8_1D phases_view() const;
   [[nodiscard]] UInt16_1D pending_attacks_view() const;
   [[nodiscard]] UInt8_1D pending_elements_view() const;
+  [[nodiscard]] UInt8_1D pending_strikes_remaining_view() const;
   [[nodiscard]] Bool1D pending_reflected_view() const;
   [[nodiscard]] Bool2D selected_hand_mask_view() const;
   [[nodiscard]] UInt8_1D selected_counts_view() const;
@@ -277,7 +289,11 @@ protected:
       bool same_damage_weapon_curriculum = false,
       TokenInput same_damage_weapon_token_ids = {},
       ValueInput same_damage_weapon_attack_values = {},
-      ElementInput same_damage_weapon_elements = {});
+      ElementInput same_damage_weapon_elements = {},
+      bool attack_twice_weapon_curriculum = false,
+      TokenInput attack_twice_weapon_token_ids = {},
+      ValueInput attack_twice_weapon_attack_values = {},
+      ElementInput attack_twice_weapon_elements = {});
 
 private:
   static constexpr std::size_t kMaximumBatchSize = 1'000'000;
@@ -330,6 +346,8 @@ private:
                               std::size_t slot);
   void draw_same_damage_weapon(std::size_t environment, std::size_t player,
                                std::size_t slot);
+  void draw_attack_twice_weapon(std::size_t environment, std::size_t player,
+                                std::size_t slot);
   void draw_weapon_family(std::size_t environment, std::size_t player,
                           std::size_t slot);
   void draw_armor_family(std::size_t environment, std::size_t player,
@@ -371,6 +389,7 @@ private:
   bool absorption_weapon_curriculum_;
   bool dynamic_mp_weapon_curriculum_;
   bool same_damage_weapon_curriculum_;
+  bool attack_twice_weapon_curriculum_;
   std::size_t global_feature_count_;
   std::uint16_t initial_mp_;
   std::vector<std::uint32_t> weapon_token_ids_;
@@ -435,6 +454,9 @@ private:
   std::vector<std::uint32_t> same_damage_weapon_token_ids_;
   std::vector<std::uint16_t> same_damage_weapon_attack_values_;
   std::vector<std::uint8_t> same_damage_weapon_elements_;
+  std::vector<std::uint32_t> attack_twice_weapon_token_ids_;
+  std::vector<std::uint16_t> attack_twice_weapon_attack_values_;
+  std::vector<std::uint8_t> attack_twice_weapon_elements_;
   std::vector<std::uint64_t> rng_states_;
   std::vector<std::uint64_t> episode_ids_;
   std::vector<std::uint16_t> hit_points_;
@@ -453,6 +475,7 @@ private:
   std::vector<std::uint16_t> pending_attacks_;
   std::vector<std::uint8_t> pending_elements_;
   std::vector<std::uint8_t> pending_effects_;
+  std::vector<std::uint8_t> pending_strikes_remaining_;
   std::vector<std::uint8_t> pending_base_kinds_;
   std::unique_ptr<bool[]> pending_reflected_;
   std::unique_ptr<bool[]> selected_hand_mask_;
@@ -812,6 +835,58 @@ public:
       TokenInput same_damage_weapon_token_ids,
       ValueInput same_damage_weapon_attack_values,
       ElementInput same_damage_weapon_elements, std::uint64_t seed,
+      std::uint16_t initial_hp, std::uint16_t initial_mp);
+};
+
+class AttackTwiceWeaponResourceAttackDefenseBatch final
+    : public AttackDefenseBatch {
+public:
+  AttackTwiceWeaponResourceAttackDefenseBatch(
+      std::size_t batch_size, TokenInput weapon_token_ids,
+      ValueInput attack_values, ElementInput weapon_elements,
+      TokenInput booster_token_ids, ValueInput booster_values,
+      ElementInput booster_elements, TokenInput armor_token_ids,
+      ValueInput defense_values, ElementInput armor_elements,
+      TokenInput hp_utility_token_ids, ValueInput hp_utility_values,
+      TokenInput mp_utility_token_ids, ValueInput mp_utility_values,
+      TokenInput attack_miracle_token_ids, ValueInput attack_miracle_values,
+      ElementInput attack_miracle_elements, ValueInput attack_miracle_costs,
+      TokenInput hp_miracle_token_ids, ValueInput hp_miracle_values,
+      ValueInput hp_miracle_costs, TokenInput chance_miracle_token_ids,
+      ValueInput chance_miracle_values, ElementInput chance_miracle_elements,
+      ValueInput chance_miracle_costs, ValueInput chance_miracle_hit_rates,
+      TokenInput effect_miracle_token_ids, ValueInput effect_miracle_values,
+      ElementInput effect_miracle_elements, ValueInput effect_miracle_costs,
+      TokenInput additive_miracle_token_ids, ValueInput additive_miracle_values,
+      ElementInput additive_miracle_elements, ValueInput additive_miracle_costs,
+      TokenInput reflection_armor_token_ids,
+      TokenInput reflection_weapon_token_ids,
+      ValueInput reflection_weapon_values, TokenInput dual_role_token_ids,
+      ValueInput dual_role_attack_values, ValueInput dual_role_defense_values,
+      ElementInput dual_role_elements, TokenInput chance_weapon_token_ids,
+      ValueInput chance_weapon_attack_values,
+      ElementInput chance_weapon_elements, ValueInput chance_weapon_hit_rates,
+      TokenInput chance_dual_role_token_ids,
+      ValueInput chance_dual_role_attack_values,
+      ValueInput chance_dual_role_defense_values,
+      ElementInput chance_dual_role_elements,
+      ValueInput chance_dual_role_hit_rates,
+      TokenInput absorption_weapon_token_ids,
+      ValueInput absorption_weapon_attack_values,
+      ElementInput absorption_weapon_elements,
+      TokenInput chance_absorption_weapon_token_ids,
+      ValueInput chance_absorption_weapon_attack_values,
+      ElementInput chance_absorption_weapon_elements,
+      ValueInput chance_absorption_weapon_hit_rates,
+      TokenInput dynamic_mp_weapon_token_ids,
+      ValueInput dynamic_mp_weapon_coefficients,
+      ElementInput dynamic_mp_weapon_elements,
+      TokenInput same_damage_weapon_token_ids,
+      ValueInput same_damage_weapon_attack_values,
+      ElementInput same_damage_weapon_elements,
+      TokenInput attack_twice_weapon_token_ids,
+      ValueInput attack_twice_weapon_attack_values,
+      ElementInput attack_twice_weapon_elements, std::uint64_t seed,
       std::uint16_t initial_hp, std::uint16_t initial_mp);
 };
 

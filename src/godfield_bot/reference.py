@@ -826,6 +826,30 @@ def verified_same_damage_weapon_cards(
     return result
 
 
+def verified_attack_twice_weapon_cards(
+    snapshot: BibleSnapshot,
+) -> dict[str, tuple[int, int, CombatElement]]:
+    """Return fixed weapons with the exact evidenced two-strike effect."""
+
+    weapons = snapshot.catalog.get("weapons")
+    if weapons is None:
+        return {}
+    result: dict[str, tuple[int, int, CombatElement]] = {}
+    for artifact in weapons.items:
+        element = _combat_element(artifact)
+        if element is None or len(artifact.detail) != 5:
+            continue
+        attack = PLAIN_ATTACK_PATTERN.fullmatch(artifact.detail[1])
+        if (
+            attack is not None
+            and artifact.detail[2] == "Attack twice"
+            and re.fullmatch(r"\$\d+", artifact.detail[3]) is not None
+            and artifact.detail[4].startswith("Gift Rate:")
+        ):
+            result[artifact.asset] = (int(attack.group(1)), 2, element)
+    return result
+
+
 def verified_chance_attack_miracle_cards(
     snapshot: BibleSnapshot,
 ) -> dict[str, tuple[int, int, int, CombatElement]]:

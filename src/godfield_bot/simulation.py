@@ -26,6 +26,7 @@ from godfield_bot.reference import (
     verified_absorption_weapon_cards,
     verified_attack_booster_miracle_cards,
     verified_attack_miracle_cards,
+    verified_attack_twice_weapon_cards,
     verified_chance_absorption_weapon_cards,
     verified_chance_attack_miracle_cards,
     verified_dynamic_mp_weapon_cards,
@@ -55,6 +56,7 @@ AttackDefenseRuleset = Literal[
     "absorption-weapon-resource-hand",
     "dynamic-mp-weapon-resource-hand",
     "same-damage-weapon-resource-hand",
+    "attack-twice-weapon-resource-hand",
 ]
 
 
@@ -103,6 +105,7 @@ class SimulationMetadata(BaseModel):
         "elemental-absorption-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-dynamic-mp-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-same-damage-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
+        "elemental-attack-twice-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
     ] = "uniform-redraw-with-replacement"
     promotion_eligible: Literal[False] = False
 
@@ -253,6 +256,9 @@ def create_attack_defense_simulation(
             ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
             ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
             ATTACK_DEFENSE_RULESET_ID,
+            ATTACK_TWICE_WEAPON_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
+            ATTACK_TWICE_WEAPON_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
+            ATTACK_TWICE_WEAPON_RESOURCE_ATTACK_DEFENSE_RULESET_ID,
             CHANCE_WEAPON_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
             CHANCE_WEAPON_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
             CHANCE_WEAPON_RESOURCE_ATTACK_DEFENSE_RULESET_ID,
@@ -294,6 +300,7 @@ def create_attack_defense_simulation(
             STOCHASTIC_RESOURCE_GLOBAL_FEATURE_COUNT,
             AbsorptionWeaponResourceAttackDefenseBatch,
             AttackDefenseBatch,
+            AttackTwiceWeaponResourceAttackDefenseBatch,
             ChanceWeaponResourceAttackDefenseBatch,
             ComboAttackDefenseBatch,
             DualRoleResourceAttackDefenseBatch,
@@ -326,6 +333,7 @@ def create_attack_defense_simulation(
         "absorption-weapon-resource-hand",
         "dynamic-mp-weapon-resource-hand",
         "same-damage-weapon-resource-hand",
+        "attack-twice-weapon-resource-hand",
     }
     if ruleset in expanded_rulesets:
         attacks = plain_attack_weapon_cards(snapshot)
@@ -390,6 +398,7 @@ def create_attack_defense_simulation(
         "absorption-weapon-resource-hand",
         "dynamic-mp-weapon-resource-hand",
         "same-damage-weapon-resource-hand",
+        "attack-twice-weapon-resource-hand",
     }:
         boosters = plain_attack_booster_cards(snapshot)
         if not boosters:
@@ -427,6 +436,7 @@ def create_attack_defense_simulation(
             "absorption-weapon-resource-hand",
             "dynamic-mp-weapon-resource-hand",
             "same-damage-weapon-resource-hand",
+            "attack-twice-weapon-resource-hand",
         }:
             hp_utilities = plain_hp_utility_sundries(snapshot)
             mp_utilities = plain_mp_utility_sundries(snapshot)
@@ -510,6 +520,7 @@ def create_attack_defense_simulation(
                 "absorption-weapon-resource-hand",
                 "dynamic-mp-weapon-resource-hand",
                 "same-damage-weapon-resource-hand",
+                "attack-twice-weapon-resource-hand",
             }:
                 chance_miracles = verified_chance_attack_miracle_cards(snapshot)
                 effect_miracles = {
@@ -568,6 +579,7 @@ def create_attack_defense_simulation(
                 chance_absorption_weapon_catalog: list[dict[str, object]] = []
                 dynamic_mp_weapon_catalog: list[dict[str, object]] = []
                 same_damage_weapon_catalog: list[dict[str, object]] = []
+                attack_twice_weapon_catalog: list[dict[str, object]] = []
                 if ruleset in {
                     "expanded-resource-hand",
                     "reflection-resource-hand",
@@ -577,6 +589,7 @@ def create_attack_defense_simulation(
                     "absorption-weapon-resource-hand",
                     "dynamic-mp-weapon-resource-hand",
                     "same-damage-weapon-resource-hand",
+                    "attack-twice-weapon-resource-hand",
                 }:
                     additive_miracles = verified_attack_booster_miracle_cards(snapshot)
                     if not additive_miracles:
@@ -612,6 +625,7 @@ def create_attack_defense_simulation(
                         "absorption-weapon-resource-hand",
                         "dynamic-mp-weapon-resource-hand",
                         "same-damage-weapon-resource-hand",
+                        "attack-twice-weapon-resource-hand",
                     }:
                         reflection_armor = verified_reflection_armor_cards(snapshot)
                         if not reflection_armor:
@@ -638,6 +652,7 @@ def create_attack_defense_simulation(
                             "absorption-weapon-resource-hand",
                             "dynamic-mp-weapon-resource-hand",
                             "same-damage-weapon-resource-hand",
+                            "attack-twice-weapon-resource-hand",
                         }:
                             reflection_weapons = verified_reflection_weapon_cards(snapshot)
                             if not reflection_weapons:
@@ -670,6 +685,7 @@ def create_attack_defense_simulation(
                                 "absorption-weapon-resource-hand",
                                 "dynamic-mp-weapon-resource-hand",
                                 "same-damage-weapon-resource-hand",
+                                "attack-twice-weapon-resource-hand",
                             }:
                                 dual_roles = plain_dual_role_weapon_cards(snapshot)
                                 if not dual_roles:
@@ -713,6 +729,7 @@ def create_attack_defense_simulation(
                                     "absorption-weapon-resource-hand",
                                     "dynamic-mp-weapon-resource-hand",
                                     "same-damage-weapon-resource-hand",
+                                    "attack-twice-weapon-resource-hand",
                                 }:
                                     chance_weapons = plain_chance_weapon_cards(snapshot)
                                     chance_dual_roles = plain_chance_dual_role_weapon_cards(
@@ -792,6 +809,7 @@ def create_attack_defense_simulation(
                                         "absorption-weapon-resource-hand",
                                         "dynamic-mp-weapon-resource-hand",
                                         "same-damage-weapon-resource-hand",
+                                        "attack-twice-weapon-resource-hand",
                                     }:
                                         absorption_weapons = verified_absorption_weapon_cards(
                                             snapshot
@@ -879,6 +897,7 @@ def create_attack_defense_simulation(
                                         if ruleset in {
                                             "dynamic-mp-weapon-resource-hand",
                                             "same-damage-weapon-resource-hand",
+                                            "attack-twice-weapon-resource-hand",
                                         }:
                                             dynamic_mp_weapons = verified_dynamic_mp_weapon_cards(
                                                 snapshot
@@ -953,7 +972,10 @@ def create_attack_defense_simulation(
                                                 chance_absorption_weapon_hit_rates,
                                                 *dynamic_mp_args,
                                             )
-                                            if ruleset == "same-damage-weapon-resource-hand":
+                                            if ruleset in {
+                                                "same-damage-weapon-resource-hand",
+                                                "attack-twice-weapon-resource-hand",
+                                            }:
                                                 same_damage_weapons = (
                                                     verified_same_damage_weapon_cards(snapshot)
                                                 )
@@ -978,8 +1000,7 @@ def create_attack_defense_simulation(
                                                         same_damage_weapons.items()
                                                     )
                                                 ]
-                                                batch = SameDamageWeaponResourceAttackDefenseBatch(
-                                                    *dynamic_mp_batch_args,
+                                                same_damage_args = (
                                                     np.asarray(
                                                         [
                                                             row["token_id"]
@@ -1001,10 +1022,85 @@ def create_attack_defense_simulation(
                                                         ],
                                                         dtype=np.uint8,
                                                     ),
-                                                    seed,
-                                                    initial_hp,
-                                                    initial_mp,
                                                 )
+                                                same_damage_batch_args = (
+                                                    *dynamic_mp_batch_args,
+                                                    *same_damage_args,
+                                                )
+                                                if ruleset == "attack-twice-weapon-resource-hand":
+                                                    attack_twice_weapons = (
+                                                        verified_attack_twice_weapon_cards(snapshot)
+                                                    )
+                                                    if not attack_twice_weapons:
+                                                        raise ValueError(
+                                                            "accepted snapshot contains no "
+                                                            "supported attack-twice weapon"
+                                                        )
+                                                    attack_twice_weapon_catalog = [
+                                                        {
+                                                            "attack": attack,
+                                                            "effect": "attackTwice",
+                                                            "element": element,
+                                                            "element_id": COMBAT_ELEMENT_IDS[
+                                                                element
+                                                            ],
+                                                            "kind": "attack-twice-weapon",
+                                                            "slug": slug,
+                                                            "strikes": strikes,
+                                                            "token_id": vocabulary.token_id(
+                                                                "weapons", slug
+                                                            ),
+                                                        }
+                                                        for slug, (
+                                                            attack,
+                                                            strikes,
+                                                            element,
+                                                        ) in sorted(attack_twice_weapons.items())
+                                                    ]
+                                                    batch = (
+                                                        AttackTwiceWeaponResourceAttackDefenseBatch(
+                                                            *same_damage_batch_args,
+                                                            np.asarray(
+                                                                [
+                                                                    row["token_id"]
+                                                                    for row in (
+                                                                        attack_twice_weapon_catalog
+                                                                    )
+                                                                ],
+                                                                dtype=np.uint32,
+                                                            ),
+                                                            np.asarray(
+                                                                [
+                                                                    row["attack"]
+                                                                    for row in (
+                                                                        attack_twice_weapon_catalog
+                                                                    )
+                                                                ],
+                                                                dtype=np.uint16,
+                                                            ),
+                                                            np.asarray(
+                                                                [
+                                                                    row["element_id"]
+                                                                    for row in (
+                                                                        attack_twice_weapon_catalog
+                                                                    )
+                                                                ],
+                                                                dtype=np.uint8,
+                                                            ),
+                                                            seed,
+                                                            initial_hp,
+                                                            initial_mp,
+                                                        )
+                                                    )
+                                                else:
+                                                    batch = (
+                                                        SameDamageWeaponResourceAttackDefenseBatch(
+                                                            *same_damage_batch_args,
+                                                            seed,
+                                                            initial_hp,
+                                                            initial_mp,
+                                                        )
+                                                    )
                                             else:
                                                 batch = DynamicMpWeaponResourceAttackDefenseBatch(
                                                     *dynamic_mp_batch_args,
@@ -1128,6 +1224,7 @@ def create_attack_defense_simulation(
                     + chance_absorption_weapon_catalog
                     + dynamic_mp_weapon_catalog
                     + same_damage_weapon_catalog
+                    + attack_twice_weapon_catalog
                 )
             else:
                 batch = ResourceAttackDefenseBatch(
@@ -1199,11 +1296,24 @@ def create_attack_defense_simulation(
         "elemental-absorption-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-dynamic-mp-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-same-damage-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
+        "elemental-attack-twice-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
     ]
     action_semantics: Literal["atomic-attack-defense-macro", "sequential-combo-selection"] = (
         "atomic-attack-defense-macro"
     )
-    if ruleset == "same-damage-weapon-resource-hand":
+    if ruleset == "attack-twice-weapon-resource-hand":
+        kernel_schema_version = ATTACK_TWICE_WEAPON_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION
+        observation_schema_version = (
+            ATTACK_TWICE_WEAPON_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION
+        )
+        ruleset_id = ATTACK_TWICE_WEAPON_RESOURCE_ATTACK_DEFENSE_RULESET_ID
+        global_feature_count = STOCHASTIC_RESOURCE_GLOBAL_FEATURE_COUNT
+        sampling_distribution = (
+            "elemental-attack-twice-weapon-resource-2-1-2-1-1-1-1-"
+            "initial-uniform-redraw-with-base-liveness"
+        )
+        action_semantics = "sequential-combo-selection"
+    elif ruleset == "same-damage-weapon-resource-hand":
         kernel_schema_version = SAME_DAMAGE_WEAPON_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION
         observation_schema_version = (
             SAME_DAMAGE_WEAPON_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION

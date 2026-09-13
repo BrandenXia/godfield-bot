@@ -21,6 +21,7 @@ from godfield_bot.reference import (
     verified_absorption_weapon_cards,
     verified_attack_booster_miracle_cards,
     verified_attack_miracle_cards,
+    verified_attack_twice_weapon_cards,
     verified_chance_absorption_weapon_cards,
     verified_chance_attack_miracle_cards,
     verified_dynamic_mp_weapon_cards,
@@ -45,6 +46,7 @@ CHANCE_WEAPON_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-chance-weapon-resource-c
 ABSORPTION_WEAPON_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-absorption-weapon-resource-combo-v1"
 DYNAMIC_MP_WEAPON_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-dynamic-mp-weapon-resource-combo-v1"
 SAME_DAMAGE_WEAPON_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-same-damage-weapon-resource-combo-v1"
+ATTACK_TWICE_WEAPON_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-attack-twice-weapon-resource-combo-v1"
 FORGIVE_ACTION_INDEX = 19
 CONFIRM_ACTION_INDEX = 20
 
@@ -102,6 +104,7 @@ def build_curriculum_heuristic(
         "absorption-weapon-resource-hand",
         "dynamic-mp-weapon-resource-hand",
         "same-damage-weapon-resource-hand",
+        "attack-twice-weapon-resource-hand",
     }:
         attacks = {
             slug: attack for slug, (attack, _element) in plain_attack_weapon_cards(snapshot).items()
@@ -122,6 +125,7 @@ def build_curriculum_heuristic(
             "absorption-weapon-resource-hand",
             "dynamic-mp-weapon-resource-hand",
             "same-damage-weapon-resource-hand",
+            "attack-twice-weapon-resource-hand",
         }:
             boosters = {
                 slug: boost
@@ -137,6 +141,7 @@ def build_curriculum_heuristic(
             "absorption-weapon-resource-hand",
             "dynamic-mp-weapon-resource-hand",
             "same-damage-weapon-resource-hand",
+            "attack-twice-weapon-resource-hand",
         }:
             attacks.update(verified_reflection_weapon_cards(snapshot))
         if ruleset in {
@@ -145,6 +150,7 @@ def build_curriculum_heuristic(
             "absorption-weapon-resource-hand",
             "dynamic-mp-weapon-resource-hand",
             "same-damage-weapon-resource-hand",
+            "attack-twice-weapon-resource-hand",
         }:
             dual_roles = plain_dual_role_weapon_cards(snapshot)
             attacks.update(
@@ -158,6 +164,7 @@ def build_curriculum_heuristic(
             "absorption-weapon-resource-hand",
             "dynamic-mp-weapon-resource-hand",
             "same-damage-weapon-resource-hand",
+            "attack-twice-weapon-resource-hand",
         }:
             chance_weapons = plain_chance_weapon_cards(snapshot)
             chance_dual_roles = plain_chance_dual_role_weapon_cards(snapshot)
@@ -185,6 +192,7 @@ def build_curriculum_heuristic(
             "absorption-weapon-resource-hand",
             "dynamic-mp-weapon-resource-hand",
             "same-damage-weapon-resource-hand",
+            "attack-twice-weapon-resource-hand",
         }:
             absorption_weapons = verified_absorption_weapon_cards(snapshot)
             chance_absorption_weapons = verified_chance_absorption_weapon_cards(snapshot)
@@ -201,6 +209,7 @@ def build_curriculum_heuristic(
         if ruleset in {
             "dynamic-mp-weapon-resource-hand",
             "same-damage-weapon-resource-hand",
+            "attack-twice-weapon-resource-hand",
         }:
             dynamic_mp_attacks = {
                 slug: coefficient
@@ -209,11 +218,22 @@ def build_curriculum_heuristic(
                 ).items()
             }
             attacks.update(dynamic_mp_attacks)
-        if ruleset == "same-damage-weapon-resource-hand":
+        if ruleset in {
+            "same-damage-weapon-resource-hand",
+            "attack-twice-weapon-resource-hand",
+        }:
             same_damage_attacks = verified_same_damage_weapon_cards(snapshot)
             same_damage_attack_slugs.update(same_damage_attacks)
             attacks.update(
                 {slug: attack for slug, (attack, _element) in same_damage_attacks.items()}
+            )
+        if ruleset == "attack-twice-weapon-resource-hand":
+            attack_twice = verified_attack_twice_weapon_cards(snapshot)
+            attacks.update(
+                {
+                    slug: attack * strikes
+                    for slug, (attack, strikes, _element) in attack_twice.items()
+                }
             )
     else:
         attacks = plain_attack_weapon_values(snapshot)
@@ -235,6 +255,7 @@ def build_curriculum_heuristic(
         "absorption-weapon-resource-hand",
         "dynamic-mp-weapon-resource-hand",
         "same-damage-weapon-resource-hand",
+        "attack-twice-weapon-resource-hand",
     }:
         hp_utilities.update(
             (slug, (utility, 0)) for slug, utility in plain_hp_utility_sundries(snapshot).items()
@@ -256,6 +277,7 @@ def build_curriculum_heuristic(
             "absorption-weapon-resource-hand",
             "dynamic-mp-weapon-resource-hand",
             "same-damage-weapon-resource-hand",
+            "attack-twice-weapon-resource-hand",
         }:
             chance_miracles = {
                 slug: (round(hit_rate * attack / 100), cost)
@@ -283,6 +305,7 @@ def build_curriculum_heuristic(
                 "absorption-weapon-resource-hand",
                 "dynamic-mp-weapon-resource-hand",
                 "same-damage-weapon-resource-hand",
+                "attack-twice-weapon-resource-hand",
             }:
                 miracle_boosters = {
                     slug: boost
@@ -305,6 +328,8 @@ def build_curriculum_heuristic(
                     policy_id = DYNAMIC_MP_WEAPON_RESOURCE_HEURISTIC_POLICY_ID
                 elif ruleset == "same-damage-weapon-resource-hand":
                     policy_id = SAME_DAMAGE_WEAPON_RESOURCE_HEURISTIC_POLICY_ID
+                elif ruleset == "attack-twice-weapon-resource-hand":
+                    policy_id = ATTACK_TWICE_WEAPON_RESOURCE_HEURISTIC_POLICY_ID
     attack_token_values = {
         vocabulary.token_id("weapons", slug): attack for slug, attack in attacks.items()
     }
@@ -329,6 +354,7 @@ def build_curriculum_heuristic(
         "absorption-weapon-resource-hand",
         "dynamic-mp-weapon-resource-hand",
         "same-damage-weapon-resource-hand",
+        "attack-twice-weapon-resource-hand",
     }:
         reflection_defense_tokens.update(
             vocabulary.token_id("armor", slug) for slug in verified_reflection_armor_cards(snapshot)
@@ -340,6 +366,7 @@ def build_curriculum_heuristic(
         "absorption-weapon-resource-hand",
         "dynamic-mp-weapon-resource-hand",
         "same-damage-weapon-resource-hand",
+        "attack-twice-weapon-resource-hand",
     }:
         reflection_defense_tokens.update(
             vocabulary.token_id("weapons", slug)

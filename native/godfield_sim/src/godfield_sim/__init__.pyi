@@ -45,6 +45,9 @@ DYNAMIC_MP_WEAPON_RESOURCE_ATTACK_DEFENSE_RULESET_ID: Final[str]
 SAME_DAMAGE_WEAPON_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION: Final[int]
 SAME_DAMAGE_WEAPON_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION: Final[int]
 SAME_DAMAGE_WEAPON_RESOURCE_ATTACK_DEFENSE_RULESET_ID: Final[str]
+ATTACK_TWICE_WEAPON_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION: Final[int]
+ATTACK_TWICE_WEAPON_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION: Final[int]
+ATTACK_TWICE_WEAPON_RESOURCE_ATTACK_DEFENSE_RULESET_ID: Final[str]
 MIXED_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION: Final[int]
 MIXED_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION: Final[int]
 MIXED_ATTACK_DEFENSE_RULESET_ID: Final[str]
@@ -81,6 +84,7 @@ CARD_KIND_DUAL_ROLE: Final[int]
 CARD_KIND_CHANCE_WEAPON: Final[int]
 CARD_KIND_CHANCE_DUAL_ROLE: Final[int]
 CARD_KIND_ABSORPTION_WEAPON: Final[int]
+CARD_KIND_ATTACK_TWICE_WEAPON: Final[int]
 CARD_KIND_CHANCE_ABSORPTION_WEAPON: Final[int]
 CARD_KIND_DYNAMIC_MP_WEAPON: Final[int]
 CARD_KIND_SAME_DAMAGE_WEAPON: Final[int]
@@ -174,6 +178,8 @@ class AttackDefenseBatch:
     @property
     def same_damage_weapon_curriculum(self) -> bool: ...
     @property
+    def attack_twice_weapon_curriculum(self) -> bool: ...
+    @property
     def initial_mp(self) -> int: ...
     @property
     def global_feature_count(self) -> int: ...
@@ -201,6 +207,8 @@ class AttackDefenseBatch:
     def pending_attacks(self) -> npt.NDArray[np.uint16]: ...
     @property
     def pending_elements(self) -> npt.NDArray[np.uint8]: ...
+    @property
+    def pending_strikes_remaining(self) -> npt.NDArray[np.uint8]: ...
     @property
     def pending_reflected(self) -> npt.NDArray[np.bool_]: ...
     @property
@@ -759,6 +767,80 @@ class SameDamageWeaponResourceAttackDefenseBatch(AttackDefenseBatch):
         same_damage_weapon_token_ids: npt.NDArray[np.uint32],
         same_damage_weapon_attack_values: npt.NDArray[np.uint16],
         same_damage_weapon_elements: npt.NDArray[np.uint8],
+        seed: int = ...,
+        initial_hp: int = ...,
+        initial_mp: int = ...,
+    ) -> None: ...
+
+class AttackTwiceWeaponResourceAttackDefenseBatch(AttackDefenseBatch):
+    def __init__(
+        self,
+        batch_size: int,
+        weapon_token_ids: npt.NDArray[np.uint32],
+        attack_values: npt.NDArray[np.uint16],
+        weapon_elements: npt.NDArray[np.uint8],
+        booster_token_ids: npt.NDArray[np.uint32],
+        booster_values: npt.NDArray[np.uint16],
+        booster_elements: npt.NDArray[np.uint8],
+        armor_token_ids: npt.NDArray[np.uint32],
+        defense_values: npt.NDArray[np.uint16],
+        armor_elements: npt.NDArray[np.uint8],
+        hp_utility_token_ids: npt.NDArray[np.uint32],
+        hp_utility_values: npt.NDArray[np.uint16],
+        mp_utility_token_ids: npt.NDArray[np.uint32],
+        mp_utility_values: npt.NDArray[np.uint16],
+        attack_miracle_token_ids: npt.NDArray[np.uint32],
+        attack_miracle_values: npt.NDArray[np.uint16],
+        attack_miracle_elements: npt.NDArray[np.uint8],
+        attack_miracle_costs: npt.NDArray[np.uint16],
+        hp_miracle_token_ids: npt.NDArray[np.uint32],
+        hp_miracle_values: npt.NDArray[np.uint16],
+        hp_miracle_costs: npt.NDArray[np.uint16],
+        chance_miracle_token_ids: npt.NDArray[np.uint32],
+        chance_miracle_values: npt.NDArray[np.uint16],
+        chance_miracle_elements: npt.NDArray[np.uint8],
+        chance_miracle_costs: npt.NDArray[np.uint16],
+        chance_miracle_hit_rates: npt.NDArray[np.uint16],
+        effect_miracle_token_ids: npt.NDArray[np.uint32],
+        effect_miracle_values: npt.NDArray[np.uint16],
+        effect_miracle_elements: npt.NDArray[np.uint8],
+        effect_miracle_costs: npt.NDArray[np.uint16],
+        additive_miracle_token_ids: npt.NDArray[np.uint32],
+        additive_miracle_values: npt.NDArray[np.uint16],
+        additive_miracle_elements: npt.NDArray[np.uint8],
+        additive_miracle_costs: npt.NDArray[np.uint16],
+        reflection_armor_token_ids: npt.NDArray[np.uint32],
+        reflection_weapon_token_ids: npt.NDArray[np.uint32],
+        reflection_weapon_values: npt.NDArray[np.uint16],
+        dual_role_token_ids: npt.NDArray[np.uint32],
+        dual_role_attack_values: npt.NDArray[np.uint16],
+        dual_role_defense_values: npt.NDArray[np.uint16],
+        dual_role_elements: npt.NDArray[np.uint8],
+        chance_weapon_token_ids: npt.NDArray[np.uint32],
+        chance_weapon_attack_values: npt.NDArray[np.uint16],
+        chance_weapon_elements: npt.NDArray[np.uint8],
+        chance_weapon_hit_rates: npt.NDArray[np.uint16],
+        chance_dual_role_token_ids: npt.NDArray[np.uint32],
+        chance_dual_role_attack_values: npt.NDArray[np.uint16],
+        chance_dual_role_defense_values: npt.NDArray[np.uint16],
+        chance_dual_role_elements: npt.NDArray[np.uint8],
+        chance_dual_role_hit_rates: npt.NDArray[np.uint16],
+        absorption_weapon_token_ids: npt.NDArray[np.uint32],
+        absorption_weapon_attack_values: npt.NDArray[np.uint16],
+        absorption_weapon_elements: npt.NDArray[np.uint8],
+        chance_absorption_weapon_token_ids: npt.NDArray[np.uint32],
+        chance_absorption_weapon_attack_values: npt.NDArray[np.uint16],
+        chance_absorption_weapon_elements: npt.NDArray[np.uint8],
+        chance_absorption_weapon_hit_rates: npt.NDArray[np.uint16],
+        dynamic_mp_weapon_token_ids: npt.NDArray[np.uint32],
+        dynamic_mp_weapon_coefficients: npt.NDArray[np.uint16],
+        dynamic_mp_weapon_elements: npt.NDArray[np.uint8],
+        same_damage_weapon_token_ids: npt.NDArray[np.uint32],
+        same_damage_weapon_attack_values: npt.NDArray[np.uint16],
+        same_damage_weapon_elements: npt.NDArray[np.uint8],
+        attack_twice_weapon_token_ids: npt.NDArray[np.uint32],
+        attack_twice_weapon_attack_values: npt.NDArray[np.uint16],
+        attack_twice_weapon_elements: npt.NDArray[np.uint8],
         seed: int = ...,
         initial_hp: int = ...,
         initial_mp: int = ...,

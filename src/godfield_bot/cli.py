@@ -1416,6 +1416,7 @@ def models_train_simulation(
             "absorption-weapon-resource-hand",
             "dynamic-mp-weapon-resource-hand",
             "same-damage-weapon-resource-hand",
+            "attack-twice-weapon-resource-hand",
         ],
         typer.Option(help="Attack/defense hand-distribution curriculum."),
     ] = "fixed-role",
@@ -1563,6 +1564,7 @@ def models_evaluate_simulation(
             "absorption-weapon-resource-hand",
             "dynamic-mp-weapon-resource-hand",
             "same-damage-weapon-resource-hand",
+            "attack-twice-weapon-resource-hand",
         ],
         typer.Option(help="Attack/defense hand-distribution curriculum."),
     ] = "fixed-role",
@@ -1801,6 +1803,7 @@ def simulation_benchmark(
             "absorption-weapon-resource-attack-defense",
             "dynamic-mp-weapon-resource-attack-defense",
             "same-damage-weapon-resource-attack-defense",
+            "attack-twice-weapon-resource-attack-defense",
         ],
         typer.Option(help="Native curriculum ruleset to benchmark."),
     ] = "attack-defense",
@@ -1837,8 +1840,11 @@ def simulation_benchmark(
                 "absorption-weapon-resource-hand",
                 "dynamic-mp-weapon-resource-hand",
                 "same-damage-weapon-resource-hand",
+                "attack-twice-weapon-resource-hand",
             ]
-            if ruleset == "same-damage-weapon-resource-attack-defense":
+            if ruleset == "attack-twice-weapon-resource-attack-defense":
+                attack_defense_ruleset = "attack-twice-weapon-resource-hand"
+            elif ruleset == "same-damage-weapon-resource-attack-defense":
                 attack_defense_ruleset = "same-damage-weapon-resource-hand"
             elif ruleset == "dynamic-mp-weapon-resource-attack-defense":
                 attack_defense_ruleset = "dynamic-mp-weapon-resource-hand"

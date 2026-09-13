@@ -190,6 +190,15 @@ uv run godfield-bot models evaluate-simulation models/<illness-candidate-id> \
 uv run godfield-bot simulation benchmark \
   --ruleset illness-weapon-resource-attack-defense \
   --batch-size 4096 --batch-steps 1000
+uv run godfield-bot models train-simulation models/<schema-v7-model-id> \
+  --ruleset illness-cure-resource-hand --batch-size 256 --rollout-steps 32 \
+  --updates 10
+uv run godfield-bot models evaluate-simulation models/<illness-cure-candidate-id> \
+  --ruleset illness-cure-resource-hand --games-per-seat 512 --minimum-score 0.5 \
+  --heuristic-noninferiority-margin 0.025
+uv run godfield-bot simulation benchmark \
+  --ruleset illness-cure-resource-attack-defense \
+  --batch-size 4096 --batch-steps 1000
 ```
 
 `api observe-private --password-stdin` uses God Field's keyed private-room

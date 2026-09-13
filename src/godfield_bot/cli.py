@@ -1459,6 +1459,7 @@ def models_train_simulation(
             "attack-twice-weapon-resource-hand",
             "random-target-weapon-resource-hand",
             "illness-weapon-resource-hand",
+            "illness-cure-resource-hand",
         ],
         typer.Option(help="Attack/defense hand-distribution curriculum."),
     ] = "fixed-role",
@@ -1609,6 +1610,7 @@ def models_evaluate_simulation(
             "attack-twice-weapon-resource-hand",
             "random-target-weapon-resource-hand",
             "illness-weapon-resource-hand",
+            "illness-cure-resource-hand",
         ],
         typer.Option(help="Attack/defense hand-distribution curriculum."),
     ] = "fixed-role",
@@ -1850,6 +1852,7 @@ def simulation_benchmark(
             "attack-twice-weapon-resource-attack-defense",
             "random-target-weapon-resource-attack-defense",
             "illness-weapon-resource-attack-defense",
+            "illness-cure-resource-attack-defense",
         ],
         typer.Option(help="Native curriculum ruleset to benchmark."),
     ] = "attack-defense",
@@ -1889,8 +1892,11 @@ def simulation_benchmark(
                 "attack-twice-weapon-resource-hand",
                 "random-target-weapon-resource-hand",
                 "illness-weapon-resource-hand",
+                "illness-cure-resource-hand",
             ]
-            if ruleset == "illness-weapon-resource-attack-defense":
+            if ruleset == "illness-cure-resource-attack-defense":
+                attack_defense_ruleset = "illness-cure-resource-hand"
+            elif ruleset == "illness-weapon-resource-attack-defense":
                 attack_defense_ruleset = "illness-weapon-resource-hand"
             elif ruleset == "random-target-weapon-resource-attack-defense":
                 attack_defense_ruleset = "random-target-weapon-resource-hand"

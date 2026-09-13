@@ -121,6 +121,15 @@ inline constexpr const char *kIllnessWeaponResourceAttackDefenseRulesetId =
     "same-damage-weapon-attack-twice-weapon-random-target-weapon-illness-"
     "weapon-additive-reflection-dual-role-resource-miracle-attack-defense-"
     "redraw-duel-v1";
+inline constexpr std::uint32_t
+    kIllnessCureResourceAttackDefenseKernelSchemaVersion = 1;
+inline constexpr std::uint32_t
+    kIllnessCureResourceAttackDefenseObservationSchemaVersion = 7;
+inline constexpr const char *kIllnessCureResourceAttackDefenseRulesetId =
+    "plain-elemental-combo-stochastic-chance-absorption-weapon-dynamic-mp-"
+    "same-damage-weapon-attack-twice-weapon-random-target-weapon-illness-"
+    "weapon-illness-cure-additive-reflection-dual-role-resource-miracle-"
+    "attack-defense-redraw-duel-v1";
 inline constexpr std::size_t kWeaponSlots = 5;
 inline constexpr std::size_t kArmorSlots = kHandSlots - kWeaponSlots;
 inline constexpr std::size_t kComboWeaponSlots = 4;
@@ -212,6 +221,9 @@ public:
   }
   [[nodiscard]] bool illness_weapon_curriculum() const noexcept {
     return illness_weapon_curriculum_;
+  }
+  [[nodiscard]] bool illness_cure_curriculum() const noexcept {
+    return illness_cure_curriculum_;
   }
   [[nodiscard]] std::uint16_t initial_mp() const noexcept {
     return initial_mp_;
@@ -328,7 +340,10 @@ protected:
       TokenInput illness_weapon_token_ids = {},
       ValueInput illness_weapon_attack_values = {},
       ElementInput illness_weapon_elements = {},
-      ValueInput illness_weapon_stages = {});
+      ValueInput illness_weapon_stages = {},
+      bool illness_cure_curriculum = false,
+      TokenInput illness_cure_token_ids = {},
+      ValueInput illness_cure_costs = {}, ValueInput illness_cure_scopes = {});
 
 private:
   static constexpr std::size_t kMaximumBatchSize = 1'000'000;
@@ -387,6 +402,8 @@ private:
                                  std::size_t slot);
   void draw_illness_weapon(std::size_t environment, std::size_t player,
                            std::size_t slot);
+  void draw_illness_cure(std::size_t environment, std::size_t player,
+                         std::size_t slot);
   void draw_weapon_family(std::size_t environment, std::size_t player,
                           std::size_t slot);
   void draw_armor_family(std::size_t environment, std::size_t player,
@@ -435,6 +452,7 @@ private:
   bool attack_twice_weapon_curriculum_;
   bool random_target_weapon_curriculum_;
   bool illness_weapon_curriculum_;
+  bool illness_cure_curriculum_;
   std::size_t global_feature_count_;
   std::uint16_t initial_mp_;
   std::vector<std::uint32_t> weapon_token_ids_;
@@ -509,6 +527,9 @@ private:
   std::vector<std::uint16_t> illness_weapon_attack_values_;
   std::vector<std::uint8_t> illness_weapon_elements_;
   std::vector<std::uint8_t> illness_weapon_stages_;
+  std::vector<std::uint32_t> illness_cure_token_ids_;
+  std::vector<std::uint16_t> illness_cure_costs_;
+  std::vector<std::uint8_t> illness_cure_scopes_;
   std::vector<std::uint64_t> rng_states_;
   std::vector<std::uint64_t> episode_ids_;
   std::vector<std::uint16_t> hit_points_;
@@ -1054,6 +1075,65 @@ public:
       ValueInput illness_weapon_attack_values,
       ElementInput illness_weapon_elements, ValueInput illness_weapon_stages,
       std::uint64_t seed, std::uint16_t initial_hp, std::uint16_t initial_mp);
+};
+
+class IllnessCureResourceAttackDefenseBatch final : public AttackDefenseBatch {
+public:
+  IllnessCureResourceAttackDefenseBatch(
+      std::size_t batch_size, TokenInput weapon_token_ids,
+      ValueInput attack_values, ElementInput weapon_elements,
+      TokenInput booster_token_ids, ValueInput booster_values,
+      ElementInput booster_elements, TokenInput armor_token_ids,
+      ValueInput defense_values, ElementInput armor_elements,
+      TokenInput hp_utility_token_ids, ValueInput hp_utility_values,
+      TokenInput mp_utility_token_ids, ValueInput mp_utility_values,
+      TokenInput attack_miracle_token_ids, ValueInput attack_miracle_values,
+      ElementInput attack_miracle_elements, ValueInput attack_miracle_costs,
+      TokenInput hp_miracle_token_ids, ValueInput hp_miracle_values,
+      ValueInput hp_miracle_costs, TokenInput chance_miracle_token_ids,
+      ValueInput chance_miracle_values, ElementInput chance_miracle_elements,
+      ValueInput chance_miracle_costs, ValueInput chance_miracle_hit_rates,
+      TokenInput effect_miracle_token_ids, ValueInput effect_miracle_values,
+      ElementInput effect_miracle_elements, ValueInput effect_miracle_costs,
+      TokenInput additive_miracle_token_ids, ValueInput additive_miracle_values,
+      ElementInput additive_miracle_elements, ValueInput additive_miracle_costs,
+      TokenInput reflection_armor_token_ids,
+      TokenInput reflection_weapon_token_ids,
+      ValueInput reflection_weapon_values, TokenInput dual_role_token_ids,
+      ValueInput dual_role_attack_values, ValueInput dual_role_defense_values,
+      ElementInput dual_role_elements, TokenInput chance_weapon_token_ids,
+      ValueInput chance_weapon_attack_values,
+      ElementInput chance_weapon_elements, ValueInput chance_weapon_hit_rates,
+      TokenInput chance_dual_role_token_ids,
+      ValueInput chance_dual_role_attack_values,
+      ValueInput chance_dual_role_defense_values,
+      ElementInput chance_dual_role_elements,
+      ValueInput chance_dual_role_hit_rates,
+      TokenInput absorption_weapon_token_ids,
+      ValueInput absorption_weapon_attack_values,
+      ElementInput absorption_weapon_elements,
+      TokenInput chance_absorption_weapon_token_ids,
+      ValueInput chance_absorption_weapon_attack_values,
+      ElementInput chance_absorption_weapon_elements,
+      ValueInput chance_absorption_weapon_hit_rates,
+      TokenInput dynamic_mp_weapon_token_ids,
+      ValueInput dynamic_mp_weapon_coefficients,
+      ElementInput dynamic_mp_weapon_elements,
+      TokenInput same_damage_weapon_token_ids,
+      ValueInput same_damage_weapon_attack_values,
+      ElementInput same_damage_weapon_elements,
+      TokenInput attack_twice_weapon_token_ids,
+      ValueInput attack_twice_weapon_attack_values,
+      ElementInput attack_twice_weapon_elements,
+      TokenInput random_target_weapon_token_ids,
+      ValueInput random_target_weapon_attack_values,
+      ElementInput random_target_weapon_elements,
+      TokenInput illness_weapon_token_ids,
+      ValueInput illness_weapon_attack_values,
+      ElementInput illness_weapon_elements, ValueInput illness_weapon_stages,
+      TokenInput illness_cure_token_ids, ValueInput illness_cure_costs,
+      ValueInput illness_cure_scopes, std::uint64_t seed,
+      std::uint16_t initial_hp, std::uint16_t initial_mp);
 };
 
 } // namespace godfield_sim

@@ -900,6 +900,58 @@ def verified_illness_weapon_cards(
     return result
 
 
+def verified_illness_cure_sundries(snapshot: BibleSnapshot) -> dict[str, bool]:
+    """Return consumable illness cures, mapped to whether they erase every curse."""
+
+    expected_effects = {
+        ("Erase Cold, Fever,", "Fog, and Flash"): False,
+        ("Erase", "all the curses"): True,
+    }
+    sundries = snapshot.catalog.get("sundries")
+    if sundries is None:
+        return {}
+    result: dict[str, bool] = {}
+    for artifact in sundries.items:
+        if artifact.element_image_paths or len(artifact.detail) != 5:
+            continue
+        cure_all = expected_effects.get((artifact.detail[1], artifact.detail[2]))
+        if (
+            cure_all is not None
+            and re.fullmatch(r"\$\d+", artifact.detail[3]) is not None
+            and artifact.detail[4].startswith("Gift Rate:")
+        ):
+            result[artifact.asset] = cure_all
+    return result
+
+
+def verified_illness_cure_miracles(
+    snapshot: BibleSnapshot,
+) -> dict[str, tuple[int, bool]]:
+    """Return reusable illness cures with exact MP costs and cure scope."""
+
+    expected_effects = {
+        ("Erase Cold, Fever,", "Fog, and Flash"): False,
+        ("Erase", "all the curses"): True,
+    }
+    miracles = snapshot.catalog.get("miracles")
+    if miracles is None:
+        return {}
+    result: dict[str, tuple[int, bool]] = {}
+    for artifact in miracles.items:
+        if artifact.element_image_paths or len(artifact.detail) != 6:
+            continue
+        cure_all = expected_effects.get((artifact.detail[1], artifact.detail[2]))
+        cost = re.fullmatch(r"(\d+)MP", artifact.detail[4])
+        if (
+            cure_all is not None
+            and artifact.detail[3] == "Cost"
+            and cost is not None
+            and artifact.detail[5].startswith("Gift Rate:")
+        ):
+            result[artifact.asset] = (int(cost.group(1)), cure_all)
+    return result
+
+
 def verified_chance_attack_miracle_cards(
     snapshot: BibleSnapshot,
 ) -> dict[str, tuple[int, int, int, CombatElement]]:

@@ -26,6 +26,8 @@ from godfield_bot.reference import (
     verified_dynamic_mp_weapon_cards,
     verified_effect_attack_miracle_cards,
     verified_hp_utility_miracle_cards,
+    verified_illness_cure_miracles,
+    verified_illness_cure_sundries,
     verified_illness_weapon_cards,
     verified_random_target_weapon_cards,
     verified_reflection_armor_cards,
@@ -178,6 +180,14 @@ def test_committed_snapshot_matches_validated_live_catalog() -> None:
         "hell-scissors": (8, "non-element", 3),
         "severe-gale-sword": (13, "non-element", 1),
         "wind-talons": (1, "stone", 1),
+    }
+    assert verified_illness_cure_sundries(snapshot) == {
+        "heart-shell": True,
+        "smile-shell": False,
+    }
+    assert verified_illness_cure_miracles(snapshot) == {
+        "song": (5, True),
+        "tone": (2, False),
     }
     assert verified_effect_attack_miracle_cards(snapshot) == {
         "absorption": (10, 10, "light", "absorbHP")

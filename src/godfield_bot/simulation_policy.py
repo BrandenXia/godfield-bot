@@ -27,6 +27,8 @@ from godfield_bot.reference import (
     verified_dynamic_mp_weapon_cards,
     verified_effect_attack_miracle_cards,
     verified_hp_utility_miracle_cards,
+    verified_illness_cure_miracles,
+    verified_illness_cure_sundries,
     verified_illness_weapon_cards,
     verified_random_target_weapon_cards,
     verified_reflection_armor_cards,
@@ -53,6 +55,7 @@ RANDOM_TARGET_WEAPON_RESOURCE_HEURISTIC_POLICY_ID = (
     "evidenced-random-target-weapon-resource-combo-v1"
 )
 ILLNESS_WEAPON_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-illness-weapon-resource-combo-v1"
+ILLNESS_CURE_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-illness-cure-resource-combo-v1"
 FORGIVE_ACTION_INDEX = 19
 CONFIRM_ACTION_INDEX = 20
 
@@ -74,6 +77,7 @@ class CurriculumHeuristic:
     same_damage_attack_tokens: frozenset[int] = frozenset()
     random_target_attack_tokens: frozenset[int] = frozenset()
     reflection_defenses: frozenset[int] = frozenset()
+    illness_cures: dict[int, tuple[int, int]] | None = None
     policy_id: str = HEURISTIC_POLICY_ID
 
 
@@ -128,6 +132,7 @@ def build_curriculum_heuristic(
         "attack-twice-weapon-resource-hand",
         "random-target-weapon-resource-hand",
         "illness-weapon-resource-hand",
+        "illness-cure-resource-hand",
     }:
         attacks = {
             slug: attack for slug, (attack, _element) in plain_attack_weapon_cards(snapshot).items()
@@ -151,6 +156,7 @@ def build_curriculum_heuristic(
             "attack-twice-weapon-resource-hand",
             "random-target-weapon-resource-hand",
             "illness-weapon-resource-hand",
+            "illness-cure-resource-hand",
         }:
             boosters = {
                 slug: boost
@@ -169,6 +175,7 @@ def build_curriculum_heuristic(
             "attack-twice-weapon-resource-hand",
             "random-target-weapon-resource-hand",
             "illness-weapon-resource-hand",
+            "illness-cure-resource-hand",
         }:
             attacks.update(verified_reflection_weapon_cards(snapshot))
         if ruleset in {
@@ -180,6 +187,7 @@ def build_curriculum_heuristic(
             "attack-twice-weapon-resource-hand",
             "random-target-weapon-resource-hand",
             "illness-weapon-resource-hand",
+            "illness-cure-resource-hand",
         }:
             dual_roles = plain_dual_role_weapon_cards(snapshot)
             attacks.update(
@@ -196,6 +204,7 @@ def build_curriculum_heuristic(
             "attack-twice-weapon-resource-hand",
             "random-target-weapon-resource-hand",
             "illness-weapon-resource-hand",
+            "illness-cure-resource-hand",
         }:
             chance_weapons = plain_chance_weapon_cards(snapshot)
             chance_dual_roles = plain_chance_dual_role_weapon_cards(snapshot)
@@ -226,6 +235,7 @@ def build_curriculum_heuristic(
             "attack-twice-weapon-resource-hand",
             "random-target-weapon-resource-hand",
             "illness-weapon-resource-hand",
+            "illness-cure-resource-hand",
         }:
             absorption_weapons = verified_absorption_weapon_cards(snapshot)
             chance_absorption_weapons = verified_chance_absorption_weapon_cards(snapshot)
@@ -245,6 +255,7 @@ def build_curriculum_heuristic(
             "attack-twice-weapon-resource-hand",
             "random-target-weapon-resource-hand",
             "illness-weapon-resource-hand",
+            "illness-cure-resource-hand",
         }:
             dynamic_mp_attacks = {
                 slug: coefficient
@@ -258,6 +269,7 @@ def build_curriculum_heuristic(
             "attack-twice-weapon-resource-hand",
             "random-target-weapon-resource-hand",
             "illness-weapon-resource-hand",
+            "illness-cure-resource-hand",
         }:
             same_damage_attacks = verified_same_damage_weapon_cards(snapshot)
             same_damage_attack_slugs.update(same_damage_attacks)
@@ -268,6 +280,7 @@ def build_curriculum_heuristic(
             "attack-twice-weapon-resource-hand",
             "random-target-weapon-resource-hand",
             "illness-weapon-resource-hand",
+            "illness-cure-resource-hand",
         }:
             attack_twice = verified_attack_twice_weapon_cards(snapshot)
             attacks.update(
@@ -279,13 +292,17 @@ def build_curriculum_heuristic(
         if ruleset in {
             "random-target-weapon-resource-hand",
             "illness-weapon-resource-hand",
+            "illness-cure-resource-hand",
         }:
             random_target_attacks = verified_random_target_weapon_cards(snapshot)
             random_target_attack_slugs.update(random_target_attacks)
             attacks.update(
                 {slug: attack for slug, (attack, _element) in random_target_attacks.items()}
             )
-        if ruleset == "illness-weapon-resource-hand":
+        if ruleset in {
+            "illness-weapon-resource-hand",
+            "illness-cure-resource-hand",
+        }:
             attacks.update(
                 {
                     slug: attack
@@ -317,6 +334,7 @@ def build_curriculum_heuristic(
         "attack-twice-weapon-resource-hand",
         "random-target-weapon-resource-hand",
         "illness-weapon-resource-hand",
+        "illness-cure-resource-hand",
     }:
         hp_utilities.update(
             (slug, (utility, 0)) for slug, utility in plain_hp_utility_sundries(snapshot).items()
@@ -341,6 +359,7 @@ def build_curriculum_heuristic(
             "attack-twice-weapon-resource-hand",
             "random-target-weapon-resource-hand",
             "illness-weapon-resource-hand",
+            "illness-cure-resource-hand",
         }:
             chance_miracles = {
                 slug: (round(hit_rate * attack / 100), cost)
@@ -371,6 +390,7 @@ def build_curriculum_heuristic(
                 "attack-twice-weapon-resource-hand",
                 "random-target-weapon-resource-hand",
                 "illness-weapon-resource-hand",
+                "illness-cure-resource-hand",
             }:
                 miracle_boosters = {
                     slug: boost
@@ -399,6 +419,8 @@ def build_curriculum_heuristic(
                     policy_id = RANDOM_TARGET_WEAPON_RESOURCE_HEURISTIC_POLICY_ID
                 elif ruleset == "illness-weapon-resource-hand":
                     policy_id = ILLNESS_WEAPON_RESOURCE_HEURISTIC_POLICY_ID
+                elif ruleset == "illness-cure-resource-hand":
+                    policy_id = ILLNESS_CURE_RESOURCE_HEURISTIC_POLICY_ID
     attack_token_values = {
         vocabulary.token_id("weapons", slug): attack for slug, attack in attacks.items()
     }
@@ -426,6 +448,7 @@ def build_curriculum_heuristic(
         "attack-twice-weapon-resource-hand",
         "random-target-weapon-resource-hand",
         "illness-weapon-resource-hand",
+        "illness-cure-resource-hand",
     }:
         reflection_defense_tokens.update(
             vocabulary.token_id("armor", slug) for slug in verified_reflection_armor_cards(snapshot)
@@ -440,6 +463,7 @@ def build_curriculum_heuristic(
         "attack-twice-weapon-resource-hand",
         "random-target-weapon-resource-hand",
         "illness-weapon-resource-hand",
+        "illness-cure-resource-hand",
     }:
         reflection_defense_tokens.update(
             vocabulary.token_id("weapons", slug)
@@ -454,6 +478,20 @@ def build_curriculum_heuristic(
             for slug, defense in dual_role_defenses.items()
         }
     )
+    illness_cures: dict[int, tuple[int, int]] = {}
+    if ruleset == "illness-cure-resource-hand":
+        illness_cures.update(
+            {
+                vocabulary.token_id("sundries", slug): (2 if cure_all else 1, 0)
+                for slug, cure_all in verified_illness_cure_sundries(snapshot).items()
+            }
+        )
+        illness_cures.update(
+            {
+                vocabulary.token_id("miracles", slug): (2 if cure_all else 1, cost)
+                for slug, (cost, cure_all) in verified_illness_cure_miracles(snapshot).items()
+            }
+        )
     return CurriculumHeuristic(
         attacks=attack_token_values,
         defenses=defense_token_values,
@@ -484,6 +522,7 @@ def build_curriculum_heuristic(
             vocabulary.token_id("weapons", slug) for slug in random_target_attack_slugs
         ),
         reflection_defenses=frozenset(reflection_defense_tokens),
+        illness_cures=illness_cures,
         policy_id=policy_id,
     )
 
@@ -545,6 +584,24 @@ def curriculum_heuristic_actions(
                 if lethal:
                     actions[output_index] = max(lethal, key=lambda item: (item[0], -item[1]))[1]
                     continue
+                illness_cures = policy.illness_cures or {}
+                if illness_cures:
+                    illness_stage = int(batch.illness_stages[environment, actor])
+                    cure_candidates = [
+                        (illness_cures[int(hand[action - 1])], action)
+                        for action in range(1, 10)
+                        if legal[action] and int(hand[action - 1]) in illness_cures
+                    ]
+                    if illness_stage > 0 and cure_candidates:
+                        actions[output_index] = min(
+                            cure_candidates,
+                            key=lambda item: (
+                                item[0][0] > 1 and illness_stage <= 2,
+                                item[0][1],
+                                item[1],
+                            ),
+                        )[1]
+                        continue
                 self_hp = round(float(batch.player_features[environment, 0, 0]) * 100)
                 hp_utilities = policy.hp_utilities or {}
                 healing = [

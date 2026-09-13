@@ -54,6 +54,9 @@ RANDOM_TARGET_WEAPON_RESOURCE_ATTACK_DEFENSE_RULESET_ID: Final[str]
 ILLNESS_WEAPON_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION: Final[int]
 ILLNESS_WEAPON_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION: Final[int]
 ILLNESS_WEAPON_RESOURCE_ATTACK_DEFENSE_RULESET_ID: Final[str]
+ILLNESS_CURE_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION: Final[int]
+ILLNESS_CURE_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION: Final[int]
+ILLNESS_CURE_RESOURCE_ATTACK_DEFENSE_RULESET_ID: Final[str]
 ILLNESS_GLOBAL_FEATURE_COUNT: Final[int]
 MIXED_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION: Final[int]
 MIXED_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION: Final[int]
@@ -94,6 +97,8 @@ CARD_KIND_ABSORPTION_WEAPON: Final[int]
 CARD_KIND_ATTACK_TWICE_WEAPON: Final[int]
 CARD_KIND_RANDOM_TARGET_WEAPON: Final[int]
 CARD_KIND_ILLNESS_WEAPON: Final[int]
+CARD_KIND_ILLNESS_CURE_SUNDRY: Final[int]
+CARD_KIND_ILLNESS_CURE_MIRACLE: Final[int]
 ILLNESS_NONE: Final[int]
 ILLNESS_COLD: Final[int]
 ILLNESS_FEVER: Final[int]
@@ -197,6 +202,8 @@ class AttackDefenseBatch:
     def random_target_weapon_curriculum(self) -> bool: ...
     @property
     def illness_weapon_curriculum(self) -> bool: ...
+    @property
+    def illness_cure_curriculum(self) -> bool: ...
     @property
     def initial_mp(self) -> int: ...
     @property
@@ -944,4 +951,7 @@ class RandomTargetWeaponResourceAttackDefenseBatch(AttackDefenseBatch):
     ) -> None: ...
 
 class IllnessWeaponResourceAttackDefenseBatch(AttackDefenseBatch):
+    def __init__(self, *args: object, **kwargs: object) -> None: ...
+
+class IllnessCureResourceAttackDefenseBatch(AttackDefenseBatch):
     def __init__(self, *args: object, **kwargs: object) -> None: ...

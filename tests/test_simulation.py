@@ -41,6 +41,7 @@ RandomTargetWeaponResourceAttackDefenseBatch = (
     godfield_sim.RandomTargetWeaponResourceAttackDefenseBatch
 )
 IllnessWeaponResourceAttackDefenseBatch = godfield_sim.IllnessWeaponResourceAttackDefenseBatch
+IllnessCureResourceAttackDefenseBatch = godfield_sim.IllnessCureResourceAttackDefenseBatch
 
 SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-07" / "bible.json"
 
@@ -654,6 +655,45 @@ def illness_weapon_resource_batch(
     )
 
 
+def illness_cure_resource_batch(
+    *,
+    seed: int = 0,
+    initial_hp: int = 40,
+    initial_mp: int = 10,
+    armor_defense: int = 8,
+) -> IllnessCureResourceAttackDefenseBatch:
+    base_args = list(absorption_weapon_resource_args())
+    base_args[8] = np.asarray([armor_defense], dtype=np.uint16)
+    return IllnessCureResourceAttackDefenseBatch(
+        *base_args,
+        np.asarray([19], dtype=np.uint32),
+        np.asarray([2], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_NON_ELEMENT], dtype=np.uint8),
+        np.asarray([20], dtype=np.uint32),
+        np.asarray([14], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_NON_ELEMENT], dtype=np.uint8),
+        np.asarray([21], dtype=np.uint32),
+        np.asarray([3], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_NON_ELEMENT], dtype=np.uint8),
+        np.asarray([22], dtype=np.uint32),
+        np.asarray([30], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_LIGHT], dtype=np.uint8),
+        np.asarray([23, 24], dtype=np.uint32),
+        np.asarray([8, 8], dtype=np.uint16),
+        np.asarray(
+            [godfield_sim.ELEMENT_NON_ELEMENT, godfield_sim.ELEMENT_NON_ELEMENT],
+            dtype=np.uint8,
+        ),
+        np.asarray([godfield_sim.ILLNESS_COLD, godfield_sim.ILLNESS_HELL], dtype=np.uint16),
+        np.asarray([25, 26, 27, 28], dtype=np.uint32),
+        np.asarray([0, 0, 2, 5], dtype=np.uint16),
+        np.asarray([1, 2, 1, 2], dtype=np.uint16),
+        seed,
+        initial_hp,
+        initial_mp,
+    )
+
+
 def first_legal_actions(batch: FixedAttackBatch) -> np.ndarray:
     return batch.action_mask.argmax(axis=1).astype(np.int64)
 
@@ -1123,6 +1163,40 @@ def test_illness_weapon_factory_versions_status_catalog_and_observation() -> Non
     assert batch.illness_weapon_curriculum is True
     assert batch.illness_stages.shape == (512, 2)
     assert np.any(batch.hand_card_kinds == godfield_sim.CARD_KIND_ILLNESS_WEAPON)
+
+
+def test_illness_cure_factory_keeps_schema_and_adds_verified_catalog() -> None:
+    simulation = create_attack_defense_simulation(
+        SNAPSHOT_PATH,
+        batch_size=512,
+        ruleset="illness-cure-resource-hand",
+    )
+    batch = simulation.batch
+
+    assert simulation.metadata.observation_schema_version == 7
+    assert simulation.metadata.ruleset_id == (
+        "plain-elemental-combo-stochastic-chance-absorption-weapon-dynamic-mp-"
+        "same-damage-weapon-attack-twice-weapon-random-target-weapon-illness-"
+        "weapon-illness-cure-additive-reflection-dual-role-resource-miracle-"
+        "attack-defense-redraw-duel-v1"
+    )
+    assert simulation.metadata.rule_catalog_size == 165
+    assert simulation.metadata.global_feature_count == 16
+    assert simulation.metadata.sampling_distribution == (
+        "elemental-illness-cure-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness"
+    )
+    assert batch.illness_weapon_curriculum is True
+    assert batch.illness_cure_curriculum is True
+    assert np.any(batch.hand_card_kinds == godfield_sim.CARD_KIND_ILLNESS_CURE_SUNDRY)
+    assert np.any(batch.hand_card_kinds == godfield_sim.CARD_KIND_ILLNESS_CURE_MIRACLE)
+    cure_cards = np.isin(
+        batch.hand_card_kinds,
+        [
+            godfield_sim.CARD_KIND_ILLNESS_CURE_SUNDRY,
+            godfield_sim.CARD_KIND_ILLNESS_CURE_MIRACLE,
+        ],
+    )
+    assert not np.any(batch.action_mask[:, 1:10][cure_cards])
 
 
 def reflected_attack_batch(
@@ -1828,9 +1902,7 @@ def test_repeated_illness_advances_one_stage_regardless_of_incoming_stage() -> N
         batch.step(np.asarray([int(cold_slots[0]) + 1], dtype=np.int64))
         batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
         batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
-        ordinary_slots = np.flatnonzero(
-            batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_WEAPON
-        )
+        ordinary_slots = np.flatnonzero(batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_WEAPON)
         if not ordinary_slots.size:
             continue
         batch.step(np.asarray([int(ordinary_slots[0]) + 1], dtype=np.int64))
@@ -1874,6 +1946,97 @@ def test_hell_tick_can_end_the_ill_player_turn_in_defeat() -> None:
         assert batch.turn_numbers[0] == 2
         return
     raise AssertionError("fixture seeds did not expose Hell followed by a plain attack")
+
+
+def ill_actor_with_cure(
+    illness_token: int,
+    cure_token: int,
+    *,
+    start_seed: int = 0,
+    initial_mp: int = 10,
+) -> tuple[IllnessCureResourceAttackDefenseBatch, int, int]:
+    for seed in range(start_seed, 32768):
+        batch = illness_cure_resource_batch(seed=seed, initial_mp=initial_mp)
+        illness_slots = np.flatnonzero(batch.hand_token_ids[0] == illness_token)
+        ordinary_slots = np.flatnonzero(batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_WEAPON)
+        if not illness_slots.size or not ordinary_slots.size:
+            continue
+        source = int(batch.active_players[0])
+        batch.step(np.asarray([int(illness_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+        cure_slots = np.flatnonzero(batch.hand_token_ids[0] == cure_token)
+        if cure_slots.size:
+            return batch, 1 - source, int(cure_slots[0])
+    raise AssertionError(
+        f"fixture seeds did not expose illness {illness_token} with cure {cure_token}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("cure_token", "legal"),
+    [(25, False), (27, False), (26, True), (28, True)],
+)
+def test_hell_requires_an_all_curses_cure(cure_token: int, legal: bool) -> None:
+    batch, ill_player, cure_slot = ill_actor_with_cure(24, cure_token)
+
+    assert batch.active_players[0] == ill_player
+    assert batch.illness_stages[0, ill_player] == godfield_sim.ILLNESS_HELL
+    assert bool(batch.action_mask[0, cure_slot + 1]) is legal
+
+
+def test_illness_cure_miracle_requires_its_mp_cost() -> None:
+    batch, ill_player, tone_slot = ill_actor_with_cure(23, 27, initial_mp=1)
+
+    assert batch.active_players[0] == ill_player
+    assert batch.illness_stages[0, ill_player] == godfield_sim.ILLNESS_COLD
+    assert not batch.action_mask[0, tone_slot + 1]
+
+
+@pytest.mark.parametrize(
+    ("illness_token", "cure_token", "cost", "reusable", "start_seed"),
+    [
+        (23, 25, 0, False, 282),
+        (24, 26, 0, False, 134),
+        (23, 27, 2, True, 0),
+        (24, 28, 5, True, 0),
+    ],
+)
+def test_illness_cure_is_atomic_pre_tick_and_obeys_consumption(
+    illness_token: int,
+    cure_token: int,
+    cost: int,
+    reusable: bool,
+    start_seed: int,
+) -> None:
+    batch, ill_player, cure_slot = ill_actor_with_cure(
+        illness_token,
+        cure_token,
+        start_seed=start_seed,
+    )
+    hp_before = float(batch.player_features[0, 0, 0])
+    mp_before = int(batch.magic_points[0, ill_player])
+    turns_before = int(batch.turn_numbers[0])
+
+    assert batch.action_mask[0, cure_slot + 1]
+    batch.step(np.asarray([cure_slot + 1], dtype=np.int64))
+
+    assert batch.illness_stages[0, ill_player] == godfield_sim.ILLNESS_NONE
+    assert batch.magic_points[0, ill_player] == mp_before - cost
+    assert batch.player_features[0, 1, 0] == pytest.approx(hp_before)
+    assert batch.turn_numbers[0] == turns_before + 1
+    opponent_weapon_slot = int(
+        np.flatnonzero(batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_WEAPON)[0]
+    )
+    batch.step(np.asarray([opponent_weapon_slot + 1], dtype=np.int64))
+    batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+    batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+    assert batch.active_players[0] == ill_player
+    if reusable:
+        assert batch.hand_token_ids[0, cure_slot] == cure_token
+        assert batch.hand_card_kinds[0, cure_slot] == (godfield_sim.CARD_KIND_ILLNESS_CURE_MIRACLE)
+    else:
+        assert batch.hand_token_ids[0, cure_slot] != cure_token
 
 
 def test_super_mirror_redirects_full_attack_into_one_hop_defense() -> None:
@@ -2216,6 +2379,42 @@ def test_resource_heuristics_index_miracle_attacks_in_the_miracle_namespace() ->
     assert illness_weapon.attacks[vocabulary.token_id("weapons", "gale-sword")] == 9
     assert illness_weapon.attacks[vocabulary.token_id("weapons", "hell-scissors")] == 8
     assert illness_weapon.policy_id == "evidenced-illness-weapon-resource-combo-v1"
+
+    illness_cure = build_curriculum_heuristic(
+        snapshot,
+        vocabulary,
+        ruleset="illness-cure-resource-hand",
+    )
+    assert illness_cure.illness_cures == {
+        vocabulary.token_id("sundries", "heart-shell"): (2, 0),
+        vocabulary.token_id("sundries", "smile-shell"): (1, 0),
+        vocabulary.token_id("miracles", "song"): (2, 5),
+        vocabulary.token_id("miracles", "tone"): (1, 2),
+    }
+    assert illness_cure.policy_id == "evidenced-illness-cure-resource-combo-v1"
+
+
+def test_illness_cure_heuristic_prioritizes_a_legal_cure() -> None:
+    batch, _ill_player, cure_slot = ill_actor_with_cure(23, 27)
+    simulation = create_attack_defense_simulation(
+        SNAPSHOT_PATH,
+        batch_size=1,
+        ruleset="illness-cure-resource-hand",
+    )
+    object.__setattr__(simulation, "batch", batch)
+    policy = CurriculumHeuristic(
+        attacks={token: 1 for token in range(2, 25)},
+        defenses={},
+        illness_cures={27: (1, 2)},
+    )
+
+    action = curriculum_heuristic_actions(
+        simulation,
+        np.asarray([0], dtype=np.int64),
+        policy,
+    )[0]
+
+    assert action == cure_slot + 1
 
 
 def test_dynamic_mp_heuristic_ranks_attack_using_current_mp() -> None:

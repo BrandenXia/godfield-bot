@@ -9,7 +9,7 @@ uv sync --extra simulation --group dev
 
 Every included curriculum is intentionally incomplete and its generated
 trajectories are not eligible for live model promotion. The broadest current
-ruleset, `attack-twice-weapon-resource-hand`, includes elemental multi-card
+ruleset, `random-target-weapon-resource-hand`, includes elemental multi-card
 combat, HP/MP utility, fixed and chance miracles, Absorption, reusable additive
 miracles, evidence-bounded one-hop reflection, seven fixed ATK/DEF weapons, 14
 effect-free chance weapons, and the chance/defense dual role of Jinn's Rocking
@@ -17,7 +17,8 @@ Horse. It additionally models all three evidenced HP-absorbing weapons,
 including actual-damage healing and reflected ownership, Magical Stick's
 current-MP attack and all-MP consumption, Evil Broadsword's post-defense
 same-damage effect with lethal-target short-circuiting, and Saw Boom Boom's two
-independently defended strikes. The unobserved same-damage/reflection and
-attack-twice booster/reflection interactions remain masked. See ADR 0002 and
-ADRs 0029 through 0037 in the root project for the interface and safety
-boundary.
+independently defended strikes, plus Dangerous Pestle's uniformly random
+opponent-or-self ATK30 with immediate, indefensible self-target resolution.
+The unobserved same-damage/reflection, attack-twice booster/reflection, and
+random-target booster/reflection interactions remain masked. See ADR 0002 and
+ADRs 0029 through 0038 in the root project for the interface and safety boundary.

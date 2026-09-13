@@ -26,6 +26,7 @@ from godfield_bot.reference import (
     verified_dynamic_mp_weapon_cards,
     verified_effect_attack_miracle_cards,
     verified_hp_utility_miracle_cards,
+    verified_random_target_weapon_cards,
     verified_reflection_armor_cards,
     verified_reflection_weapon_cards,
     verified_same_damage_weapon_cards,
@@ -170,6 +171,7 @@ def test_committed_snapshot_matches_validated_live_catalog() -> None:
     assert verified_dynamic_mp_weapon_cards(snapshot) == {"magical-stick": (2, "non-element")}
     assert verified_same_damage_weapon_cards(snapshot) == {"evil-broadsword": (14, "non-element")}
     assert verified_attack_twice_weapon_cards(snapshot) == {"saw-boom-boom": (3, 2, "non-element")}
+    assert verified_random_target_weapon_cards(snapshot) == {"dangerous-pestle": (30, "light")}
     assert verified_effect_attack_miracle_cards(snapshot) == {
         "absorption": (10, 10, "light", "absorbHP")
     }

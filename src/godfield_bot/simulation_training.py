@@ -59,6 +59,7 @@ class SimulationTrainingConfig(BaseModel):
         "dynamic-mp-weapon-resource-hand",
         "same-damage-weapon-resource-hand",
         "attack-twice-weapon-resource-hand",
+        "random-target-weapon-resource-hand",
     ] = "fixed-role"
     batch_size: int = Field(default=256, ge=1, le=1_000_000)
     rollout_steps: int = Field(default=32, ge=2, le=4096)

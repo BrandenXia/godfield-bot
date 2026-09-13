@@ -95,6 +95,10 @@ def test_evaluation_config_accepts_expanded_resource_ruleset() -> None:
         SimulationEvaluationConfig(ruleset="attack-twice-weapon-resource-hand").ruleset
         == "attack-twice-weapon-resource-hand"
     )
+    assert (
+        SimulationEvaluationConfig(ruleset="random-target-weapon-resource-hand").ruleset
+        == "random-target-weapon-resource-hand"
+    )
 
 
 def test_paired_score_statistics_use_seed_pairs_as_samples() -> None:

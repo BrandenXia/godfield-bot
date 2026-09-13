@@ -14,6 +14,7 @@ using godfield_sim::DynamicMpWeaponResourceAttackDefenseBatch;
 using godfield_sim::ElementalAttackDefenseBatch;
 using godfield_sim::ExpandedResourceAttackDefenseBatch;
 using godfield_sim::FixedAttackBatch;
+using godfield_sim::RandomTargetWeaponResourceAttackDefenseBatch;
 using godfield_sim::ReflectionResourceAttackDefenseBatch;
 using godfield_sim::ReflectionWeaponResourceAttackDefenseBatch;
 using godfield_sim::ResourceAttackDefenseBatch;
@@ -138,6 +139,14 @@ NB_MODULE(_native, module) {
       kAttackTwiceWeaponResourceAttackDefenseObservationSchemaVersion;
   module.attr("ATTACK_TWICE_WEAPON_RESOURCE_ATTACK_DEFENSE_RULESET_ID") =
       godfield_sim::kAttackTwiceWeaponResourceAttackDefenseRulesetId;
+  module.attr(
+      "RANDOM_TARGET_WEAPON_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION") =
+      godfield_sim::kRandomTargetWeaponResourceAttackDefenseKernelSchemaVersion;
+  module.attr("RANDOM_TARGET_WEAPON_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_"
+              "VERSION") = godfield_sim::
+      kRandomTargetWeaponResourceAttackDefenseObservationSchemaVersion;
+  module.attr("RANDOM_TARGET_WEAPON_RESOURCE_ATTACK_DEFENSE_RULESET_ID") =
+      godfield_sim::kRandomTargetWeaponResourceAttackDefenseRulesetId;
   module.attr("ELEMENT_COUNT") = godfield_sim::kElementCount;
   module.attr("ELEMENTAL_GLOBAL_FEATURE_COUNT") =
       godfield_sim::kElementalGlobalFeatureCount;
@@ -183,6 +192,7 @@ NB_MODULE(_native, module) {
   module.attr("CARD_KIND_DYNAMIC_MP_WEAPON") = std::uint8_t{18U};
   module.attr("CARD_KIND_SAME_DAMAGE_WEAPON") = std::uint8_t{19U};
   module.attr("CARD_KIND_ATTACK_TWICE_WEAPON") = std::uint8_t{20U};
+  module.attr("CARD_KIND_RANDOM_TARGET_WEAPON") = std::uint8_t{21U};
 
   nb::class_<FixedAttackBatch>(module, "FixedAttackBatch")
       .def(nb::init<std::size_t, godfield_sim::TokenInput,
@@ -259,6 +269,8 @@ NB_MODULE(_native, module) {
                    &AttackDefenseBatch::same_damage_weapon_curriculum)
       .def_prop_ro("attack_twice_weapon_curriculum",
                    &AttackDefenseBatch::attack_twice_weapon_curriculum)
+      .def_prop_ro("random_target_weapon_curriculum",
+                   &AttackDefenseBatch::random_target_weapon_curriculum)
       .def_prop_ro("initial_mp", &AttackDefenseBatch::initial_mp)
       .def_prop_ro("global_feature_count",
                    &AttackDefenseBatch::global_feature_count)
@@ -981,5 +993,97 @@ NB_MODULE(_native, module) {
           nb::arg("attack_twice_weapon_token_ids"),
           nb::arg("attack_twice_weapon_attack_values"),
           nb::arg("attack_twice_weapon_elements"), nb::arg("seed") = 67U,
+          nb::arg("initial_hp") = 40U, nb::arg("initial_mp") = 10U);
+
+  nb::class_<RandomTargetWeaponResourceAttackDefenseBatch, AttackDefenseBatch>(
+      module, "RandomTargetWeaponResourceAttackDefenseBatch")
+      .def(
+          nb::init<std::size_t, godfield_sim::TokenInput,
+                   godfield_sim::ValueInput, godfield_sim::ElementInput,
+                   godfield_sim::TokenInput, godfield_sim::ValueInput,
+                   godfield_sim::ElementInput, godfield_sim::TokenInput,
+                   godfield_sim::ValueInput, godfield_sim::ElementInput,
+                   godfield_sim::TokenInput, godfield_sim::ValueInput,
+                   godfield_sim::TokenInput, godfield_sim::ValueInput,
+                   godfield_sim::TokenInput, godfield_sim::ValueInput,
+                   godfield_sim::ElementInput, godfield_sim::ValueInput,
+                   godfield_sim::TokenInput, godfield_sim::ValueInput,
+                   godfield_sim::ValueInput, godfield_sim::TokenInput,
+                   godfield_sim::ValueInput, godfield_sim::ElementInput,
+                   godfield_sim::ValueInput, godfield_sim::ValueInput,
+                   godfield_sim::TokenInput, godfield_sim::ValueInput,
+                   godfield_sim::ElementInput, godfield_sim::ValueInput,
+                   godfield_sim::TokenInput, godfield_sim::ValueInput,
+                   godfield_sim::ElementInput, godfield_sim::ValueInput,
+                   godfield_sim::TokenInput, godfield_sim::TokenInput,
+                   godfield_sim::ValueInput, godfield_sim::TokenInput,
+                   godfield_sim::ValueInput, godfield_sim::ValueInput,
+                   godfield_sim::ElementInput, godfield_sim::TokenInput,
+                   godfield_sim::ValueInput, godfield_sim::ElementInput,
+                   godfield_sim::ValueInput, godfield_sim::TokenInput,
+                   godfield_sim::ValueInput, godfield_sim::ValueInput,
+                   godfield_sim::ElementInput, godfield_sim::ValueInput,
+                   godfield_sim::TokenInput, godfield_sim::ValueInput,
+                   godfield_sim::ElementInput, godfield_sim::TokenInput,
+                   godfield_sim::ValueInput, godfield_sim::ElementInput,
+                   godfield_sim::ValueInput, godfield_sim::TokenInput,
+                   godfield_sim::ValueInput, godfield_sim::ElementInput,
+                   godfield_sim::TokenInput, godfield_sim::ValueInput,
+                   godfield_sim::ElementInput, godfield_sim::TokenInput,
+                   godfield_sim::ValueInput, godfield_sim::ElementInput,
+                   godfield_sim::TokenInput, godfield_sim::ValueInput,
+                   godfield_sim::ElementInput, std::uint64_t, std::uint16_t,
+                   std::uint16_t>(),
+          nb::arg("batch_size"), nb::arg("weapon_token_ids"),
+          nb::arg("attack_values"), nb::arg("weapon_elements"),
+          nb::arg("booster_token_ids"), nb::arg("booster_values"),
+          nb::arg("booster_elements"), nb::arg("armor_token_ids"),
+          nb::arg("defense_values"), nb::arg("armor_elements"),
+          nb::arg("hp_utility_token_ids"), nb::arg("hp_utility_values"),
+          nb::arg("mp_utility_token_ids"), nb::arg("mp_utility_values"),
+          nb::arg("attack_miracle_token_ids"), nb::arg("attack_miracle_values"),
+          nb::arg("attack_miracle_elements"), nb::arg("attack_miracle_costs"),
+          nb::arg("hp_miracle_token_ids"), nb::arg("hp_miracle_values"),
+          nb::arg("hp_miracle_costs"), nb::arg("chance_miracle_token_ids"),
+          nb::arg("chance_miracle_values"), nb::arg("chance_miracle_elements"),
+          nb::arg("chance_miracle_costs"), nb::arg("chance_miracle_hit_rates"),
+          nb::arg("effect_miracle_token_ids"), nb::arg("effect_miracle_values"),
+          nb::arg("effect_miracle_elements"), nb::arg("effect_miracle_costs"),
+          nb::arg("additive_miracle_token_ids"),
+          nb::arg("additive_miracle_values"),
+          nb::arg("additive_miracle_elements"),
+          nb::arg("additive_miracle_costs"),
+          nb::arg("reflection_armor_token_ids"),
+          nb::arg("reflection_weapon_token_ids"),
+          nb::arg("reflection_weapon_values"), nb::arg("dual_role_token_ids"),
+          nb::arg("dual_role_attack_values"),
+          nb::arg("dual_role_defense_values"), nb::arg("dual_role_elements"),
+          nb::arg("chance_weapon_token_ids"),
+          nb::arg("chance_weapon_attack_values"),
+          nb::arg("chance_weapon_elements"), nb::arg("chance_weapon_hit_rates"),
+          nb::arg("chance_dual_role_token_ids"),
+          nb::arg("chance_dual_role_attack_values"),
+          nb::arg("chance_dual_role_defense_values"),
+          nb::arg("chance_dual_role_elements"),
+          nb::arg("chance_dual_role_hit_rates"),
+          nb::arg("absorption_weapon_token_ids"),
+          nb::arg("absorption_weapon_attack_values"),
+          nb::arg("absorption_weapon_elements"),
+          nb::arg("chance_absorption_weapon_token_ids"),
+          nb::arg("chance_absorption_weapon_attack_values"),
+          nb::arg("chance_absorption_weapon_elements"),
+          nb::arg("chance_absorption_weapon_hit_rates"),
+          nb::arg("dynamic_mp_weapon_token_ids"),
+          nb::arg("dynamic_mp_weapon_coefficients"),
+          nb::arg("dynamic_mp_weapon_elements"),
+          nb::arg("same_damage_weapon_token_ids"),
+          nb::arg("same_damage_weapon_attack_values"),
+          nb::arg("same_damage_weapon_elements"),
+          nb::arg("attack_twice_weapon_token_ids"),
+          nb::arg("attack_twice_weapon_attack_values"),
+          nb::arg("attack_twice_weapon_elements"),
+          nb::arg("random_target_weapon_token_ids"),
+          nb::arg("random_target_weapon_attack_values"),
+          nb::arg("random_target_weapon_elements"), nb::arg("seed") = 67U,
           nb::arg("initial_hp") = 40U, nb::arg("initial_mp") = 10U);
 }

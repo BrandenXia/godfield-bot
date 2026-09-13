@@ -32,6 +32,7 @@ from godfield_bot.reference import (
     verified_dynamic_mp_weapon_cards,
     verified_effect_attack_miracle_cards,
     verified_hp_utility_miracle_cards,
+    verified_illness_weapon_cards,
     verified_random_target_weapon_cards,
     verified_reflection_armor_cards,
     verified_reflection_weapon_cards,
@@ -59,6 +60,7 @@ AttackDefenseRuleset = Literal[
     "same-damage-weapon-resource-hand",
     "attack-twice-weapon-resource-hand",
     "random-target-weapon-resource-hand",
+    "illness-weapon-resource-hand",
 ]
 
 
@@ -109,6 +111,7 @@ class SimulationMetadata(BaseModel):
         "elemental-same-damage-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-attack-twice-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-random-target-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
+        "elemental-illness-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
     ] = "uniform-redraw-with-replacement"
     promotion_eligible: Literal[False] = False
 
@@ -286,6 +289,10 @@ def create_attack_defense_simulation(
             EXPANDED_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
             EXPANDED_RESOURCE_ATTACK_DEFENSE_RULESET_ID,
             HAND_SLOTS,
+            ILLNESS_GLOBAL_FEATURE_COUNT,
+            ILLNESS_WEAPON_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
+            ILLNESS_WEAPON_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
+            ILLNESS_WEAPON_RESOURCE_ATTACK_DEFENSE_RULESET_ID,
             MIXED_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
             MIXED_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
             MIXED_ATTACK_DEFENSE_RULESET_ID,
@@ -317,6 +324,7 @@ def create_attack_defense_simulation(
             DynamicMpWeaponResourceAttackDefenseBatch,
             ElementalAttackDefenseBatch,
             ExpandedResourceAttackDefenseBatch,
+            IllnessWeaponResourceAttackDefenseBatch,
             RandomTargetWeaponResourceAttackDefenseBatch,
             ReflectionResourceAttackDefenseBatch,
             ReflectionWeaponResourceAttackDefenseBatch,
@@ -327,6 +335,7 @@ def create_attack_defense_simulation(
 
         attack_twice_batch_type = AttackTwiceWeaponResourceAttackDefenseBatch
         random_target_batch_type = RandomTargetWeaponResourceAttackDefenseBatch
+        illness_batch_type = IllnessWeaponResourceAttackDefenseBatch
     except ImportError as error:
         raise SimulationUnavailableError(
             "native simulation is unavailable; run `uv sync --extra simulation --group dev`"
@@ -349,6 +358,7 @@ def create_attack_defense_simulation(
         "same-damage-weapon-resource-hand",
         "attack-twice-weapon-resource-hand",
         "random-target-weapon-resource-hand",
+        "illness-weapon-resource-hand",
     }
     if ruleset in expanded_rulesets:
         attacks = plain_attack_weapon_cards(snapshot)
@@ -415,6 +425,7 @@ def create_attack_defense_simulation(
         "same-damage-weapon-resource-hand",
         "attack-twice-weapon-resource-hand",
         "random-target-weapon-resource-hand",
+        "illness-weapon-resource-hand",
     }:
         boosters = plain_attack_booster_cards(snapshot)
         if not boosters:
@@ -454,6 +465,7 @@ def create_attack_defense_simulation(
             "same-damage-weapon-resource-hand",
             "attack-twice-weapon-resource-hand",
             "random-target-weapon-resource-hand",
+            "illness-weapon-resource-hand",
         }:
             hp_utilities = plain_hp_utility_sundries(snapshot)
             mp_utilities = plain_mp_utility_sundries(snapshot)
@@ -539,6 +551,7 @@ def create_attack_defense_simulation(
                 "same-damage-weapon-resource-hand",
                 "attack-twice-weapon-resource-hand",
                 "random-target-weapon-resource-hand",
+                "illness-weapon-resource-hand",
             }:
                 chance_miracles = verified_chance_attack_miracle_cards(snapshot)
                 effect_miracles = {
@@ -599,6 +612,7 @@ def create_attack_defense_simulation(
                 same_damage_weapon_catalog: list[dict[str, object]] = []
                 attack_twice_weapon_catalog: list[dict[str, object]] = []
                 random_target_weapon_catalog: list[dict[str, object]] = []
+                illness_weapon_catalog: list[dict[str, object]] = []
                 if ruleset in {
                     "expanded-resource-hand",
                     "reflection-resource-hand",
@@ -610,6 +624,7 @@ def create_attack_defense_simulation(
                     "same-damage-weapon-resource-hand",
                     "attack-twice-weapon-resource-hand",
                     "random-target-weapon-resource-hand",
+                    "illness-weapon-resource-hand",
                 }:
                     additive_miracles = verified_attack_booster_miracle_cards(snapshot)
                     if not additive_miracles:
@@ -647,6 +662,7 @@ def create_attack_defense_simulation(
                         "same-damage-weapon-resource-hand",
                         "attack-twice-weapon-resource-hand",
                         "random-target-weapon-resource-hand",
+                        "illness-weapon-resource-hand",
                     }:
                         reflection_armor = verified_reflection_armor_cards(snapshot)
                         if not reflection_armor:
@@ -675,6 +691,7 @@ def create_attack_defense_simulation(
                             "same-damage-weapon-resource-hand",
                             "attack-twice-weapon-resource-hand",
                             "random-target-weapon-resource-hand",
+                            "illness-weapon-resource-hand",
                         }:
                             reflection_weapons = verified_reflection_weapon_cards(snapshot)
                             if not reflection_weapons:
@@ -709,6 +726,7 @@ def create_attack_defense_simulation(
                                 "same-damage-weapon-resource-hand",
                                 "attack-twice-weapon-resource-hand",
                                 "random-target-weapon-resource-hand",
+                                "illness-weapon-resource-hand",
                             }:
                                 dual_roles = plain_dual_role_weapon_cards(snapshot)
                                 if not dual_roles:
@@ -754,6 +772,7 @@ def create_attack_defense_simulation(
                                     "same-damage-weapon-resource-hand",
                                     "attack-twice-weapon-resource-hand",
                                     "random-target-weapon-resource-hand",
+                                    "illness-weapon-resource-hand",
                                 }:
                                     chance_weapons = plain_chance_weapon_cards(snapshot)
                                     chance_dual_roles = plain_chance_dual_role_weapon_cards(
@@ -835,6 +854,7 @@ def create_attack_defense_simulation(
                                         "same-damage-weapon-resource-hand",
                                         "attack-twice-weapon-resource-hand",
                                         "random-target-weapon-resource-hand",
+                                        "illness-weapon-resource-hand",
                                     }:
                                         absorption_weapons = verified_absorption_weapon_cards(
                                             snapshot
@@ -924,6 +944,7 @@ def create_attack_defense_simulation(
                                             "same-damage-weapon-resource-hand",
                                             "attack-twice-weapon-resource-hand",
                                             "random-target-weapon-resource-hand",
+                                            "illness-weapon-resource-hand",
                                         }:
                                             dynamic_mp_weapons = verified_dynamic_mp_weapon_cards(
                                                 snapshot
@@ -1002,6 +1023,7 @@ def create_attack_defense_simulation(
                                                 "same-damage-weapon-resource-hand",
                                                 "attack-twice-weapon-resource-hand",
                                                 "random-target-weapon-resource-hand",
+                                                "illness-weapon-resource-hand",
                                             }:
                                                 same_damage_weapons = (
                                                     verified_same_damage_weapon_cards(snapshot)
@@ -1057,6 +1079,7 @@ def create_attack_defense_simulation(
                                                 if ruleset in {
                                                     "attack-twice-weapon-resource-hand",
                                                     "random-target-weapon-resource-hand",
+                                                    "illness-weapon-resource-hand",
                                                 }:
                                                     attack_twice_weapons = (
                                                         verified_attack_twice_weapon_cards(snapshot)
@@ -1114,10 +1137,10 @@ def create_attack_defense_simulation(
                                                         *same_damage_batch_args,
                                                         *attack_twice_args,
                                                     )
-                                                    if (
-                                                        ruleset
-                                                        == "random-target-weapon-resource-hand"
-                                                    ):
+                                                    if ruleset in {
+                                                        "random-target-weapon-resource-hand",
+                                                        "illness-weapon-resource-hand",
+                                                    }:
                                                         random_target_weapons = (
                                                             verified_random_target_weapon_cards(
                                                                 snapshot
@@ -1149,8 +1172,7 @@ def create_attack_defense_simulation(
                                                                 random_target_weapons.items()
                                                             )
                                                         ]
-                                                        batch = random_target_batch_type(
-                                                            *attack_twice_batch_args,
+                                                        random_target_args = (
                                                             np.asarray(
                                                                 [
                                                                     row["token_id"]
@@ -1178,10 +1200,91 @@ def create_attack_defense_simulation(
                                                                 ],
                                                                 dtype=np.uint8,
                                                             ),
-                                                            seed,
-                                                            initial_hp,
-                                                            initial_mp,
                                                         )
+                                                        random_target_batch_args = (
+                                                            *attack_twice_batch_args,
+                                                            *random_target_args,
+                                                        )
+                                                        if (
+                                                            ruleset
+                                                            == "illness-weapon-resource-hand"
+                                                        ):
+                                                            illness_weapons = (
+                                                                verified_illness_weapon_cards(
+                                                                    snapshot
+                                                                )
+                                                            )
+                                                            if not illness_weapons:
+                                                                raise ValueError(
+                                                                    "accepted snapshot contains "
+                                                                    "no supported illness weapon"
+                                                                )
+                                                            illness_weapon_catalog = [
+                                                                {
+                                                                    "attack": attack,
+                                                                    "effect": (
+                                                                        "cold"
+                                                                        if stage == 1
+                                                                        else "hell"
+                                                                    ),
+                                                                    "element": element,
+                                                                    "element_id": (
+                                                                        COMBAT_ELEMENT_IDS[element]
+                                                                    ),
+                                                                    "illness_stage": stage,
+                                                                    "kind": "illness-weapon",
+                                                                    "slug": slug,
+                                                                    "token_id": vocabulary.token_id(
+                                                                        "weapons", slug
+                                                                    ),
+                                                                }
+                                                                for slug, (
+                                                                    attack,
+                                                                    element,
+                                                                    stage,
+                                                                ) in sorted(illness_weapons.items())
+                                                            ]
+                                                            batch = illness_batch_type(
+                                                                *random_target_batch_args,
+                                                                np.asarray(
+                                                                    _catalog_column(
+                                                                        illness_weapon_catalog,
+                                                                        "token_id",
+                                                                    ),
+                                                                    dtype=np.uint32,
+                                                                ),
+                                                                np.asarray(
+                                                                    _catalog_column(
+                                                                        illness_weapon_catalog,
+                                                                        "attack",
+                                                                    ),
+                                                                    dtype=np.uint16,
+                                                                ),
+                                                                np.asarray(
+                                                                    _catalog_column(
+                                                                        illness_weapon_catalog,
+                                                                        "element_id",
+                                                                    ),
+                                                                    dtype=np.uint8,
+                                                                ),
+                                                                np.asarray(
+                                                                    _catalog_column(
+                                                                        illness_weapon_catalog,
+                                                                        "illness_stage",
+                                                                    ),
+                                                                    dtype=np.uint16,
+                                                                ),
+                                                                seed,
+                                                                initial_hp,
+                                                                initial_mp,
+                                                            )
+                                                        else:
+                                                            batch = random_target_batch_type(
+                                                                *random_target_batch_args,
+                                                                seed,
+                                                                initial_hp,
+                                                                initial_mp,
+                                                            )
                                                     else:
                                                         batch = attack_twice_batch_type(
                                                             *attack_twice_batch_args,
@@ -1323,6 +1426,7 @@ def create_attack_defense_simulation(
                     + same_damage_weapon_catalog
                     + attack_twice_weapon_catalog
                     + random_target_weapon_catalog
+                    + illness_weapon_catalog
                 )
             else:
                 batch = ResourceAttackDefenseBatch(
@@ -1396,11 +1500,24 @@ def create_attack_defense_simulation(
         "elemental-same-damage-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-attack-twice-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-random-target-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
+        "elemental-illness-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
     ]
     action_semantics: Literal["atomic-attack-defense-macro", "sequential-combo-selection"] = (
         "atomic-attack-defense-macro"
     )
-    if ruleset == "random-target-weapon-resource-hand":
+    if ruleset == "illness-weapon-resource-hand":
+        kernel_schema_version = ILLNESS_WEAPON_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION
+        observation_schema_version = (
+            ILLNESS_WEAPON_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION
+        )
+        ruleset_id = ILLNESS_WEAPON_RESOURCE_ATTACK_DEFENSE_RULESET_ID
+        global_feature_count = ILLNESS_GLOBAL_FEATURE_COUNT
+        sampling_distribution = (
+            "elemental-illness-weapon-resource-2-1-2-1-1-1-1-"
+            "initial-uniform-redraw-with-base-liveness"
+        )
+        action_semantics = "sequential-combo-selection"
+    elif ruleset == "random-target-weapon-resource-hand":
         kernel_schema_version = RANDOM_TARGET_WEAPON_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION
         observation_schema_version = (
             RANDOM_TARGET_WEAPON_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION

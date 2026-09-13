@@ -34,12 +34,37 @@ constexpr std::uint8_t kDynamicMpWeaponCardKind = 18U;
 constexpr std::uint8_t kSameDamageWeaponCardKind = 19U;
 constexpr std::uint8_t kAttackTwiceWeaponCardKind = 20U;
 constexpr std::uint8_t kRandomTargetWeaponCardKind = 21U;
+constexpr std::uint8_t kIllnessWeaponCardKind = 22U;
 constexpr std::uint8_t kNoAttackEffect = 0U;
 constexpr std::uint8_t kAbsorbHpAttackEffect = 1U;
 constexpr std::uint8_t kSameDamageAttackEffect = 2U;
 constexpr std::uint8_t kAttackTwiceEffect = 3U;
 constexpr std::uint8_t kRandomTargetEffect = 4U;
+constexpr std::uint8_t kColdOnDamageEffect = 5U;
+constexpr std::uint8_t kHellOnDamageEffect = 6U;
+constexpr std::uint8_t kColdIllnessStage = 1U;
+constexpr std::uint8_t kFeverIllnessStage = 2U;
+constexpr std::uint8_t kHellIllnessStage = 3U;
+constexpr std::uint8_t kHeavenIllnessStage = 4U;
 constexpr std::uint16_t kMaximumResource = 100U;
+
+std::uint8_t illness_stage_for_effect(std::uint8_t effect) noexcept {
+  if (effect == kColdOnDamageEffect) {
+    return kColdIllnessStage;
+  }
+  return effect == kHellOnDamageEffect ? kHellIllnessStage : 0U;
+}
+
+std::uint8_t illness_effect_for_stage(std::uint8_t stage) {
+  if (stage == kColdIllnessStage) {
+    return kColdOnDamageEffect;
+  }
+  if (stage == kHellIllnessStage) {
+    return kHellOnDamageEffect;
+  }
+  throw std::invalid_argument(
+      "illness weapon stage must be Cold (1) or Hell (3)");
+}
 
 std::uint64_t mix64(std::uint64_t value) noexcept {
   value = (value ^ (value >> 30U)) * 0xBF58476D1CE4E5B9ULL;
@@ -231,7 +256,10 @@ AttackDefenseBatch::AttackDefenseBatch(
     bool random_target_weapon_curriculum,
     TokenInput random_target_weapon_token_ids,
     ValueInput random_target_weapon_attack_values,
-    ElementInput random_target_weapon_elements)
+    ElementInput random_target_weapon_elements, bool illness_weapon_curriculum,
+    TokenInput illness_weapon_token_ids,
+    ValueInput illness_weapon_attack_values,
+    ElementInput illness_weapon_elements, ValueInput illness_weapon_stages)
     : batch_size_(batch_size), base_seed_(seed), initial_hp_(initial_hp),
       mixed_hands_(mixed_hands), elemental_(elemental), combo_(combo),
       resource_curriculum_(resource_curriculum),
@@ -246,10 +274,14 @@ AttackDefenseBatch::AttackDefenseBatch(
       same_damage_weapon_curriculum_(same_damage_weapon_curriculum),
       attack_twice_weapon_curriculum_(attack_twice_weapon_curriculum),
       random_target_weapon_curriculum_(random_target_weapon_curriculum),
-      global_feature_count_(stochastic_resource_curriculum
-                                ? kStochasticResourceGlobalFeatureCount
-                                : (elemental ? kElementalGlobalFeatureCount
-                                             : kGlobalFeatureCount)),
+      illness_weapon_curriculum_(illness_weapon_curriculum),
+      global_feature_count_(
+          illness_weapon_curriculum
+              ? kIllnessGlobalFeatureCount
+              : (stochastic_resource_curriculum
+                     ? kStochasticResourceGlobalFeatureCount
+                     : (elemental ? kElementalGlobalFeatureCount
+                                  : kGlobalFeatureCount))),
       initial_mp_(initial_mp) {
   if (batch_size_ == 0 || batch_size_ > kMaximumBatchSize) {
     throw std::invalid_argument("batch_size must be between 1 and 1000000");
@@ -309,6 +341,10 @@ AttackDefenseBatch::AttackDefenseBatch(
         "random-target weapon curriculum requires attack-twice weapon "
         "semantics");
   }
+  if (illness_weapon_curriculum_ && !random_target_weapon_curriculum_) {
+    throw std::invalid_argument(
+        "illness weapon curriculum requires random-target weapon semantics");
+  }
 
   std::unordered_set<std::uint32_t> unique_token_ids;
   const auto booster_catalog_size = combo_ ? booster_token_ids.shape(0) : 0U;
@@ -350,6 +386,8 @@ AttackDefenseBatch::AttackDefenseBatch(
   const auto random_target_weapon_catalog_size =
       random_target_weapon_curriculum_ ? random_target_weapon_token_ids.shape(0)
                                        : 0U;
+  const auto illness_weapon_catalog_size =
+      illness_weapon_curriculum_ ? illness_weapon_token_ids.shape(0) : 0U;
   unique_token_ids.reserve(
       weapon_token_ids.shape(0) + booster_catalog_size +
       armor_token_ids.shape(0) + resource_catalog_size +
@@ -358,7 +396,7 @@ AttackDefenseBatch::AttackDefenseBatch(
       dual_role_catalog_size + chance_weapon_catalog_size +
       absorption_weapon_catalog_size + dynamic_mp_weapon_catalog_size +
       same_damage_weapon_catalog_size + attack_twice_weapon_catalog_size +
-      random_target_weapon_catalog_size);
+      random_target_weapon_catalog_size + illness_weapon_catalog_size);
   append_catalog(weapon_token_ids, attack_values, "attack", unique_token_ids,
                  weapon_token_ids_, attack_values_);
   if (combo_) {
@@ -551,6 +589,38 @@ AttackDefenseBatch::AttackDefenseBatch(
                               random_target_weapon_elements,
                               random_target_weapon_token_ids_.size(),
                               "random-target weapon");
+                          if (illness_weapon_curriculum_) {
+                            append_catalog(illness_weapon_token_ids,
+                                           illness_weapon_attack_values,
+                                           "illness weapon", unique_token_ids,
+                                           illness_weapon_token_ids_,
+                                           illness_weapon_attack_values_);
+                            illness_weapon_elements_ =
+                                copy_elements(illness_weapon_elements,
+                                              illness_weapon_token_ids_.size(),
+                                              "illness weapon");
+                            if (illness_weapon_stages.shape(0) !=
+                                illness_weapon_token_ids_.size()) {
+                              throw std::invalid_argument(
+                                  "illness weapon stages must align with its "
+                                  "catalog");
+                            }
+                            illness_weapon_stages_.reserve(
+                                illness_weapon_token_ids_.size());
+                            for (std::size_t index = 0;
+                                 index < illness_weapon_token_ids_.size();
+                                 ++index) {
+                              const auto stage = illness_weapon_stages(index);
+                              if (stage != kColdIllnessStage &&
+                                  stage != kHellIllnessStage) {
+                                throw std::invalid_argument(
+                                    "illness weapon stage must be Cold (1) or "
+                                    "Hell (3)");
+                              }
+                              illness_weapon_stages_.push_back(
+                                  static_cast<std::uint8_t>(stage));
+                            }
+                          }
                         }
                       }
                     }
@@ -595,6 +665,7 @@ AttackDefenseBatch::AttackDefenseBatch(
   episode_ids_.assign(batch_size_, 0U);
   hit_points_.resize(batch_size_ * kPlayerCount);
   magic_points_.resize(batch_size_ * kPlayerCount);
+  illness_stages_.assign(batch_size_ * kPlayerCount, 0U);
   hand_values_.resize(batch_size_ * kPlayerCount * kHandSlots);
   hand_costs_.assign(batch_size_ * kPlayerCount * kHandSlots, 0U);
   hand_hit_rates_.assign(batch_size_ * kPlayerCount * kHandSlots, 100U);
@@ -1029,6 +1100,23 @@ void AttackDefenseBatch::draw_random_target_weapon(std::size_t environment,
   hand_elements_by_player_[offset] = random_target_weapon_elements_[index];
 }
 
+void AttackDefenseBatch::draw_illness_weapon(std::size_t environment,
+                                             std::size_t player,
+                                             std::size_t slot) {
+  const auto index = static_cast<std::size_t>(next_random(environment) %
+                                              illness_weapon_token_ids_.size());
+  const auto offset = hand_offset(environment, player, slot);
+  hand_token_ids_by_player_[offset] =
+      static_cast<std::int64_t>(illness_weapon_token_ids_[index]);
+  hand_values_[offset] = illness_weapon_attack_values_[index];
+  hand_costs_[offset] = 0U;
+  hand_hit_rates_[offset] = 100U;
+  hand_effects_[offset] =
+      illness_effect_for_stage(illness_weapon_stages_[index]);
+  hand_card_kinds_by_player_[offset] = kIllnessWeaponCardKind;
+  hand_elements_by_player_[offset] = illness_weapon_elements_[index];
+}
+
 void AttackDefenseBatch::draw_weapon_family(std::size_t environment,
                                             std::size_t player,
                                             std::size_t slot) {
@@ -1043,7 +1131,8 @@ void AttackDefenseBatch::draw_weapon_family(std::size_t environment,
          dynamic_mp_weapon_token_ids_.size() +
          same_damage_weapon_token_ids_.size() +
          attack_twice_weapon_token_ids_.size() +
-         random_target_weapon_token_ids_.size()));
+         random_target_weapon_token_ids_.size() +
+         illness_weapon_token_ids_.size()));
     if (index < weapon_token_ids_.size()) {
       draw_weapon(environment, player, slot);
       return;
@@ -1093,7 +1182,12 @@ void AttackDefenseBatch::draw_weapon_family(std::size_t environment,
       draw_attack_twice_weapon(environment, player, slot);
       return;
     }
-    draw_random_target_weapon(environment, player, slot);
+    index -= attack_twice_weapon_token_ids_.size();
+    if (index < random_target_weapon_token_ids_.size()) {
+      draw_random_target_weapon(environment, player, slot);
+      return;
+    }
+    draw_illness_weapon(environment, player, slot);
     return;
   }
   if (attack_twice_weapon_curriculum_) {
@@ -1375,7 +1469,7 @@ void AttackDefenseBatch::draw_resource(std::size_t environment,
       dynamic_mp_weapon_token_ids_.size() +
       same_damage_weapon_token_ids_.size() +
       attack_twice_weapon_token_ids_.size() +
-      random_target_weapon_token_ids_.size();
+      random_target_weapon_token_ids_.size() + illness_weapon_token_ids_.size();
   auto index =
       static_cast<std::size_t>(next_random(environment) % catalog_size);
   if (index < weapon_token_ids_.size()) {
@@ -1433,6 +1527,11 @@ void AttackDefenseBatch::draw_resource(std::size_t environment,
     return;
   }
   index -= random_target_weapon_token_ids_.size();
+  if (index < illness_weapon_token_ids_.size()) {
+    draw_illness_weapon(environment, player, slot);
+    return;
+  }
+  index -= illness_weapon_token_ids_.size();
   if (index < booster_token_ids_.size()) {
     draw_booster(environment, player, slot);
     return;
@@ -1488,7 +1587,7 @@ bool AttackDefenseBatch::is_weapon_kind(std::uint8_t kind) noexcept {
          kind == kDynamicMpWeaponCardKind ||
          kind == kSameDamageWeaponCardKind ||
          kind == kAttackTwiceWeaponCardKind ||
-         kind == kRandomTargetWeaponCardKind;
+         kind == kRandomTargetWeaponCardKind || kind == kIllnessWeaponCardKind;
 }
 
 std::uint16_t AttackDefenseBatch::defense_value_for_card(
@@ -1565,6 +1664,8 @@ void AttackDefenseBatch::reset_environment(std::size_t environment) {
   hit_points_[environment * kPlayerCount + 1U] = initial_hp_;
   magic_points_[environment * kPlayerCount] = initial_mp_;
   magic_points_[environment * kPlayerCount + 1U] = initial_mp_;
+  illness_stages_[environment * kPlayerCount] = 0U;
+  illness_stages_[environment * kPlayerCount + 1U] = 0U;
   active_players_[environment] =
       static_cast<std::uint8_t>(next_random(environment) & 1U);
   phases_[environment] = static_cast<std::uint8_t>(TurnPhase::Attack);
@@ -1745,6 +1846,66 @@ AttackDefenseBatch::combine_attack_elements(std::uint8_t existing,
   return static_cast<std::uint8_t>(CombatElement::NonElement);
 }
 
+void AttackDefenseBatch::terminate_player(std::size_t environment,
+                                          std::size_t loser) noexcept {
+  terminated_[environment] = true;
+  phases_[environment] = static_cast<std::uint8_t>(TurnPhase::Terminal);
+  terminal_returns_[environment * kPlayerCount + loser] = -1.0F;
+  terminal_returns_[environment * kPlayerCount + (1U - loser)] = 1.0F;
+}
+
+bool AttackDefenseBatch::apply_illness(std::size_t environment,
+                                       std::size_t player,
+                                       std::uint8_t stage) noexcept {
+  auto &current = illness_stages_[environment * kPlayerCount + player];
+  if (current == 0U) {
+    current = stage;
+    return false;
+  }
+  if (current < kHeavenIllnessStage) {
+    ++current;
+    return false;
+  }
+  hit_points_[environment * kPlayerCount + player] = 0U;
+  terminate_player(environment, player);
+  return true;
+}
+
+void AttackDefenseBatch::finish_turn(std::size_t environment,
+                                     std::size_t player) {
+  ++turn_numbers_[environment];
+  if (!illness_weapon_curriculum_) {
+    return;
+  }
+  auto &stage = illness_stages_[environment * kPlayerCount + player];
+  if (stage == 0U) {
+    return;
+  }
+  auto &hp = hit_points_[environment * kPlayerCount + player];
+  if (stage == kHeavenIllnessStage) {
+    hp = static_cast<std::uint16_t>(std::min<unsigned int>(
+        kMaximumResource, static_cast<unsigned int>(hp) + 5U));
+  } else {
+    const std::uint16_t damage = stage == kColdIllnessStage
+                                     ? 1U
+                                     : (stage == kFeverIllnessStage ? 2U : 5U);
+    hp = damage >= hp ? 0U : static_cast<std::uint16_t>(hp - damage);
+    if (hp == 0U) {
+      terminate_player(environment, player);
+      return;
+    }
+  }
+  if (next_random(environment) % 100U >= 5U) {
+    return;
+  }
+  if (stage < kHeavenIllnessStage) {
+    ++stage;
+    return;
+  }
+  hp = 0U;
+  terminate_player(environment, player);
+}
+
 void AttackDefenseBatch::resolve_defense(std::size_t environment,
                                          std::size_t defender,
                                          std::uint16_t defense) {
@@ -1771,13 +1932,18 @@ void AttackDefenseBatch::resolve_defense(std::size_t environment,
         kMaximumResource, static_cast<unsigned int>(attacker_hp) + hp_lost));
   }
   if (defender_hp == 0U) {
-    const auto attacker =
-        static_cast<std::size_t>(pending_attackers_[environment]);
-    const auto winner = attacker == defender ? 1U - defender : attacker;
-    terminated_[environment] = true;
-    phases_[environment] = static_cast<std::uint8_t>(TurnPhase::Terminal);
-    terminal_returns_[environment * kPlayerCount + winner] = 1.0F;
-    terminal_returns_[environment * kPlayerCount + defender] = -1.0F;
+    terminate_player(environment, defender);
+    ++turn_numbers_[environment];
+    pending_effects_[environment] = kNoAttackEffect;
+    pending_strikes_remaining_[environment] = 1U;
+    pending_base_kinds_[environment] = 0U;
+    pending_reflected_[environment] = false;
+    return;
+  }
+  const auto inflicted_illness =
+      illness_stage_for_effect(pending_effects_[environment]);
+  if (damage > 0U && inflicted_illness > 0U &&
+      apply_illness(environment, defender, inflicted_illness)) {
     ++turn_numbers_[environment];
     pending_effects_[environment] = kNoAttackEffect;
     pending_strikes_remaining_[environment] = 1U;
@@ -1810,7 +1976,7 @@ void AttackDefenseBatch::resolve_defense(std::size_t environment,
     phases_[environment] = static_cast<std::uint8_t>(TurnPhase::Defense);
     return;
   }
-  ++turn_numbers_[environment];
+  const auto source = static_cast<std::size_t>(pending_sources_[environment]);
   pending_attacks_[environment] = 0U;
   pending_elements_[environment] =
       static_cast<std::uint8_t>(CombatElement::NonElement);
@@ -1819,6 +1985,7 @@ void AttackDefenseBatch::resolve_defense(std::size_t environment,
   pending_base_kinds_[environment] = 0U;
   pending_reflected_[environment] = false;
   phases_[environment] = static_cast<std::uint8_t>(TurnPhase::Attack);
+  finish_turn(environment, source);
 }
 
 void AttackDefenseBatch::resolve_reflection(std::size_t environment,
@@ -1881,8 +2048,8 @@ void AttackDefenseBatch::step(ActionInput actions) {
             pending_strikes_remaining_[environment] = 1U;
             pending_base_kinds_[environment] = 0U;
             pending_reflected_[environment] = false;
-            ++turn_numbers_[environment];
             phases_[environment] = static_cast<std::uint8_t>(TurnPhase::Attack);
+            finish_turn(environment, actor);
             refresh_environment_views(environment);
             continue;
           }
@@ -1922,9 +2089,9 @@ void AttackDefenseBatch::step(ActionInput actions) {
             } else {
               redraw_consumed(environment, actor, slot, kind);
             }
-            ++turn_numbers_[environment];
             active_players_[environment] =
                 static_cast<std::uint8_t>(1U - actor);
+            finish_turn(environment, actor);
             refresh_environment_views(environment);
             continue;
           }
@@ -2055,7 +2222,20 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
                    ? -1.0F
                    : (effect == kAttackTwiceEffect
                           ? 0.25F * pending_strikes_remaining_[environment]
-                          : 0.0F));
+                          : (effect == kColdOnDamageEffect
+                                 ? 0.5F
+                                 : (effect == kHellOnDamageEffect ? 0.75F
+                                                                  : 0.0F))));
+  }
+  if (illness_weapon_curriculum_) {
+    const auto illness_offset = environment * kPlayerCount;
+    global_features_[global_offset + kStochasticResourceGlobalFeatureCount] =
+        static_cast<float>(illness_stages_[illness_offset + perspective]) /
+        static_cast<float>(kHeavenIllnessStage);
+    global_features_[global_offset + kStochasticResourceGlobalFeatureCount +
+                     1U] =
+        static_cast<float>(illness_stages_[illness_offset + opponent]) /
+        static_cast<float>(kHeavenIllnessStage);
   }
 
   const auto player_offset = environment * kPlayerCount * kPlayerFeatureCount;
@@ -2156,6 +2336,8 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
            pending_effects_[environment] != kSameDamageAttackEffect &&
            pending_effects_[environment] != kAttackTwiceEffect &&
            pending_effects_[environment] != kRandomTargetEffect &&
+           pending_effects_[environment] != kColdOnDamageEffect &&
+           pending_effects_[environment] != kHellOnDamageEffect &&
            (kind == kReflectionArmorCardKind ||
             (kind == kReflectionWeaponCardKind &&
              is_weapon_kind(pending_base_kinds_[environment]) &&
@@ -2298,6 +2480,10 @@ UInt16_1D AttackDefenseBatch::turn_numbers_view() const {
 
 UInt16_2D AttackDefenseBatch::magic_points_view() const {
   return UInt16_2D(magic_points_.data(), {batch_size_, kPlayerCount});
+}
+
+UInt8_2D AttackDefenseBatch::illness_stages_view() const {
+  return UInt8_2D(illness_stages_.data(), {batch_size_, kPlayerCount});
 }
 
 ElementalAttackDefenseBatch::ElementalAttackDefenseBatch(
@@ -3035,5 +3221,101 @@ RandomTargetWeaponResourceAttackDefenseBatch::
           attack_twice_weapon_token_ids, attack_twice_weapon_attack_values,
           attack_twice_weapon_elements, true, random_target_weapon_token_ids,
           random_target_weapon_attack_values, random_target_weapon_elements) {}
+
+IllnessWeaponResourceAttackDefenseBatch::
+    IllnessWeaponResourceAttackDefenseBatch(
+        std::size_t batch_size, TokenInput weapon_token_ids,
+        ValueInput attack_values, ElementInput weapon_elements,
+        TokenInput booster_token_ids, ValueInput booster_values,
+        ElementInput booster_elements, TokenInput armor_token_ids,
+        ValueInput defense_values, ElementInput armor_elements,
+        TokenInput hp_utility_token_ids, ValueInput hp_utility_values,
+        TokenInput mp_utility_token_ids, ValueInput mp_utility_values,
+        TokenInput attack_miracle_token_ids, ValueInput attack_miracle_values,
+        ElementInput attack_miracle_elements, ValueInput attack_miracle_costs,
+        TokenInput hp_miracle_token_ids, ValueInput hp_miracle_values,
+        ValueInput hp_miracle_costs, TokenInput chance_miracle_token_ids,
+        ValueInput chance_miracle_values, ElementInput chance_miracle_elements,
+        ValueInput chance_miracle_costs, ValueInput chance_miracle_hit_rates,
+        TokenInput effect_miracle_token_ids, ValueInput effect_miracle_values,
+        ElementInput effect_miracle_elements, ValueInput effect_miracle_costs,
+        TokenInput additive_miracle_token_ids,
+        ValueInput additive_miracle_values,
+        ElementInput additive_miracle_elements,
+        ValueInput additive_miracle_costs,
+        TokenInput reflection_armor_token_ids,
+        TokenInput reflection_weapon_token_ids,
+        ValueInput reflection_weapon_values, TokenInput dual_role_token_ids,
+        ValueInput dual_role_attack_values, ValueInput dual_role_defense_values,
+        ElementInput dual_role_elements, TokenInput chance_weapon_token_ids,
+        ValueInput chance_weapon_attack_values,
+        ElementInput chance_weapon_elements, ValueInput chance_weapon_hit_rates,
+        TokenInput chance_dual_role_token_ids,
+        ValueInput chance_dual_role_attack_values,
+        ValueInput chance_dual_role_defense_values,
+        ElementInput chance_dual_role_elements,
+        ValueInput chance_dual_role_hit_rates,
+        TokenInput absorption_weapon_token_ids,
+        ValueInput absorption_weapon_attack_values,
+        ElementInput absorption_weapon_elements,
+        TokenInput chance_absorption_weapon_token_ids,
+        ValueInput chance_absorption_weapon_attack_values,
+        ElementInput chance_absorption_weapon_elements,
+        ValueInput chance_absorption_weapon_hit_rates,
+        TokenInput dynamic_mp_weapon_token_ids,
+        ValueInput dynamic_mp_weapon_coefficients,
+        ElementInput dynamic_mp_weapon_elements,
+        TokenInput same_damage_weapon_token_ids,
+        ValueInput same_damage_weapon_attack_values,
+        ElementInput same_damage_weapon_elements,
+        TokenInput attack_twice_weapon_token_ids,
+        ValueInput attack_twice_weapon_attack_values,
+        ElementInput attack_twice_weapon_elements,
+        TokenInput random_target_weapon_token_ids,
+        ValueInput random_target_weapon_attack_values,
+        ElementInput random_target_weapon_elements,
+        TokenInput illness_weapon_token_ids,
+        ValueInput illness_weapon_attack_values,
+        ElementInput illness_weapon_elements, ValueInput illness_weapon_stages,
+        std::uint64_t seed, std::uint16_t initial_hp, std::uint16_t initial_mp)
+    : AttackDefenseBatch(
+          batch_size, weapon_token_ids, attack_values,
+          copy_elements(weapon_elements, weapon_token_ids.shape(0), "weapon"),
+          booster_token_ids, booster_values,
+          copy_elements(booster_elements, booster_token_ids.shape(0),
+                        "attack booster"),
+          armor_token_ids, defense_values,
+          copy_elements(armor_elements, armor_token_ids.shape(0), "armor"),
+          seed, initial_hp, true, true, true, true, hp_utility_token_ids,
+          hp_utility_values, mp_utility_token_ids, mp_utility_values,
+          attack_miracle_token_ids, attack_miracle_values,
+          attack_miracle_elements, attack_miracle_costs, hp_miracle_token_ids,
+          hp_miracle_values, hp_miracle_costs, initial_mp, true,
+          chance_miracle_token_ids, chance_miracle_values,
+          chance_miracle_elements, chance_miracle_costs,
+          chance_miracle_hit_rates, effect_miracle_token_ids,
+          effect_miracle_values, effect_miracle_elements, effect_miracle_costs,
+          true, additive_miracle_token_ids, additive_miracle_values,
+          additive_miracle_elements, additive_miracle_costs, true,
+          reflection_armor_token_ids, true, reflection_weapon_token_ids,
+          reflection_weapon_values, true, dual_role_token_ids,
+          dual_role_attack_values, dual_role_defense_values, dual_role_elements,
+          true, chance_weapon_token_ids, chance_weapon_attack_values,
+          chance_weapon_elements, chance_weapon_hit_rates,
+          chance_dual_role_token_ids, chance_dual_role_attack_values,
+          chance_dual_role_defense_values, chance_dual_role_elements,
+          chance_dual_role_hit_rates, true, absorption_weapon_token_ids,
+          absorption_weapon_attack_values, absorption_weapon_elements,
+          chance_absorption_weapon_token_ids,
+          chance_absorption_weapon_attack_values,
+          chance_absorption_weapon_elements, chance_absorption_weapon_hit_rates,
+          true, dynamic_mp_weapon_token_ids, dynamic_mp_weapon_coefficients,
+          dynamic_mp_weapon_elements, true, same_damage_weapon_token_ids,
+          same_damage_weapon_attack_values, same_damage_weapon_elements, true,
+          attack_twice_weapon_token_ids, attack_twice_weapon_attack_values,
+          attack_twice_weapon_elements, true, random_target_weapon_token_ids,
+          random_target_weapon_attack_values, random_target_weapon_elements,
+          true, illness_weapon_token_ids, illness_weapon_attack_values,
+          illness_weapon_elements, illness_weapon_stages) {}
 
 } // namespace godfield_sim

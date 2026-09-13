@@ -874,6 +874,32 @@ def verified_random_target_weapon_cards(
     return result
 
 
+def verified_illness_weapon_cards(
+    snapshot: BibleSnapshot,
+) -> dict[str, tuple[int, CombatElement, int]]:
+    """Return fixed weapons that inflict a verified illness stage on damage."""
+
+    illness_stages = {"Cold on damage": 1, "Hell on damage": 3}
+    weapons = snapshot.catalog.get("weapons")
+    if weapons is None:
+        return {}
+    result: dict[str, tuple[int, CombatElement, int]] = {}
+    for artifact in weapons.items:
+        element = _combat_element(artifact)
+        if element is None or len(artifact.detail) != 5:
+            continue
+        attack = PLAIN_ATTACK_PATTERN.fullmatch(artifact.detail[1])
+        illness_stage = illness_stages.get(artifact.detail[2])
+        if (
+            attack is not None
+            and illness_stage is not None
+            and re.fullmatch(r"\$\d+", artifact.detail[3]) is not None
+            and artifact.detail[4].startswith("Gift Rate:")
+        ):
+            result[artifact.asset] = (int(attack.group(1)), element, illness_stage)
+    return result
+
+
 def verified_chance_attack_miracle_cards(
     snapshot: BibleSnapshot,
 ) -> dict[str, tuple[int, int, int, CombatElement]]:

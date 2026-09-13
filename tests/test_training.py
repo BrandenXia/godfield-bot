@@ -20,6 +20,8 @@ from godfield_bot.domain.reference import BibleSnapshot
 from godfield_bot.domain.replay import ReplaySample
 from godfield_bot.domain.run import RunMode
 from godfield_bot.features import (
+    ILLNESS_FEATURE_SCHEMA_VERSION,
+    ILLNESS_GLOBAL_FEATURE_COUNT,
     RESOURCE_FEATURE_SCHEMA_VERSION,
     StateFeatureEncoder,
     action_index,
@@ -30,6 +32,7 @@ from godfield_bot.legal_actions import game_state_digest, observation_only_actio
 from godfield_bot.model_registry import (
     COMBO_FEATURE_MIGRATION,
     ELEMENT_FEATURE_MIGRATION,
+    ILLNESS_FEATURE_MIGRATION,
     RESOURCE_FEATURE_MIGRATION,
     STOCHASTIC_RESOURCE_FEATURE_MIGRATION,
     ModelStatus,
@@ -37,6 +40,7 @@ from godfield_bot.model_registry import (
     load_model,
     migrate_combo_features,
     migrate_element_features,
+    migrate_illness_features,
     migrate_resource_features,
     migrate_stochastic_resource_features,
 )
@@ -314,6 +318,43 @@ def test_stochastic_resource_migration_adds_zero_initialized_effect_input(tmp_pa
     for name, value in resource_state.items():
         if name != "global_encoder.0.weight":
             torch.testing.assert_close(value, stochastic_state[name], rtol=0, atol=0)
+
+
+def test_illness_migration_adds_zero_initialized_actor_relative_inputs(tmp_path) -> None:
+    vocabulary = load_vocabulary(SNAPSHOT)
+    root = tmp_path / "models"
+    stochastic = initialize_model(
+        root,
+        vocabulary,
+        client_sha256=BIBLE.client.sha256,
+        feature_schema_version=6,
+        global_feature_count=14,
+    )
+    illness = migrate_illness_features(
+        root / stochastic.model_id,
+        root,
+        vocabulary,
+        client_sha256=BIBLE.client.sha256,
+    )
+    _, stochastic_model = load_model(root / stochastic.model_id)
+    _, illness_model = load_model(root / illness.model_id)
+    source_state = stochastic_model.state_dict()
+    illness_state = illness_model.state_dict()
+
+    assert illness.feature_schema_version == ILLNESS_FEATURE_SCHEMA_VERSION
+    assert illness.architecture.global_feature_count == ILLNESS_GLOBAL_FEATURE_COUNT
+    assert illness.parent_model_id == stochastic.model_id
+    assert illness.training_algorithm == ILLNESS_FEATURE_MIGRATION
+    torch.testing.assert_close(
+        illness_state["global_encoder.0.weight"][:, :14],
+        source_state["global_encoder.0.weight"],
+        rtol=0,
+        atol=0,
+    )
+    assert torch.count_nonzero(illness_state["global_encoder.0.weight"][:, 14:]) == 0
+    for name, value in source_state.items():
+        if name != "global_encoder.0.weight":
+            torch.testing.assert_close(value, illness_state[name], rtol=0, atol=0)
 
 
 def test_schema_v3_model_requires_explicit_policy_architecture(tmp_path) -> None:
@@ -654,9 +695,7 @@ def test_outcome_training_writes_immutable_candidate_lineage(tmp_path) -> None:
     assert candidate.training_context["simulation"] == parent.training_context["simulation"]
     assert candidate.training_context["official_training"]["base_model_id"] == parent.model_id
     assert candidate.training_context["official_training"]["schema_version"] == 2
-    assert candidate.training_context["official_training"][
-        "skipped_unencodable_reasons"
-    ] == {}
+    assert candidate.training_context["official_training"]["skipped_unencodable_reasons"] == {}
     assert candidate.metrics["policy_kl_after"] <= candidate.metrics["max_policy_kl"]
     assert (
         candidate.metrics["parameter_rms_change_after"]

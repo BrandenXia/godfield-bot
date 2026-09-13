@@ -51,6 +51,10 @@ ATTACK_TWICE_WEAPON_RESOURCE_ATTACK_DEFENSE_RULESET_ID: Final[str]
 RANDOM_TARGET_WEAPON_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION: Final[int]
 RANDOM_TARGET_WEAPON_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION: Final[int]
 RANDOM_TARGET_WEAPON_RESOURCE_ATTACK_DEFENSE_RULESET_ID: Final[str]
+ILLNESS_WEAPON_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION: Final[int]
+ILLNESS_WEAPON_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION: Final[int]
+ILLNESS_WEAPON_RESOURCE_ATTACK_DEFENSE_RULESET_ID: Final[str]
+ILLNESS_GLOBAL_FEATURE_COUNT: Final[int]
 MIXED_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION: Final[int]
 MIXED_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION: Final[int]
 MIXED_ATTACK_DEFENSE_RULESET_ID: Final[str]
@@ -89,6 +93,12 @@ CARD_KIND_CHANCE_DUAL_ROLE: Final[int]
 CARD_KIND_ABSORPTION_WEAPON: Final[int]
 CARD_KIND_ATTACK_TWICE_WEAPON: Final[int]
 CARD_KIND_RANDOM_TARGET_WEAPON: Final[int]
+CARD_KIND_ILLNESS_WEAPON: Final[int]
+ILLNESS_NONE: Final[int]
+ILLNESS_COLD: Final[int]
+ILLNESS_FEVER: Final[int]
+ILLNESS_HELL: Final[int]
+ILLNESS_HEAVEN: Final[int]
 CARD_KIND_CHANCE_ABSORPTION_WEAPON: Final[int]
 CARD_KIND_DYNAMIC_MP_WEAPON: Final[int]
 CARD_KIND_SAME_DAMAGE_WEAPON: Final[int]
@@ -186,6 +196,8 @@ class AttackDefenseBatch:
     @property
     def random_target_weapon_curriculum(self) -> bool: ...
     @property
+    def illness_weapon_curriculum(self) -> bool: ...
+    @property
     def initial_mp(self) -> int: ...
     @property
     def global_feature_count(self) -> int: ...
@@ -203,6 +215,8 @@ class AttackDefenseBatch:
     def hand_card_kinds(self) -> npt.NDArray[np.uint8]: ...
     @property
     def hand_elements(self) -> npt.NDArray[np.uint8]: ...
+    @property
+    def illness_stages(self) -> npt.NDArray[np.uint8]: ...
     @property
     def action_mask(self) -> npt.NDArray[np.bool_]: ...
     @property
@@ -928,3 +942,6 @@ class RandomTargetWeaponResourceAttackDefenseBatch(AttackDefenseBatch):
         initial_hp: int = ...,
         initial_mp: int = ...,
     ) -> None: ...
+
+class IllnessWeaponResourceAttackDefenseBatch(AttackDefenseBatch):
+    def __init__(self, *args: object, **kwargs: object) -> None: ...

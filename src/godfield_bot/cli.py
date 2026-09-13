@@ -1247,6 +1247,46 @@ def models_migrate_stochastic_resource_features(
     typer.echo(manifest.model_dump_json(indent=2))
 
 
+@models_app.command("migrate-illness-features")
+def models_migrate_illness_features(
+    source_model: Annotated[
+        Path,
+        typer.Argument(exists=True, file_okay=False, readable=True),
+    ],
+    snapshot: Annotated[
+        Path,
+        typer.Option(exists=True, dir_okay=False, readable=True),
+    ] = Path("data", "snapshots", "2026-09-07", "bible.json"),
+    root_directory: Annotated[
+        Path,
+        typer.Option(help="Ignored root directory for the migrated model."),
+    ] = Path("models"),
+) -> None:
+    """Expand schema v6 with actor-relative illness-stage inputs."""
+
+    try:
+        from godfield_bot.domain.reference import BibleSnapshot
+        from godfield_bot.features import ArtifactVocabulary
+        from godfield_bot.model_registry import migrate_illness_features
+
+        bible = BibleSnapshot.model_validate_json(snapshot.read_text(encoding="utf-8"))
+        vocabulary = ArtifactVocabulary.from_snapshot(bible)
+        manifest = migrate_illness_features(
+            source_model,
+            root_directory,
+            vocabulary,
+            client_sha256=bible.client.sha256,
+        )
+    except (ImportError, OSError, ValueError) as error:
+        structlog.get_logger().error(
+            "model_illness_migration_failed",
+            error_type=type(error).__name__,
+            reason=str(error).splitlines()[0],
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(manifest.model_dump_json(indent=2))
+
+
 @models_app.command("train-replay")
 def models_train_replay(
     base_model: Annotated[
@@ -1418,6 +1458,7 @@ def models_train_simulation(
             "same-damage-weapon-resource-hand",
             "attack-twice-weapon-resource-hand",
             "random-target-weapon-resource-hand",
+            "illness-weapon-resource-hand",
         ],
         typer.Option(help="Attack/defense hand-distribution curriculum."),
     ] = "fixed-role",
@@ -1567,6 +1608,7 @@ def models_evaluate_simulation(
             "same-damage-weapon-resource-hand",
             "attack-twice-weapon-resource-hand",
             "random-target-weapon-resource-hand",
+            "illness-weapon-resource-hand",
         ],
         typer.Option(help="Attack/defense hand-distribution curriculum."),
     ] = "fixed-role",
@@ -1807,6 +1849,7 @@ def simulation_benchmark(
             "same-damage-weapon-resource-attack-defense",
             "attack-twice-weapon-resource-attack-defense",
             "random-target-weapon-resource-attack-defense",
+            "illness-weapon-resource-attack-defense",
         ],
         typer.Option(help="Native curriculum ruleset to benchmark."),
     ] = "attack-defense",
@@ -1845,8 +1888,11 @@ def simulation_benchmark(
                 "same-damage-weapon-resource-hand",
                 "attack-twice-weapon-resource-hand",
                 "random-target-weapon-resource-hand",
+                "illness-weapon-resource-hand",
             ]
-            if ruleset == "random-target-weapon-resource-attack-defense":
+            if ruleset == "illness-weapon-resource-attack-defense":
+                attack_defense_ruleset = "illness-weapon-resource-hand"
+            elif ruleset == "random-target-weapon-resource-attack-defense":
                 attack_defense_ruleset = "random-target-weapon-resource-hand"
             elif ruleset == "attack-twice-weapon-resource-attack-defense":
                 attack_defense_ruleset = "attack-twice-weapon-resource-hand"

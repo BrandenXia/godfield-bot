@@ -180,6 +180,16 @@ uv run godfield-bot models evaluate-simulation models/<random-target-candidate-i
 uv run godfield-bot simulation benchmark \
   --ruleset random-target-weapon-resource-attack-defense \
   --batch-size 4096 --batch-steps 1000
+uv run godfield-bot models migrate-illness-features models/<schema-v6-model-id>
+uv run godfield-bot models train-simulation models/<schema-v7-model-id> \
+  --ruleset illness-weapon-resource-hand --batch-size 256 --rollout-steps 32 \
+  --updates 10
+uv run godfield-bot models evaluate-simulation models/<illness-candidate-id> \
+  --ruleset illness-weapon-resource-hand --games-per-seat 512 --minimum-score 0.5 \
+  --heuristic-noninferiority-margin 0.025
+uv run godfield-bot simulation benchmark \
+  --ruleset illness-weapon-resource-attack-defense \
+  --batch-size 4096 --batch-steps 1000
 ```
 
 `api observe-private --password-stdin` uses God Field's keyed private-room
@@ -488,23 +498,29 @@ seven-way pending-element signal. A recorded model migration preserves the six
 old global inputs and zero-initializes the new columns before elemental
 training. All rulesets are fingerprinted against the accepted client,
 artifact vocabulary, and exact rule catalog, and none is promotion-eligible.
-The broadest `random-target-weapon-resource-hand` ruleset builds on schema-v6
-stochastic combat, additive miracles, Super Mirror, and Reflection Sword, then adds seven
-Bible-exact and API-verified ATK/DEF weapons, 14 effect-free chance weapons,
+The broadest `illness-weapon-resource-hand` ruleset builds on schema-v7
+stochastic combat, additive miracles, Super Mirror, and Reflection Sword, then
+adds seven Bible-exact and API-verified ATK/DEF weapons, 14 effect-free chance weapons,
 Jinn's Rocking Horse with `75%ATK8`/`DEF6`, and the three evidenced HP-absorbing
 weapons. It also adds Magical Stick with a current-MP-dependent attack and
 all-MP consumption, Evil Broadsword's post-defense same-damage effect, and Saw
 Boom Boom's two separately defended ATK3 strikes. It also models Dangerous
 Pestle as a uniformly random ATK30 against either living duel player: an
 opponent target receives a normal response, while a self-target resolves
-immediately and can self-KO. Absorption heals only damage that penetrates
+immediately and can self-KO. It further adds the four exact Cold/Hell weapons;
+status is applied only when damage penetrates defense, damages or heals at the
+end of the ill player's turn, and has a 5% chance to worsen. Schema v7 adds two
+actor-relative illness-stage inputs, with an explicit zero-column migration
+from schema v6. Absorption heals only damage that penetrates
 defense; a reflected absorbing attack heals the reflector. Chance attacks
 sample once on confirmation, numeric defense remains deterministic, and the
 reflected response remains one-hop bounded. The unevidenced Evil
 Broadsword/reflection interaction is masked. Unevidenced Saw Boom Boom booster
 and reflection composition is also masked. Dangerous Pestle booster and
-reflection composition is likewise masked. The cumulative 157-card catalog
-and sampling distribution are independently fingerprinted. See
+reflection composition is likewise masked. The cumulative catalog grows from
+157 to 161 cards; status/reflection composition and cures remain outside this
+increment. The catalog and sampling distribution are independently
+fingerprinted. See
 [ADR 0029](docs/architecture/0029-additive-miracle-curriculum.md),
 [ADR 0030](docs/architecture/0030-evidenced-super-mirror-curriculum.md),
 [ADR 0031](docs/architecture/0031-evidenced-reflection-sword-curriculum.md),
@@ -513,8 +529,9 @@ and sampling distribution are independently fingerprinted. See
 [ADR 0034](docs/architecture/0034-absorption-weapon-curriculum.md),
 [ADR 0035](docs/architecture/0035-dynamic-mp-weapon-curriculum.md),
 [ADR 0036](docs/architecture/0036-same-damage-weapon-curriculum.md),
-[ADR 0037](docs/architecture/0037-attack-twice-weapon-curriculum.md), and
-[ADR 0038](docs/architecture/0038-random-target-weapon-curriculum.md).
+[ADR 0037](docs/architecture/0037-attack-twice-weapon-curriculum.md),
+[ADR 0038](docs/architecture/0038-random-target-weapon-curriculum.md), and
+[ADR 0039](docs/architecture/0039-illness-weapon-curriculum.md).
 
 `models train-simulation` creates a bounded
 `heuristic-warmstart-recurrent-ppo-self-play-v1` candidate. The slot-aware

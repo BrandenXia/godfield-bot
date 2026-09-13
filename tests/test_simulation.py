@@ -40,6 +40,7 @@ AttackTwiceWeaponResourceAttackDefenseBatch = (
 RandomTargetWeaponResourceAttackDefenseBatch = (
     godfield_sim.RandomTargetWeaponResourceAttackDefenseBatch
 )
+IllnessWeaponResourceAttackDefenseBatch = godfield_sim.IllnessWeaponResourceAttackDefenseBatch
 
 SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-07" / "bible.json"
 
@@ -617,6 +618,42 @@ def random_target_weapon_resource_batch(
     )
 
 
+def illness_weapon_resource_batch(
+    *,
+    seed: int = 0,
+    initial_hp: int = 40,
+    initial_mp: int = 10,
+    armor_defense: int = 8,
+) -> IllnessWeaponResourceAttackDefenseBatch:
+    base_args = list(absorption_weapon_resource_args())
+    base_args[8] = np.asarray([armor_defense], dtype=np.uint16)
+    return IllnessWeaponResourceAttackDefenseBatch(
+        *base_args,
+        np.asarray([19], dtype=np.uint32),
+        np.asarray([2], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_NON_ELEMENT], dtype=np.uint8),
+        np.asarray([20], dtype=np.uint32),
+        np.asarray([14], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_NON_ELEMENT], dtype=np.uint8),
+        np.asarray([21], dtype=np.uint32),
+        np.asarray([3], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_NON_ELEMENT], dtype=np.uint8),
+        np.asarray([22], dtype=np.uint32),
+        np.asarray([30], dtype=np.uint16),
+        np.asarray([godfield_sim.ELEMENT_LIGHT], dtype=np.uint8),
+        np.asarray([23, 24], dtype=np.uint32),
+        np.asarray([8, 8], dtype=np.uint16),
+        np.asarray(
+            [godfield_sim.ELEMENT_NON_ELEMENT, godfield_sim.ELEMENT_NON_ELEMENT],
+            dtype=np.uint8,
+        ),
+        np.asarray([godfield_sim.ILLNESS_COLD, godfield_sim.ILLNESS_HELL], dtype=np.uint16),
+        seed,
+        initial_hp,
+        initial_mp,
+    )
+
+
 def first_legal_actions(batch: FixedAttackBatch) -> np.ndarray:
     return batch.action_mask.argmax(axis=1).astype(np.int64)
 
@@ -1061,6 +1098,31 @@ def test_random_target_weapon_factory_versions_dangerous_pestle_catalog() -> Non
     )
     assert batch.random_target_weapon_curriculum is True
     assert np.any(batch.hand_card_kinds == godfield_sim.CARD_KIND_RANDOM_TARGET_WEAPON)
+
+
+def test_illness_weapon_factory_versions_status_catalog_and_observation() -> None:
+    simulation = create_attack_defense_simulation(
+        SNAPSHOT_PATH,
+        batch_size=512,
+        ruleset="illness-weapon-resource-hand",
+    )
+    batch = simulation.batch
+
+    assert simulation.metadata.observation_schema_version == 7
+    assert simulation.metadata.ruleset_id == (
+        "plain-elemental-combo-stochastic-chance-absorption-weapon-dynamic-mp-"
+        "same-damage-weapon-attack-twice-weapon-random-target-weapon-illness-"
+        "weapon-additive-reflection-dual-role-resource-miracle-attack-defense-"
+        "redraw-duel-v1"
+    )
+    assert simulation.metadata.rule_catalog_size == 161
+    assert simulation.metadata.global_feature_count == 16
+    assert simulation.metadata.sampling_distribution == (
+        "elemental-illness-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness"
+    )
+    assert batch.illness_weapon_curriculum is True
+    assert batch.illness_stages.shape == (512, 2)
+    assert np.any(batch.hand_card_kinds == godfield_sim.CARD_KIND_ILLNESS_WEAPON)
 
 
 def reflected_attack_batch(
@@ -1655,6 +1717,165 @@ def test_random_target_weapon_masks_unevidenced_booster_and_reflection_compositi
     )
 
 
+@pytest.mark.parametrize(
+    ("token", "stage", "effect_feature"),
+    [
+        (23, godfield_sim.ILLNESS_COLD, 0.5),
+        (24, godfield_sim.ILLNESS_HELL, 0.75),
+    ],
+)
+def test_illness_weapon_inflicts_status_only_after_damage(
+    token: int, stage: int, effect_feature: float
+) -> None:
+    for seed in range(32768):
+        batch = illness_weapon_resource_batch(seed=seed)
+        slots = np.flatnonzero(batch.hand_token_ids[0] == token)
+        if not slots.size:
+            continue
+        source = int(batch.active_players[0])
+        batch.step(np.asarray([int(slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        defender = 1 - source
+        assert batch.global_features[0, 13] == pytest.approx(effect_feature)
+        batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+        assert batch.illness_stages[0, defender] == stage
+        assert batch.global_features[0, 14] == pytest.approx(stage / 4)
+        assert batch.turn_numbers[0] == 1
+        return
+    raise AssertionError(f"fixture seeds did not expose illness weapon token {token}")
+
+
+def test_illness_weapon_blocked_damage_does_not_inflict_status() -> None:
+    for seed in range(32768):
+        batch = illness_weapon_resource_batch(seed=seed, armor_defense=8)
+        illness_slots = np.flatnonzero(batch.hand_token_ids[0] == 23)
+        if not illness_slots.size:
+            continue
+        batch.step(np.asarray([int(illness_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        armor_slots = np.flatnonzero(batch.hand_token_ids[0] == 4)
+        if not armor_slots.size:
+            continue
+        batch.step(np.asarray([int(armor_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        assert np.all(batch.illness_stages[0] == godfield_sim.ILLNESS_NONE)
+        return
+    raise AssertionError("fixture seeds did not expose a blockable Cold attack")
+
+
+def test_illness_weapon_masks_unevidenced_reflection_composition() -> None:
+    for seed in range(32768):
+        batch = illness_weapon_resource_batch(seed=seed)
+        illness_slots = np.flatnonzero(
+            batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_ILLNESS_WEAPON
+        )
+        if not illness_slots.size:
+            continue
+        batch.step(np.asarray([int(illness_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        reflection_slots = np.flatnonzero(
+            (batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_REFLECTION_ARMOR)
+            | (batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_REFLECTION_WEAPON)
+        )
+        if not reflection_slots.size:
+            continue
+        assert all(not batch.action_mask[0, int(slot) + 1] for slot in reflection_slots)
+        return
+    raise AssertionError("fixture seeds did not expose status/reflection composition")
+
+
+def test_cold_ticks_at_end_of_ill_player_turn_and_is_actor_relative() -> None:
+    observed_stages: set[int] = set()
+    for seed in range(32768):
+        batch = illness_weapon_resource_batch(seed=seed, initial_hp=40)
+        cold_slots = np.flatnonzero(batch.hand_token_ids[0] == 23)
+        if not cold_slots.size:
+            continue
+        source = int(batch.active_players[0])
+        ill_player = 1 - source
+        batch.step(np.asarray([int(cold_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+        weapon_slots = np.flatnonzero(batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_WEAPON)
+        if not weapon_slots.size:
+            continue
+        assert batch.active_players[0] == ill_player
+        assert batch.global_features[0, 14] == pytest.approx(0.25)
+        batch.step(np.asarray([int(weapon_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+        assert batch.turn_numbers[0] == 2
+        assert batch.player_features[0, 1, 0] == pytest.approx(0.31)
+        observed_stages.add(int(batch.illness_stages[0, ill_player]))
+        assert batch.global_features[0, 15] == pytest.approx(
+            int(batch.illness_stages[0, ill_player]) / 4
+        )
+        if observed_stages == {godfield_sim.ILLNESS_COLD, godfield_sim.ILLNESS_FEVER}:
+            return
+    raise AssertionError(
+        f"fixture seeds did not expose both stable and worsening Cold ticks: {observed_stages}"
+    )
+
+
+def test_repeated_illness_advances_one_stage_regardless_of_incoming_stage() -> None:
+    for seed in range(32768):
+        batch = illness_weapon_resource_batch(seed=seed, initial_hp=100)
+        cold_slots = np.flatnonzero(batch.hand_token_ids[0] == 23)
+        if not cold_slots.size:
+            continue
+        source = int(batch.active_players[0])
+        ill_player = 1 - source
+        batch.step(np.asarray([int(cold_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+        ordinary_slots = np.flatnonzero(
+            batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_WEAPON
+        )
+        if not ordinary_slots.size:
+            continue
+        batch.step(np.asarray([int(ordinary_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+        illness_slots = np.flatnonzero(
+            batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_ILLNESS_WEAPON
+        )
+        if not illness_slots.size:
+            continue
+        previous_stage = int(batch.illness_stages[0, ill_player])
+        assert previous_stage in {godfield_sim.ILLNESS_COLD, godfield_sim.ILLNESS_FEVER}
+        batch.step(np.asarray([int(illness_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+        assert batch.illness_stages[0, ill_player] == previous_stage + 1
+        return
+    raise AssertionError("fixture seeds did not expose repeated illness attacks")
+
+
+def test_hell_tick_can_end_the_ill_player_turn_in_defeat() -> None:
+    for seed in range(32768):
+        batch = illness_weapon_resource_batch(seed=seed, initial_hp=13)
+        hell_slots = np.flatnonzero(batch.hand_token_ids[0] == 24)
+        if not hell_slots.size:
+            continue
+        source = int(batch.active_players[0])
+        ill_player = 1 - source
+        batch.step(np.asarray([int(hell_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+        weapon_slots = np.flatnonzero(batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_WEAPON)
+        if not weapon_slots.size:
+            continue
+        batch.step(np.asarray([int(weapon_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+        assert batch.terminated[0]
+        assert batch.terminal_returns[0, source] == 1.0
+        assert batch.terminal_returns[0, ill_player] == -1.0
+        assert batch.turn_numbers[0] == 2
+        return
+    raise AssertionError("fixture seeds did not expose Hell followed by a plain attack")
+
+
 def test_super_mirror_redirects_full_attack_into_one_hop_defense() -> None:
     batch, attacker, reflection_slot = reflected_attack_batch()
     reflector = int(batch.active_players[0])
@@ -1986,6 +2207,15 @@ def test_resource_heuristics_index_miracle_attacks_in_the_miracle_namespace() ->
     assert random_target_weapon.random_target_attack_tokens == {dangerous_pestle}
     assert dangerous_pestle in random_target_weapon.chance_attack_tokens
     assert random_target_weapon.policy_id == "evidenced-random-target-weapon-resource-combo-v1"
+
+    illness_weapon = build_curriculum_heuristic(
+        snapshot,
+        vocabulary,
+        ruleset="illness-weapon-resource-hand",
+    )
+    assert illness_weapon.attacks[vocabulary.token_id("weapons", "gale-sword")] == 9
+    assert illness_weapon.attacks[vocabulary.token_id("weapons", "hell-scissors")] == 8
+    assert illness_weapon.policy_id == "evidenced-illness-weapon-resource-combo-v1"
 
 
 def test_dynamic_mp_heuristic_ranks_attack_using_current_mp() -> None:

@@ -42,6 +42,7 @@ RandomTargetWeaponResourceAttackDefenseBatch = (
 )
 IllnessWeaponResourceAttackDefenseBatch = godfield_sim.IllnessWeaponResourceAttackDefenseBatch
 IllnessCureResourceAttackDefenseBatch = godfield_sim.IllnessCureResourceAttackDefenseBatch
+HeavenHerbResourceAttackDefenseBatch = godfield_sim.HeavenHerbResourceAttackDefenseBatch
 
 SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-07" / "bible.json"
 
@@ -661,10 +662,11 @@ def illness_cure_resource_batch(
     initial_hp: int = 40,
     initial_mp: int = 10,
     armor_defense: int = 8,
-) -> IllnessCureResourceAttackDefenseBatch:
+    heaven_herb: bool = False,
+) -> IllnessCureResourceAttackDefenseBatch | HeavenHerbResourceAttackDefenseBatch:
     base_args = list(absorption_weapon_resource_args())
     base_args[8] = np.asarray([armor_defense], dtype=np.uint16)
-    return IllnessCureResourceAttackDefenseBatch(
+    curriculum_args = (
         *base_args,
         np.asarray([19], dtype=np.uint32),
         np.asarray([2], dtype=np.uint16),
@@ -688,6 +690,18 @@ def illness_cure_resource_batch(
         np.asarray([25, 26, 27, 28], dtype=np.uint32),
         np.asarray([0, 0, 2, 5], dtype=np.uint16),
         np.asarray([1, 2, 1, 2], dtype=np.uint16),
+    )
+    if heaven_herb:
+        return HeavenHerbResourceAttackDefenseBatch(
+            *curriculum_args,
+            np.asarray([29], dtype=np.uint32),
+            np.asarray([20], dtype=np.uint16),
+            seed,
+            initial_hp,
+            initial_mp,
+        )
+    return IllnessCureResourceAttackDefenseBatch(
+        *curriculum_args,
         seed,
         initial_hp,
         initial_mp,
@@ -1197,6 +1211,33 @@ def test_illness_cure_factory_keeps_schema_and_adds_verified_catalog() -> None:
         ],
     )
     assert not np.any(batch.action_mask[:, 1:10][cure_cards])
+
+
+def test_heaven_herb_factory_keeps_schema_and_adds_verified_catalog() -> None:
+    simulation = create_attack_defense_simulation(
+        SNAPSHOT_PATH,
+        batch_size=512,
+        ruleset="heaven-herb-resource-hand",
+    )
+    batch = simulation.batch
+
+    assert simulation.metadata.observation_schema_version == 7
+    assert simulation.metadata.ruleset_id == (
+        "plain-elemental-combo-stochastic-chance-absorption-weapon-dynamic-mp-"
+        "same-damage-weapon-attack-twice-weapon-random-target-weapon-illness-"
+        "weapon-illness-cure-heaven-herb-additive-reflection-dual-role-resource-"
+        "miracle-attack-defense-redraw-duel-v1"
+    )
+    assert simulation.metadata.rule_catalog_size == 166
+    assert simulation.metadata.global_feature_count == 16
+    assert simulation.metadata.sampling_distribution == (
+        "elemental-heaven-herb-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness"
+    )
+    assert batch.illness_cure_curriculum is True
+    assert batch.heaven_herb_curriculum is True
+    herb_cards = batch.hand_card_kinds == godfield_sim.CARD_KIND_HEAVEN_HERB
+    assert np.any(herb_cards)
+    assert np.all(batch.action_mask[:, 1:10][herb_cards])
 
 
 def reflected_attack_batch(
@@ -2039,6 +2080,99 @@ def test_illness_cure_is_atomic_pre_tick_and_obeys_consumption(
         assert batch.hand_token_ids[0, cure_slot] != cure_token
 
 
+@pytest.mark.parametrize(
+    ("illness_token", "expected_stage", "expected_tick"),
+    [
+        (None, godfield_sim.ILLNESS_HEAVEN, 5),
+        (23, godfield_sim.ILLNESS_FEVER, -2),
+        (24, godfield_sim.ILLNESS_HEAVEN, 5),
+    ],
+)
+def test_heaven_herb_boosts_mp_adds_curse_and_runs_same_turn_tick(
+    illness_token: int | None,
+    expected_stage: int,
+    expected_tick: int,
+) -> None:
+    for seed in range(32768):
+        batch = illness_cure_resource_batch(
+            seed=seed,
+            initial_mp=95,
+            heaven_herb=True,
+        )
+        if illness_token is None:
+            actor = int(batch.active_players[0])
+        else:
+            illness_slots = np.flatnonzero(batch.hand_token_ids[0] == illness_token)
+            if not illness_slots.size:
+                continue
+            source = int(batch.active_players[0])
+            batch.step(np.asarray([int(illness_slots[0]) + 1], dtype=np.int64))
+            batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+            batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+            if batch.terminated[0]:
+                continue
+            actor = 1 - source
+            starting_stage = (
+                godfield_sim.ILLNESS_COLD if illness_token == 23 else godfield_sim.ILLNESS_HELL
+            )
+            if batch.illness_stages[0, actor] != starting_stage:
+                continue
+        herb_slots = np.flatnonzero(batch.hand_token_ids[0] == 29)
+        if not herb_slots.size:
+            continue
+        hp_before = round(float(batch.player_features[0, 0, 0]) * 100)
+        turns_before = int(batch.turn_numbers[0])
+        herb_slot = int(herb_slots[0])
+
+        assert batch.action_mask[0, herb_slot + 1]
+        batch.step(np.asarray([herb_slot + 1], dtype=np.int64))
+        if batch.terminated[0]:
+            continue
+
+        assert batch.magic_points[0, actor] == 100
+        assert batch.illness_stages[0, actor] == expected_stage
+        assert round(float(batch.player_features[0, 1, 0]) * 100) == hp_before + expected_tick
+        assert batch.turn_numbers[0] == turns_before + 1
+        return
+    raise AssertionError("fixture seeds did not expose stable Heaven Herb resolution")
+
+
+def test_heaven_herb_is_consumed_and_is_lethal_when_already_in_heaven() -> None:
+    for seed in range(262144):
+        batch = illness_cure_resource_batch(seed=seed, heaven_herb=True)
+        herb_slots = np.flatnonzero(batch.hand_token_ids[0] == 29)
+        if not herb_slots.size:
+            continue
+        actor = int(batch.active_players[0])
+        first_herb_slot = int(herb_slots[0])
+        batch.step(np.asarray([first_herb_slot + 1], dtype=np.int64))
+        if batch.terminated[0]:
+            continue
+        opponent_weapon_slots = np.flatnonzero(
+            batch.hand_card_kinds[0] == godfield_sim.CARD_KIND_WEAPON
+        )
+        if not opponent_weapon_slots.size:
+            continue
+        batch.step(np.asarray([int(opponent_weapon_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+        if batch.terminated[0]:
+            continue
+        herb_slots = np.flatnonzero(batch.hand_token_ids[0] == 29)
+        if not herb_slots.size:
+            continue
+
+        assert batch.active_players[0] == actor
+        assert batch.illness_stages[0, actor] == godfield_sim.ILLNESS_HEAVEN
+        batch.step(np.asarray([int(herb_slots[0]) + 1], dtype=np.int64))
+
+        assert batch.terminated[0]
+        assert batch.terminal_returns[0, actor] == -1.0
+        assert batch.magic_points[0, actor] == 50
+        return
+    raise AssertionError("fixture seeds did not redraw Heaven Herb for a Heaven player")
+
+
 def test_super_mirror_redirects_full_attack_into_one_hop_defense() -> None:
     batch, attacker, reflection_slot = reflected_attack_batch()
     reflector = int(batch.active_players[0])
@@ -2393,6 +2527,17 @@ def test_resource_heuristics_index_miracle_attacks_in_the_miracle_namespace() ->
     }
     assert illness_cure.policy_id == "evidenced-illness-cure-resource-combo-v1"
 
+    heaven_herb = build_curriculum_heuristic(
+        snapshot,
+        vocabulary,
+        ruleset="heaven-herb-resource-hand",
+    )
+    assert heaven_herb.illness_cures == illness_cure.illness_cures
+    assert heaven_herb.heaven_herbs == {
+        vocabulary.token_id("sundries", "heaven-herb"): 20,
+    }
+    assert heaven_herb.policy_id == "evidenced-heaven-herb-resource-combo-v1"
+
 
 def test_illness_cure_heuristic_prioritizes_a_legal_cure() -> None:
     batch, _ill_player, cure_slot = ill_actor_with_cure(23, 27)
@@ -2415,6 +2560,73 @@ def test_illness_cure_heuristic_prioritizes_a_legal_cure() -> None:
     )[0]
 
     assert action == cure_slot + 1
+
+
+def test_heaven_herb_heuristic_uses_full_mp_gain_when_healthy() -> None:
+    for seed in range(32768):
+        batch = illness_cure_resource_batch(seed=seed, heaven_herb=True)
+        herb_slots = np.flatnonzero(batch.hand_token_ids[0] == 29)
+        if not herb_slots.size:
+            continue
+        simulation = type("HeavenHerbSimulation", (), {"batch": batch})()
+        policy = CurriculumHeuristic(
+            attacks={token: 1 for token in range(2, 25)},
+            defenses={},
+            heaven_herbs={29: 20},
+        )
+
+        action = curriculum_heuristic_actions(
+            simulation,
+            np.asarray([0], dtype=np.int64),
+            policy,
+        )[0]
+
+        assert action == int(herb_slots[0]) + 1
+        return
+    raise AssertionError("fixture seeds did not expose Heaven Herb")
+
+
+@pytest.mark.parametrize(("illness_token", "uses_herb"), [(23, False), (24, True)])
+def test_heaven_herb_heuristic_avoids_worsening_mild_illness(
+    illness_token: int,
+    uses_herb: bool,
+) -> None:
+    for seed in range(32768):
+        batch = illness_cure_resource_batch(seed=seed, heaven_herb=True)
+        illness_slots = np.flatnonzero(batch.hand_token_ids[0] == illness_token)
+        if not illness_slots.size:
+            continue
+        source = int(batch.active_players[0])
+        batch.step(np.asarray([int(illness_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+        if batch.terminated[0]:
+            continue
+        actor = 1 - source
+        expected_stage = (
+            godfield_sim.ILLNESS_COLD if illness_token == 23 else godfield_sim.ILLNESS_HELL
+        )
+        if batch.illness_stages[0, actor] != expected_stage:
+            continue
+        herb_slots = np.flatnonzero(batch.hand_token_ids[0] == 29)
+        if not herb_slots.size:
+            continue
+        simulation = type("HeavenHerbSimulation", (), {"batch": batch})()
+        policy = CurriculumHeuristic(
+            attacks={token: 1 for token in range(2, 25)},
+            defenses={},
+            heaven_herbs={29: 20},
+        )
+
+        action = curriculum_heuristic_actions(
+            simulation,
+            np.asarray([0], dtype=np.int64),
+            policy,
+        )[0]
+
+        assert bool(action == int(herb_slots[0]) + 1) is uses_herb
+        return
+    raise AssertionError("fixture seeds did not expose illness with Heaven Herb")
 
 
 def test_dynamic_mp_heuristic_ranks_attack_using_current_mp() -> None:

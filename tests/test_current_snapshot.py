@@ -25,6 +25,7 @@ from godfield_bot.reference import (
     verified_cp_utility_miracle_cards,
     verified_dynamic_mp_weapon_cards,
     verified_effect_attack_miracle_cards,
+    verified_heaven_herb_cards,
     verified_hp_utility_miracle_cards,
     verified_illness_cure_miracles,
     verified_illness_cure_sundries,
@@ -189,6 +190,7 @@ def test_committed_snapshot_matches_validated_live_catalog() -> None:
         "song": (5, True),
         "tone": (2, False),
     }
+    assert verified_heaven_herb_cards(snapshot) == {"heaven-herb": 20}
     assert verified_effect_attack_miracle_cards(snapshot) == {
         "absorption": (10, 10, "light", "absorbHP")
     }

@@ -14,6 +14,7 @@ using godfield_sim::DynamicMpWeaponResourceAttackDefenseBatch;
 using godfield_sim::ElementalAttackDefenseBatch;
 using godfield_sim::ExpandedResourceAttackDefenseBatch;
 using godfield_sim::FixedAttackBatch;
+using godfield_sim::HeavenHerbResourceAttackDefenseBatch;
 using godfield_sim::IllnessCureResourceAttackDefenseBatch;
 using godfield_sim::IllnessWeaponResourceAttackDefenseBatch;
 using godfield_sim::RandomTargetWeaponResourceAttackDefenseBatch;
@@ -163,6 +164,13 @@ NB_MODULE(_native, module) {
       godfield_sim::kIllnessCureResourceAttackDefenseObservationSchemaVersion;
   module.attr("ILLNESS_CURE_RESOURCE_ATTACK_DEFENSE_RULESET_ID") =
       godfield_sim::kIllnessCureResourceAttackDefenseRulesetId;
+  module.attr("HEAVEN_HERB_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION") =
+      godfield_sim::kHeavenHerbResourceAttackDefenseKernelSchemaVersion;
+  module.attr(
+      "HEAVEN_HERB_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION") =
+      godfield_sim::kHeavenHerbResourceAttackDefenseObservationSchemaVersion;
+  module.attr("HEAVEN_HERB_RESOURCE_ATTACK_DEFENSE_RULESET_ID") =
+      godfield_sim::kHeavenHerbResourceAttackDefenseRulesetId;
   module.attr("ILLNESS_GLOBAL_FEATURE_COUNT") =
       godfield_sim::kIllnessGlobalFeatureCount;
   module.attr("ELEMENT_COUNT") = godfield_sim::kElementCount;
@@ -214,6 +222,7 @@ NB_MODULE(_native, module) {
   module.attr("CARD_KIND_ILLNESS_WEAPON") = std::uint8_t{22U};
   module.attr("CARD_KIND_ILLNESS_CURE_SUNDRY") = std::uint8_t{23U};
   module.attr("CARD_KIND_ILLNESS_CURE_MIRACLE") = std::uint8_t{24U};
+  module.attr("CARD_KIND_HEAVEN_HERB") = std::uint8_t{25U};
   module.attr("ILLNESS_NONE") = std::uint8_t{0U};
   module.attr("ILLNESS_COLD") = std::uint8_t{1U};
   module.attr("ILLNESS_FEVER") = std::uint8_t{2U};
@@ -301,6 +310,8 @@ NB_MODULE(_native, module) {
                    &AttackDefenseBatch::illness_weapon_curriculum)
       .def_prop_ro("illness_cure_curriculum",
                    &AttackDefenseBatch::illness_cure_curriculum)
+      .def_prop_ro("heaven_herb_curriculum",
+                   &AttackDefenseBatch::heaven_herb_curriculum)
       .def_prop_ro("initial_mp", &AttackDefenseBatch::initial_mp)
       .def_prop_ro("global_feature_count",
                    &AttackDefenseBatch::global_feature_count)
@@ -1315,5 +1326,107 @@ NB_MODULE(_native, module) {
           nb::arg("illness_weapon_elements"), nb::arg("illness_weapon_stages"),
           nb::arg("illness_cure_token_ids"), nb::arg("illness_cure_costs"),
           nb::arg("illness_cure_scopes"), nb::arg("seed") = 67U,
+          nb::arg("initial_hp") = 40U, nb::arg("initial_mp") = 10U);
+
+  nb::class_<HeavenHerbResourceAttackDefenseBatch, AttackDefenseBatch>(
+      module, "HeavenHerbResourceAttackDefenseBatch")
+      .def(
+          nb::init<std::size_t, godfield_sim::TokenInput,
+                   godfield_sim::ValueInput, godfield_sim::ElementInput,
+                   godfield_sim::TokenInput, godfield_sim::ValueInput,
+                   godfield_sim::ElementInput, godfield_sim::TokenInput,
+                   godfield_sim::ValueInput, godfield_sim::ElementInput,
+                   godfield_sim::TokenInput, godfield_sim::ValueInput,
+                   godfield_sim::TokenInput, godfield_sim::ValueInput,
+                   godfield_sim::TokenInput, godfield_sim::ValueInput,
+                   godfield_sim::ElementInput, godfield_sim::ValueInput,
+                   godfield_sim::TokenInput, godfield_sim::ValueInput,
+                   godfield_sim::ValueInput, godfield_sim::TokenInput,
+                   godfield_sim::ValueInput, godfield_sim::ElementInput,
+                   godfield_sim::ValueInput, godfield_sim::ValueInput,
+                   godfield_sim::TokenInput, godfield_sim::ValueInput,
+                   godfield_sim::ElementInput, godfield_sim::ValueInput,
+                   godfield_sim::TokenInput, godfield_sim::ValueInput,
+                   godfield_sim::ElementInput, godfield_sim::ValueInput,
+                   godfield_sim::TokenInput, godfield_sim::TokenInput,
+                   godfield_sim::ValueInput, godfield_sim::TokenInput,
+                   godfield_sim::ValueInput, godfield_sim::ValueInput,
+                   godfield_sim::ElementInput, godfield_sim::TokenInput,
+                   godfield_sim::ValueInput, godfield_sim::ElementInput,
+                   godfield_sim::ValueInput, godfield_sim::TokenInput,
+                   godfield_sim::ValueInput, godfield_sim::ValueInput,
+                   godfield_sim::ElementInput, godfield_sim::ValueInput,
+                   godfield_sim::TokenInput, godfield_sim::ValueInput,
+                   godfield_sim::ElementInput, godfield_sim::TokenInput,
+                   godfield_sim::ValueInput, godfield_sim::ElementInput,
+                   godfield_sim::ValueInput, godfield_sim::TokenInput,
+                   godfield_sim::ValueInput, godfield_sim::ElementInput,
+                   godfield_sim::TokenInput, godfield_sim::ValueInput,
+                   godfield_sim::ElementInput, godfield_sim::TokenInput,
+                   godfield_sim::ValueInput, godfield_sim::ElementInput,
+                   godfield_sim::TokenInput, godfield_sim::ValueInput,
+                   godfield_sim::ElementInput, godfield_sim::TokenInput,
+                   godfield_sim::ValueInput, godfield_sim::ElementInput,
+                   godfield_sim::ValueInput, godfield_sim::TokenInput,
+                   godfield_sim::ValueInput, godfield_sim::ValueInput,
+                   godfield_sim::TokenInput, godfield_sim::ValueInput,
+                   std::uint64_t, std::uint16_t, std::uint16_t>(),
+          nb::arg("batch_size"), nb::arg("weapon_token_ids"),
+          nb::arg("attack_values"), nb::arg("weapon_elements"),
+          nb::arg("booster_token_ids"), nb::arg("booster_values"),
+          nb::arg("booster_elements"), nb::arg("armor_token_ids"),
+          nb::arg("defense_values"), nb::arg("armor_elements"),
+          nb::arg("hp_utility_token_ids"), nb::arg("hp_utility_values"),
+          nb::arg("mp_utility_token_ids"), nb::arg("mp_utility_values"),
+          nb::arg("attack_miracle_token_ids"), nb::arg("attack_miracle_values"),
+          nb::arg("attack_miracle_elements"), nb::arg("attack_miracle_costs"),
+          nb::arg("hp_miracle_token_ids"), nb::arg("hp_miracle_values"),
+          nb::arg("hp_miracle_costs"), nb::arg("chance_miracle_token_ids"),
+          nb::arg("chance_miracle_values"), nb::arg("chance_miracle_elements"),
+          nb::arg("chance_miracle_costs"), nb::arg("chance_miracle_hit_rates"),
+          nb::arg("effect_miracle_token_ids"), nb::arg("effect_miracle_values"),
+          nb::arg("effect_miracle_elements"), nb::arg("effect_miracle_costs"),
+          nb::arg("additive_miracle_token_ids"),
+          nb::arg("additive_miracle_values"),
+          nb::arg("additive_miracle_elements"),
+          nb::arg("additive_miracle_costs"),
+          nb::arg("reflection_armor_token_ids"),
+          nb::arg("reflection_weapon_token_ids"),
+          nb::arg("reflection_weapon_values"), nb::arg("dual_role_token_ids"),
+          nb::arg("dual_role_attack_values"),
+          nb::arg("dual_role_defense_values"), nb::arg("dual_role_elements"),
+          nb::arg("chance_weapon_token_ids"),
+          nb::arg("chance_weapon_attack_values"),
+          nb::arg("chance_weapon_elements"), nb::arg("chance_weapon_hit_rates"),
+          nb::arg("chance_dual_role_token_ids"),
+          nb::arg("chance_dual_role_attack_values"),
+          nb::arg("chance_dual_role_defense_values"),
+          nb::arg("chance_dual_role_elements"),
+          nb::arg("chance_dual_role_hit_rates"),
+          nb::arg("absorption_weapon_token_ids"),
+          nb::arg("absorption_weapon_attack_values"),
+          nb::arg("absorption_weapon_elements"),
+          nb::arg("chance_absorption_weapon_token_ids"),
+          nb::arg("chance_absorption_weapon_attack_values"),
+          nb::arg("chance_absorption_weapon_elements"),
+          nb::arg("chance_absorption_weapon_hit_rates"),
+          nb::arg("dynamic_mp_weapon_token_ids"),
+          nb::arg("dynamic_mp_weapon_coefficients"),
+          nb::arg("dynamic_mp_weapon_elements"),
+          nb::arg("same_damage_weapon_token_ids"),
+          nb::arg("same_damage_weapon_attack_values"),
+          nb::arg("same_damage_weapon_elements"),
+          nb::arg("attack_twice_weapon_token_ids"),
+          nb::arg("attack_twice_weapon_attack_values"),
+          nb::arg("attack_twice_weapon_elements"),
+          nb::arg("random_target_weapon_token_ids"),
+          nb::arg("random_target_weapon_attack_values"),
+          nb::arg("random_target_weapon_elements"),
+          nb::arg("illness_weapon_token_ids"),
+          nb::arg("illness_weapon_attack_values"),
+          nb::arg("illness_weapon_elements"), nb::arg("illness_weapon_stages"),
+          nb::arg("illness_cure_token_ids"), nb::arg("illness_cure_costs"),
+          nb::arg("illness_cure_scopes"), nb::arg("heaven_herb_token_ids"),
+          nb::arg("heaven_herb_mp_gains"), nb::arg("seed") = 67U,
           nb::arg("initial_hp") = 40U, nb::arg("initial_mp") = 10U);
 }

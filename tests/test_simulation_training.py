@@ -83,6 +83,10 @@ def test_training_config_selects_versioned_mixed_hand_ruleset() -> None:
         SimulationTrainingConfig(ruleset="illness-cure-resource-hand").ruleset
         == "illness-cure-resource-hand"
     )
+    assert (
+        SimulationTrainingConfig(ruleset="heaven-herb-resource-hand").ruleset
+        == "heaven-herb-resource-hand"
+    )
 
 
 def initialize_fixed_simulation_model(

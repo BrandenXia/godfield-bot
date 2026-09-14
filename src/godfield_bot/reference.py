@@ -973,6 +973,30 @@ def verified_heaven_herb_cards(snapshot: BibleSnapshot) -> dict[str, int]:
     return result
 
 
+def verified_fever_mask_armor(
+    snapshot: BibleSnapshot,
+) -> dict[str, tuple[int, CombatElement]]:
+    """Return armor with exact defense and the verified self-Fever effect."""
+
+    armor = snapshot.catalog.get("armor")
+    if armor is None:
+        return {}
+    result: dict[str, tuple[int, CombatElement]] = {}
+    for artifact in armor.items:
+        element = _combat_element(artifact)
+        if element is None or len(artifact.detail) != 5:
+            continue
+        defense = PLAIN_DEFENSE_PATTERN.fullmatch(artifact.detail[1])
+        if (
+            defense is not None
+            and artifact.detail[2] == "Catch Fever"
+            and re.fullmatch(r"\$\d+", artifact.detail[3]) is not None
+            and artifact.detail[4].startswith("Gift Rate:")
+        ):
+            result[artifact.asset] = (int(defense.group(1)), element)
+    return result
+
+
 def verified_chance_attack_miracle_cards(
     snapshot: BibleSnapshot,
 ) -> dict[str, tuple[int, int, int, CombatElement]]:

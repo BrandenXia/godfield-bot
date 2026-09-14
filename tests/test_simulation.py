@@ -43,6 +43,7 @@ RandomTargetWeaponResourceAttackDefenseBatch = (
 IllnessWeaponResourceAttackDefenseBatch = godfield_sim.IllnessWeaponResourceAttackDefenseBatch
 IllnessCureResourceAttackDefenseBatch = godfield_sim.IllnessCureResourceAttackDefenseBatch
 HeavenHerbResourceAttackDefenseBatch = godfield_sim.HeavenHerbResourceAttackDefenseBatch
+FeverMaskResourceAttackDefenseBatch = godfield_sim.FeverMaskResourceAttackDefenseBatch
 
 SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-07" / "bible.json"
 
@@ -663,7 +664,12 @@ def illness_cure_resource_batch(
     initial_mp: int = 10,
     armor_defense: int = 8,
     heaven_herb: bool = False,
-) -> IllnessCureResourceAttackDefenseBatch | HeavenHerbResourceAttackDefenseBatch:
+    fever_mask: bool = False,
+) -> (
+    IllnessCureResourceAttackDefenseBatch
+    | HeavenHerbResourceAttackDefenseBatch
+    | FeverMaskResourceAttackDefenseBatch
+):
     base_args = list(absorption_weapon_resource_args())
     base_args[8] = np.asarray([armor_defense], dtype=np.uint16)
     curriculum_args = (
@@ -691,11 +697,24 @@ def illness_cure_resource_batch(
         np.asarray([0, 0, 2, 5], dtype=np.uint16),
         np.asarray([1, 2, 1, 2], dtype=np.uint16),
     )
-    if heaven_herb:
-        return HeavenHerbResourceAttackDefenseBatch(
+    if heaven_herb or fever_mask:
+        heaven_args = (
             *curriculum_args,
             np.asarray([29], dtype=np.uint32),
             np.asarray([20], dtype=np.uint16),
+        )
+        if fever_mask:
+            return FeverMaskResourceAttackDefenseBatch(
+                *heaven_args,
+                np.asarray([30], dtype=np.uint32),
+                np.asarray([10], dtype=np.uint16),
+                np.asarray([godfield_sim.ELEMENT_FIRE], dtype=np.uint8),
+                seed,
+                initial_hp,
+                initial_mp,
+            )
+        return HeavenHerbResourceAttackDefenseBatch(
+            *heaven_args,
             seed,
             initial_hp,
             initial_mp,
@@ -1238,6 +1257,111 @@ def test_heaven_herb_factory_keeps_schema_and_adds_verified_catalog() -> None:
     herb_cards = batch.hand_card_kinds == godfield_sim.CARD_KIND_HEAVEN_HERB
     assert np.any(herb_cards)
     assert np.all(batch.action_mask[:, 1:10][herb_cards])
+
+
+def test_fever_mask_factory_keeps_schema_and_adds_verified_catalog() -> None:
+    simulation = create_attack_defense_simulation(
+        SNAPSHOT_PATH,
+        batch_size=512,
+        ruleset="fever-mask-resource-hand",
+    )
+    batch = simulation.batch
+
+    assert simulation.metadata.observation_schema_version == 7
+    assert simulation.metadata.ruleset_id == (
+        "plain-elemental-combo-stochastic-chance-absorption-weapon-dynamic-mp-"
+        "same-damage-weapon-attack-twice-weapon-random-target-weapon-illness-"
+        "weapon-illness-cure-heaven-herb-fever-mask-additive-reflection-dual-"
+        "role-resource-miracle-attack-defense-redraw-duel-v1"
+    )
+    assert simulation.metadata.rule_catalog_size == 167
+    assert simulation.metadata.global_feature_count == 16
+    assert simulation.metadata.sampling_distribution == (
+        "elemental-fever-mask-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness"
+    )
+    assert batch.heaven_herb_curriculum is True
+    assert batch.fever_mask_curriculum is True
+    fever_masks = batch.hand_card_kinds == godfield_sim.CARD_KIND_FEVER_MASK
+    assert np.any(fever_masks)
+    assert np.all(batch.hand_elements[fever_masks] == godfield_sim.ELEMENT_FIRE)
+
+
+def fever_mask_defense_batch(
+    *,
+    initial_hp: int = 40,
+    require_plain_armor: bool = False,
+    require_plain_weapon: bool = False,
+) -> tuple[FeverMaskResourceAttackDefenseBatch, int, int, int | None]:
+    for seed in range(32768):
+        batch = illness_cure_resource_batch(
+            seed=seed,
+            initial_hp=initial_hp,
+            fever_mask=True,
+        )
+        attacker = int(batch.active_players[0])
+        weapon_slots = np.flatnonzero(batch.hand_token_ids[0] == 2)
+        if not weapon_slots.size:
+            continue
+        batch.step(np.asarray([int(weapon_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        fever_slots = np.flatnonzero(batch.hand_token_ids[0] == 30)
+        armor_slots = np.flatnonzero(batch.hand_token_ids[0] == 4)
+        defender_weapon_slots = np.flatnonzero(batch.hand_token_ids[0] == 2)
+        if (
+            not fever_slots.size
+            or (require_plain_armor and not armor_slots.size)
+            or (require_plain_weapon and not defender_weapon_slots.size)
+        ):
+            continue
+        fever_slot = int(fever_slots[0])
+        if not batch.action_mask[0, fever_slot + 1]:
+            continue
+        armor_slot = int(armor_slots[0]) if armor_slots.size else None
+        return batch, attacker, fever_slot, armor_slot
+    raise AssertionError("fixture seeds did not expose a Fever Mask defense")
+
+
+def test_fever_mask_blocks_damage_and_inflicts_fever_after_survival() -> None:
+    batch, attacker, fever_slot, _armor_slot = fever_mask_defense_batch(require_plain_weapon=True)
+    defender = 1 - attacker
+    defender_hp_before = round(float(batch.player_features[0, 0, 0]) * 100)
+    turns_before = int(batch.turn_numbers[0])
+
+    batch.step(np.asarray([fever_slot + 1], dtype=np.int64))
+    assert batch.selected_values[0] == 10
+    batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+
+    assert not batch.terminated[0]
+    assert batch.active_players[0] == defender
+    assert batch.illness_stages[0, defender] == godfield_sim.ILLNESS_FEVER
+    assert round(float(batch.player_features[0, 0, 0]) * 100) == defender_hp_before
+    assert batch.turn_numbers[0] == turns_before + 1
+    assert batch.selected_counts[0] == 0
+
+    defender_weapon_slot = int(np.flatnonzero(batch.hand_token_ids[0] == 2)[0])
+    batch.step(np.asarray([defender_weapon_slot + 1], dtype=np.int64))
+    batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+    batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+
+    assert batch.illness_stages[0, defender] >= godfield_sim.ILLNESS_FEVER
+    assert round(float(batch.player_features[0, 1, 0]) * 100) == defender_hp_before - 2
+
+
+def test_fever_mask_is_masked_against_illness_weapons() -> None:
+    for seed in range(32768):
+        batch = illness_cure_resource_batch(seed=seed, fever_mask=True)
+        illness_slots = np.flatnonzero(batch.hand_token_ids[0] == 23)
+        if not illness_slots.size:
+            continue
+        batch.step(np.asarray([int(illness_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        fever_slots = np.flatnonzero(batch.hand_token_ids[0] == 30)
+        if not fever_slots.size:
+            continue
+
+        assert not batch.action_mask[0, int(fever_slots[0]) + 1]
+        return
+    raise AssertionError("fixture seeds did not expose illness attack into Fever Mask")
 
 
 def reflected_attack_batch(
@@ -2537,6 +2661,56 @@ def test_resource_heuristics_index_miracle_attacks_in_the_miracle_namespace() ->
         vocabulary.token_id("sundries", "heaven-herb"): 20,
     }
     assert heaven_herb.policy_id == "evidenced-heaven-herb-resource-combo-v1"
+
+    fever_mask = build_curriculum_heuristic(
+        snapshot,
+        vocabulary,
+        ruleset="fever-mask-resource-hand",
+    )
+    fever_mask_token = vocabulary.token_id("armor", "fever-mask")
+    assert fever_mask.illness_cures == illness_cure.illness_cures
+    assert fever_mask.heaven_herbs == heaven_herb.heaven_herbs
+    assert fever_mask.defenses[fever_mask_token] == 10
+    assert fever_mask.self_fever_defenses == {fever_mask_token}
+    assert fever_mask.policy_id == "evidenced-fever-mask-resource-combo-v1"
+
+
+def test_fever_mask_heuristic_uses_plain_armor_when_curse_is_not_needed() -> None:
+    batch, _attacker, fever_slot, armor_slot = fever_mask_defense_batch(require_plain_armor=True)
+    assert armor_slot is not None
+    simulation = type("FeverMaskSimulation", (), {"batch": batch})()
+    policy = CurriculumHeuristic(
+        attacks={2: 10},
+        defenses={4: 8, 30: 10},
+        self_fever_defenses=frozenset({30}),
+    )
+
+    action = curriculum_heuristic_actions(
+        simulation,
+        np.asarray([0], dtype=np.int64),
+        policy,
+    )[0]
+
+    assert action == armor_slot + 1
+    assert action != fever_slot + 1
+
+
+def test_fever_mask_heuristic_accepts_curse_to_prevent_lethal_damage() -> None:
+    batch, _attacker, fever_slot, _armor_slot = fever_mask_defense_batch(initial_hp=5)
+    simulation = type("FeverMaskSimulation", (), {"batch": batch})()
+    policy = CurriculumHeuristic(
+        attacks={2: 10},
+        defenses={30: 10},
+        self_fever_defenses=frozenset({30}),
+    )
+
+    action = curriculum_heuristic_actions(
+        simulation,
+        np.asarray([0], dtype=np.int64),
+        policy,
+    )[0]
+
+    assert action == fever_slot + 1
 
 
 def test_illness_cure_heuristic_prioritizes_a_legal_cure() -> None:

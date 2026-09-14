@@ -31,6 +31,7 @@ from godfield_bot.reference import (
     verified_chance_attack_miracle_cards,
     verified_dynamic_mp_weapon_cards,
     verified_effect_attack_miracle_cards,
+    verified_fever_mask_armor,
     verified_heaven_herb_cards,
     verified_hp_utility_miracle_cards,
     verified_illness_cure_miracles,
@@ -66,6 +67,7 @@ AttackDefenseRuleset = Literal[
     "illness-weapon-resource-hand",
     "illness-cure-resource-hand",
     "heaven-herb-resource-hand",
+    "fever-mask-resource-hand",
 ]
 
 
@@ -119,6 +121,7 @@ class SimulationMetadata(BaseModel):
         "elemental-illness-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-illness-cure-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-heaven-herb-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
+        "elemental-fever-mask-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
     ] = "uniform-redraw-with-replacement"
     promotion_eligible: Literal[False] = False
 
@@ -248,6 +251,27 @@ def _heaven_herb_catalog(
     ]
 
 
+def _fever_mask_catalog(
+    snapshot: BibleSnapshot,
+    vocabulary: ArtifactVocabulary,
+) -> list[dict[str, object]]:
+    masks = verified_fever_mask_armor(snapshot)
+    if not masks:
+        raise ValueError("accepted snapshot contains no supported Fever Mask")
+    return [
+        {
+            "defense": defense,
+            "effect": "self-fever",
+            "element": element,
+            "element_id": COMBAT_ELEMENT_IDS[element],
+            "kind": "fever-mask",
+            "slug": slug,
+            "token_id": vocabulary.token_id("armor", slug),
+        }
+        for slug, (defense, element) in sorted(masks.items())
+    ]
+
+
 def create_fixed_attack_simulation(
     snapshot_path: Path,
     *,
@@ -348,6 +372,9 @@ def create_attack_defense_simulation(
             EXPANDED_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
             EXPANDED_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
             EXPANDED_RESOURCE_ATTACK_DEFENSE_RULESET_ID,
+            FEVER_MASK_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
+            FEVER_MASK_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
+            FEVER_MASK_RESOURCE_ATTACK_DEFENSE_RULESET_ID,
             HAND_SLOTS,
             HEAVEN_HERB_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
             HEAVEN_HERB_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
@@ -390,6 +417,7 @@ def create_attack_defense_simulation(
             DynamicMpWeaponResourceAttackDefenseBatch,
             ElementalAttackDefenseBatch,
             ExpandedResourceAttackDefenseBatch,
+            FeverMaskResourceAttackDefenseBatch,
             HeavenHerbResourceAttackDefenseBatch,
             IllnessCureResourceAttackDefenseBatch,
             IllnessWeaponResourceAttackDefenseBatch,
@@ -406,6 +434,7 @@ def create_attack_defense_simulation(
         illness_batch_type = IllnessWeaponResourceAttackDefenseBatch
         illness_cure_batch_type = IllnessCureResourceAttackDefenseBatch
         heaven_herb_batch_type = HeavenHerbResourceAttackDefenseBatch
+        fever_batch_type = FeverMaskResourceAttackDefenseBatch
     except ImportError as error:
         raise SimulationUnavailableError(
             "native simulation is unavailable; run `uv sync --extra simulation --group dev`"
@@ -413,6 +442,7 @@ def create_attack_defense_simulation(
 
     snapshot = BibleSnapshot.model_validate_json(snapshot_path.read_text(encoding="utf-8"))
     vocabulary = ArtifactVocabulary.from_snapshot(snapshot)
+    fever_mask_ruleset = ruleset == "fever-mask-resource-hand"
     expanded_rulesets = {
         "elemental-hand",
         "combo-hand",
@@ -431,6 +461,7 @@ def create_attack_defense_simulation(
         "illness-weapon-resource-hand",
         "illness-cure-resource-hand",
         "heaven-herb-resource-hand",
+        "fever-mask-resource-hand",
     }
     if ruleset in expanded_rulesets:
         attacks = plain_attack_weapon_cards(snapshot)
@@ -500,6 +531,7 @@ def create_attack_defense_simulation(
         "illness-weapon-resource-hand",
         "illness-cure-resource-hand",
         "heaven-herb-resource-hand",
+        "fever-mask-resource-hand",
     }:
         boosters = plain_attack_booster_cards(snapshot)
         if not boosters:
@@ -542,6 +574,7 @@ def create_attack_defense_simulation(
             "illness-weapon-resource-hand",
             "illness-cure-resource-hand",
             "heaven-herb-resource-hand",
+            "fever-mask-resource-hand",
         }:
             hp_utilities = plain_hp_utility_sundries(snapshot)
             mp_utilities = plain_mp_utility_sundries(snapshot)
@@ -630,6 +663,7 @@ def create_attack_defense_simulation(
                 "illness-weapon-resource-hand",
                 "illness-cure-resource-hand",
                 "heaven-herb-resource-hand",
+                "fever-mask-resource-hand",
             }:
                 chance_miracles = verified_chance_attack_miracle_cards(snapshot)
                 effect_miracles = {
@@ -693,6 +727,7 @@ def create_attack_defense_simulation(
                 illness_weapon_catalog: list[dict[str, object]] = []
                 illness_cure_catalog: list[dict[str, object]] = []
                 heaven_herb_catalog: list[dict[str, object]] = []
+                fever_mask_catalog: list[dict[str, object]] = []
                 if ruleset in {
                     "expanded-resource-hand",
                     "reflection-resource-hand",
@@ -707,6 +742,7 @@ def create_attack_defense_simulation(
                     "illness-weapon-resource-hand",
                     "illness-cure-resource-hand",
                     "heaven-herb-resource-hand",
+                    "fever-mask-resource-hand",
                 }:
                     additive_miracles = verified_attack_booster_miracle_cards(snapshot)
                     if not additive_miracles:
@@ -747,6 +783,7 @@ def create_attack_defense_simulation(
                         "illness-weapon-resource-hand",
                         "illness-cure-resource-hand",
                         "heaven-herb-resource-hand",
+                        "fever-mask-resource-hand",
                     }:
                         reflection_armor = verified_reflection_armor_cards(snapshot)
                         if not reflection_armor:
@@ -778,6 +815,7 @@ def create_attack_defense_simulation(
                             "illness-weapon-resource-hand",
                             "illness-cure-resource-hand",
                             "heaven-herb-resource-hand",
+                            "fever-mask-resource-hand",
                         }:
                             reflection_weapons = verified_reflection_weapon_cards(snapshot)
                             if not reflection_weapons:
@@ -815,6 +853,7 @@ def create_attack_defense_simulation(
                                 "illness-weapon-resource-hand",
                                 "illness-cure-resource-hand",
                                 "heaven-herb-resource-hand",
+                                "fever-mask-resource-hand",
                             }:
                                 dual_roles = plain_dual_role_weapon_cards(snapshot)
                                 if not dual_roles:
@@ -863,6 +902,7 @@ def create_attack_defense_simulation(
                                     "illness-weapon-resource-hand",
                                     "illness-cure-resource-hand",
                                     "heaven-herb-resource-hand",
+                                    "fever-mask-resource-hand",
                                 }:
                                     chance_weapons = plain_chance_weapon_cards(snapshot)
                                     chance_dual_roles = plain_chance_dual_role_weapon_cards(
@@ -947,6 +987,7 @@ def create_attack_defense_simulation(
                                         "illness-weapon-resource-hand",
                                         "illness-cure-resource-hand",
                                         "heaven-herb-resource-hand",
+                                        "fever-mask-resource-hand",
                                     }:
                                         absorption_weapons = verified_absorption_weapon_cards(
                                             snapshot
@@ -1039,6 +1080,7 @@ def create_attack_defense_simulation(
                                             "illness-weapon-resource-hand",
                                             "illness-cure-resource-hand",
                                             "heaven-herb-resource-hand",
+                                            "fever-mask-resource-hand",
                                         }:
                                             dynamic_mp_weapons = verified_dynamic_mp_weapon_cards(
                                                 snapshot
@@ -1120,6 +1162,7 @@ def create_attack_defense_simulation(
                                                 "illness-weapon-resource-hand",
                                                 "illness-cure-resource-hand",
                                                 "heaven-herb-resource-hand",
+                                                "fever-mask-resource-hand",
                                             }:
                                                 same_damage_weapons = (
                                                     verified_same_damage_weapon_cards(snapshot)
@@ -1178,6 +1221,7 @@ def create_attack_defense_simulation(
                                                     "illness-weapon-resource-hand",
                                                     "illness-cure-resource-hand",
                                                     "heaven-herb-resource-hand",
+                                                    "fever-mask-resource-hand",
                                                 }:
                                                     attack_twice_weapons = (
                                                         verified_attack_twice_weapon_cards(snapshot)
@@ -1240,6 +1284,7 @@ def create_attack_defense_simulation(
                                                         "illness-weapon-resource-hand",
                                                         "illness-cure-resource-hand",
                                                         "heaven-herb-resource-hand",
+                                                        "fever-mask-resource-hand",
                                                     }:
                                                         random_target_weapons = (
                                                             verified_random_target_weapon_cards(
@@ -1309,6 +1354,7 @@ def create_attack_defense_simulation(
                                                             "illness-weapon-resource-hand",
                                                             "illness-cure-resource-hand",
                                                             "heaven-herb-resource-hand",
+                                                            "fever-mask-resource-hand",
                                                         }:
                                                             illness_weapons = (
                                                                 verified_illness_weapon_cards(
@@ -1379,6 +1425,7 @@ def create_attack_defense_simulation(
                                                             if ruleset in {
                                                                 "illness-cure-resource-hand",
                                                                 "heaven-herb-resource-hand",
+                                                                "fever-mask-resource-hand",
                                                             }:
                                                                 illness_cure_catalog = (
                                                                     _illness_cure_catalog(
@@ -1410,17 +1457,17 @@ def create_attack_defense_simulation(
                                                                         dtype=np.uint16,
                                                                     ),
                                                                 )
-                                                                if (
-                                                                    ruleset
-                                                                    == "heaven-herb-resource-hand"
-                                                                ):
+                                                                if ruleset in {
+                                                                    "heaven-herb-resource-hand",
+                                                                    "fever-mask-resource-hand",
+                                                                }:
                                                                     heaven_herb_catalog = (
                                                                         _heaven_herb_catalog(
                                                                             snapshot,
                                                                             vocabulary,
                                                                         )
                                                                     )
-                                                                    batch = heaven_herb_batch_type(
+                                                                    heaven_herb_args = (
                                                                         *illness_cure_args,
                                                                         np.asarray(
                                                                             _catalog_column(
@@ -1436,10 +1483,50 @@ def create_attack_defense_simulation(
                                                                             ),
                                                                             dtype=np.uint16,
                                                                         ),
-                                                                        seed,
-                                                                        initial_hp,
-                                                                        initial_mp,
                                                                     )
+                                                                    if fever_mask_ruleset:
+                                                                        fever_mask_catalog = (
+                                                                            _fever_mask_catalog(
+                                                                                snapshot,
+                                                                                vocabulary,
+                                                                            )
+                                                                        )
+                                                                        batch = fever_batch_type(
+                                                                            *heaven_herb_args,
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    fever_mask_catalog,
+                                                                                    "token_id",
+                                                                                ),
+                                                                                dtype=np.uint32,
+                                                                            ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    fever_mask_catalog,
+                                                                                    "defense",
+                                                                                ),
+                                                                                dtype=np.uint16,
+                                                                            ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    fever_mask_catalog,
+                                                                                    "element_id",
+                                                                                ),
+                                                                                dtype=np.uint8,
+                                                                            ),
+                                                                            seed,
+                                                                            initial_hp,
+                                                                            initial_mp,
+                                                                        )
+                                                                    else:
+                                                                        batch = (
+                                                                            heaven_herb_batch_type(
+                                                                                *heaven_herb_args,
+                                                                                seed,
+                                                                                initial_hp,
+                                                                                initial_mp,
+                                                                            )
+                                                                        )
                                                                 else:
                                                                     batch = illness_cure_batch_type(
                                                                         *illness_cure_args,
@@ -1605,6 +1692,7 @@ def create_attack_defense_simulation(
                     + illness_weapon_catalog
                     + illness_cure_catalog
                     + heaven_herb_catalog
+                    + fever_mask_catalog
                 )
             else:
                 batch = ResourceAttackDefenseBatch(
@@ -1681,11 +1769,21 @@ def create_attack_defense_simulation(
         "elemental-illness-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-illness-cure-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-heaven-herb-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
+        "elemental-fever-mask-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
     ]
     action_semantics: Literal["atomic-attack-defense-macro", "sequential-combo-selection"] = (
         "atomic-attack-defense-macro"
     )
-    if ruleset == "heaven-herb-resource-hand":
+    if ruleset == "fever-mask-resource-hand":
+        kernel_schema_version = FEVER_MASK_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION
+        observation_schema_version = FEVER_MASK_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION
+        ruleset_id = FEVER_MASK_RESOURCE_ATTACK_DEFENSE_RULESET_ID
+        global_feature_count = ILLNESS_GLOBAL_FEATURE_COUNT
+        sampling_distribution = (
+            "elemental-fever-mask-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness"
+        )
+        action_semantics = "sequential-combo-selection"
+    elif ruleset == "heaven-herb-resource-hand":
         kernel_schema_version = HEAVEN_HERB_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION
         observation_schema_version = HEAVEN_HERB_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION
         ruleset_id = HEAVEN_HERB_RESOURCE_ATTACK_DEFENSE_RULESET_ID

@@ -9,7 +9,7 @@ uv sync --extra simulation --group dev
 
 Every included curriculum is intentionally incomplete and its generated
 trajectories are not eligible for live model promotion. The broadest current
-ruleset, `heaven-herb-resource-hand`, includes elemental multi-card
+ruleset, `fever-mask-resource-hand`, includes elemental multi-card
 combat, HP/MP utility, fixed and chance miracles, Absorption, reusable additive
 miracles, evidence-bounded one-hop reflection, seven fixed ATK/DEF weapons, 14
 effect-free chance weapons, and the chance/defense dual role of Jinn's Rocking
@@ -27,9 +27,13 @@ and Song cure every modeled illness; miracle costs and reusable ownership are
 preserved. Heaven Herb is a consumable utility that gains 20 MP, applies the
 Heaven curse through the established illness-escalation rules, redraws, and
 then runs the normal end-turn status effect.
+Fever Mask adds a consumable Fire DEF10 defense that inflicts Fever on its
+surviving user after defense resolution. Its combination with Cold/Hell
+on-damage weapons remains masked until the effect order is independently
+verified.
 
 The unobserved same-damage/reflection, attack-twice booster/reflection,
 random-target booster/reflection, and status/reflection interactions remain
 masked. Fog, Flash, and their cure effects remain outside the represented
-state. See ADR 0002 and ADRs 0029 through 0041 in the root project for the
+state. See ADR 0002 and ADRs 0029 through 0042 in the root project for the
 interface and safety boundary.

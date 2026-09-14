@@ -60,6 +60,9 @@ ILLNESS_CURE_RESOURCE_ATTACK_DEFENSE_RULESET_ID: Final[str]
 HEAVEN_HERB_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION: Final[int]
 HEAVEN_HERB_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION: Final[int]
 HEAVEN_HERB_RESOURCE_ATTACK_DEFENSE_RULESET_ID: Final[str]
+FEVER_MASK_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION: Final[int]
+FEVER_MASK_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION: Final[int]
+FEVER_MASK_RESOURCE_ATTACK_DEFENSE_RULESET_ID: Final[str]
 ILLNESS_GLOBAL_FEATURE_COUNT: Final[int]
 MIXED_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION: Final[int]
 MIXED_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION: Final[int]
@@ -103,6 +106,7 @@ CARD_KIND_ILLNESS_WEAPON: Final[int]
 CARD_KIND_ILLNESS_CURE_SUNDRY: Final[int]
 CARD_KIND_ILLNESS_CURE_MIRACLE: Final[int]
 CARD_KIND_HEAVEN_HERB: Final[int]
+CARD_KIND_FEVER_MASK: Final[int]
 ILLNESS_NONE: Final[int]
 ILLNESS_COLD: Final[int]
 ILLNESS_FEVER: Final[int]
@@ -210,6 +214,8 @@ class AttackDefenseBatch:
     def illness_cure_curriculum(self) -> bool: ...
     @property
     def heaven_herb_curriculum(self) -> bool: ...
+    @property
+    def fever_mask_curriculum(self) -> bool: ...
     @property
     def initial_mp(self) -> int: ...
     @property
@@ -963,4 +969,7 @@ class IllnessCureResourceAttackDefenseBatch(AttackDefenseBatch):
     def __init__(self, *args: object, **kwargs: object) -> None: ...
 
 class HeavenHerbResourceAttackDefenseBatch(AttackDefenseBatch):
+    def __init__(self, *args: object, **kwargs: object) -> None: ...
+
+class FeverMaskResourceAttackDefenseBatch(AttackDefenseBatch):
     def __init__(self, *args: object, **kwargs: object) -> None: ...

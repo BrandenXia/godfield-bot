@@ -38,6 +38,7 @@ constexpr std::uint8_t kIllnessWeaponCardKind = 22U;
 constexpr std::uint8_t kIllnessCureSundryCardKind = 23U;
 constexpr std::uint8_t kIllnessCureMiracleCardKind = 24U;
 constexpr std::uint8_t kHeavenHerbCardKind = 25U;
+constexpr std::uint8_t kFeverMaskCardKind = 26U;
 constexpr std::uint8_t kNoAttackEffect = 0U;
 constexpr std::uint8_t kAbsorbHpAttackEffect = 1U;
 constexpr std::uint8_t kSameDamageAttackEffect = 2U;
@@ -45,6 +46,7 @@ constexpr std::uint8_t kAttackTwiceEffect = 3U;
 constexpr std::uint8_t kRandomTargetEffect = 4U;
 constexpr std::uint8_t kColdOnDamageEffect = 5U;
 constexpr std::uint8_t kHellOnDamageEffect = 6U;
+constexpr std::uint8_t kSelfFeverDefenseEffect = 7U;
 constexpr std::uint8_t kColdIllnessStage = 1U;
 constexpr std::uint8_t kFeverIllnessStage = 2U;
 constexpr std::uint8_t kHellIllnessStage = 3U;
@@ -268,7 +270,9 @@ AttackDefenseBatch::AttackDefenseBatch(
     bool illness_cure_curriculum, TokenInput illness_cure_token_ids,
     ValueInput illness_cure_costs, ValueInput illness_cure_scopes,
     bool heaven_herb_curriculum, TokenInput heaven_herb_token_ids,
-    ValueInput heaven_herb_mp_gains)
+    ValueInput heaven_herb_mp_gains, bool fever_mask_curriculum,
+    TokenInput fever_mask_token_ids, ValueInput fever_mask_defense_values,
+    ElementInput fever_mask_elements)
     : batch_size_(batch_size), base_seed_(seed), initial_hp_(initial_hp),
       mixed_hands_(mixed_hands), elemental_(elemental), combo_(combo),
       resource_curriculum_(resource_curriculum),
@@ -286,6 +290,7 @@ AttackDefenseBatch::AttackDefenseBatch(
       illness_weapon_curriculum_(illness_weapon_curriculum),
       illness_cure_curriculum_(illness_cure_curriculum),
       heaven_herb_curriculum_(heaven_herb_curriculum),
+      fever_mask_curriculum_(fever_mask_curriculum),
       global_feature_count_(
           illness_weapon_curriculum
               ? kIllnessGlobalFeatureCount
@@ -364,6 +369,10 @@ AttackDefenseBatch::AttackDefenseBatch(
     throw std::invalid_argument(
         "Heaven Herb curriculum requires illness cure semantics");
   }
+  if (fever_mask_curriculum_ && !heaven_herb_curriculum_) {
+    throw std::invalid_argument(
+        "Fever Mask curriculum requires Heaven Herb semantics");
+  }
 
   std::unordered_set<std::uint32_t> unique_token_ids;
   const auto booster_catalog_size = combo_ ? booster_token_ids.shape(0) : 0U;
@@ -411,6 +420,8 @@ AttackDefenseBatch::AttackDefenseBatch(
       illness_cure_curriculum_ ? illness_cure_token_ids.shape(0) : 0U;
   const auto heaven_herb_catalog_size =
       heaven_herb_curriculum_ ? heaven_herb_token_ids.shape(0) : 0U;
+  const auto fever_mask_catalog_size =
+      fever_mask_curriculum_ ? fever_mask_token_ids.shape(0) : 0U;
   unique_token_ids.reserve(
       weapon_token_ids.shape(0) + booster_catalog_size +
       armor_token_ids.shape(0) + resource_catalog_size +
@@ -420,7 +431,8 @@ AttackDefenseBatch::AttackDefenseBatch(
       absorption_weapon_catalog_size + dynamic_mp_weapon_catalog_size +
       same_damage_weapon_catalog_size + attack_twice_weapon_catalog_size +
       random_target_weapon_catalog_size + illness_weapon_catalog_size +
-      illness_cure_catalog_size + heaven_herb_catalog_size);
+      illness_cure_catalog_size + heaven_herb_catalog_size +
+      fever_mask_catalog_size);
   append_catalog(weapon_token_ids, attack_values, "attack", unique_token_ids,
                  weapon_token_ids_, attack_values_);
   if (combo_) {
@@ -700,6 +712,13 @@ AttackDefenseBatch::AttackDefenseBatch(
     append_catalog(heaven_herb_token_ids, heaven_herb_mp_gains, "Heaven Herb",
                    unique_token_ids, heaven_herb_token_ids_,
                    heaven_herb_mp_gains_);
+  }
+  if (fever_mask_curriculum_) {
+    append_catalog(fever_mask_token_ids, fever_mask_defense_values,
+                   "Fever Mask", unique_token_ids, fever_mask_token_ids_,
+                   fever_mask_defense_values_);
+    fever_mask_elements_ = copy_elements(
+        fever_mask_elements, fever_mask_token_ids_.size(), "Fever Mask");
   }
   if (elemental_) {
     if (weapon_elements.size() != weapon_token_ids_.size() ||
@@ -1221,6 +1240,21 @@ void AttackDefenseBatch::draw_heaven_herb(std::size_t environment,
       static_cast<std::uint8_t>(CombatElement::NonElement);
 }
 
+void AttackDefenseBatch::draw_fever_mask(std::size_t environment,
+                                         std::size_t player, std::size_t slot) {
+  const auto index = static_cast<std::size_t>(next_random(environment) %
+                                              fever_mask_token_ids_.size());
+  const auto offset = hand_offset(environment, player, slot);
+  hand_token_ids_by_player_[offset] =
+      static_cast<std::int64_t>(fever_mask_token_ids_[index]);
+  hand_values_[offset] = fever_mask_defense_values_[index];
+  hand_costs_[offset] = 0U;
+  hand_hit_rates_[offset] = 100U;
+  hand_effects_[offset] = kSelfFeverDefenseEffect;
+  hand_card_kinds_by_player_[offset] = kFeverMaskCardKind;
+  hand_elements_by_player_[offset] = fever_mask_elements_[index];
+}
+
 void AttackDefenseBatch::draw_weapon_family(std::size_t environment,
                                             std::size_t player,
                                             std::size_t slot) {
@@ -1548,14 +1582,20 @@ void AttackDefenseBatch::draw_weapon_family(std::size_t environment,
 void AttackDefenseBatch::draw_armor_family(std::size_t environment,
                                            std::size_t player,
                                            std::size_t slot) {
-  if (reflection_curriculum_ &&
-      next_random(environment) %
-              (armor_token_ids_.size() + reflection_armor_token_ids_.size()) >=
-          armor_token_ids_.size()) {
+  auto index = static_cast<std::size_t>(next_random(environment) %
+                                        (armor_token_ids_.size() +
+                                         reflection_armor_token_ids_.size() +
+                                         fever_mask_token_ids_.size()));
+  if (index < armor_token_ids_.size()) {
+    draw_armor(environment, player, slot);
+    return;
+  }
+  index -= armor_token_ids_.size();
+  if (index < reflection_armor_token_ids_.size()) {
     draw_reflection_armor(environment, player, slot);
     return;
   }
-  draw_armor(environment, player, slot);
+  draw_fever_mask(environment, player, slot);
 }
 
 void AttackDefenseBatch::draw_resource(std::size_t environment,
@@ -1575,7 +1615,7 @@ void AttackDefenseBatch::draw_resource(std::size_t environment,
       attack_twice_weapon_token_ids_.size() +
       random_target_weapon_token_ids_.size() +
       illness_weapon_token_ids_.size() + illness_cure_token_ids_.size() +
-      heaven_herb_token_ids_.size();
+      heaven_herb_token_ids_.size() + fever_mask_token_ids_.size();
   auto index =
       static_cast<std::size_t>(next_random(environment) % catalog_size);
   if (index < weapon_token_ids_.size()) {
@@ -1648,6 +1688,11 @@ void AttackDefenseBatch::draw_resource(std::size_t environment,
     return;
   }
   index -= heaven_herb_token_ids_.size();
+  if (index < fever_mask_token_ids_.size()) {
+    draw_fever_mask(environment, player, slot);
+    return;
+  }
+  index -= fever_mask_token_ids_.size();
   if (index < booster_token_ids_.size()) {
     draw_booster(environment, player, slot);
     return;
@@ -2033,7 +2078,8 @@ void AttackDefenseBatch::finish_turn(std::size_t environment,
 
 void AttackDefenseBatch::resolve_defense(std::size_t environment,
                                          std::size_t defender,
-                                         std::uint16_t defense) {
+                                         std::uint16_t defense,
+                                         std::uint8_t defense_effect) {
   const auto attack = pending_attacks_[environment];
   auto damage =
       attack > defense ? static_cast<std::uint16_t>(attack - defense) : 0U;
@@ -2058,6 +2104,15 @@ void AttackDefenseBatch::resolve_defense(std::size_t environment,
   }
   if (defender_hp == 0U) {
     terminate_player(environment, defender);
+    ++turn_numbers_[environment];
+    pending_effects_[environment] = kNoAttackEffect;
+    pending_strikes_remaining_[environment] = 1U;
+    pending_base_kinds_[environment] = 0U;
+    pending_reflected_[environment] = false;
+    return;
+  }
+  if (defense_effect == kSelfFeverDefenseEffect &&
+      apply_illness(environment, defender, kFeverIllnessStage)) {
     ++turn_numbers_[environment];
     pending_effects_[environment] = kNoAttackEffect;
     pending_strikes_remaining_[environment] = 1U;
@@ -2287,13 +2342,14 @@ void AttackDefenseBatch::step(ActionInput actions) {
       } else if (action == kConfirmActionIndex) {
         const auto defense = selected_values_[environment];
         const auto selected_kind = selected_base_kinds_[environment];
+        const auto selected_effect = selected_effects_[environment];
         consume_selection(environment, actor);
         clear_selection(environment);
         if (selected_kind == kReflectionArmorCardKind ||
             selected_kind == kReflectionWeaponCardKind) {
           resolve_reflection(environment, actor);
         } else {
-          resolve_defense(environment, actor, defense);
+          resolve_defense(environment, actor, defense, selected_effect);
         }
       } else {
         const auto slot = action - 1U;
@@ -2306,6 +2362,9 @@ void AttackDefenseBatch::step(ActionInput actions) {
         selected_elements_[environment] = hand_elements_by_player_[card_offset];
         if (selected_counts_[environment] == 0U) {
           selected_base_kinds_[environment] = kind;
+        }
+        if (kind == kFeverMaskCardKind) {
+          selected_effects_[environment] = kSelfFeverDefenseEffect;
         }
         ++selected_counts_[environment];
       }
@@ -2500,7 +2559,10 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
       action_mask_[action_offset + slot + 1U] =
           (!selected_reflection &&
            (kind == kArmorCardKind || kind == kDualRoleCardKind ||
-            kind == kChanceDualRoleCardKind) &&
+            kind == kChanceDualRoleCardKind || kind == kFeverMaskCardKind) &&
+           (kind != kFeverMaskCardKind ||
+            (pending_effects_[environment] != kColdOnDamageEffect &&
+             pending_effects_[environment] != kHellOnDamageEffect)) &&
            defense_element_is_compatible(
                pending_elements_[environment],
                hand_elements_by_player_[card_offset])) ||
@@ -3681,5 +3743,105 @@ HeavenHerbResourceAttackDefenseBatch::HeavenHerbResourceAttackDefenseBatch(
           illness_weapon_elements, illness_weapon_stages, true,
           illness_cure_token_ids, illness_cure_costs, illness_cure_scopes, true,
           heaven_herb_token_ids, heaven_herb_mp_gains) {}
+
+FeverMaskResourceAttackDefenseBatch::FeverMaskResourceAttackDefenseBatch(
+    std::size_t batch_size, TokenInput weapon_token_ids,
+    ValueInput attack_values, ElementInput weapon_elements,
+    TokenInput booster_token_ids, ValueInput booster_values,
+    ElementInput booster_elements, TokenInput armor_token_ids,
+    ValueInput defense_values, ElementInput armor_elements,
+    TokenInput hp_utility_token_ids, ValueInput hp_utility_values,
+    TokenInput mp_utility_token_ids, ValueInput mp_utility_values,
+    TokenInput attack_miracle_token_ids, ValueInput attack_miracle_values,
+    ElementInput attack_miracle_elements, ValueInput attack_miracle_costs,
+    TokenInput hp_miracle_token_ids, ValueInput hp_miracle_values,
+    ValueInput hp_miracle_costs, TokenInput chance_miracle_token_ids,
+    ValueInput chance_miracle_values, ElementInput chance_miracle_elements,
+    ValueInput chance_miracle_costs, ValueInput chance_miracle_hit_rates,
+    TokenInput effect_miracle_token_ids, ValueInput effect_miracle_values,
+    ElementInput effect_miracle_elements, ValueInput effect_miracle_costs,
+    TokenInput additive_miracle_token_ids, ValueInput additive_miracle_values,
+    ElementInput additive_miracle_elements, ValueInput additive_miracle_costs,
+    TokenInput reflection_armor_token_ids,
+    TokenInput reflection_weapon_token_ids, ValueInput reflection_weapon_values,
+    TokenInput dual_role_token_ids, ValueInput dual_role_attack_values,
+    ValueInput dual_role_defense_values, ElementInput dual_role_elements,
+    TokenInput chance_weapon_token_ids, ValueInput chance_weapon_attack_values,
+    ElementInput chance_weapon_elements, ValueInput chance_weapon_hit_rates,
+    TokenInput chance_dual_role_token_ids,
+    ValueInput chance_dual_role_attack_values,
+    ValueInput chance_dual_role_defense_values,
+    ElementInput chance_dual_role_elements,
+    ValueInput chance_dual_role_hit_rates,
+    TokenInput absorption_weapon_token_ids,
+    ValueInput absorption_weapon_attack_values,
+    ElementInput absorption_weapon_elements,
+    TokenInput chance_absorption_weapon_token_ids,
+    ValueInput chance_absorption_weapon_attack_values,
+    ElementInput chance_absorption_weapon_elements,
+    ValueInput chance_absorption_weapon_hit_rates,
+    TokenInput dynamic_mp_weapon_token_ids,
+    ValueInput dynamic_mp_weapon_coefficients,
+    ElementInput dynamic_mp_weapon_elements,
+    TokenInput same_damage_weapon_token_ids,
+    ValueInput same_damage_weapon_attack_values,
+    ElementInput same_damage_weapon_elements,
+    TokenInput attack_twice_weapon_token_ids,
+    ValueInput attack_twice_weapon_attack_values,
+    ElementInput attack_twice_weapon_elements,
+    TokenInput random_target_weapon_token_ids,
+    ValueInput random_target_weapon_attack_values,
+    ElementInput random_target_weapon_elements,
+    TokenInput illness_weapon_token_ids,
+    ValueInput illness_weapon_attack_values,
+    ElementInput illness_weapon_elements, ValueInput illness_weapon_stages,
+    TokenInput illness_cure_token_ids, ValueInput illness_cure_costs,
+    ValueInput illness_cure_scopes, TokenInput heaven_herb_token_ids,
+    ValueInput heaven_herb_mp_gains, TokenInput fever_mask_token_ids,
+    ValueInput fever_mask_defense_values, ElementInput fever_mask_elements,
+    std::uint64_t seed, std::uint16_t initial_hp, std::uint16_t initial_mp)
+    : AttackDefenseBatch(
+          batch_size, weapon_token_ids, attack_values,
+          copy_elements(weapon_elements, weapon_token_ids.shape(0), "weapon"),
+          booster_token_ids, booster_values,
+          copy_elements(booster_elements, booster_token_ids.shape(0),
+                        "attack booster"),
+          armor_token_ids, defense_values,
+          copy_elements(armor_elements, armor_token_ids.shape(0), "armor"),
+          seed, initial_hp, true, true, true, true, hp_utility_token_ids,
+          hp_utility_values, mp_utility_token_ids, mp_utility_values,
+          attack_miracle_token_ids, attack_miracle_values,
+          attack_miracle_elements, attack_miracle_costs, hp_miracle_token_ids,
+          hp_miracle_values, hp_miracle_costs, initial_mp, true,
+          chance_miracle_token_ids, chance_miracle_values,
+          chance_miracle_elements, chance_miracle_costs,
+          chance_miracle_hit_rates, effect_miracle_token_ids,
+          effect_miracle_values, effect_miracle_elements, effect_miracle_costs,
+          true, additive_miracle_token_ids, additive_miracle_values,
+          additive_miracle_elements, additive_miracle_costs, true,
+          reflection_armor_token_ids, true, reflection_weapon_token_ids,
+          reflection_weapon_values, true, dual_role_token_ids,
+          dual_role_attack_values, dual_role_defense_values, dual_role_elements,
+          true, chance_weapon_token_ids, chance_weapon_attack_values,
+          chance_weapon_elements, chance_weapon_hit_rates,
+          chance_dual_role_token_ids, chance_dual_role_attack_values,
+          chance_dual_role_defense_values, chance_dual_role_elements,
+          chance_dual_role_hit_rates, true, absorption_weapon_token_ids,
+          absorption_weapon_attack_values, absorption_weapon_elements,
+          chance_absorption_weapon_token_ids,
+          chance_absorption_weapon_attack_values,
+          chance_absorption_weapon_elements, chance_absorption_weapon_hit_rates,
+          true, dynamic_mp_weapon_token_ids, dynamic_mp_weapon_coefficients,
+          dynamic_mp_weapon_elements, true, same_damage_weapon_token_ids,
+          same_damage_weapon_attack_values, same_damage_weapon_elements, true,
+          attack_twice_weapon_token_ids, attack_twice_weapon_attack_values,
+          attack_twice_weapon_elements, true, random_target_weapon_token_ids,
+          random_target_weapon_attack_values, random_target_weapon_elements,
+          true, illness_weapon_token_ids, illness_weapon_attack_values,
+          illness_weapon_elements, illness_weapon_stages, true,
+          illness_cure_token_ids, illness_cure_costs, illness_cure_scopes, true,
+          heaven_herb_token_ids, heaven_herb_mp_gains, true,
+          fever_mask_token_ids, fever_mask_defense_values,
+          fever_mask_elements) {}
 
 } // namespace godfield_sim

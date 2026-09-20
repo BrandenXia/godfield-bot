@@ -244,6 +244,26 @@ uv run godfield-bot models evaluate-simulation models/<miracle-bounce-candidate-
 uv run godfield-bot simulation benchmark \
   --ruleset miracle-bounce-resource-attack-defense \
   --batch-size 4096 --batch-steps 1000
+uv run godfield-bot models train-simulation models/<schema-v7-model-id> \
+  --ruleset miracle-bounce-weapon-resource-hand --batch-size 256 \
+  --rollout-steps 32 --updates 10
+uv run godfield-bot models evaluate-simulation \
+  models/<miracle-bounce-weapon-candidate-id> \
+  --ruleset miracle-bounce-weapon-resource-hand --games-per-seat 512 \
+  --minimum-score 0.5 --heuristic-noninferiority-margin 0.025
+uv run godfield-bot simulation benchmark \
+  --ruleset miracle-bounce-weapon-resource-attack-defense \
+  --batch-size 4096 --batch-steps 1000
+uv run godfield-bot models train-simulation models/<schema-v7-model-id> \
+  --ruleset miracle-bounce-miracle-resource-hand --batch-size 256 \
+  --rollout-steps 32 --updates 10
+uv run godfield-bot models evaluate-simulation \
+  models/<miracle-bounce-miracle-candidate-id> \
+  --ruleset miracle-bounce-miracle-resource-hand --games-per-seat 512 \
+  --minimum-score 0.5 --heuristic-noninferiority-margin 0.025
+uv run godfield-bot simulation benchmark \
+  --ruleset miracle-bounce-miracle-resource-attack-defense \
+  --batch-size 4096 --batch-steps 1000
 ```
 
 `api observe-private --password-stdin` uses God Field's keyed private-room
@@ -552,7 +572,7 @@ seven-way pending-element signal. A recorded model migration preserves the six
 old global inputs and zero-initializes the new columns before elemental
 training. All rulesets are fingerprinted against the accepted client,
 artifact vocabulary, and exact rule catalog, and none is promotion-eligible.
-The cumulative ruleset line now reaches `miracle-bounce-resource-hand`. Its
+The cumulative ruleset line now reaches `miracle-bounce-miracle-resource-hand`. Its
 `illness-weapon-resource-hand` foundation builds on schema-v7
 stochastic combat, additive miracles, Super Mirror, and Reflection Sword, then
 adds seven Bible-exact and API-verified ATK/DEF weapons, 14 effect-free chance weapons,
@@ -574,9 +594,11 @@ Broadsword/reflection interaction is masked. Unevidenced Saw Boom Boom booster
 and reflection composition is also masked. Dangerous Pestle booster and
 reflection composition is likewise masked. Later increments add verified
 illness cures, Heaven Herb, Fever Mask, the Angel miracle-block armor and
-weapon families, and five Sky armor cards that bounce attack miracles to a
-uniformly sampled living duel player. Redirects receive a fresh defense and
-are one-hop bounded. The cumulative catalog contains 180 cards. The catalog
+weapon families, five Sky armor cards, Sky Harpoon, and `<Turbulence>`. These
+cards bounce attack miracles to a uniformly sampled living duel player. Sky
+Harpoon is also a consumable +ATK9 weapon booster; `<Turbulence>` is a reusable
+miracle costing 5 MP. Redirects receive a fresh defense and are one-hop
+bounded. The cumulative catalog contains 182 cards. The catalog
 and sampling distribution are independently fingerprinted. See
 [ADR 0029](docs/architecture/0029-additive-miracle-curriculum.md),
 [ADR 0030](docs/architecture/0030-evidenced-super-mirror-curriculum.md),
@@ -588,8 +610,9 @@ and sampling distribution are independently fingerprinted. See
 [ADR 0036](docs/architecture/0036-same-damage-weapon-curriculum.md),
 [ADR 0037](docs/architecture/0037-attack-twice-weapon-curriculum.md),
 [ADR 0038](docs/architecture/0038-random-target-weapon-curriculum.md),
-[ADR 0039](docs/architecture/0039-illness-weapon-curriculum.md), and
-[ADR 0045](docs/architecture/0045-miracle-bounce-curriculum.md).
+[ADR 0039](docs/architecture/0039-illness-weapon-curriculum.md),
+[ADR 0045](docs/architecture/0045-miracle-bounce-curriculum.md), and
+[ADR 0046](docs/architecture/0046-miracle-bounce-weapon-miracle-curriculum.md).
 
 `models train-simulation` creates a bounded
 `heuristic-warmstart-recurrent-ppo-self-play-v1` candidate. The slot-aware

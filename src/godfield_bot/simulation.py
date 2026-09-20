@@ -40,6 +40,8 @@ from godfield_bot.reference import (
     verified_miracle_block_armor,
     verified_miracle_block_weapon_cards,
     verified_miracle_bounce_armor,
+    verified_miracle_bounce_miracles,
+    verified_miracle_bounce_weapon_boosters,
     verified_random_target_weapon_cards,
     verified_reflection_armor_cards,
     verified_reflection_weapon_cards,
@@ -74,6 +76,8 @@ AttackDefenseRuleset = Literal[
     "miracle-block-resource-hand",
     "miracle-block-weapon-resource-hand",
     "miracle-bounce-resource-hand",
+    "miracle-bounce-weapon-resource-hand",
+    "miracle-bounce-miracle-resource-hand",
 ]
 
 
@@ -131,6 +135,8 @@ class SimulationMetadata(BaseModel):
         "elemental-miracle-block-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-miracle-block-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-miracle-bounce-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
+        "elemental-miracle-bounce-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
+        "elemental-miracle-bounce-miracle-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
     ] = "uniform-redraw-with-replacement"
     promotion_eligible: Literal[False] = False
 
@@ -359,6 +365,48 @@ def _miracle_bounce_catalog(
     ]
 
 
+def _miracle_bounce_weapon_catalog(
+    snapshot: BibleSnapshot,
+    vocabulary: ArtifactVocabulary,
+) -> list[dict[str, object]]:
+    boosters = verified_miracle_bounce_weapon_boosters(snapshot)
+    if not boosters:
+        raise ValueError("accepted snapshot contains no supported miracle-bounce weapon")
+    return [
+        {
+            "boost": boost,
+            "effect": "bounceMiracle",
+            "element": "non-element",
+            "element_id": COMBAT_ELEMENT_IDS["non-element"],
+            "kind": "miracle-bounce-booster",
+            "slug": slug,
+            "token_id": vocabulary.token_id("weapons", slug),
+        }
+        for slug, boost in sorted(boosters.items())
+    ]
+
+
+def _miracle_bounce_miracle_catalog(
+    snapshot: BibleSnapshot,
+    vocabulary: ArtifactVocabulary,
+) -> list[dict[str, object]]:
+    miracles = verified_miracle_bounce_miracles(snapshot)
+    if not miracles:
+        raise ValueError("accepted snapshot contains no supported miracle-bounce miracle")
+    return [
+        {
+            "cost": cost,
+            "effect": "bounceMiracle",
+            "element": "non-element",
+            "element_id": COMBAT_ELEMENT_IDS["non-element"],
+            "kind": "miracle-bounce-miracle",
+            "slug": slug,
+            "token_id": vocabulary.token_id("miracles", slug),
+        }
+        for slug, cost in sorted(miracles.items())
+    ]
+
+
 def create_fixed_attack_simulation(
     snapshot_path: Path,
     *,
@@ -479,9 +527,15 @@ def create_attack_defense_simulation(
             MIRACLE_BLOCK_WEAPON_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
             MIRACLE_BLOCK_WEAPON_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
             MIRACLE_BLOCK_WEAPON_RESOURCE_ATTACK_DEFENSE_RULESET_ID,
+            MIRACLE_BOUNCE_MIRACLE_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
+            MIRACLE_BOUNCE_MIRACLE_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
+            MIRACLE_BOUNCE_MIRACLE_RESOURCE_ATTACK_DEFENSE_RULESET_ID,
             MIRACLE_BOUNCE_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
             MIRACLE_BOUNCE_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
             MIRACLE_BOUNCE_RESOURCE_ATTACK_DEFENSE_RULESET_ID,
+            MIRACLE_BOUNCE_WEAPON_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
+            MIRACLE_BOUNCE_WEAPON_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
+            MIRACLE_BOUNCE_WEAPON_RESOURCE_ATTACK_DEFENSE_RULESET_ID,
             MIXED_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
             MIXED_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
             MIXED_ATTACK_DEFENSE_RULESET_ID,
@@ -519,7 +573,9 @@ def create_attack_defense_simulation(
             IllnessWeaponResourceAttackDefenseBatch,
             MiracleBlockResourceAttackDefenseBatch,
             MiracleBlockWeaponResourceAttackDefenseBatch,
+            MiracleBounceMiracleResourceAttackDefenseBatch,
             MiracleBounceResourceAttackDefenseBatch,
+            MiracleBounceWeaponResourceAttackDefenseBatch,
             RandomTargetWeaponResourceAttackDefenseBatch,
             ReflectionResourceAttackDefenseBatch,
             ReflectionWeaponResourceAttackDefenseBatch,
@@ -537,20 +593,35 @@ def create_attack_defense_simulation(
         miracle_block_batch_type = MiracleBlockResourceAttackDefenseBatch
         miracle_block_weapon_batch_type = MiracleBlockWeaponResourceAttackDefenseBatch
         miracle_bounce_batch_type = MiracleBounceResourceAttackDefenseBatch
+        miracle_bounce_weapon_batch_type = MiracleBounceWeaponResourceAttackDefenseBatch
+        miracle_bounce_miracle_batch_type = MiracleBounceMiracleResourceAttackDefenseBatch
     except ImportError as error:
         raise SimulationUnavailableError(
             "native simulation is unavailable; run `uv sync --extra simulation --group dev`"
         ) from error
 
-    miracle_bounce_ruleset = ruleset == "miracle-bounce-resource-hand"
+    miracle_bounce_miracle_ruleset = ruleset == "miracle-bounce-miracle-resource-hand"
+    miracle_bounce_weapon_ruleset = ruleset in {
+        "miracle-bounce-weapon-resource-hand",
+        "miracle-bounce-miracle-resource-hand",
+    }
+    miracle_bounce_ruleset = ruleset in {
+        "miracle-bounce-resource-hand",
+        "miracle-bounce-weapon-resource-hand",
+        "miracle-bounce-miracle-resource-hand",
+    }
     miracle_block_weapon_ruleset = ruleset in {
         "miracle-block-weapon-resource-hand",
         "miracle-bounce-resource-hand",
+        "miracle-bounce-weapon-resource-hand",
+        "miracle-bounce-miracle-resource-hand",
     }
     miracle_block_ruleset = ruleset in {
         "miracle-block-resource-hand",
         "miracle-block-weapon-resource-hand",
         "miracle-bounce-resource-hand",
+        "miracle-bounce-weapon-resource-hand",
+        "miracle-bounce-miracle-resource-hand",
     }
     if miracle_block_ruleset:
         ruleset = "fever-mask-resource-hand"
@@ -856,8 +927,22 @@ def create_attack_defense_simulation(
                 miracle_bounce_catalog = (
                     _miracle_bounce_catalog(snapshot, vocabulary) if miracle_bounce_ruleset else []
                 )
+                miracle_bounce_weapon_catalog = (
+                    _miracle_bounce_weapon_catalog(snapshot, vocabulary)
+                    if miracle_bounce_weapon_ruleset
+                    else []
+                )
+                miracle_bounce_miracle_catalog = (
+                    _miracle_bounce_miracle_catalog(snapshot, vocabulary)
+                    if miracle_bounce_miracle_ruleset
+                    else []
+                )
                 advanced_batch_type: Any
-                if miracle_bounce_ruleset:
+                if miracle_bounce_miracle_ruleset:
+                    advanced_batch_type = miracle_bounce_miracle_batch_type
+                elif miracle_bounce_weapon_ruleset:
+                    advanced_batch_type = miracle_bounce_weapon_batch_type
+                elif miracle_bounce_ruleset:
                     advanced_batch_type = miracle_bounce_batch_type
                 elif miracle_block_weapon_ruleset:
                     advanced_batch_type = miracle_block_weapon_batch_type
@@ -1707,6 +1792,34 @@ def create_attack_defense_simulation(
                                                                                 ),
                                                                                 dtype=np.uint16,
                                                                             ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    miracle_bounce_weapon_catalog,
+                                                                                    "token_id",
+                                                                                ),
+                                                                                dtype=np.uint32,
+                                                                            ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    miracle_bounce_weapon_catalog,
+                                                                                    "boost",
+                                                                                ),
+                                                                                dtype=np.uint16,
+                                                                            ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    miracle_bounce_miracle_catalog,
+                                                                                    "token_id",
+                                                                                ),
+                                                                                dtype=np.uint32,
+                                                                            ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    miracle_bounce_miracle_catalog,
+                                                                                    "cost",
+                                                                                ),
+                                                                                dtype=np.uint16,
+                                                                            ),
                                                                             seed,
                                                                             initial_hp,
                                                                             initial_mp,
@@ -1890,6 +2003,8 @@ def create_attack_defense_simulation(
                     + miracle_block_weapon_catalog
                     + miracle_block_booster_catalog
                     + miracle_bounce_catalog
+                    + miracle_bounce_weapon_catalog
+                    + miracle_bounce_miracle_catalog
                 )
             else:
                 batch = ResourceAttackDefenseBatch(
@@ -1970,11 +2085,37 @@ def create_attack_defense_simulation(
         "elemental-miracle-block-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-miracle-block-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-miracle-bounce-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
+        "elemental-miracle-bounce-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
+        "elemental-miracle-bounce-miracle-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
     ]
     action_semantics: Literal["atomic-attack-defense-macro", "sequential-combo-selection"] = (
         "atomic-attack-defense-macro"
     )
-    if miracle_bounce_ruleset:
+    if miracle_bounce_miracle_ruleset:
+        kernel_schema_version = MIRACLE_BOUNCE_MIRACLE_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION
+        observation_schema_version = (
+            MIRACLE_BOUNCE_MIRACLE_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION
+        )
+        ruleset_id = MIRACLE_BOUNCE_MIRACLE_RESOURCE_ATTACK_DEFENSE_RULESET_ID
+        global_feature_count = ILLNESS_GLOBAL_FEATURE_COUNT
+        sampling_distribution = (
+            "elemental-miracle-bounce-miracle-resource-2-1-2-1-1-1-1-"
+            "initial-uniform-redraw-with-base-liveness"
+        )
+        action_semantics = "sequential-combo-selection"
+    elif miracle_bounce_weapon_ruleset:
+        kernel_schema_version = MIRACLE_BOUNCE_WEAPON_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION
+        observation_schema_version = (
+            MIRACLE_BOUNCE_WEAPON_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION
+        )
+        ruleset_id = MIRACLE_BOUNCE_WEAPON_RESOURCE_ATTACK_DEFENSE_RULESET_ID
+        global_feature_count = ILLNESS_GLOBAL_FEATURE_COUNT
+        sampling_distribution = (
+            "elemental-miracle-bounce-weapon-resource-2-1-2-1-1-1-1-"
+            "initial-uniform-redraw-with-base-liveness"
+        )
+        action_semantics = "sequential-combo-selection"
+    elif miracle_bounce_ruleset:
         kernel_schema_version = MIRACLE_BOUNCE_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION
         observation_schema_version = (
             MIRACLE_BOUNCE_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION

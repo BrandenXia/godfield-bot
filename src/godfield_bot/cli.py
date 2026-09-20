@@ -1465,6 +1465,8 @@ def models_train_simulation(
             "miracle-block-resource-hand",
             "miracle-block-weapon-resource-hand",
             "miracle-bounce-resource-hand",
+            "miracle-bounce-weapon-resource-hand",
+            "miracle-bounce-miracle-resource-hand",
         ],
         typer.Option(help="Attack/defense hand-distribution curriculum."),
     ] = "fixed-role",
@@ -1621,6 +1623,8 @@ def models_evaluate_simulation(
             "miracle-block-resource-hand",
             "miracle-block-weapon-resource-hand",
             "miracle-bounce-resource-hand",
+            "miracle-bounce-weapon-resource-hand",
+            "miracle-bounce-miracle-resource-hand",
         ],
         typer.Option(help="Attack/defense hand-distribution curriculum."),
     ] = "fixed-role",
@@ -1868,6 +1872,8 @@ def simulation_benchmark(
             "miracle-block-resource-attack-defense",
             "miracle-block-weapon-resource-attack-defense",
             "miracle-bounce-resource-attack-defense",
+            "miracle-bounce-weapon-resource-attack-defense",
+            "miracle-bounce-miracle-resource-attack-defense",
         ],
         typer.Option(help="Native curriculum ruleset to benchmark."),
     ] = "attack-defense",
@@ -1913,8 +1919,14 @@ def simulation_benchmark(
                 "miracle-block-resource-hand",
                 "miracle-block-weapon-resource-hand",
                 "miracle-bounce-resource-hand",
+                "miracle-bounce-weapon-resource-hand",
+                "miracle-bounce-miracle-resource-hand",
             ]
-            if ruleset == "miracle-bounce-resource-attack-defense":
+            if ruleset == "miracle-bounce-miracle-resource-attack-defense":
+                attack_defense_ruleset = "miracle-bounce-miracle-resource-hand"
+            elif ruleset == "miracle-bounce-weapon-resource-attack-defense":
+                attack_defense_ruleset = "miracle-bounce-weapon-resource-hand"
+            elif ruleset == "miracle-bounce-resource-attack-defense":
                 attack_defense_ruleset = "miracle-bounce-resource-hand"
             elif ruleset == "miracle-block-weapon-resource-attack-defense":
                 attack_defense_ruleset = "miracle-block-weapon-resource-hand"

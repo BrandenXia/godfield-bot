@@ -49,6 +49,12 @@ MiracleBlockWeaponResourceAttackDefenseBatch = (
     godfield_sim.MiracleBlockWeaponResourceAttackDefenseBatch
 )
 MiracleBounceResourceAttackDefenseBatch = godfield_sim.MiracleBounceResourceAttackDefenseBatch
+MiracleBounceWeaponResourceAttackDefenseBatch = (
+    godfield_sim.MiracleBounceWeaponResourceAttackDefenseBatch
+)
+MiracleBounceMiracleResourceAttackDefenseBatch = (
+    godfield_sim.MiracleBounceMiracleResourceAttackDefenseBatch
+)
 
 SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-07" / "bible.json"
 
@@ -673,6 +679,8 @@ def illness_cure_resource_batch(
     miracle_block: bool = False,
     miracle_block_weapon: bool = False,
     miracle_bounce: bool = False,
+    miracle_bounce_weapon: bool = False,
+    miracle_bounce_miracle: bool = False,
     miracle_block_defense: int = 15,
 ) -> (
     IllnessCureResourceAttackDefenseBatch
@@ -681,6 +689,8 @@ def illness_cure_resource_batch(
     | MiracleBlockResourceAttackDefenseBatch
     | MiracleBlockWeaponResourceAttackDefenseBatch
     | MiracleBounceResourceAttackDefenseBatch
+    | MiracleBounceWeaponResourceAttackDefenseBatch
+    | MiracleBounceMiracleResourceAttackDefenseBatch
 ):
     base_args = list(absorption_weapon_resource_args())
     base_args[8] = np.asarray([armor_defense], dtype=np.uint16)
@@ -709,54 +719,100 @@ def illness_cure_resource_batch(
         np.asarray([0, 0, 2, 5], dtype=np.uint16),
         np.asarray([1, 2, 1, 2], dtype=np.uint16),
     )
-    if heaven_herb or fever_mask or miracle_block or miracle_block_weapon or miracle_bounce:
+    if (
+        heaven_herb
+        or fever_mask
+        or miracle_block
+        or miracle_block_weapon
+        or miracle_bounce
+        or miracle_bounce_weapon
+        or miracle_bounce_miracle
+    ):
         heaven_args = (
             *curriculum_args,
             np.asarray([29], dtype=np.uint32),
             np.asarray([20], dtype=np.uint16),
         )
-        if fever_mask or miracle_block or miracle_block_weapon or miracle_bounce:
-            batch_type = (
-                MiracleBounceResourceAttackDefenseBatch
-                if miracle_bounce
-                else (
-                    MiracleBlockWeaponResourceAttackDefenseBatch
-                    if miracle_block_weapon
-                    else (
-                        MiracleBlockResourceAttackDefenseBatch
-                        if miracle_block
-                        else FeverMaskResourceAttackDefenseBatch
-                    )
-                )
-            )
+        if (
+            fever_mask
+            or miracle_block
+            or miracle_block_weapon
+            or miracle_bounce
+            or miracle_bounce_weapon
+            or miracle_bounce_miracle
+        ):
+            if miracle_bounce_miracle:
+                batch_type = MiracleBounceMiracleResourceAttackDefenseBatch
+            elif miracle_bounce_weapon:
+                batch_type = MiracleBounceWeaponResourceAttackDefenseBatch
+            elif miracle_bounce:
+                batch_type = MiracleBounceResourceAttackDefenseBatch
+            elif miracle_block_weapon:
+                batch_type = MiracleBlockWeaponResourceAttackDefenseBatch
+            elif miracle_block:
+                batch_type = MiracleBlockResourceAttackDefenseBatch
+            else:
+                batch_type = FeverMaskResourceAttackDefenseBatch
             return batch_type(
                 *heaven_args,
                 np.asarray([30], dtype=np.uint32),
                 np.asarray([10], dtype=np.uint16),
                 np.asarray([godfield_sim.ELEMENT_FIRE], dtype=np.uint8),
                 np.asarray([31], dtype=np.uint32)
-                if miracle_block or miracle_block_weapon or miracle_bounce
+                if miracle_block
+                or miracle_block_weapon
+                or miracle_bounce
+                or miracle_bounce_weapon
+                or miracle_bounce_miracle
                 else np.asarray([], dtype=np.uint32),
                 np.asarray([miracle_block_defense], dtype=np.uint16)
-                if miracle_block or miracle_block_weapon or miracle_bounce
+                if miracle_block
+                or miracle_block_weapon
+                or miracle_bounce
+                or miracle_bounce_weapon
+                or miracle_bounce_miracle
                 else np.asarray([], dtype=np.uint16),
                 np.asarray([32, 33, 34], dtype=np.uint32)
-                if miracle_block_weapon or miracle_bounce
+                if miracle_block_weapon
+                or miracle_bounce
+                or miracle_bounce_weapon
+                or miracle_bounce_miracle
                 else np.asarray([], dtype=np.uint32),
                 np.asarray([11, 13, 15], dtype=np.uint16)
-                if miracle_block_weapon or miracle_bounce
+                if miracle_block_weapon
+                or miracle_bounce
+                or miracle_bounce_weapon
+                or miracle_bounce_miracle
                 else np.asarray([], dtype=np.uint16),
                 np.asarray([35], dtype=np.uint32)
-                if miracle_block_weapon or miracle_bounce
+                if miracle_block_weapon
+                or miracle_bounce
+                or miracle_bounce_weapon
+                or miracle_bounce_miracle
                 else np.asarray([], dtype=np.uint32),
                 np.asarray([15], dtype=np.uint16)
-                if miracle_block_weapon or miracle_bounce
+                if miracle_block_weapon
+                or miracle_bounce
+                or miracle_bounce_weapon
+                or miracle_bounce_miracle
                 else np.asarray([], dtype=np.uint16),
                 np.asarray([36], dtype=np.uint32)
-                if miracle_bounce
+                if miracle_bounce or miracle_bounce_weapon or miracle_bounce_miracle
                 else np.asarray([], dtype=np.uint32),
                 np.asarray([9], dtype=np.uint16)
-                if miracle_bounce
+                if miracle_bounce or miracle_bounce_weapon or miracle_bounce_miracle
+                else np.asarray([], dtype=np.uint16),
+                np.asarray([37], dtype=np.uint32)
+                if miracle_bounce_weapon or miracle_bounce_miracle
+                else np.asarray([], dtype=np.uint32),
+                np.asarray([9], dtype=np.uint16)
+                if miracle_bounce_weapon or miracle_bounce_miracle
+                else np.asarray([], dtype=np.uint16),
+                np.asarray([38], dtype=np.uint32)
+                if miracle_bounce_miracle
+                else np.asarray([], dtype=np.uint32),
+                np.asarray([5], dtype=np.uint16)
+                if miracle_bounce_miracle
                 else np.asarray([], dtype=np.uint16),
                 seed,
                 initial_hp,
@@ -1412,14 +1468,68 @@ def test_miracle_bounce_factory_adds_verified_sky_armor_family() -> None:
     assert simulation.metadata.rule_catalog_size == 180
     assert simulation.metadata.global_feature_count == 16
     assert simulation.metadata.sampling_distribution == (
-        "elemental-miracle-bounce-resource-2-1-2-1-1-1-1-"
-        "initial-uniform-redraw-with-base-liveness"
+        "elemental-miracle-bounce-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness"
     )
     assert batch.miracle_block_weapon_curriculum is True
     assert batch.miracle_bounce_curriculum is True
     sky_armor = batch.hand_card_kinds == godfield_sim.CARD_KIND_MIRACLE_BOUNCE_ARMOR
     assert np.any(sky_armor)
     assert np.all(batch.hand_elements[sky_armor] == godfield_sim.ELEMENT_NON_ELEMENT)
+
+
+def test_miracle_bounce_weapon_factory_adds_sky_harpoon() -> None:
+    simulation = create_attack_defense_simulation(
+        SNAPSHOT_PATH,
+        batch_size=512,
+        ruleset="miracle-bounce-weapon-resource-hand",
+    )
+    batch = simulation.batch
+
+    assert simulation.metadata.observation_schema_version == 7
+    assert simulation.metadata.ruleset_id == (
+        "plain-elemental-combo-stochastic-chance-absorption-weapon-dynamic-mp-"
+        "same-damage-weapon-attack-twice-weapon-random-target-weapon-illness-"
+        "weapon-illness-cure-heaven-herb-fever-mask-miracle-block-armor-weapon-"
+        "miracle-bounce-armor-weapon-additive-reflection-dual-role-resource-"
+        "miracle-attack-defense-redraw-duel-v1"
+    )
+    assert simulation.metadata.rule_catalog_size == 181
+    assert simulation.metadata.sampling_distribution == (
+        "elemental-miracle-bounce-weapon-resource-2-1-2-1-1-1-1-"
+        "initial-uniform-redraw-with-base-liveness"
+    )
+    assert batch.miracle_bounce_weapon_curriculum is True
+    sky_harpoons = batch.hand_card_kinds == godfield_sim.CARD_KIND_MIRACLE_BOUNCE_BOOSTER
+    assert np.any(sky_harpoons)
+    assert np.all(batch.hand_elements[sky_harpoons] == godfield_sim.ELEMENT_NON_ELEMENT)
+
+
+def test_miracle_bounce_miracle_factory_adds_turbulence() -> None:
+    simulation = create_attack_defense_simulation(
+        SNAPSHOT_PATH,
+        batch_size=512,
+        ruleset="miracle-bounce-miracle-resource-hand",
+    )
+    batch = simulation.batch
+
+    assert simulation.metadata.observation_schema_version == 7
+    assert simulation.metadata.ruleset_id == (
+        "plain-elemental-combo-stochastic-chance-absorption-weapon-dynamic-mp-"
+        "same-damage-weapon-attack-twice-weapon-random-target-weapon-illness-"
+        "weapon-illness-cure-heaven-herb-fever-mask-miracle-block-armor-weapon-"
+        "miracle-bounce-armor-weapon-miracle-additive-reflection-dual-role-"
+        "resource-miracle-attack-defense-redraw-duel-v1"
+    )
+    assert simulation.metadata.rule_catalog_size == 182
+    assert simulation.metadata.sampling_distribution == (
+        "elemental-miracle-bounce-miracle-resource-2-1-2-1-1-1-1-"
+        "initial-uniform-redraw-with-base-liveness"
+    )
+    assert batch.miracle_bounce_weapon_curriculum is True
+    assert batch.miracle_bounce_miracle_curriculum is True
+    turbulence = batch.hand_card_kinds == godfield_sim.CARD_KIND_MIRACLE_BOUNCE_MIRACLE
+    assert np.any(turbulence)
+    assert np.all(batch.hand_elements[turbulence] == godfield_sim.ELEMENT_NON_ELEMENT)
 
 
 def miracle_block_defense_batch(
@@ -1473,6 +1583,41 @@ def miracle_bounce_defense_batch(
         if sky_slots.size:
             return batch, attacker, int(sky_slots[0])
     raise AssertionError("fixture seeds did not expose attack into miracle-bounce armor")
+
+
+def advanced_miracle_bounce_defense_batch(
+    attack_token: int,
+    defense_token: int,
+    *,
+    miracle: bool = False,
+    initial_mp: int = 10,
+) -> tuple[
+    MiracleBounceWeaponResourceAttackDefenseBatch | MiracleBounceMiracleResourceAttackDefenseBatch,
+    int,
+    int,
+]:
+    for seed in range(32768):
+        batch = illness_cure_resource_batch(
+            seed=seed,
+            initial_mp=initial_mp,
+            miracle_bounce_weapon=not miracle,
+            miracle_bounce_miracle=miracle,
+        )
+        attacker = int(batch.active_players[0])
+        attack_slots = np.flatnonzero(batch.hand_token_ids[0] == attack_token)
+        if not attack_slots.size:
+            continue
+        attack_action = int(attack_slots[0]) + 1
+        if not batch.action_mask[0, attack_action]:
+            continue
+        batch.step(np.asarray([attack_action], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        if batch.phases[0] != godfield_sim.PHASE_DEFENSE:
+            continue
+        defense_slots = np.flatnonzero(batch.hand_token_ids[0] == defense_token)
+        if defense_slots.size:
+            return batch, attacker, int(defense_slots[0])
+    raise AssertionError("fixture seeds did not expose advanced miracle-bounce defense")
 
 
 @pytest.mark.parametrize("attack_token", [7, 9, 10])
@@ -1550,6 +1695,80 @@ def test_miracle_bounce_is_one_hop_bounded() -> None:
         assert not batch.action_mask[0, int(second_sky[0]) + 1]
         return
     raise AssertionError("fixture seeds did not expose a second Sky armor after bounce")
+
+
+def test_sky_harpoon_requires_weapon_base_and_adds_nine_attack() -> None:
+    for seed in range(32768):
+        batch = illness_cure_resource_batch(seed=seed, miracle_bounce_weapon=True)
+        weapon_slots = np.flatnonzero(batch.hand_token_ids[0] == 2)
+        harpoon_slots = np.flatnonzero(batch.hand_token_ids[0] == 37)
+        if not weapon_slots.size or not harpoon_slots.size:
+            continue
+        harpoon_action = int(harpoon_slots[0]) + 1
+        assert not batch.action_mask[0, harpoon_action]
+        batch.step(np.asarray([int(weapon_slots[0]) + 1], dtype=np.int64))
+        harpoon_slots = np.flatnonzero(batch.hand_token_ids[0] == 37)
+        assert harpoon_slots.size
+        harpoon_action = int(harpoon_slots[0]) + 1
+        assert batch.action_mask[0, harpoon_action]
+        batch.step(np.asarray([harpoon_action], dtype=np.int64))
+        assert batch.selected_values[0] == 19
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        assert batch.pending_attacks[0] == 19
+        return
+    raise AssertionError("fixture seeds did not expose weapon plus Sky Harpoon")
+
+
+def test_sky_harpoon_bounces_miracles_but_cannot_defend_weapons() -> None:
+    miracle_batch, _attacker, harpoon_slot = advanced_miracle_bounce_defense_batch(7, 37)
+    assert miracle_batch.action_mask[0, harpoon_slot + 1]
+    miracle_batch.step(np.asarray([harpoon_slot + 1], dtype=np.int64))
+    miracle_batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+    assert miracle_batch.pending_bounced[0]
+
+    weapon_batch, _attacker, harpoon_slot = advanced_miracle_bounce_defense_batch(2, 37)
+    assert not weapon_batch.action_mask[0, harpoon_slot + 1]
+
+
+def test_turbulence_costs_five_mp_bounces_and_remains_reusable() -> None:
+    for seed in range(32768):
+        batch = illness_cure_resource_batch(seed=seed, miracle_bounce_miracle=True)
+        attack_slots = np.flatnonzero(batch.hand_token_ids[0] == 7)
+        if not attack_slots.size:
+            continue
+        attack_action = int(attack_slots[0]) + 1
+        if not batch.action_mask[0, attack_action]:
+            continue
+        batch.step(np.asarray([attack_action], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        turbulence_slots = np.flatnonzero(batch.hand_token_ids[0] == 38)
+        if not turbulence_slots.size:
+            continue
+        defender = int(batch.active_players[0])
+        turbulence_slot = int(turbulence_slots[0])
+        mp_before = int(batch.magic_points[0, defender])
+        assert batch.action_mask[0, turbulence_slot + 1]
+        batch.step(np.asarray([turbulence_slot + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        if batch.active_players[0] != defender:
+            continue
+
+        assert batch.pending_bounced[0]
+        assert batch.magic_points[0, defender] == mp_before - 5
+        assert batch.hand_token_ids[0, turbulence_slot] == 38
+        return
+    raise AssertionError("fixture seeds did not expose reusable Turbulence after bounce")
+
+
+def test_turbulence_is_masked_when_defender_cannot_pay_cost() -> None:
+    batch, _attacker, turbulence_slot = advanced_miracle_bounce_defense_batch(
+        7,
+        38,
+        miracle=True,
+        initial_mp=4,
+    )
+
+    assert not batch.action_mask[0, turbulence_slot + 1]
 
 
 @pytest.mark.parametrize(
@@ -3103,6 +3322,30 @@ def test_resource_heuristics_index_miracle_attacks_in_the_miracle_namespace() ->
     assert miracle_bounce.miracle_bounce_defenses == sky_tokens
     assert miracle_bounce.defenses[vocabulary.token_id("armor", "sky-armor")] == 9
     assert miracle_bounce.policy_id == "evidenced-miracle-bounce-resource-combo-v1"
+
+    miracle_bounce_weapon = build_curriculum_heuristic(
+        snapshot,
+        vocabulary,
+        ruleset="miracle-bounce-weapon-resource-hand",
+    )
+    sky_harpoon = vocabulary.token_id("weapons", "sky-harpoon")
+    assert miracle_bounce_weapon.boosters is not None
+    assert miracle_bounce_weapon.boosters[sky_harpoon] == 9
+    assert miracle_bounce_weapon.defenses[sky_harpoon] == 0
+    assert miracle_bounce_weapon.miracle_bounce_defenses == sky_tokens | {sky_harpoon}
+    assert miracle_bounce_weapon.policy_id == "evidenced-miracle-bounce-weapon-resource-combo-v1"
+
+    miracle_bounce_miracle = build_curriculum_heuristic(
+        snapshot,
+        vocabulary,
+        ruleset="miracle-bounce-miracle-resource-hand",
+    )
+    turbulence = vocabulary.token_id("miracles", "turbulence")
+    assert miracle_bounce_miracle.defenses[turbulence] == 0
+    assert miracle_bounce_miracle.miracle_bounce_defenses == (
+        sky_tokens | {sky_harpoon, turbulence}
+    )
+    assert miracle_bounce_miracle.policy_id == "evidenced-miracle-bounce-miracle-resource-combo-v1"
 
 
 def test_fever_mask_heuristic_uses_plain_armor_when_curse_is_not_needed() -> None:

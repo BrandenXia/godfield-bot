@@ -34,6 +34,8 @@ from godfield_bot.reference import (
     verified_miracle_block_armor,
     verified_miracle_block_weapon_cards,
     verified_miracle_bounce_armor,
+    verified_miracle_bounce_miracles,
+    verified_miracle_bounce_weapon_boosters,
     verified_random_target_weapon_cards,
     verified_reflection_armor_cards,
     verified_reflection_weapon_cards,
@@ -215,6 +217,8 @@ def test_committed_snapshot_matches_validated_live_catalog() -> None:
         "sky-helm": 5,
         "sky-shield": 7,
     }
+    assert verified_miracle_bounce_weapon_boosters(snapshot) == {"sky-harpoon": 9}
+    assert verified_miracle_bounce_miracles(snapshot) == {"turbulence": 5}
     assert verified_effect_attack_miracle_cards(snapshot) == {
         "absorption": (10, 10, "light", "absorbHP")
     }

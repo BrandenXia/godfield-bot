@@ -1064,6 +1064,48 @@ def verified_miracle_bounce_armor(snapshot: BibleSnapshot) -> dict[str, int]:
     return result
 
 
+def verified_miracle_bounce_weapon_boosters(snapshot: BibleSnapshot) -> dict[str, int]:
+    """Return neutral additive weapons with verified miracle bouncing."""
+
+    weapons = snapshot.catalog.get("weapons")
+    if weapons is None:
+        return {}
+    result: dict[str, int] = {}
+    for artifact in weapons.items:
+        if artifact.element_image_paths or len(artifact.detail) != 5:
+            continue
+        booster = PLAIN_ATTACK_BOOST_PATTERN.fullmatch(artifact.detail[1])
+        if (
+            booster is not None
+            and artifact.detail[2] == "Bounce a miracle"
+            and re.fullmatch(r"\$\d+", artifact.detail[3]) is not None
+            and artifact.detail[4].startswith("Gift Rate:")
+        ):
+            result[artifact.asset] = int(booster.group(1))
+    return result
+
+
+def verified_miracle_bounce_miracles(snapshot: BibleSnapshot) -> dict[str, int]:
+    """Return reusable miracle-bounce defenses with exact MP costs."""
+
+    miracles = snapshot.catalog.get("miracles")
+    if miracles is None:
+        return {}
+    result: dict[str, int] = {}
+    for artifact in miracles.items:
+        if artifact.element_image_paths or len(artifact.detail) != 5:
+            continue
+        cost = re.fullmatch(r"(\d+)MP", artifact.detail[3])
+        if (
+            artifact.detail[1] == "Bounce a miracle"
+            and artifact.detail[2] == "Cost"
+            and cost is not None
+            and artifact.detail[4].startswith("Gift Rate:")
+        ):
+            result[artifact.asset] = int(cost.group(1))
+    return result
+
+
 def verified_chance_attack_miracle_cards(
     snapshot: BibleSnapshot,
 ) -> dict[str, tuple[int, int, int, CombatElement]]:

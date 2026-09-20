@@ -157,6 +157,16 @@ inline constexpr const char *kMiracleBlockResourceAttackDefenseRulesetId =
     "same-damage-weapon-attack-twice-weapon-random-target-weapon-illness-"
     "weapon-illness-cure-heaven-herb-fever-mask-miracle-block-additive-"
     "reflection-dual-role-resource-miracle-attack-defense-redraw-duel-v1";
+inline constexpr std::uint32_t
+    kMiracleBlockWeaponResourceAttackDefenseKernelSchemaVersion = 1;
+inline constexpr std::uint32_t
+    kMiracleBlockWeaponResourceAttackDefenseObservationSchemaVersion = 7;
+inline constexpr const char *kMiracleBlockWeaponResourceAttackDefenseRulesetId =
+    "plain-elemental-combo-stochastic-chance-absorption-weapon-dynamic-mp-"
+    "same-damage-weapon-attack-twice-weapon-random-target-weapon-illness-"
+    "weapon-illness-cure-heaven-herb-fever-mask-miracle-block-armor-weapon-"
+    "additive-reflection-dual-role-resource-miracle-attack-defense-redraw-"
+    "duel-v1";
 inline constexpr std::size_t kWeaponSlots = 5;
 inline constexpr std::size_t kArmorSlots = kHandSlots - kWeaponSlots;
 inline constexpr std::size_t kComboWeaponSlots = 4;
@@ -260,6 +270,9 @@ public:
   }
   [[nodiscard]] bool miracle_block_curriculum() const noexcept {
     return miracle_block_curriculum_;
+  }
+  [[nodiscard]] bool miracle_block_weapon_curriculum() const noexcept {
+    return miracle_block_weapon_curriculum_;
   }
   [[nodiscard]] std::uint16_t initial_mp() const noexcept {
     return initial_mp_;
@@ -389,7 +402,12 @@ protected:
       ElementInput fever_mask_elements = {},
       bool miracle_block_curriculum = false,
       TokenInput miracle_block_token_ids = {},
-      ValueInput miracle_block_defense_values = {});
+      ValueInput miracle_block_defense_values = {},
+      bool miracle_block_weapon_curriculum = false,
+      TokenInput miracle_block_weapon_token_ids = {},
+      ValueInput miracle_block_weapon_attack_values = {},
+      TokenInput miracle_block_booster_token_ids = {},
+      ValueInput miracle_block_booster_values = {});
 
 private:
   static constexpr std::size_t kMaximumBatchSize = 1'000'000;
@@ -456,6 +474,10 @@ private:
                        std::size_t slot);
   void draw_miracle_block_armor(std::size_t environment, std::size_t player,
                                 std::size_t slot);
+  void draw_miracle_block_weapon(std::size_t environment, std::size_t player,
+                                 std::size_t slot);
+  void draw_miracle_block_booster(std::size_t environment, std::size_t player,
+                                  std::size_t slot);
   void draw_weapon_family(std::size_t environment, std::size_t player,
                           std::size_t slot);
   void draw_armor_family(std::size_t environment, std::size_t player,
@@ -509,6 +531,7 @@ private:
   bool heaven_herb_curriculum_;
   bool fever_mask_curriculum_;
   bool miracle_block_curriculum_;
+  bool miracle_block_weapon_curriculum_;
   std::size_t global_feature_count_;
   std::uint16_t initial_mp_;
   std::vector<std::uint32_t> weapon_token_ids_;
@@ -593,6 +616,10 @@ private:
   std::vector<std::uint8_t> fever_mask_elements_;
   std::vector<std::uint32_t> miracle_block_token_ids_;
   std::vector<std::uint16_t> miracle_block_defense_values_;
+  std::vector<std::uint32_t> miracle_block_weapon_token_ids_;
+  std::vector<std::uint16_t> miracle_block_weapon_attack_values_;
+  std::vector<std::uint32_t> miracle_block_booster_token_ids_;
+  std::vector<std::uint16_t> miracle_block_booster_values_;
   std::vector<std::uint64_t> rng_states_;
   std::vector<std::uint64_t> episode_ids_;
   std::vector<std::uint16_t> hit_points_;
@@ -1318,7 +1345,11 @@ public:
       ValueInput heaven_herb_mp_gains, TokenInput fever_mask_token_ids,
       ValueInput fever_mask_defense_values, ElementInput fever_mask_elements,
       TokenInput miracle_block_token_ids,
-      ValueInput miracle_block_defense_values, std::uint64_t seed,
+      ValueInput miracle_block_defense_values,
+      TokenInput miracle_block_weapon_token_ids,
+      ValueInput miracle_block_weapon_attack_values,
+      TokenInput miracle_block_booster_token_ids,
+      ValueInput miracle_block_booster_values, std::uint64_t seed,
       std::uint16_t initial_hp, std::uint16_t initial_mp);
 };
 

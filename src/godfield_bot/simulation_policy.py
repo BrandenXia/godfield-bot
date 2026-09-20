@@ -33,6 +33,7 @@ from godfield_bot.reference import (
     verified_illness_cure_sundries,
     verified_illness_weapon_cards,
     verified_miracle_block_armor,
+    verified_miracle_block_weapon_cards,
     verified_random_target_weapon_cards,
     verified_reflection_armor_cards,
     verified_reflection_weapon_cards,
@@ -62,6 +63,9 @@ ILLNESS_CURE_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-illness-cure-resource-com
 HEAVEN_HERB_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-heaven-herb-resource-combo-v1"
 FEVER_MASK_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-fever-mask-resource-combo-v1"
 MIRACLE_BLOCK_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-miracle-block-resource-combo-v1"
+MIRACLE_BLOCK_WEAPON_RESOURCE_HEURISTIC_POLICY_ID = (
+    "evidenced-miracle-block-weapon-resource-combo-v1"
+)
 FORGIVE_ACTION_INDEX = 19
 CONFIRM_ACTION_INDEX = 20
 MIRACLE_ATTACK_CARD_KINDS = frozenset({6, 8, 9})
@@ -131,7 +135,11 @@ def build_curriculum_heuristic(
     *,
     ruleset: AttackDefenseRuleset = "fixed-role",
 ) -> CurriculumHeuristic:
-    miracle_block_ruleset = ruleset == "miracle-block-resource-hand"
+    miracle_block_weapon_ruleset = ruleset == "miracle-block-weapon-resource-hand"
+    miracle_block_ruleset = ruleset in {
+        "miracle-block-resource-hand",
+        "miracle-block-weapon-resource-hand",
+    }
     if miracle_block_ruleset:
         ruleset = "fever-mask-resource-hand"
     boosters: dict[str, int] = {}
@@ -585,6 +593,17 @@ def build_curriculum_heuristic(
             vocabulary.token_id("armor", slug) for slug in miracle_block_armor
         )
         policy_id = MIRACLE_BLOCK_RESOURCE_HEURISTIC_POLICY_ID
+    if miracle_block_weapon_ruleset:
+        miracle_block_weapons = verified_miracle_block_weapon_cards(snapshot)
+        for slug, (attack, booster) in miracle_block_weapons.items():
+            token = vocabulary.token_id("weapons", slug)
+            if booster:
+                booster_token_values[token] = attack
+            else:
+                attack_token_values[token] = attack
+            defense_token_values[token] = 0
+            miracle_block_defenses.add(token)
+        policy_id = MIRACLE_BLOCK_WEAPON_RESOURCE_HEURISTIC_POLICY_ID
     return CurriculumHeuristic(
         attacks=attack_token_values,
         defenses=defense_token_values,

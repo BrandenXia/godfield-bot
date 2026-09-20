@@ -5,7 +5,7 @@ import json
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -38,6 +38,7 @@ from godfield_bot.reference import (
     verified_illness_cure_sundries,
     verified_illness_weapon_cards,
     verified_miracle_block_armor,
+    verified_miracle_block_weapon_cards,
     verified_random_target_weapon_cards,
     verified_reflection_armor_cards,
     verified_reflection_weapon_cards,
@@ -70,6 +71,7 @@ AttackDefenseRuleset = Literal[
     "heaven-herb-resource-hand",
     "fever-mask-resource-hand",
     "miracle-block-resource-hand",
+    "miracle-block-weapon-resource-hand",
 ]
 
 
@@ -125,6 +127,7 @@ class SimulationMetadata(BaseModel):
         "elemental-heaven-herb-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-fever-mask-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-miracle-block-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
+        "elemental-miracle-block-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
     ] = "uniform-redraw-with-replacement"
     promotion_eligible: Literal[False] = False
 
@@ -296,6 +299,42 @@ def _miracle_block_catalog(
     ]
 
 
+def _miracle_block_weapon_catalog(
+    snapshot: BibleSnapshot,
+    vocabulary: ArtifactVocabulary,
+) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    cards = verified_miracle_block_weapon_cards(snapshot)
+    weapons = [
+        {
+            "attack": attack,
+            "effect": "blockMiracle",
+            "element": "non-element",
+            "element_id": COMBAT_ELEMENT_IDS["non-element"],
+            "kind": "miracle-block-weapon",
+            "slug": slug,
+            "token_id": vocabulary.token_id("weapons", slug),
+        }
+        for slug, (attack, booster) in sorted(cards.items())
+        if not booster
+    ]
+    boosters = [
+        {
+            "boost": attack,
+            "effect": "blockMiracle",
+            "element": "non-element",
+            "element_id": COMBAT_ELEMENT_IDS["non-element"],
+            "kind": "miracle-block-booster",
+            "slug": slug,
+            "token_id": vocabulary.token_id("weapons", slug),
+        }
+        for slug, (attack, booster) in sorted(cards.items())
+        if booster
+    ]
+    if not weapons or not boosters:
+        raise ValueError("accepted snapshot lacks a complete miracle-block weapon family")
+    return weapons, boosters
+
+
 def create_fixed_attack_simulation(
     snapshot_path: Path,
     *,
@@ -413,6 +452,9 @@ def create_attack_defense_simulation(
             MIRACLE_BLOCK_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
             MIRACLE_BLOCK_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
             MIRACLE_BLOCK_RESOURCE_ATTACK_DEFENSE_RULESET_ID,
+            MIRACLE_BLOCK_WEAPON_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
+            MIRACLE_BLOCK_WEAPON_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
+            MIRACLE_BLOCK_WEAPON_RESOURCE_ATTACK_DEFENSE_RULESET_ID,
             MIXED_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
             MIXED_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
             MIXED_ATTACK_DEFENSE_RULESET_ID,
@@ -449,6 +491,7 @@ def create_attack_defense_simulation(
             IllnessCureResourceAttackDefenseBatch,
             IllnessWeaponResourceAttackDefenseBatch,
             MiracleBlockResourceAttackDefenseBatch,
+            MiracleBlockWeaponResourceAttackDefenseBatch,
             RandomTargetWeaponResourceAttackDefenseBatch,
             ReflectionResourceAttackDefenseBatch,
             ReflectionWeaponResourceAttackDefenseBatch,
@@ -464,12 +507,17 @@ def create_attack_defense_simulation(
         heaven_herb_batch_type = HeavenHerbResourceAttackDefenseBatch
         fever_batch_type = FeverMaskResourceAttackDefenseBatch
         miracle_block_batch_type = MiracleBlockResourceAttackDefenseBatch
+        miracle_block_weapon_batch_type = MiracleBlockWeaponResourceAttackDefenseBatch
     except ImportError as error:
         raise SimulationUnavailableError(
             "native simulation is unavailable; run `uv sync --extra simulation --group dev`"
         ) from error
 
-    miracle_block_ruleset = ruleset == "miracle-block-resource-hand"
+    miracle_block_weapon_ruleset = ruleset == "miracle-block-weapon-resource-hand"
+    miracle_block_ruleset = ruleset in {
+        "miracle-block-resource-hand",
+        "miracle-block-weapon-resource-hand",
+    }
     if miracle_block_ruleset:
         ruleset = "fever-mask-resource-hand"
     snapshot = BibleSnapshot.model_validate_json(snapshot_path.read_text(encoding="utf-8"))
@@ -763,6 +811,21 @@ def create_attack_defense_simulation(
                 miracle_block_catalog = (
                     _miracle_block_catalog(snapshot, vocabulary) if miracle_block_ruleset else []
                 )
+                (
+                    miracle_block_weapon_catalog,
+                    miracle_block_booster_catalog,
+                ) = (
+                    _miracle_block_weapon_catalog(snapshot, vocabulary)
+                    if miracle_block_weapon_ruleset
+                    else ([], [])
+                )
+                advanced_batch_type: Any
+                if miracle_block_weapon_ruleset:
+                    advanced_batch_type = miracle_block_weapon_batch_type
+                elif miracle_block_ruleset:
+                    advanced_batch_type = miracle_block_batch_type
+                else:
+                    advanced_batch_type = fever_batch_type
                 if ruleset in {
                     "expanded-resource-hand",
                     "reflection-resource-hand",
@@ -1526,12 +1589,7 @@ def create_attack_defense_simulation(
                                                                                 vocabulary,
                                                                             )
                                                                         )
-                                                                        batch_type = (
-                                                                            miracle_block_batch_type
-                                                                            if miracle_block_ruleset
-                                                                            else fever_batch_type
-                                                                        )
-                                                                        batch = batch_type(
+                                                                        batch = advanced_batch_type(
                                                                             *heaven_herb_args,
                                                                             np.asarray(
                                                                                 _catalog_column(
@@ -1565,6 +1623,34 @@ def create_attack_defense_simulation(
                                                                                 _catalog_column(
                                                                                     miracle_block_catalog,
                                                                                     "defense",
+                                                                                ),
+                                                                                dtype=np.uint16,
+                                                                            ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    miracle_block_weapon_catalog,
+                                                                                    "token_id",
+                                                                                ),
+                                                                                dtype=np.uint32,
+                                                                            ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    miracle_block_weapon_catalog,
+                                                                                    "attack",
+                                                                                ),
+                                                                                dtype=np.uint16,
+                                                                            ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    miracle_block_booster_catalog,
+                                                                                    "token_id",
+                                                                                ),
+                                                                                dtype=np.uint32,
+                                                                            ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    miracle_block_booster_catalog,
+                                                                                    "boost",
                                                                                 ),
                                                                                 dtype=np.uint16,
                                                                             ),
@@ -1748,6 +1834,8 @@ def create_attack_defense_simulation(
                     + heaven_herb_catalog
                     + fever_mask_catalog
                     + miracle_block_catalog
+                    + miracle_block_weapon_catalog
+                    + miracle_block_booster_catalog
                 )
             else:
                 batch = ResourceAttackDefenseBatch(
@@ -1826,11 +1914,24 @@ def create_attack_defense_simulation(
         "elemental-heaven-herb-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-fever-mask-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-miracle-block-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
+        "elemental-miracle-block-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
     ]
     action_semantics: Literal["atomic-attack-defense-macro", "sequential-combo-selection"] = (
         "atomic-attack-defense-macro"
     )
-    if miracle_block_ruleset:
+    if miracle_block_weapon_ruleset:
+        kernel_schema_version = MIRACLE_BLOCK_WEAPON_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION
+        observation_schema_version = (
+            MIRACLE_BLOCK_WEAPON_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION
+        )
+        ruleset_id = MIRACLE_BLOCK_WEAPON_RESOURCE_ATTACK_DEFENSE_RULESET_ID
+        global_feature_count = ILLNESS_GLOBAL_FEATURE_COUNT
+        sampling_distribution = (
+            "elemental-miracle-block-weapon-resource-2-1-2-1-1-1-1-"
+            "initial-uniform-redraw-with-base-liveness"
+        )
+        action_semantics = "sequential-combo-selection"
+    elif miracle_block_ruleset:
         kernel_schema_version = MIRACLE_BLOCK_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION
         observation_schema_version = (
             MIRACLE_BLOCK_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION

@@ -45,6 +45,9 @@ IllnessCureResourceAttackDefenseBatch = godfield_sim.IllnessCureResourceAttackDe
 HeavenHerbResourceAttackDefenseBatch = godfield_sim.HeavenHerbResourceAttackDefenseBatch
 FeverMaskResourceAttackDefenseBatch = godfield_sim.FeverMaskResourceAttackDefenseBatch
 MiracleBlockResourceAttackDefenseBatch = godfield_sim.MiracleBlockResourceAttackDefenseBatch
+MiracleBlockWeaponResourceAttackDefenseBatch = (
+    godfield_sim.MiracleBlockWeaponResourceAttackDefenseBatch
+)
 
 SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-07" / "bible.json"
 
@@ -667,12 +670,14 @@ def illness_cure_resource_batch(
     heaven_herb: bool = False,
     fever_mask: bool = False,
     miracle_block: bool = False,
+    miracle_block_weapon: bool = False,
     miracle_block_defense: int = 15,
 ) -> (
     IllnessCureResourceAttackDefenseBatch
     | HeavenHerbResourceAttackDefenseBatch
     | FeverMaskResourceAttackDefenseBatch
     | MiracleBlockResourceAttackDefenseBatch
+    | MiracleBlockWeaponResourceAttackDefenseBatch
 ):
     base_args = list(absorption_weapon_resource_args())
     base_args[8] = np.asarray([armor_defense], dtype=np.uint16)
@@ -701,17 +706,21 @@ def illness_cure_resource_batch(
         np.asarray([0, 0, 2, 5], dtype=np.uint16),
         np.asarray([1, 2, 1, 2], dtype=np.uint16),
     )
-    if heaven_herb or fever_mask or miracle_block:
+    if heaven_herb or fever_mask or miracle_block or miracle_block_weapon:
         heaven_args = (
             *curriculum_args,
             np.asarray([29], dtype=np.uint32),
             np.asarray([20], dtype=np.uint16),
         )
-        if fever_mask or miracle_block:
+        if fever_mask or miracle_block or miracle_block_weapon:
             batch_type = (
-                MiracleBlockResourceAttackDefenseBatch
-                if miracle_block
-                else FeverMaskResourceAttackDefenseBatch
+                MiracleBlockWeaponResourceAttackDefenseBatch
+                if miracle_block_weapon
+                else (
+                    MiracleBlockResourceAttackDefenseBatch
+                    if miracle_block
+                    else FeverMaskResourceAttackDefenseBatch
+                )
             )
             return batch_type(
                 *heaven_args,
@@ -719,10 +728,22 @@ def illness_cure_resource_batch(
                 np.asarray([10], dtype=np.uint16),
                 np.asarray([godfield_sim.ELEMENT_FIRE], dtype=np.uint8),
                 np.asarray([31], dtype=np.uint32)
-                if miracle_block
+                if miracle_block or miracle_block_weapon
                 else np.asarray([], dtype=np.uint32),
                 np.asarray([miracle_block_defense], dtype=np.uint16)
-                if miracle_block
+                if miracle_block or miracle_block_weapon
+                else np.asarray([], dtype=np.uint16),
+                np.asarray([32, 33, 34], dtype=np.uint32)
+                if miracle_block_weapon
+                else np.asarray([], dtype=np.uint32),
+                np.asarray([11, 13, 15], dtype=np.uint16)
+                if miracle_block_weapon
+                else np.asarray([], dtype=np.uint16),
+                np.asarray([35], dtype=np.uint32)
+                if miracle_block_weapon
+                else np.asarray([], dtype=np.uint32),
+                np.asarray([15], dtype=np.uint16)
+                if miracle_block_weapon
                 else np.asarray([], dtype=np.uint16),
                 seed,
                 initial_hp,
@@ -1328,15 +1349,48 @@ def test_miracle_block_factory_keeps_schema_and_adds_verified_catalog() -> None:
     assert np.all(batch.hand_elements[angel_armor] == godfield_sim.ELEMENT_NON_ELEMENT)
 
 
+def test_miracle_block_weapon_factory_adds_verified_dual_role_family() -> None:
+    simulation = create_attack_defense_simulation(
+        SNAPSHOT_PATH,
+        batch_size=512,
+        ruleset="miracle-block-weapon-resource-hand",
+    )
+    batch = simulation.batch
+
+    assert simulation.metadata.observation_schema_version == 7
+    assert simulation.metadata.ruleset_id == (
+        "plain-elemental-combo-stochastic-chance-absorption-weapon-dynamic-mp-"
+        "same-damage-weapon-attack-twice-weapon-random-target-weapon-illness-"
+        "weapon-illness-cure-heaven-herb-fever-mask-miracle-block-armor-weapon-"
+        "additive-reflection-dual-role-resource-miracle-attack-defense-redraw-"
+        "duel-v1"
+    )
+    assert simulation.metadata.rule_catalog_size == 175
+    assert simulation.metadata.global_feature_count == 16
+    assert simulation.metadata.sampling_distribution == (
+        "elemental-miracle-block-weapon-resource-2-1-2-1-1-1-1-"
+        "initial-uniform-redraw-with-base-liveness"
+    )
+    assert batch.miracle_block_curriculum is True
+    assert batch.miracle_block_weapon_curriculum is True
+    angel_weapons = batch.hand_card_kinds == godfield_sim.CARD_KIND_MIRACLE_BLOCK_WEAPON
+    angel_bows = batch.hand_card_kinds == godfield_sim.CARD_KIND_MIRACLE_BLOCK_BOOSTER
+    assert np.any(angel_weapons)
+    assert np.any(angel_bows)
+    assert np.all(batch.hand_elements[angel_weapons | angel_bows] == 0)
+
+
 def miracle_block_defense_batch(
     attack_token: int,
     *,
+    defense_token: int = 31,
     miracle_block_defense: int = 15,
 ) -> tuple[MiracleBlockResourceAttackDefenseBatch, int, int]:
     for seed in range(32768):
         batch = illness_cure_resource_batch(
             seed=seed,
             miracle_block=True,
+            miracle_block_weapon=defense_token in {32, 33, 34, 35},
             miracle_block_defense=miracle_block_defense,
         )
         attacker = int(batch.active_players[0])
@@ -1350,7 +1404,7 @@ def miracle_block_defense_batch(
         batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
         if batch.phases[0] != godfield_sim.PHASE_DEFENSE:
             continue
-        angel_slots = np.flatnonzero(batch.hand_token_ids[0] == 31)
+        angel_slots = np.flatnonzero(batch.hand_token_ids[0] == defense_token)
         if not angel_slots.size:
             continue
         return batch, attacker, int(angel_slots[0])
@@ -1406,6 +1460,71 @@ def test_miracle_block_armor_obeys_elements_for_weapon() -> None:
     assert batch.pending_base_kinds[0] == godfield_sim.CARD_KIND_CHANCE_WEAPON
     assert batch.pending_elements[0] == godfield_sim.ELEMENT_FIRE
     assert not batch.action_mask[0, angel_slot + 1]
+
+
+def test_miracle_block_weapon_is_a_consumable_base_attack() -> None:
+    for seed in range(32768):
+        batch = illness_cure_resource_batch(seed=seed, miracle_block_weapon=True)
+        weapon_slots = np.flatnonzero(batch.hand_token_ids[0] == 32)
+        if not weapon_slots.size:
+            continue
+        action = int(weapon_slots[0]) + 1
+        assert batch.action_mask[0, action]
+        batch.step(np.asarray([action], dtype=np.int64))
+        assert batch.selected_values[0] == 11
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+
+        assert batch.pending_base_kinds[0] == godfield_sim.CARD_KIND_MIRACLE_BLOCK_WEAPON
+        assert batch.pending_attacks[0] == 11
+        return
+    raise AssertionError("fixture seeds did not expose Angel Knife as an attack")
+
+
+def test_angel_bow_requires_a_weapon_base_and_adds_attack() -> None:
+    for seed in range(32768):
+        batch = illness_cure_resource_batch(seed=seed, miracle_block_weapon=True)
+        weapon_slots = np.flatnonzero(batch.hand_token_ids[0] == 2)
+        bow_slots = np.flatnonzero(batch.hand_token_ids[0] == 35)
+        if not weapon_slots.size or not bow_slots.size:
+            continue
+        bow_action = int(bow_slots[0]) + 1
+        assert not batch.action_mask[0, bow_action]
+        batch.step(np.asarray([int(weapon_slots[0]) + 1], dtype=np.int64))
+        visible_bows = np.flatnonzero(batch.hand_token_ids[0] == 35)
+        assert visible_bows.size
+        bow_action = int(visible_bows[0]) + 1
+        assert batch.action_mask[0, bow_action]
+        batch.step(np.asarray([bow_action], dtype=np.int64))
+
+        assert batch.selected_values[0] == 25
+        return
+    raise AssertionError("fixture seeds did not expose weapon plus Angel Bow")
+
+
+@pytest.mark.parametrize("defense_token", [32, 35])
+def test_miracle_block_weapon_and_booster_fully_block_miracles(
+    defense_token: int,
+) -> None:
+    batch, _attacker, defense_slot = miracle_block_defense_batch(
+        7,
+        defense_token=defense_token,
+    )
+
+    assert batch.action_mask[0, defense_slot + 1]
+    batch.step(np.asarray([defense_slot + 1], dtype=np.int64))
+    assert batch.selected_values[0] == batch.pending_attacks[0] == 25
+
+
+@pytest.mark.parametrize("defense_token", [32, 35])
+def test_miracle_block_weapon_and_booster_cannot_defend_weapons(
+    defense_token: int,
+) -> None:
+    batch, _attacker, defense_slot = miracle_block_defense_batch(
+        2,
+        defense_token=defense_token,
+    )
+
+    assert not batch.action_mask[0, defense_slot + 1]
 
 
 def fever_mask_defense_batch(
@@ -2809,6 +2928,26 @@ def test_resource_heuristics_index_miracle_attacks_in_the_miracle_namespace() ->
     assert miracle_block.miracle_block_defenses == miracle_block_tokens
     assert miracle_block.defenses[vocabulary.token_id("armor", "angel-armor")] == 15
     assert miracle_block.policy_id == "evidenced-miracle-block-resource-combo-v1"
+
+    miracle_block_weapon = build_curriculum_heuristic(
+        snapshot,
+        vocabulary,
+        ruleset="miracle-block-weapon-resource-hand",
+    )
+    angel_knife = vocabulary.token_id("weapons", "angel-knife")
+    angel_bow = vocabulary.token_id("weapons", "angel-bow")
+    weapon_defense_tokens = {
+        vocabulary.token_id("weapons", slug)
+        for slug in ("angel-axe", "angel-bow", "angel-knife", "angel-sword")
+    }
+    assert miracle_block_weapon.attacks[angel_knife] == 11
+    assert miracle_block_weapon.boosters is not None
+    assert miracle_block_weapon.boosters[angel_bow] == 15
+    assert miracle_block_weapon.miracle_block_defenses == (
+        miracle_block_tokens | weapon_defense_tokens
+    )
+    assert miracle_block_weapon.defenses[angel_bow] == 0
+    assert miracle_block_weapon.policy_id == "evidenced-miracle-block-weapon-resource-combo-v1"
 
 
 def test_fever_mask_heuristic_uses_plain_armor_when_curse_is_not_needed() -> None:

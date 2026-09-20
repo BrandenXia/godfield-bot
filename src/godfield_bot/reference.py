@@ -1018,6 +1018,31 @@ def verified_miracle_block_armor(snapshot: BibleSnapshot) -> dict[str, int]:
     return result
 
 
+def verified_miracle_block_weapon_cards(
+    snapshot: BibleSnapshot,
+) -> dict[str, tuple[int, bool]]:
+    """Return neutral weapons/boosters with verified miracle blocking."""
+
+    weapons = snapshot.catalog.get("weapons")
+    if weapons is None:
+        return {}
+    result: dict[str, tuple[int, bool]] = {}
+    for artifact in weapons.items:
+        if artifact.element_image_paths or len(artifact.detail) != 5:
+            continue
+        attack = PLAIN_ATTACK_PATTERN.fullmatch(artifact.detail[1])
+        booster = PLAIN_ATTACK_BOOST_PATTERN.fullmatch(artifact.detail[1])
+        match = attack or booster
+        if (
+            match is not None
+            and artifact.detail[2] == "Block a miracle"
+            and re.fullmatch(r"\$\d+", artifact.detail[3]) is not None
+            and artifact.detail[4].startswith("Gift Rate:")
+        ):
+            result[artifact.asset] = (int(match.group(1)), booster is not None)
+    return result
+
+
 def verified_chance_attack_miracle_cards(
     snapshot: BibleSnapshot,
 ) -> dict[str, tuple[int, int, int, CombatElement]]:

@@ -185,6 +185,14 @@ NB_MODULE(_native, module) {
       godfield_sim::kMiracleBlockResourceAttackDefenseObservationSchemaVersion;
   module.attr("MIRACLE_BLOCK_RESOURCE_ATTACK_DEFENSE_RULESET_ID") =
       godfield_sim::kMiracleBlockResourceAttackDefenseRulesetId;
+  module.attr(
+      "MIRACLE_BLOCK_WEAPON_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION") =
+      godfield_sim::kMiracleBlockWeaponResourceAttackDefenseKernelSchemaVersion;
+  module.attr("MIRACLE_BLOCK_WEAPON_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_"
+              "VERSION") = godfield_sim::
+      kMiracleBlockWeaponResourceAttackDefenseObservationSchemaVersion;
+  module.attr("MIRACLE_BLOCK_WEAPON_RESOURCE_ATTACK_DEFENSE_RULESET_ID") =
+      godfield_sim::kMiracleBlockWeaponResourceAttackDefenseRulesetId;
   module.attr("ILLNESS_GLOBAL_FEATURE_COUNT") =
       godfield_sim::kIllnessGlobalFeatureCount;
   module.attr("ELEMENT_COUNT") = godfield_sim::kElementCount;
@@ -239,6 +247,8 @@ NB_MODULE(_native, module) {
   module.attr("CARD_KIND_HEAVEN_HERB") = std::uint8_t{25U};
   module.attr("CARD_KIND_FEVER_MASK") = std::uint8_t{26U};
   module.attr("CARD_KIND_MIRACLE_BLOCK_ARMOR") = std::uint8_t{27U};
+  module.attr("CARD_KIND_MIRACLE_BLOCK_WEAPON") = std::uint8_t{28U};
+  module.attr("CARD_KIND_MIRACLE_BLOCK_BOOSTER") = std::uint8_t{29U};
   module.attr("ILLNESS_NONE") = std::uint8_t{0U};
   module.attr("ILLNESS_COLD") = std::uint8_t{1U};
   module.attr("ILLNESS_FEVER") = std::uint8_t{2U};
@@ -332,6 +342,8 @@ NB_MODULE(_native, module) {
                    &AttackDefenseBatch::fever_mask_curriculum)
       .def_prop_ro("miracle_block_curriculum",
                    &AttackDefenseBatch::miracle_block_curriculum)
+      .def_prop_ro("miracle_block_weapon_curriculum",
+                   &AttackDefenseBatch::miracle_block_weapon_curriculum)
       .def_prop_ro("initial_mp", &AttackDefenseBatch::initial_mp)
       .def_prop_ro("global_feature_count",
                    &AttackDefenseBatch::global_feature_count)
@@ -1497,6 +1509,8 @@ NB_MODULE(_native, module) {
                    godfield_sim::TokenInput, godfield_sim::ValueInput,
                    godfield_sim::TokenInput, godfield_sim::ValueInput,
                    godfield_sim::ElementInput, godfield_sim::TokenInput,
+                   godfield_sim::ValueInput, godfield_sim::TokenInput,
+                   godfield_sim::ValueInput, godfield_sim::TokenInput,
                    godfield_sim::ValueInput, std::uint64_t, std::uint16_t,
                    std::uint16_t>(),
           nb::arg("batch_size"), nb::arg("weapon_token_ids"),
@@ -1558,9 +1572,15 @@ NB_MODULE(_native, module) {
           nb::arg("heaven_herb_mp_gains"), nb::arg("fever_mask_token_ids"),
           nb::arg("fever_mask_defense_values"), nb::arg("fever_mask_elements"),
           nb::arg("miracle_block_token_ids"),
-          nb::arg("miracle_block_defense_values"), nb::arg("seed") = 67U,
+          nb::arg("miracle_block_defense_values"),
+          nb::arg("miracle_block_weapon_token_ids"),
+          nb::arg("miracle_block_weapon_attack_values"),
+          nb::arg("miracle_block_booster_token_ids"),
+          nb::arg("miracle_block_booster_values"), nb::arg("seed") = 67U,
           nb::arg("initial_hp") = 40U, nb::arg("initial_mp") = 10U);
 
   module.attr("MiracleBlockResourceAttackDefenseBatch") =
+      module.attr("FeverMaskResourceAttackDefenseBatch");
+  module.attr("MiracleBlockWeaponResourceAttackDefenseBatch") =
       module.attr("FeverMaskResourceAttackDefenseBatch");
 }

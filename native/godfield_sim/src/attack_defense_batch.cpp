@@ -40,6 +40,8 @@ constexpr std::uint8_t kIllnessCureMiracleCardKind = 24U;
 constexpr std::uint8_t kHeavenHerbCardKind = 25U;
 constexpr std::uint8_t kFeverMaskCardKind = 26U;
 constexpr std::uint8_t kMiracleBlockArmorCardKind = 27U;
+constexpr std::uint8_t kMiracleBlockWeaponCardKind = 28U;
+constexpr std::uint8_t kMiracleBlockBoosterCardKind = 29U;
 constexpr std::uint8_t kNoAttackEffect = 0U;
 constexpr std::uint8_t kAbsorbHpAttackEffect = 1U;
 constexpr std::uint8_t kSameDamageAttackEffect = 2U;
@@ -274,7 +276,12 @@ AttackDefenseBatch::AttackDefenseBatch(
     ValueInput heaven_herb_mp_gains, bool fever_mask_curriculum,
     TokenInput fever_mask_token_ids, ValueInput fever_mask_defense_values,
     ElementInput fever_mask_elements, bool miracle_block_curriculum,
-    TokenInput miracle_block_token_ids, ValueInput miracle_block_defense_values)
+    TokenInput miracle_block_token_ids, ValueInput miracle_block_defense_values,
+    bool miracle_block_weapon_curriculum,
+    TokenInput miracle_block_weapon_token_ids,
+    ValueInput miracle_block_weapon_attack_values,
+    TokenInput miracle_block_booster_token_ids,
+    ValueInput miracle_block_booster_values)
     : batch_size_(batch_size), base_seed_(seed), initial_hp_(initial_hp),
       mixed_hands_(mixed_hands), elemental_(elemental), combo_(combo),
       resource_curriculum_(resource_curriculum),
@@ -294,6 +301,7 @@ AttackDefenseBatch::AttackDefenseBatch(
       heaven_herb_curriculum_(heaven_herb_curriculum),
       fever_mask_curriculum_(fever_mask_curriculum),
       miracle_block_curriculum_(miracle_block_curriculum),
+      miracle_block_weapon_curriculum_(miracle_block_weapon_curriculum),
       global_feature_count_(
           illness_weapon_curriculum
               ? kIllnessGlobalFeatureCount
@@ -380,6 +388,11 @@ AttackDefenseBatch::AttackDefenseBatch(
     throw std::invalid_argument(
         "miracle-block curriculum requires Fever Mask semantics");
   }
+  if (miracle_block_weapon_curriculum_ && !miracle_block_curriculum_) {
+    throw std::invalid_argument(
+        "miracle-block weapon curriculum requires miracle-block armor "
+        "semantics");
+  }
 
   std::unordered_set<std::uint32_t> unique_token_ids;
   const auto booster_catalog_size = combo_ ? booster_token_ids.shape(0) : 0U;
@@ -431,6 +444,11 @@ AttackDefenseBatch::AttackDefenseBatch(
       fever_mask_curriculum_ ? fever_mask_token_ids.shape(0) : 0U;
   const auto miracle_block_catalog_size =
       miracle_block_curriculum_ ? miracle_block_token_ids.shape(0) : 0U;
+  const auto miracle_block_weapon_catalog_size =
+      miracle_block_weapon_curriculum_
+          ? miracle_block_weapon_token_ids.shape(0) +
+                miracle_block_booster_token_ids.shape(0)
+          : 0U;
   unique_token_ids.reserve(
       weapon_token_ids.shape(0) + booster_catalog_size +
       armor_token_ids.shape(0) + resource_catalog_size +
@@ -441,7 +459,8 @@ AttackDefenseBatch::AttackDefenseBatch(
       same_damage_weapon_catalog_size + attack_twice_weapon_catalog_size +
       random_target_weapon_catalog_size + illness_weapon_catalog_size +
       illness_cure_catalog_size + heaven_herb_catalog_size +
-      fever_mask_catalog_size + miracle_block_catalog_size);
+      fever_mask_catalog_size + miracle_block_catalog_size +
+      miracle_block_weapon_catalog_size);
   append_catalog(weapon_token_ids, attack_values, "attack", unique_token_ids,
                  weapon_token_ids_, attack_values_);
   if (combo_) {
@@ -733,6 +752,16 @@ AttackDefenseBatch::AttackDefenseBatch(
     append_catalog(miracle_block_token_ids, miracle_block_defense_values,
                    "miracle-block armor", unique_token_ids,
                    miracle_block_token_ids_, miracle_block_defense_values_);
+  }
+  if (miracle_block_weapon_curriculum_) {
+    append_catalog(miracle_block_weapon_token_ids,
+                   miracle_block_weapon_attack_values, "miracle-block weapon",
+                   unique_token_ids, miracle_block_weapon_token_ids_,
+                   miracle_block_weapon_attack_values_);
+    append_catalog(miracle_block_booster_token_ids,
+                   miracle_block_booster_values, "miracle-block booster",
+                   unique_token_ids, miracle_block_booster_token_ids_,
+                   miracle_block_booster_values_);
   }
   if (elemental_) {
     if (weapon_elements.size() != weapon_token_ids_.size() ||
@@ -1286,6 +1315,40 @@ void AttackDefenseBatch::draw_miracle_block_armor(std::size_t environment,
       static_cast<std::uint8_t>(CombatElement::NonElement);
 }
 
+void AttackDefenseBatch::draw_miracle_block_weapon(std::size_t environment,
+                                                   std::size_t player,
+                                                   std::size_t slot) {
+  const auto index = static_cast<std::size_t>(
+      next_random(environment) % miracle_block_weapon_token_ids_.size());
+  const auto offset = hand_offset(environment, player, slot);
+  hand_token_ids_by_player_[offset] =
+      static_cast<std::int64_t>(miracle_block_weapon_token_ids_[index]);
+  hand_values_[offset] = miracle_block_weapon_attack_values_[index];
+  hand_costs_[offset] = 0U;
+  hand_hit_rates_[offset] = 100U;
+  hand_effects_[offset] = kNoAttackEffect;
+  hand_card_kinds_by_player_[offset] = kMiracleBlockWeaponCardKind;
+  hand_elements_by_player_[offset] =
+      static_cast<std::uint8_t>(CombatElement::NonElement);
+}
+
+void AttackDefenseBatch::draw_miracle_block_booster(std::size_t environment,
+                                                    std::size_t player,
+                                                    std::size_t slot) {
+  const auto index = static_cast<std::size_t>(
+      next_random(environment) % miracle_block_booster_token_ids_.size());
+  const auto offset = hand_offset(environment, player, slot);
+  hand_token_ids_by_player_[offset] =
+      static_cast<std::int64_t>(miracle_block_booster_token_ids_[index]);
+  hand_values_[offset] = miracle_block_booster_values_[index];
+  hand_costs_[offset] = 0U;
+  hand_hit_rates_[offset] = 100U;
+  hand_effects_[offset] = kNoAttackEffect;
+  hand_card_kinds_by_player_[offset] = kMiracleBlockBoosterCardKind;
+  hand_elements_by_player_[offset] =
+      static_cast<std::uint8_t>(CombatElement::NonElement);
+}
+
 void AttackDefenseBatch::draw_weapon_family(std::size_t environment,
                                             std::size_t player,
                                             std::size_t slot) {
@@ -1301,7 +1364,8 @@ void AttackDefenseBatch::draw_weapon_family(std::size_t environment,
          same_damage_weapon_token_ids_.size() +
          attack_twice_weapon_token_ids_.size() +
          random_target_weapon_token_ids_.size() +
-         illness_weapon_token_ids_.size()));
+         illness_weapon_token_ids_.size() +
+         miracle_block_weapon_token_ids_.size()));
     if (index < weapon_token_ids_.size()) {
       draw_weapon(environment, player, slot);
       return;
@@ -1356,7 +1420,12 @@ void AttackDefenseBatch::draw_weapon_family(std::size_t environment,
       draw_random_target_weapon(environment, player, slot);
       return;
     }
-    draw_illness_weapon(environment, player, slot);
+    index -= random_target_weapon_token_ids_.size();
+    if (index < illness_weapon_token_ids_.size()) {
+      draw_illness_weapon(environment, player, slot);
+      return;
+    }
+    draw_miracle_block_weapon(environment, player, slot);
     return;
   }
   if (attack_twice_weapon_curriculum_) {
@@ -1652,7 +1721,8 @@ void AttackDefenseBatch::draw_resource(std::size_t environment,
       random_target_weapon_token_ids_.size() +
       illness_weapon_token_ids_.size() + illness_cure_token_ids_.size() +
       heaven_herb_token_ids_.size() + fever_mask_token_ids_.size() +
-      miracle_block_token_ids_.size();
+      miracle_block_token_ids_.size() + miracle_block_weapon_token_ids_.size() +
+      miracle_block_booster_token_ids_.size();
   auto index =
       static_cast<std::size_t>(next_random(environment) % catalog_size);
   if (index < weapon_token_ids_.size()) {
@@ -1735,6 +1805,16 @@ void AttackDefenseBatch::draw_resource(std::size_t environment,
     return;
   }
   index -= miracle_block_token_ids_.size();
+  if (index < miracle_block_weapon_token_ids_.size()) {
+    draw_miracle_block_weapon(environment, player, slot);
+    return;
+  }
+  index -= miracle_block_weapon_token_ids_.size();
+  if (index < miracle_block_booster_token_ids_.size()) {
+    draw_miracle_block_booster(environment, player, slot);
+    return;
+  }
+  index -= miracle_block_booster_token_ids_.size();
   if (index < booster_token_ids_.size()) {
     draw_booster(environment, player, slot);
     return;
@@ -1790,7 +1870,8 @@ bool AttackDefenseBatch::is_weapon_kind(std::uint8_t kind) noexcept {
          kind == kDynamicMpWeaponCardKind ||
          kind == kSameDamageWeaponCardKind ||
          kind == kAttackTwiceWeaponCardKind ||
-         kind == kRandomTargetWeaponCardKind || kind == kIllnessWeaponCardKind;
+         kind == kRandomTargetWeaponCardKind ||
+         kind == kIllnessWeaponCardKind || kind == kMiracleBlockWeaponCardKind;
 }
 
 bool AttackDefenseBatch::is_miracle_kind(std::uint8_t kind) noexcept {
@@ -1952,13 +2033,17 @@ void AttackDefenseBatch::reset_environment(std::size_t environment) {
       if (card_kinds[slot] == kWeaponCardKind) {
         draw_weapon_family(environment, player, slot);
       } else if (card_kinds[slot] == kAttackBoosterCardKind) {
-        if (additive_miracle_curriculum_ &&
-            next_random(environment) % (booster_token_ids_.size() +
-                                        additive_miracle_token_ids_.size()) >=
-                booster_token_ids_.size()) {
+        const auto booster_index = static_cast<std::size_t>(
+            next_random(environment) %
+            (booster_token_ids_.size() + additive_miracle_token_ids_.size() +
+             miracle_block_booster_token_ids_.size()));
+        if (booster_index < booster_token_ids_.size()) {
+          draw_booster(environment, player, slot);
+        } else if (booster_index < booster_token_ids_.size() +
+                                       additive_miracle_token_ids_.size()) {
           draw_additive_miracle(environment, player, slot);
         } else {
-          draw_booster(environment, player, slot);
+          draw_miracle_block_booster(environment, player, slot);
         }
       } else if (card_kinds[slot] == kAttackMiracleCardKind) {
         draw_attack_miracle(environment, player, slot);
@@ -2405,7 +2490,9 @@ void AttackDefenseBatch::step(ActionInput actions) {
         const auto kind = hand_card_kinds_by_player_[card_offset];
         selected_hand_mask_[environment * kHandSlots + slot] = true;
         const auto defense_value =
-            kind == kMiracleBlockArmorCardKind &&
+            (kind == kMiracleBlockArmorCardKind ||
+             kind == kMiracleBlockWeaponCardKind ||
+             kind == kMiracleBlockBoosterCardKind) &&
                     is_miracle_kind(pending_base_kinds_[environment])
                 ? pending_attacks_[environment]
                 : defense_value_for_card(card_offset);
@@ -2559,6 +2646,7 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
               selected_effects_[environment] != kAttackTwiceEffect &&
               selected_effects_[environment] != kRandomTargetEffect &&
               (kind == kAttackBoosterCardKind ||
+               kind == kMiracleBlockBoosterCardKind ||
                (kind == kAdditiveMiracleCardKind &&
                 selected_costs_[environment] + hand_costs_[card_offset] <= mp));
           continue;
@@ -2621,6 +2709,10 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
             defense_element_is_compatible(
                 pending_elements_[environment],
                 hand_elements_by_player_[card_offset]))) ||
+          (!selected_reflection &&
+           is_miracle_kind(pending_base_kinds_[environment]) &&
+           (kind == kMiracleBlockWeaponCardKind ||
+            kind == kMiracleBlockBoosterCardKind)) ||
           (!has_defense && !pending_reflected_[environment] &&
            pending_effects_[environment] != kSameDamageAttackEffect &&
            pending_effects_[environment] != kAttackTwiceEffect &&
@@ -3859,7 +3951,11 @@ FeverMaskResourceAttackDefenseBatch::FeverMaskResourceAttackDefenseBatch(
     ValueInput heaven_herb_mp_gains, TokenInput fever_mask_token_ids,
     ValueInput fever_mask_defense_values, ElementInput fever_mask_elements,
     TokenInput miracle_block_token_ids, ValueInput miracle_block_defense_values,
-    std::uint64_t seed, std::uint16_t initial_hp, std::uint16_t initial_mp)
+    TokenInput miracle_block_weapon_token_ids,
+    ValueInput miracle_block_weapon_attack_values,
+    TokenInput miracle_block_booster_token_ids,
+    ValueInput miracle_block_booster_values, std::uint64_t seed,
+    std::uint16_t initial_hp, std::uint16_t initial_mp)
     : AttackDefenseBatch(
           batch_size, weapon_token_ids, attack_values,
           copy_elements(weapon_elements, weapon_token_ids.shape(0), "weapon"),
@@ -3903,6 +3999,9 @@ FeverMaskResourceAttackDefenseBatch::FeverMaskResourceAttackDefenseBatch(
           heaven_herb_token_ids, heaven_herb_mp_gains, true,
           fever_mask_token_ids, fever_mask_defense_values, fever_mask_elements,
           miracle_block_token_ids.shape(0) > 0U, miracle_block_token_ids,
-          miracle_block_defense_values) {}
+          miracle_block_defense_values,
+          miracle_block_weapon_token_ids.shape(0) > 0U,
+          miracle_block_weapon_token_ids, miracle_block_weapon_attack_values,
+          miracle_block_booster_token_ids, miracle_block_booster_values) {}
 
 } // namespace godfield_sim

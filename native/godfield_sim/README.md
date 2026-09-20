@@ -9,7 +9,7 @@ uv sync --extra simulation --group dev
 
 Every included curriculum is intentionally incomplete and its generated
 trajectories are not eligible for live model promotion. The broadest current
-ruleset, `miracle-block-resource-hand`, includes elemental multi-card
+ruleset, `miracle-block-weapon-resource-hand`, includes elemental multi-card
 combat, HP/MP utility, fixed and chance miracles, Absorption, reusable additive
 miracles, evidence-bounded one-hop reflection, seven fixed ATK/DEF weapons, 14
 effect-free chance weapons, and the chance/defense dual role of Jinn's Rocking
@@ -35,6 +35,9 @@ Angel Gauntlet, Cap, Shield, and Armor retain their printed neutral DEF against
 weapons and fully block fixed, chance, or effect attack miracles regardless of
 element. The engine exposes the pending base card kind for diagnostics and the
 heuristic without changing the neural observation schema.
+Angel Knife, Sword, and Axe are consumable neutral base weapons that also fully
+block miracles. Angel Bow remains an additive +ATK15 weapon on attack while
+retaining the same miracle-only defense; none can defend ordinary weapon hits.
 
 The unobserved same-damage/reflection, attack-twice booster/reflection,
 random-target booster/reflection, and status/reflection interactions remain

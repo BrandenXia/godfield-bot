@@ -32,6 +32,7 @@ from godfield_bot.reference import (
     verified_illness_cure_miracles,
     verified_illness_cure_sundries,
     verified_illness_weapon_cards,
+    verified_miracle_block_armor,
     verified_random_target_weapon_cards,
     verified_reflection_armor_cards,
     verified_reflection_weapon_cards,
@@ -60,8 +61,10 @@ ILLNESS_WEAPON_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-illness-weapon-resource
 ILLNESS_CURE_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-illness-cure-resource-combo-v1"
 HEAVEN_HERB_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-heaven-herb-resource-combo-v1"
 FEVER_MASK_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-fever-mask-resource-combo-v1"
+MIRACLE_BLOCK_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-miracle-block-resource-combo-v1"
 FORGIVE_ACTION_INDEX = 19
 CONFIRM_ACTION_INDEX = 20
+MIRACLE_ATTACK_CARD_KINDS = frozenset({6, 8, 9})
 
 
 class SimulationPolicyError(RuntimeError):
@@ -84,6 +87,7 @@ class CurriculumHeuristic:
     illness_cures: dict[int, tuple[int, int]] | None = None
     heaven_herbs: dict[int, int] | None = None
     self_fever_defenses: frozenset[int] = frozenset()
+    miracle_block_defenses: frozenset[int] = frozenset()
     policy_id: str = HEURISTIC_POLICY_ID
 
 
@@ -110,12 +114,26 @@ def _attack_heuristic_value(
     return round(value / 2) if token in random_target_attacks else value
 
 
+def _defense_heuristic_value(
+    token: int,
+    policy: CurriculumHeuristic,
+    pending_attack: int,
+    pending_base_kind: int,
+) -> int:
+    if pending_base_kind in MIRACLE_ATTACK_CARD_KINDS and token in policy.miracle_block_defenses:
+        return pending_attack
+    return policy.defenses[token]
+
+
 def build_curriculum_heuristic(
     snapshot: BibleSnapshot,
     vocabulary: ArtifactVocabulary,
     *,
     ruleset: AttackDefenseRuleset = "fixed-role",
 ) -> CurriculumHeuristic:
+    miracle_block_ruleset = ruleset == "miracle-block-resource-hand"
+    if miracle_block_ruleset:
+        ruleset = "fever-mask-resource-hand"
     boosters: dict[str, int] = {}
     dual_role_defenses: dict[str, int] = {}
     chance_weapon_slugs: set[str] = set()
@@ -554,6 +572,19 @@ def build_curriculum_heuristic(
             }
         )
         self_fever_defenses.update(vocabulary.token_id("armor", slug) for slug in fever_masks)
+    miracle_block_defenses: set[int] = set()
+    if miracle_block_ruleset:
+        miracle_block_armor = verified_miracle_block_armor(snapshot)
+        defense_token_values.update(
+            {
+                vocabulary.token_id("armor", slug): defense
+                for slug, defense in miracle_block_armor.items()
+            }
+        )
+        miracle_block_defenses.update(
+            vocabulary.token_id("armor", slug) for slug in miracle_block_armor
+        )
+        policy_id = MIRACLE_BLOCK_RESOURCE_HEURISTIC_POLICY_ID
     return CurriculumHeuristic(
         attacks=attack_token_values,
         defenses=defense_token_values,
@@ -587,6 +618,7 @@ def build_curriculum_heuristic(
         illness_cures=illness_cures,
         heaven_herbs=heaven_herbs,
         self_fever_defenses=frozenset(self_fever_defenses),
+        miracle_block_defenses=frozenset(miracle_block_defenses),
         policy_id=policy_id,
     )
 
@@ -752,6 +784,7 @@ def curriculum_heuristic_actions(
             continue
 
         pending_attack = int(batch.pending_attacks[environment])
+        pending_base_kind = int(batch.pending_base_kinds[environment])
         if batch.combo:
             selected_defense = int(batch.selected_values[environment])
             if selected_defense >= pending_attack and selected_defense > 0:
@@ -764,7 +797,15 @@ def curriculum_heuristic_actions(
                 if legal[action] and int(hand[action - 1]) in reflection_defenses
             ]
             candidates = [
-                (policy.defenses[int(hand[action - 1])], action)
+                (
+                    _defense_heuristic_value(
+                        int(hand[action - 1]),
+                        policy,
+                        pending_attack,
+                        pending_base_kind,
+                    ),
+                    action,
+                )
                 for action in range(1, 10)
                 if legal[action] and int(hand[action - 1]) in policy.defenses
             ]
@@ -808,7 +849,15 @@ def curriculum_heuristic_actions(
                 )
             continue
         candidates = [
-            (policy.defenses[int(hand[action - 1])], action)
+            (
+                _defense_heuristic_value(
+                    int(hand[action - 1]),
+                    policy,
+                    pending_attack,
+                    pending_base_kind,
+                ),
+                action,
+            )
             for action in range(1, 10)
             if legal[action] and int(hand[action - 1]) in policy.defenses
         ]

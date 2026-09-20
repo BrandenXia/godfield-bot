@@ -148,6 +148,15 @@ inline constexpr const char *kFeverMaskResourceAttackDefenseRulesetId =
     "same-damage-weapon-attack-twice-weapon-random-target-weapon-illness-"
     "weapon-illness-cure-heaven-herb-fever-mask-additive-reflection-dual-"
     "role-resource-miracle-attack-defense-redraw-duel-v1";
+inline constexpr std::uint32_t
+    kMiracleBlockResourceAttackDefenseKernelSchemaVersion = 1;
+inline constexpr std::uint32_t
+    kMiracleBlockResourceAttackDefenseObservationSchemaVersion = 7;
+inline constexpr const char *kMiracleBlockResourceAttackDefenseRulesetId =
+    "plain-elemental-combo-stochastic-chance-absorption-weapon-dynamic-mp-"
+    "same-damage-weapon-attack-twice-weapon-random-target-weapon-illness-"
+    "weapon-illness-cure-heaven-herb-fever-mask-miracle-block-additive-"
+    "reflection-dual-role-resource-miracle-attack-defense-redraw-duel-v1";
 inline constexpr std::size_t kWeaponSlots = 5;
 inline constexpr std::size_t kArmorSlots = kHandSlots - kWeaponSlots;
 inline constexpr std::size_t kComboWeaponSlots = 4;
@@ -249,6 +258,9 @@ public:
   [[nodiscard]] bool fever_mask_curriculum() const noexcept {
     return fever_mask_curriculum_;
   }
+  [[nodiscard]] bool miracle_block_curriculum() const noexcept {
+    return miracle_block_curriculum_;
+  }
   [[nodiscard]] std::uint16_t initial_mp() const noexcept {
     return initial_mp_;
   }
@@ -272,6 +284,7 @@ public:
   [[nodiscard]] UInt8_1D phases_view() const;
   [[nodiscard]] UInt16_1D pending_attacks_view() const;
   [[nodiscard]] UInt8_1D pending_elements_view() const;
+  [[nodiscard]] UInt8_1D pending_base_kinds_view() const;
   [[nodiscard]] UInt8_1D pending_strikes_remaining_view() const;
   [[nodiscard]] Bool1D pending_reflected_view() const;
   [[nodiscard]] Bool2D selected_hand_mask_view() const;
@@ -373,7 +386,10 @@ protected:
       ValueInput heaven_herb_mp_gains = {}, bool fever_mask_curriculum = false,
       TokenInput fever_mask_token_ids = {},
       ValueInput fever_mask_defense_values = {},
-      ElementInput fever_mask_elements = {});
+      ElementInput fever_mask_elements = {},
+      bool miracle_block_curriculum = false,
+      TokenInput miracle_block_token_ids = {},
+      ValueInput miracle_block_defense_values = {});
 
 private:
   static constexpr std::size_t kMaximumBatchSize = 1'000'000;
@@ -438,11 +454,14 @@ private:
                         std::size_t slot);
   void draw_fever_mask(std::size_t environment, std::size_t player,
                        std::size_t slot);
+  void draw_miracle_block_armor(std::size_t environment, std::size_t player,
+                                std::size_t slot);
   void draw_weapon_family(std::size_t environment, std::size_t player,
                           std::size_t slot);
   void draw_armor_family(std::size_t environment, std::size_t player,
                          std::size_t slot);
   [[nodiscard]] static bool is_weapon_kind(std::uint8_t kind) noexcept;
+  [[nodiscard]] static bool is_miracle_kind(std::uint8_t kind) noexcept;
   [[nodiscard]] std::uint16_t
   defense_value_for_card(std::size_t card_offset) const noexcept;
   [[nodiscard]] bool has_weapon(std::size_t environment,
@@ -489,6 +508,7 @@ private:
   bool illness_cure_curriculum_;
   bool heaven_herb_curriculum_;
   bool fever_mask_curriculum_;
+  bool miracle_block_curriculum_;
   std::size_t global_feature_count_;
   std::uint16_t initial_mp_;
   std::vector<std::uint32_t> weapon_token_ids_;
@@ -571,6 +591,8 @@ private:
   std::vector<std::uint32_t> fever_mask_token_ids_;
   std::vector<std::uint16_t> fever_mask_defense_values_;
   std::vector<std::uint8_t> fever_mask_elements_;
+  std::vector<std::uint32_t> miracle_block_token_ids_;
+  std::vector<std::uint16_t> miracle_block_defense_values_;
   std::vector<std::uint64_t> rng_states_;
   std::vector<std::uint64_t> episode_ids_;
   std::vector<std::uint16_t> hit_points_;
@@ -1295,7 +1317,9 @@ public:
       ValueInput illness_cure_scopes, TokenInput heaven_herb_token_ids,
       ValueInput heaven_herb_mp_gains, TokenInput fever_mask_token_ids,
       ValueInput fever_mask_defense_values, ElementInput fever_mask_elements,
-      std::uint64_t seed, std::uint16_t initial_hp, std::uint16_t initial_mp);
+      TokenInput miracle_block_token_ids,
+      ValueInput miracle_block_defense_values, std::uint64_t seed,
+      std::uint16_t initial_hp, std::uint16_t initial_mp);
 };
 
 } // namespace godfield_sim

@@ -1462,6 +1462,7 @@ def models_train_simulation(
             "illness-cure-resource-hand",
             "heaven-herb-resource-hand",
             "fever-mask-resource-hand",
+            "miracle-block-resource-hand",
         ],
         typer.Option(help="Attack/defense hand-distribution curriculum."),
     ] = "fixed-role",
@@ -1615,6 +1616,7 @@ def models_evaluate_simulation(
             "illness-cure-resource-hand",
             "heaven-herb-resource-hand",
             "fever-mask-resource-hand",
+            "miracle-block-resource-hand",
         ],
         typer.Option(help="Attack/defense hand-distribution curriculum."),
     ] = "fixed-role",
@@ -1859,6 +1861,7 @@ def simulation_benchmark(
             "illness-cure-resource-attack-defense",
             "heaven-herb-resource-attack-defense",
             "fever-mask-resource-attack-defense",
+            "miracle-block-resource-attack-defense",
         ],
         typer.Option(help="Native curriculum ruleset to benchmark."),
     ] = "attack-defense",
@@ -1901,8 +1904,11 @@ def simulation_benchmark(
                 "illness-cure-resource-hand",
                 "heaven-herb-resource-hand",
                 "fever-mask-resource-hand",
+                "miracle-block-resource-hand",
             ]
-            if ruleset == "fever-mask-resource-attack-defense":
+            if ruleset == "miracle-block-resource-attack-defense":
+                attack_defense_ruleset = "miracle-block-resource-hand"
+            elif ruleset == "fever-mask-resource-attack-defense":
                 attack_defense_ruleset = "fever-mask-resource-hand"
             elif ruleset == "heaven-herb-resource-attack-defense":
                 attack_defense_ruleset = "heaven-herb-resource-hand"

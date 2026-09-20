@@ -31,6 +31,7 @@ from godfield_bot.reference import (
     verified_illness_cure_miracles,
     verified_illness_cure_sundries,
     verified_illness_weapon_cards,
+    verified_miracle_block_armor,
     verified_random_target_weapon_cards,
     verified_reflection_armor_cards,
     verified_reflection_weapon_cards,
@@ -193,6 +194,12 @@ def test_committed_snapshot_matches_validated_live_catalog() -> None:
     }
     assert verified_heaven_herb_cards(snapshot) == {"heaven-herb": 20}
     assert verified_fever_mask_armor(snapshot) == {"fever-mask": (10, "fire")}
+    assert verified_miracle_block_armor(snapshot) == {
+        "angel-armor": 15,
+        "angel-cap": 11,
+        "angel-gauntlet": 9,
+        "angel-shield": 13,
+    }
     assert verified_effect_attack_miracle_cards(snapshot) == {
         "absorption": (10, 10, "light", "absorbHP")
     }

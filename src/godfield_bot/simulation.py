@@ -37,6 +37,7 @@ from godfield_bot.reference import (
     verified_illness_cure_miracles,
     verified_illness_cure_sundries,
     verified_illness_weapon_cards,
+    verified_miracle_block_armor,
     verified_random_target_weapon_cards,
     verified_reflection_armor_cards,
     verified_reflection_weapon_cards,
@@ -68,6 +69,7 @@ AttackDefenseRuleset = Literal[
     "illness-cure-resource-hand",
     "heaven-herb-resource-hand",
     "fever-mask-resource-hand",
+    "miracle-block-resource-hand",
 ]
 
 
@@ -122,6 +124,7 @@ class SimulationMetadata(BaseModel):
         "elemental-illness-cure-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-heaven-herb-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-fever-mask-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
+        "elemental-miracle-block-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
     ] = "uniform-redraw-with-replacement"
     promotion_eligible: Literal[False] = False
 
@@ -272,6 +275,27 @@ def _fever_mask_catalog(
     ]
 
 
+def _miracle_block_catalog(
+    snapshot: BibleSnapshot,
+    vocabulary: ArtifactVocabulary,
+) -> list[dict[str, object]]:
+    armor = verified_miracle_block_armor(snapshot)
+    if not armor:
+        raise ValueError("accepted snapshot contains no supported miracle-block armor")
+    return [
+        {
+            "defense": defense,
+            "effect": "blockMiracle",
+            "element": "non-element",
+            "element_id": COMBAT_ELEMENT_IDS["non-element"],
+            "kind": "miracle-block-armor",
+            "slug": slug,
+            "token_id": vocabulary.token_id("armor", slug),
+        }
+        for slug, defense in sorted(armor.items())
+    ]
+
+
 def create_fixed_attack_simulation(
     snapshot_path: Path,
     *,
@@ -386,6 +410,9 @@ def create_attack_defense_simulation(
             ILLNESS_WEAPON_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
             ILLNESS_WEAPON_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
             ILLNESS_WEAPON_RESOURCE_ATTACK_DEFENSE_RULESET_ID,
+            MIRACLE_BLOCK_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
+            MIRACLE_BLOCK_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
+            MIRACLE_BLOCK_RESOURCE_ATTACK_DEFENSE_RULESET_ID,
             MIXED_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
             MIXED_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
             MIXED_ATTACK_DEFENSE_RULESET_ID,
@@ -421,6 +448,7 @@ def create_attack_defense_simulation(
             HeavenHerbResourceAttackDefenseBatch,
             IllnessCureResourceAttackDefenseBatch,
             IllnessWeaponResourceAttackDefenseBatch,
+            MiracleBlockResourceAttackDefenseBatch,
             RandomTargetWeaponResourceAttackDefenseBatch,
             ReflectionResourceAttackDefenseBatch,
             ReflectionWeaponResourceAttackDefenseBatch,
@@ -435,11 +463,15 @@ def create_attack_defense_simulation(
         illness_cure_batch_type = IllnessCureResourceAttackDefenseBatch
         heaven_herb_batch_type = HeavenHerbResourceAttackDefenseBatch
         fever_batch_type = FeverMaskResourceAttackDefenseBatch
+        miracle_block_batch_type = MiracleBlockResourceAttackDefenseBatch
     except ImportError as error:
         raise SimulationUnavailableError(
             "native simulation is unavailable; run `uv sync --extra simulation --group dev`"
         ) from error
 
+    miracle_block_ruleset = ruleset == "miracle-block-resource-hand"
+    if miracle_block_ruleset:
+        ruleset = "fever-mask-resource-hand"
     snapshot = BibleSnapshot.model_validate_json(snapshot_path.read_text(encoding="utf-8"))
     vocabulary = ArtifactVocabulary.from_snapshot(snapshot)
     fever_mask_ruleset = ruleset == "fever-mask-resource-hand"
@@ -728,6 +760,9 @@ def create_attack_defense_simulation(
                 illness_cure_catalog: list[dict[str, object]] = []
                 heaven_herb_catalog: list[dict[str, object]] = []
                 fever_mask_catalog: list[dict[str, object]] = []
+                miracle_block_catalog = (
+                    _miracle_block_catalog(snapshot, vocabulary) if miracle_block_ruleset else []
+                )
                 if ruleset in {
                     "expanded-resource-hand",
                     "reflection-resource-hand",
@@ -1491,7 +1526,12 @@ def create_attack_defense_simulation(
                                                                                 vocabulary,
                                                                             )
                                                                         )
-                                                                        batch = fever_batch_type(
+                                                                        batch_type = (
+                                                                            miracle_block_batch_type
+                                                                            if miracle_block_ruleset
+                                                                            else fever_batch_type
+                                                                        )
+                                                                        batch = batch_type(
                                                                             *heaven_herb_args,
                                                                             np.asarray(
                                                                                 _catalog_column(
@@ -1513,6 +1553,20 @@ def create_attack_defense_simulation(
                                                                                     "element_id",
                                                                                 ),
                                                                                 dtype=np.uint8,
+                                                                            ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    miracle_block_catalog,
+                                                                                    "token_id",
+                                                                                ),
+                                                                                dtype=np.uint32,
+                                                                            ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    miracle_block_catalog,
+                                                                                    "defense",
+                                                                                ),
+                                                                                dtype=np.uint16,
                                                                             ),
                                                                             seed,
                                                                             initial_hp,
@@ -1693,6 +1747,7 @@ def create_attack_defense_simulation(
                     + illness_cure_catalog
                     + heaven_herb_catalog
                     + fever_mask_catalog
+                    + miracle_block_catalog
                 )
             else:
                 batch = ResourceAttackDefenseBatch(
@@ -1770,11 +1825,24 @@ def create_attack_defense_simulation(
         "elemental-illness-cure-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-heaven-herb-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-fever-mask-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
+        "elemental-miracle-block-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
     ]
     action_semantics: Literal["atomic-attack-defense-macro", "sequential-combo-selection"] = (
         "atomic-attack-defense-macro"
     )
-    if ruleset == "fever-mask-resource-hand":
+    if miracle_block_ruleset:
+        kernel_schema_version = MIRACLE_BLOCK_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION
+        observation_schema_version = (
+            MIRACLE_BLOCK_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION
+        )
+        ruleset_id = MIRACLE_BLOCK_RESOURCE_ATTACK_DEFENSE_RULESET_ID
+        global_feature_count = ILLNESS_GLOBAL_FEATURE_COUNT
+        sampling_distribution = (
+            "elemental-miracle-block-resource-2-1-2-1-1-1-1-"
+            "initial-uniform-redraw-with-base-liveness"
+        )
+        action_semantics = "sequential-combo-selection"
+    elif ruleset == "fever-mask-resource-hand":
         kernel_schema_version = FEVER_MASK_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION
         observation_schema_version = FEVER_MASK_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION
         ruleset_id = FEVER_MASK_RESOURCE_ATTACK_DEFENSE_RULESET_ID

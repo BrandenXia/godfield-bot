@@ -48,6 +48,7 @@ MiracleBlockResourceAttackDefenseBatch = godfield_sim.MiracleBlockResourceAttack
 MiracleBlockWeaponResourceAttackDefenseBatch = (
     godfield_sim.MiracleBlockWeaponResourceAttackDefenseBatch
 )
+MiracleBounceResourceAttackDefenseBatch = godfield_sim.MiracleBounceResourceAttackDefenseBatch
 
 SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-07" / "bible.json"
 
@@ -671,6 +672,7 @@ def illness_cure_resource_batch(
     fever_mask: bool = False,
     miracle_block: bool = False,
     miracle_block_weapon: bool = False,
+    miracle_bounce: bool = False,
     miracle_block_defense: int = 15,
 ) -> (
     IllnessCureResourceAttackDefenseBatch
@@ -678,6 +680,7 @@ def illness_cure_resource_batch(
     | FeverMaskResourceAttackDefenseBatch
     | MiracleBlockResourceAttackDefenseBatch
     | MiracleBlockWeaponResourceAttackDefenseBatch
+    | MiracleBounceResourceAttackDefenseBatch
 ):
     base_args = list(absorption_weapon_resource_args())
     base_args[8] = np.asarray([armor_defense], dtype=np.uint16)
@@ -706,20 +709,24 @@ def illness_cure_resource_batch(
         np.asarray([0, 0, 2, 5], dtype=np.uint16),
         np.asarray([1, 2, 1, 2], dtype=np.uint16),
     )
-    if heaven_herb or fever_mask or miracle_block or miracle_block_weapon:
+    if heaven_herb or fever_mask or miracle_block or miracle_block_weapon or miracle_bounce:
         heaven_args = (
             *curriculum_args,
             np.asarray([29], dtype=np.uint32),
             np.asarray([20], dtype=np.uint16),
         )
-        if fever_mask or miracle_block or miracle_block_weapon:
+        if fever_mask or miracle_block or miracle_block_weapon or miracle_bounce:
             batch_type = (
-                MiracleBlockWeaponResourceAttackDefenseBatch
-                if miracle_block_weapon
+                MiracleBounceResourceAttackDefenseBatch
+                if miracle_bounce
                 else (
-                    MiracleBlockResourceAttackDefenseBatch
-                    if miracle_block
-                    else FeverMaskResourceAttackDefenseBatch
+                    MiracleBlockWeaponResourceAttackDefenseBatch
+                    if miracle_block_weapon
+                    else (
+                        MiracleBlockResourceAttackDefenseBatch
+                        if miracle_block
+                        else FeverMaskResourceAttackDefenseBatch
+                    )
                 )
             )
             return batch_type(
@@ -728,22 +735,28 @@ def illness_cure_resource_batch(
                 np.asarray([10], dtype=np.uint16),
                 np.asarray([godfield_sim.ELEMENT_FIRE], dtype=np.uint8),
                 np.asarray([31], dtype=np.uint32)
-                if miracle_block or miracle_block_weapon
+                if miracle_block or miracle_block_weapon or miracle_bounce
                 else np.asarray([], dtype=np.uint32),
                 np.asarray([miracle_block_defense], dtype=np.uint16)
-                if miracle_block or miracle_block_weapon
+                if miracle_block or miracle_block_weapon or miracle_bounce
                 else np.asarray([], dtype=np.uint16),
                 np.asarray([32, 33, 34], dtype=np.uint32)
-                if miracle_block_weapon
+                if miracle_block_weapon or miracle_bounce
                 else np.asarray([], dtype=np.uint32),
                 np.asarray([11, 13, 15], dtype=np.uint16)
-                if miracle_block_weapon
+                if miracle_block_weapon or miracle_bounce
                 else np.asarray([], dtype=np.uint16),
                 np.asarray([35], dtype=np.uint32)
-                if miracle_block_weapon
+                if miracle_block_weapon or miracle_bounce
                 else np.asarray([], dtype=np.uint32),
                 np.asarray([15], dtype=np.uint16)
-                if miracle_block_weapon
+                if miracle_block_weapon or miracle_bounce
+                else np.asarray([], dtype=np.uint16),
+                np.asarray([36], dtype=np.uint32)
+                if miracle_bounce
+                else np.asarray([], dtype=np.uint32),
+                np.asarray([9], dtype=np.uint16)
+                if miracle_bounce
                 else np.asarray([], dtype=np.uint16),
                 seed,
                 initial_hp,
@@ -1380,6 +1393,35 @@ def test_miracle_block_weapon_factory_adds_verified_dual_role_family() -> None:
     assert np.all(batch.hand_elements[angel_weapons | angel_bows] == 0)
 
 
+def test_miracle_bounce_factory_adds_verified_sky_armor_family() -> None:
+    simulation = create_attack_defense_simulation(
+        SNAPSHOT_PATH,
+        batch_size=512,
+        ruleset="miracle-bounce-resource-hand",
+    )
+    batch = simulation.batch
+
+    assert simulation.metadata.observation_schema_version == 7
+    assert simulation.metadata.ruleset_id == (
+        "plain-elemental-combo-stochastic-chance-absorption-weapon-dynamic-mp-"
+        "same-damage-weapon-attack-twice-weapon-random-target-weapon-illness-"
+        "weapon-illness-cure-heaven-herb-fever-mask-miracle-block-armor-weapon-"
+        "miracle-bounce-armor-additive-reflection-dual-role-resource-miracle-"
+        "attack-defense-redraw-duel-v1"
+    )
+    assert simulation.metadata.rule_catalog_size == 180
+    assert simulation.metadata.global_feature_count == 16
+    assert simulation.metadata.sampling_distribution == (
+        "elemental-miracle-bounce-resource-2-1-2-1-1-1-1-"
+        "initial-uniform-redraw-with-base-liveness"
+    )
+    assert batch.miracle_block_weapon_curriculum is True
+    assert batch.miracle_bounce_curriculum is True
+    sky_armor = batch.hand_card_kinds == godfield_sim.CARD_KIND_MIRACLE_BOUNCE_ARMOR
+    assert np.any(sky_armor)
+    assert np.all(batch.hand_elements[sky_armor] == godfield_sim.ELEMENT_NON_ELEMENT)
+
+
 def miracle_block_defense_batch(
     attack_token: int,
     *,
@@ -1409,6 +1451,105 @@ def miracle_block_defense_batch(
             continue
         return batch, attacker, int(angel_slots[0])
     raise AssertionError("fixture seeds did not expose attack into miracle-block armor")
+
+
+def miracle_bounce_defense_batch(
+    attack_token: int,
+) -> tuple[MiracleBounceResourceAttackDefenseBatch, int, int]:
+    for seed in range(32768):
+        batch = illness_cure_resource_batch(seed=seed, miracle_bounce=True)
+        attacker = int(batch.active_players[0])
+        attack_slots = np.flatnonzero(batch.hand_token_ids[0] == attack_token)
+        if not attack_slots.size:
+            continue
+        attack_action = int(attack_slots[0]) + 1
+        if not batch.action_mask[0, attack_action]:
+            continue
+        batch.step(np.asarray([attack_action], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        if batch.phases[0] != godfield_sim.PHASE_DEFENSE:
+            continue
+        sky_slots = np.flatnonzero(batch.hand_token_ids[0] == 36)
+        if sky_slots.size:
+            return batch, attacker, int(sky_slots[0])
+    raise AssertionError("fixture seeds did not expose attack into miracle-bounce armor")
+
+
+@pytest.mark.parametrize("attack_token", [7, 9, 10])
+def test_sky_armor_bounces_attack_miracle_to_random_duel_player(attack_token: int) -> None:
+    batch, _attacker, sky_slot = miracle_bounce_defense_batch(attack_token)
+    pending_attack = int(batch.pending_attacks[0])
+
+    assert batch.action_mask[0, sky_slot + 1]
+    batch.step(np.asarray([sky_slot + 1], dtype=np.int64))
+    batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+
+    assert batch.phases[0] == godfield_sim.PHASE_DEFENSE
+    assert batch.pending_attacks[0] == pending_attack
+    assert batch.pending_bounced[0]
+    assert batch.active_players[0] in {0, 1}
+
+
+def test_sky_armor_uses_printed_defense_against_weapon() -> None:
+    batch, _attacker, sky_slot = miracle_bounce_defense_batch(2)
+
+    assert batch.pending_base_kinds[0] == godfield_sim.CARD_KIND_WEAPON
+    assert batch.action_mask[0, sky_slot + 1]
+    batch.step(np.asarray([sky_slot + 1], dtype=np.int64))
+    assert batch.selected_values[0] == 9
+    batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+
+    assert not batch.pending_bounced[0]
+    assert round(float(batch.player_features[0, 0, 0]) * 100) == 39
+
+
+def test_miracle_bounce_samples_both_living_duel_targets() -> None:
+    targets: set[int] = set()
+    for seed in range(32768):
+        batch = illness_cure_resource_batch(seed=seed, miracle_bounce=True)
+        attack_slots = np.flatnonzero(batch.hand_token_ids[0] == 7)
+        if not attack_slots.size:
+            continue
+        attack_action = int(attack_slots[0]) + 1
+        if not batch.action_mask[0, attack_action]:
+            continue
+        batch.step(np.asarray([attack_action], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        sky_slots = np.flatnonzero(batch.hand_token_ids[0] == 36)
+        if not sky_slots.size:
+            continue
+        batch.step(np.asarray([int(sky_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        targets.add(int(batch.active_players[0]))
+        if targets == {0, 1}:
+            return
+    raise AssertionError(f"bounce did not sample both duel targets: {targets}")
+
+
+def test_miracle_bounce_is_one_hop_bounded() -> None:
+    for seed in range(32768):
+        batch = illness_cure_resource_batch(seed=seed, miracle_bounce=True)
+        attack_slots = np.flatnonzero(batch.hand_token_ids[0] == 7)
+        if not attack_slots.size:
+            continue
+        attack_action = int(attack_slots[0]) + 1
+        if not batch.action_mask[0, attack_action]:
+            continue
+        batch.step(np.asarray([attack_action], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        first_sky = np.flatnonzero(batch.hand_token_ids[0] == 36)
+        if not first_sky.size:
+            continue
+        batch.step(np.asarray([int(first_sky[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        second_sky = np.flatnonzero(batch.hand_token_ids[0] == 36)
+        if not second_sky.size:
+            continue
+
+        assert batch.pending_bounced[0]
+        assert not batch.action_mask[0, int(second_sky[0]) + 1]
+        return
+    raise AssertionError("fixture seeds did not expose a second Sky armor after bounce")
 
 
 @pytest.mark.parametrize(
@@ -2949,6 +3090,20 @@ def test_resource_heuristics_index_miracle_attacks_in_the_miracle_namespace() ->
     assert miracle_block_weapon.defenses[angel_bow] == 0
     assert miracle_block_weapon.policy_id == "evidenced-miracle-block-weapon-resource-combo-v1"
 
+    miracle_bounce = build_curriculum_heuristic(
+        snapshot,
+        vocabulary,
+        ruleset="miracle-bounce-resource-hand",
+    )
+    sky_tokens = {
+        vocabulary.token_id("armor", slug)
+        for slug in ("sky-armor", "sky-boots", "sky-gauntlet", "sky-helm", "sky-shield")
+    }
+    assert miracle_bounce.miracle_block_defenses == miracle_block_weapon.miracle_block_defenses
+    assert miracle_bounce.miracle_bounce_defenses == sky_tokens
+    assert miracle_bounce.defenses[vocabulary.token_id("armor", "sky-armor")] == 9
+    assert miracle_bounce.policy_id == "evidenced-miracle-bounce-resource-combo-v1"
+
 
 def test_fever_mask_heuristic_uses_plain_armor_when_curse_is_not_needed() -> None:
     batch, _attacker, fever_slot, armor_slot = fever_mask_defense_batch(require_plain_armor=True)
@@ -3032,6 +3187,24 @@ def test_miracle_block_heuristic_keeps_listed_defense_for_weapons() -> None:
     assert action == angel_slot + 1
     batch.step(np.asarray([action], dtype=np.int64))
     assert batch.selected_values[0] == 5
+
+
+def test_miracle_bounce_heuristic_values_sky_armor_as_full_redirect() -> None:
+    batch, _attacker, sky_slot = miracle_bounce_defense_batch(7)
+    simulation = type("MiracleBounceSimulation", (), {"batch": batch})()
+    policy = CurriculumHeuristic(
+        attacks={2: 10, 7: 25},
+        defenses={36: 9},
+        miracle_bounce_defenses=frozenset({36}),
+    )
+
+    action = curriculum_heuristic_actions(
+        simulation,
+        np.asarray([0], dtype=np.int64),
+        policy,
+    )[0]
+
+    assert action == sky_slot + 1
 
 
 def test_illness_cure_heuristic_prioritizes_a_legal_cure() -> None:

@@ -167,6 +167,16 @@ inline constexpr const char *kMiracleBlockWeaponResourceAttackDefenseRulesetId =
     "weapon-illness-cure-heaven-herb-fever-mask-miracle-block-armor-weapon-"
     "additive-reflection-dual-role-resource-miracle-attack-defense-redraw-"
     "duel-v1";
+inline constexpr std::uint32_t
+    kMiracleBounceResourceAttackDefenseKernelSchemaVersion = 1;
+inline constexpr std::uint32_t
+    kMiracleBounceResourceAttackDefenseObservationSchemaVersion = 7;
+inline constexpr const char *kMiracleBounceResourceAttackDefenseRulesetId =
+    "plain-elemental-combo-stochastic-chance-absorption-weapon-dynamic-mp-"
+    "same-damage-weapon-attack-twice-weapon-random-target-weapon-illness-"
+    "weapon-illness-cure-heaven-herb-fever-mask-miracle-block-armor-weapon-"
+    "miracle-bounce-armor-additive-reflection-dual-role-resource-miracle-"
+    "attack-defense-redraw-duel-v1";
 inline constexpr std::size_t kWeaponSlots = 5;
 inline constexpr std::size_t kArmorSlots = kHandSlots - kWeaponSlots;
 inline constexpr std::size_t kComboWeaponSlots = 4;
@@ -274,6 +284,9 @@ public:
   [[nodiscard]] bool miracle_block_weapon_curriculum() const noexcept {
     return miracle_block_weapon_curriculum_;
   }
+  [[nodiscard]] bool miracle_bounce_curriculum() const noexcept {
+    return miracle_bounce_curriculum_;
+  }
   [[nodiscard]] std::uint16_t initial_mp() const noexcept {
     return initial_mp_;
   }
@@ -300,6 +313,7 @@ public:
   [[nodiscard]] UInt8_1D pending_base_kinds_view() const;
   [[nodiscard]] UInt8_1D pending_strikes_remaining_view() const;
   [[nodiscard]] Bool1D pending_reflected_view() const;
+  [[nodiscard]] Bool1D pending_bounced_view() const;
   [[nodiscard]] Bool2D selected_hand_mask_view() const;
   [[nodiscard]] UInt8_1D selected_counts_view() const;
   [[nodiscard]] UInt16_1D selected_values_view() const;
@@ -407,7 +421,10 @@ protected:
       TokenInput miracle_block_weapon_token_ids = {},
       ValueInput miracle_block_weapon_attack_values = {},
       TokenInput miracle_block_booster_token_ids = {},
-      ValueInput miracle_block_booster_values = {});
+      ValueInput miracle_block_booster_values = {},
+      bool miracle_bounce_curriculum = false,
+      TokenInput miracle_bounce_token_ids = {},
+      ValueInput miracle_bounce_defense_values = {});
 
 private:
   static constexpr std::size_t kMaximumBatchSize = 1'000'000;
@@ -478,6 +495,8 @@ private:
                                  std::size_t slot);
   void draw_miracle_block_booster(std::size_t environment, std::size_t player,
                                   std::size_t slot);
+  void draw_miracle_bounce_armor(std::size_t environment, std::size_t player,
+                                 std::size_t slot);
   void draw_weapon_family(std::size_t environment, std::size_t player,
                           std::size_t slot);
   void draw_armor_family(std::size_t environment, std::size_t player,
@@ -496,6 +515,7 @@ private:
   void resolve_defense(std::size_t environment, std::size_t defender,
                        std::uint16_t defense, std::uint8_t defense_effect = 0U);
   void resolve_reflection(std::size_t environment, std::size_t reflector);
+  void resolve_bounce(std::size_t environment);
   void terminate_player(std::size_t environment, std::size_t loser) noexcept;
   [[nodiscard]] bool apply_illness(std::size_t environment, std::size_t player,
                                    std::uint8_t stage) noexcept;
@@ -532,6 +552,7 @@ private:
   bool fever_mask_curriculum_;
   bool miracle_block_curriculum_;
   bool miracle_block_weapon_curriculum_;
+  bool miracle_bounce_curriculum_;
   std::size_t global_feature_count_;
   std::uint16_t initial_mp_;
   std::vector<std::uint32_t> weapon_token_ids_;
@@ -620,6 +641,8 @@ private:
   std::vector<std::uint16_t> miracle_block_weapon_attack_values_;
   std::vector<std::uint32_t> miracle_block_booster_token_ids_;
   std::vector<std::uint16_t> miracle_block_booster_values_;
+  std::vector<std::uint32_t> miracle_bounce_token_ids_;
+  std::vector<std::uint16_t> miracle_bounce_defense_values_;
   std::vector<std::uint64_t> rng_states_;
   std::vector<std::uint64_t> episode_ids_;
   std::vector<std::uint16_t> hit_points_;
@@ -642,6 +665,7 @@ private:
   std::vector<std::uint8_t> pending_strikes_remaining_;
   std::vector<std::uint8_t> pending_base_kinds_;
   std::unique_ptr<bool[]> pending_reflected_;
+  std::unique_ptr<bool[]> pending_bounced_;
   std::unique_ptr<bool[]> selected_hand_mask_;
   std::vector<std::uint8_t> selected_counts_;
   std::vector<std::uint16_t> selected_values_;
@@ -1349,7 +1373,9 @@ public:
       TokenInput miracle_block_weapon_token_ids,
       ValueInput miracle_block_weapon_attack_values,
       TokenInput miracle_block_booster_token_ids,
-      ValueInput miracle_block_booster_values, std::uint64_t seed,
+      ValueInput miracle_block_booster_values,
+      TokenInput miracle_bounce_token_ids,
+      ValueInput miracle_bounce_defense_values, std::uint64_t seed,
       std::uint16_t initial_hp, std::uint16_t initial_mp);
 };
 

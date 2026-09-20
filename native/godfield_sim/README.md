@@ -9,7 +9,7 @@ uv sync --extra simulation --group dev
 
 Every included curriculum is intentionally incomplete and its generated
 trajectories are not eligible for live model promotion. The broadest current
-ruleset, `miracle-block-weapon-resource-hand`, includes elemental multi-card
+ruleset, `miracle-bounce-resource-hand`, includes elemental multi-card
 combat, HP/MP utility, fixed and chance miracles, Absorption, reusable additive
 miracles, evidence-bounded one-hop reflection, seven fixed ATK/DEF weapons, 14
 effect-free chance weapons, and the chance/defense dual role of Jinn's Rocking
@@ -38,9 +38,13 @@ heuristic without changing the neural observation schema.
 Angel Knife, Sword, and Axe are consumable neutral base weapons that also fully
 block miracles. Angel Bow remains an additive +ATK15 weapon on attack while
 retaining the same miracle-only defense; none can defend ordinary weapon hits.
+Sky Boots, Gauntlet, Helm, Shield, and Armor retain neutral DEF1/3/5/7/9
+against compatible weapon attacks and bounce attack miracles to a uniformly
+sampled living duel player. The redirected target receives a new defense
+response, and bounce/reflection chains are capped at one hop.
 
 The unobserved same-damage/reflection, attack-twice booster/reflection,
 random-target booster/reflection, and status/reflection interactions remain
 masked. Fog, Flash, and their cure effects remain outside the represented
-state. See ADR 0002 and ADRs 0029 through 0042 in the root project for the
+state. See ADR 0002 and ADRs 0029 through 0045 in the root project for the
 interface and safety boundary.

@@ -235,6 +235,15 @@ uv run godfield-bot models evaluate-simulation models/<miracle-block-weapon-cand
 uv run godfield-bot simulation benchmark \
   --ruleset miracle-block-weapon-resource-attack-defense \
   --batch-size 4096 --batch-steps 1000
+uv run godfield-bot models train-simulation models/<schema-v7-model-id> \
+  --ruleset miracle-bounce-resource-hand --batch-size 256 --rollout-steps 32 \
+  --updates 10
+uv run godfield-bot models evaluate-simulation models/<miracle-bounce-candidate-id> \
+  --ruleset miracle-bounce-resource-hand --games-per-seat 512 \
+  --minimum-score 0.5 --heuristic-noninferiority-margin 0.025
+uv run godfield-bot simulation benchmark \
+  --ruleset miracle-bounce-resource-attack-defense \
+  --batch-size 4096 --batch-steps 1000
 ```
 
 `api observe-private --password-stdin` uses God Field's keyed private-room
@@ -543,7 +552,8 @@ seven-way pending-element signal. A recorded model migration preserves the six
 old global inputs and zero-initializes the new columns before elemental
 training. All rulesets are fingerprinted against the accepted client,
 artifact vocabulary, and exact rule catalog, and none is promotion-eligible.
-The broadest `illness-weapon-resource-hand` ruleset builds on schema-v7
+The cumulative ruleset line now reaches `miracle-bounce-resource-hand`. Its
+`illness-weapon-resource-hand` foundation builds on schema-v7
 stochastic combat, additive miracles, Super Mirror, and Reflection Sword, then
 adds seven Bible-exact and API-verified ATK/DEF weapons, 14 effect-free chance weapons,
 Jinn's Rocking Horse with `75%ATK8`/`DEF6`, and the three evidenced HP-absorbing
@@ -562,10 +572,12 @@ sample once on confirmation, numeric defense remains deterministic, and the
 reflected response remains one-hop bounded. The unevidenced Evil
 Broadsword/reflection interaction is masked. Unevidenced Saw Boom Boom booster
 and reflection composition is also masked. Dangerous Pestle booster and
-reflection composition is likewise masked. The cumulative catalog grows from
-157 to 161 cards; status/reflection composition and cures remain outside this
-increment. The catalog and sampling distribution are independently
-fingerprinted. See
+reflection composition is likewise masked. Later increments add verified
+illness cures, Heaven Herb, Fever Mask, the Angel miracle-block armor and
+weapon families, and five Sky armor cards that bounce attack miracles to a
+uniformly sampled living duel player. Redirects receive a fresh defense and
+are one-hop bounded. The cumulative catalog contains 180 cards. The catalog
+and sampling distribution are independently fingerprinted. See
 [ADR 0029](docs/architecture/0029-additive-miracle-curriculum.md),
 [ADR 0030](docs/architecture/0030-evidenced-super-mirror-curriculum.md),
 [ADR 0031](docs/architecture/0031-evidenced-reflection-sword-curriculum.md),
@@ -575,8 +587,9 @@ fingerprinted. See
 [ADR 0035](docs/architecture/0035-dynamic-mp-weapon-curriculum.md),
 [ADR 0036](docs/architecture/0036-same-damage-weapon-curriculum.md),
 [ADR 0037](docs/architecture/0037-attack-twice-weapon-curriculum.md),
-[ADR 0038](docs/architecture/0038-random-target-weapon-curriculum.md), and
-[ADR 0039](docs/architecture/0039-illness-weapon-curriculum.md).
+[ADR 0038](docs/architecture/0038-random-target-weapon-curriculum.md),
+[ADR 0039](docs/architecture/0039-illness-weapon-curriculum.md), and
+[ADR 0045](docs/architecture/0045-miracle-bounce-curriculum.md).
 
 `models train-simulation` creates a bounded
 `heuristic-warmstart-recurrent-ppo-self-play-v1` candidate. The slot-aware

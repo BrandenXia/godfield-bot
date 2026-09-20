@@ -1043,6 +1043,27 @@ def verified_miracle_block_weapon_cards(
     return result
 
 
+def verified_miracle_bounce_armor(snapshot: BibleSnapshot) -> dict[str, int]:
+    """Return neutral armor with exact defense and verified miracle bouncing."""
+
+    armor = snapshot.catalog.get("armor")
+    if armor is None:
+        return {}
+    result: dict[str, int] = {}
+    for artifact in armor.items:
+        if artifact.element_image_paths or len(artifact.detail) != 5:
+            continue
+        defense = PLAIN_DEFENSE_PATTERN.fullmatch(artifact.detail[1])
+        if (
+            defense is not None
+            and artifact.detail[2] == "Bounce a miracle"
+            and re.fullmatch(r"\$\d+", artifact.detail[3]) is not None
+            and artifact.detail[4].startswith("Gift Rate:")
+        ):
+            result[artifact.asset] = int(defense.group(1))
+    return result
+
+
 def verified_chance_attack_miracle_cards(
     snapshot: BibleSnapshot,
 ) -> dict[str, tuple[int, int, int, CombatElement]]:

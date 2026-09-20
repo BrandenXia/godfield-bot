@@ -34,6 +34,7 @@ from godfield_bot.reference import (
     verified_illness_weapon_cards,
     verified_miracle_block_armor,
     verified_miracle_block_weapon_cards,
+    verified_miracle_bounce_armor,
     verified_random_target_weapon_cards,
     verified_reflection_armor_cards,
     verified_reflection_weapon_cards,
@@ -66,6 +67,7 @@ MIRACLE_BLOCK_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-miracle-block-resource-c
 MIRACLE_BLOCK_WEAPON_RESOURCE_HEURISTIC_POLICY_ID = (
     "evidenced-miracle-block-weapon-resource-combo-v1"
 )
+MIRACLE_BOUNCE_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-miracle-bounce-resource-combo-v1"
 FORGIVE_ACTION_INDEX = 19
 CONFIRM_ACTION_INDEX = 20
 MIRACLE_ATTACK_CARD_KINDS = frozenset({6, 8, 9})
@@ -92,6 +94,7 @@ class CurriculumHeuristic:
     heaven_herbs: dict[int, int] | None = None
     self_fever_defenses: frozenset[int] = frozenset()
     miracle_block_defenses: frozenset[int] = frozenset()
+    miracle_bounce_defenses: frozenset[int] = frozenset()
     policy_id: str = HEURISTIC_POLICY_ID
 
 
@@ -124,7 +127,9 @@ def _defense_heuristic_value(
     pending_attack: int,
     pending_base_kind: int,
 ) -> int:
-    if pending_base_kind in MIRACLE_ATTACK_CARD_KINDS and token in policy.miracle_block_defenses:
+    if pending_base_kind in MIRACLE_ATTACK_CARD_KINDS and token in (
+        policy.miracle_block_defenses | policy.miracle_bounce_defenses
+    ):
         return pending_attack
     return policy.defenses[token]
 
@@ -135,10 +140,15 @@ def build_curriculum_heuristic(
     *,
     ruleset: AttackDefenseRuleset = "fixed-role",
 ) -> CurriculumHeuristic:
-    miracle_block_weapon_ruleset = ruleset == "miracle-block-weapon-resource-hand"
+    miracle_bounce_ruleset = ruleset == "miracle-bounce-resource-hand"
+    miracle_block_weapon_ruleset = ruleset in {
+        "miracle-block-weapon-resource-hand",
+        "miracle-bounce-resource-hand",
+    }
     miracle_block_ruleset = ruleset in {
         "miracle-block-resource-hand",
         "miracle-block-weapon-resource-hand",
+        "miracle-bounce-resource-hand",
     }
     if miracle_block_ruleset:
         ruleset = "fever-mask-resource-hand"
@@ -604,6 +614,19 @@ def build_curriculum_heuristic(
             defense_token_values[token] = 0
             miracle_block_defenses.add(token)
         policy_id = MIRACLE_BLOCK_WEAPON_RESOURCE_HEURISTIC_POLICY_ID
+    miracle_bounce_defenses: set[int] = set()
+    if miracle_bounce_ruleset:
+        miracle_bounce_armor = verified_miracle_bounce_armor(snapshot)
+        defense_token_values.update(
+            {
+                vocabulary.token_id("armor", slug): defense
+                for slug, defense in miracle_bounce_armor.items()
+            }
+        )
+        miracle_bounce_defenses.update(
+            vocabulary.token_id("armor", slug) for slug in miracle_bounce_armor
+        )
+        policy_id = MIRACLE_BOUNCE_RESOURCE_HEURISTIC_POLICY_ID
     return CurriculumHeuristic(
         attacks=attack_token_values,
         defenses=defense_token_values,
@@ -638,6 +661,7 @@ def build_curriculum_heuristic(
         heaven_herbs=heaven_herbs,
         self_fever_defenses=frozenset(self_fever_defenses),
         miracle_block_defenses=frozenset(miracle_block_defenses),
+        miracle_bounce_defenses=frozenset(miracle_bounce_defenses),
         policy_id=policy_id,
     )
 

@@ -33,6 +33,7 @@ from godfield_bot.reference import (
     verified_illness_weapon_cards,
     verified_miracle_block_armor,
     verified_miracle_block_weapon_cards,
+    verified_miracle_bounce_armor,
     verified_random_target_weapon_cards,
     verified_reflection_armor_cards,
     verified_reflection_weapon_cards,
@@ -206,6 +207,13 @@ def test_committed_snapshot_matches_validated_live_catalog() -> None:
         "angel-bow": (15, True),
         "angel-knife": (11, False),
         "angel-sword": (13, False),
+    }
+    assert verified_miracle_bounce_armor(snapshot) == {
+        "sky-armor": 9,
+        "sky-boots": 1,
+        "sky-gauntlet": 3,
+        "sky-helm": 5,
+        "sky-shield": 7,
     }
     assert verified_effect_attack_miracle_cards(snapshot) == {
         "absorption": (10, 10, "light", "absorbHP")

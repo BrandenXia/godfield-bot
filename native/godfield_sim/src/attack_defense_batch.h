@@ -199,6 +199,17 @@ inline constexpr const char
         "weapon-illness-cure-heaven-herb-fever-mask-miracle-block-armor-"
         "weapon-miracle-bounce-armor-weapon-miracle-additive-reflection-dual-"
         "role-resource-miracle-attack-defense-redraw-duel-v1";
+inline constexpr std::uint32_t
+    kMiracleReflectionResourceAttackDefenseKernelSchemaVersion = 1;
+inline constexpr std::uint32_t
+    kMiracleReflectionResourceAttackDefenseObservationSchemaVersion = 7;
+inline constexpr const char *kMiracleReflectionResourceAttackDefenseRulesetId =
+    "plain-elemental-combo-stochastic-chance-absorption-weapon-dynamic-mp-"
+    "same-damage-weapon-attack-twice-weapon-random-target-weapon-illness-"
+    "weapon-illness-cure-heaven-herb-fever-mask-miracle-block-armor-weapon-"
+    "miracle-bounce-armor-weapon-miracle-miracle-reflection-armor-weapon-"
+    "additive-reflection-dual-role-resource-miracle-attack-defense-redraw-"
+    "duel-v1";
 inline constexpr std::size_t kWeaponSlots = 5;
 inline constexpr std::size_t kArmorSlots = kHandSlots - kWeaponSlots;
 inline constexpr std::size_t kComboWeaponSlots = 4;
@@ -314,6 +325,9 @@ public:
   }
   [[nodiscard]] bool miracle_bounce_miracle_curriculum() const noexcept {
     return miracle_bounce_miracle_curriculum_;
+  }
+  [[nodiscard]] bool miracle_reflection_curriculum() const noexcept {
+    return miracle_reflection_curriculum_;
   }
   [[nodiscard]] std::uint16_t initial_mp() const noexcept {
     return initial_mp_;
@@ -458,7 +472,12 @@ protected:
       ValueInput miracle_bounce_booster_values = {},
       bool miracle_bounce_miracle_curriculum = false,
       TokenInput miracle_bounce_miracle_token_ids = {},
-      ValueInput miracle_bounce_miracle_costs = {});
+      ValueInput miracle_bounce_miracle_costs = {},
+      bool miracle_reflection_curriculum = false,
+      TokenInput miracle_reflection_armor_token_ids = {},
+      ValueInput miracle_reflection_armor_defense_values = {},
+      TokenInput miracle_reflection_weapon_token_ids = {},
+      ValueInput miracle_reflection_weapon_attack_values = {});
 
 private:
   static constexpr std::size_t kMaximumBatchSize = 1'000'000;
@@ -535,6 +554,10 @@ private:
                                    std::size_t slot);
   void draw_miracle_bounce_miracle(std::size_t environment, std::size_t player,
                                    std::size_t slot);
+  void draw_miracle_reflection_armor(std::size_t environment,
+                                     std::size_t player, std::size_t slot);
+  void draw_miracle_reflection_weapon(std::size_t environment,
+                                      std::size_t player, std::size_t slot);
   void draw_weapon_family(std::size_t environment, std::size_t player,
                           std::size_t slot);
   void draw_armor_family(std::size_t environment, std::size_t player,
@@ -542,6 +565,8 @@ private:
   [[nodiscard]] static bool is_weapon_kind(std::uint8_t kind) noexcept;
   [[nodiscard]] static bool is_miracle_kind(std::uint8_t kind) noexcept;
   [[nodiscard]] static bool is_miracle_bounce_kind(std::uint8_t kind) noexcept;
+  [[nodiscard]] static bool
+  is_miracle_reflection_kind(std::uint8_t kind) noexcept;
   [[nodiscard]] std::uint16_t
   defense_value_for_card(std::size_t card_offset) const noexcept;
   [[nodiscard]] bool has_weapon(std::size_t environment,
@@ -594,6 +619,7 @@ private:
   bool miracle_bounce_curriculum_;
   bool miracle_bounce_weapon_curriculum_;
   bool miracle_bounce_miracle_curriculum_;
+  bool miracle_reflection_curriculum_;
   std::size_t global_feature_count_;
   std::uint16_t initial_mp_;
   std::vector<std::uint32_t> weapon_token_ids_;
@@ -688,6 +714,10 @@ private:
   std::vector<std::uint16_t> miracle_bounce_booster_values_;
   std::vector<std::uint32_t> miracle_bounce_miracle_token_ids_;
   std::vector<std::uint16_t> miracle_bounce_miracle_costs_;
+  std::vector<std::uint32_t> miracle_reflection_armor_token_ids_;
+  std::vector<std::uint16_t> miracle_reflection_armor_defense_values_;
+  std::vector<std::uint32_t> miracle_reflection_weapon_token_ids_;
+  std::vector<std::uint16_t> miracle_reflection_weapon_attack_values_;
   std::vector<std::uint64_t> rng_states_;
   std::vector<std::uint64_t> episode_ids_;
   std::vector<std::uint16_t> hit_points_;
@@ -1424,7 +1454,11 @@ public:
       TokenInput miracle_bounce_booster_token_ids,
       ValueInput miracle_bounce_booster_values,
       TokenInput miracle_bounce_miracle_token_ids,
-      ValueInput miracle_bounce_miracle_costs, std::uint64_t seed,
+      ValueInput miracle_bounce_miracle_costs,
+      TokenInput miracle_reflection_armor_token_ids,
+      ValueInput miracle_reflection_armor_defense_values,
+      TokenInput miracle_reflection_weapon_token_ids,
+      ValueInput miracle_reflection_weapon_attack_values, std::uint64_t seed,
       std::uint16_t initial_hp, std::uint16_t initial_mp);
 };
 

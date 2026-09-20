@@ -37,6 +37,8 @@ from godfield_bot.reference import (
     verified_miracle_bounce_armor,
     verified_miracle_bounce_miracles,
     verified_miracle_bounce_weapon_boosters,
+    verified_miracle_reflection_armor,
+    verified_miracle_reflection_weapons,
     verified_random_target_weapon_cards,
     verified_reflection_armor_cards,
     verified_reflection_weapon_cards,
@@ -76,6 +78,7 @@ MIRACLE_BOUNCE_WEAPON_RESOURCE_HEURISTIC_POLICY_ID = (
 MIRACLE_BOUNCE_MIRACLE_RESOURCE_HEURISTIC_POLICY_ID = (
     "evidenced-miracle-bounce-miracle-resource-combo-v1"
 )
+MIRACLE_REFLECTION_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-miracle-reflection-resource-combo-v1"
 FORGIVE_ACTION_INDEX = 19
 CONFIRM_ACTION_INDEX = 20
 MIRACLE_ATTACK_CARD_KINDS = frozenset({6, 8, 9})
@@ -103,6 +106,7 @@ class CurriculumHeuristic:
     self_fever_defenses: frozenset[int] = frozenset()
     miracle_block_defenses: frozenset[int] = frozenset()
     miracle_bounce_defenses: frozenset[int] = frozenset()
+    miracle_reflection_defenses: frozenset[int] = frozenset()
     policy_id: str = HEURISTIC_POLICY_ID
 
 
@@ -136,7 +140,9 @@ def _defense_heuristic_value(
     pending_base_kind: int,
 ) -> int:
     if pending_base_kind in MIRACLE_ATTACK_CARD_KINDS and token in (
-        policy.miracle_block_defenses | policy.miracle_bounce_defenses
+        policy.miracle_block_defenses
+        | policy.miracle_bounce_defenses
+        | policy.miracle_reflection_defenses
     ):
         return pending_attack
     return policy.defenses[token]
@@ -148,21 +154,28 @@ def build_curriculum_heuristic(
     *,
     ruleset: AttackDefenseRuleset = "fixed-role",
 ) -> CurriculumHeuristic:
-    miracle_bounce_miracle_ruleset = ruleset == "miracle-bounce-miracle-resource-hand"
+    miracle_reflection_ruleset = ruleset == "miracle-reflection-resource-hand"
+    miracle_bounce_miracle_ruleset = ruleset in {
+        "miracle-bounce-miracle-resource-hand",
+        "miracle-reflection-resource-hand",
+    }
     miracle_bounce_weapon_ruleset = ruleset in {
         "miracle-bounce-weapon-resource-hand",
         "miracle-bounce-miracle-resource-hand",
+        "miracle-reflection-resource-hand",
     }
     miracle_bounce_ruleset = ruleset in {
         "miracle-bounce-resource-hand",
         "miracle-bounce-weapon-resource-hand",
         "miracle-bounce-miracle-resource-hand",
+        "miracle-reflection-resource-hand",
     }
     miracle_block_weapon_ruleset = ruleset in {
         "miracle-block-weapon-resource-hand",
         "miracle-bounce-resource-hand",
         "miracle-bounce-weapon-resource-hand",
         "miracle-bounce-miracle-resource-hand",
+        "miracle-reflection-resource-hand",
     }
     miracle_block_ruleset = ruleset in {
         "miracle-block-resource-hand",
@@ -170,6 +183,7 @@ def build_curriculum_heuristic(
         "miracle-bounce-resource-hand",
         "miracle-bounce-weapon-resource-hand",
         "miracle-bounce-miracle-resource-hand",
+        "miracle-reflection-resource-hand",
     }
     if miracle_block_ruleset:
         ruleset = "fever-mask-resource-hand"
@@ -661,6 +675,18 @@ def build_curriculum_heuristic(
             defense_token_values[token] = 0
             miracle_bounce_defenses.add(token)
         policy_id = MIRACLE_BOUNCE_MIRACLE_RESOURCE_HEURISTIC_POLICY_ID
+    miracle_reflection_defenses: set[int] = set()
+    if miracle_reflection_ruleset:
+        for slug, defense in verified_miracle_reflection_armor(snapshot).items():
+            token = vocabulary.token_id("armor", slug)
+            defense_token_values[token] = defense
+            miracle_reflection_defenses.add(token)
+        for slug, attack in verified_miracle_reflection_weapons(snapshot).items():
+            token = vocabulary.token_id("weapons", slug)
+            attack_token_values[token] = attack
+            defense_token_values[token] = 0
+            miracle_reflection_defenses.add(token)
+        policy_id = MIRACLE_REFLECTION_RESOURCE_HEURISTIC_POLICY_ID
     return CurriculumHeuristic(
         attacks=attack_token_values,
         defenses=defense_token_values,
@@ -696,6 +722,7 @@ def build_curriculum_heuristic(
         self_fever_defenses=frozenset(self_fever_defenses),
         miracle_block_defenses=frozenset(miracle_block_defenses),
         miracle_bounce_defenses=frozenset(miracle_bounce_defenses),
+        miracle_reflection_defenses=frozenset(miracle_reflection_defenses),
         policy_id=policy_id,
     )
 

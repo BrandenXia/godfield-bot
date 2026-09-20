@@ -9,7 +9,7 @@ uv sync --extra simulation --group dev
 
 Every included curriculum is intentionally incomplete and its generated
 trajectories are not eligible for live model promotion. The broadest current
-ruleset, `miracle-bounce-miracle-resource-hand`, includes elemental multi-card
+ruleset, `miracle-reflection-resource-hand`, includes elemental multi-card
 combat, HP/MP utility, fixed and chance miracles, Absorption, reusable additive
 miracles, evidence-bounded one-hop reflection, seven fixed ATK/DEF weapons, 14
 effect-free chance weapons, and the chance/defense dual role of Jinn's Rocking
@@ -45,9 +45,13 @@ response, and bounce/reflection chains are capped at one hop.
 Sky Harpoon adds a consumable neutral +ATK9 booster that can also bounce a
 miracle, but cannot defend a weapon attack. `<Turbulence>` adds the reusable
 5-MP miracle form of the same one-hop bounce effect.
+Moonlight Helm, Shield, and Armor retain neutral DEF8/10/12 against compatible
+weapon attacks and reflect attack miracles to the original caster. Moonlight
+Axe is a consumable neutral ATK10 base weapon with the same miracle-only
+reflection defense. Bounce and reflection use the same one-hop redirect guard.
 
 The unobserved same-damage/reflection, attack-twice booster/reflection,
 random-target booster/reflection, and status/reflection interactions remain
 masked. Fog, Flash, and their cure effects remain outside the represented
-state. See ADR 0002 and ADRs 0029 through 0046 in the root project for the
+state. See ADR 0002 and ADRs 0029 through 0047 in the root project for the
 interface and safety boundary.

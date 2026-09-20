@@ -69,6 +69,7 @@ class SimulationTrainingConfig(BaseModel):
         "miracle-bounce-resource-hand",
         "miracle-bounce-weapon-resource-hand",
         "miracle-bounce-miracle-resource-hand",
+        "miracle-reflection-resource-hand",
     ] = "fixed-role"
     batch_size: int = Field(default=256, ge=1, le=1_000_000)
     rollout_steps: int = Field(default=32, ge=2, le=4096)

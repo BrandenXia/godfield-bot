@@ -45,6 +45,8 @@ constexpr std::uint8_t kMiracleBlockBoosterCardKind = 29U;
 constexpr std::uint8_t kMiracleBounceArmorCardKind = 30U;
 constexpr std::uint8_t kMiracleBounceBoosterCardKind = 31U;
 constexpr std::uint8_t kMiracleBounceMiracleCardKind = 32U;
+constexpr std::uint8_t kMiracleReflectionArmorCardKind = 33U;
+constexpr std::uint8_t kMiracleReflectionWeaponCardKind = 34U;
 constexpr std::uint8_t kNoAttackEffect = 0U;
 constexpr std::uint8_t kAbsorbHpAttackEffect = 1U;
 constexpr std::uint8_t kSameDamageAttackEffect = 2U;
@@ -292,7 +294,11 @@ AttackDefenseBatch::AttackDefenseBatch(
     ValueInput miracle_bounce_booster_values,
     bool miracle_bounce_miracle_curriculum,
     TokenInput miracle_bounce_miracle_token_ids,
-    ValueInput miracle_bounce_miracle_costs)
+    ValueInput miracle_bounce_miracle_costs, bool miracle_reflection_curriculum,
+    TokenInput miracle_reflection_armor_token_ids,
+    ValueInput miracle_reflection_armor_defense_values,
+    TokenInput miracle_reflection_weapon_token_ids,
+    ValueInput miracle_reflection_weapon_attack_values)
     : batch_size_(batch_size), base_seed_(seed), initial_hp_(initial_hp),
       mixed_hands_(mixed_hands), elemental_(elemental), combo_(combo),
       resource_curriculum_(resource_curriculum),
@@ -316,6 +322,7 @@ AttackDefenseBatch::AttackDefenseBatch(
       miracle_bounce_curriculum_(miracle_bounce_curriculum),
       miracle_bounce_weapon_curriculum_(miracle_bounce_weapon_curriculum),
       miracle_bounce_miracle_curriculum_(miracle_bounce_miracle_curriculum),
+      miracle_reflection_curriculum_(miracle_reflection_curriculum),
       global_feature_count_(
           illness_weapon_curriculum
               ? kIllnessGlobalFeatureCount
@@ -422,6 +429,11 @@ AttackDefenseBatch::AttackDefenseBatch(
         "miracle-bounce miracle curriculum requires miracle-bounce weapon "
         "semantics");
   }
+  if (miracle_reflection_curriculum_ && !miracle_bounce_miracle_curriculum_) {
+    throw std::invalid_argument(
+        "miracle-reflection curriculum requires miracle-bounce miracle "
+        "semantics");
+  }
 
   std::unordered_set<std::uint32_t> unique_token_ids;
   const auto booster_catalog_size = combo_ ? booster_token_ids.shape(0) : 0U;
@@ -488,6 +500,11 @@ AttackDefenseBatch::AttackDefenseBatch(
       miracle_bounce_miracle_curriculum_
           ? miracle_bounce_miracle_token_ids.shape(0)
           : 0U;
+  const auto miracle_reflection_catalog_size =
+      miracle_reflection_curriculum_
+          ? miracle_reflection_armor_token_ids.shape(0) +
+                miracle_reflection_weapon_token_ids.shape(0)
+          : 0U;
   unique_token_ids.reserve(
       weapon_token_ids.shape(0) + booster_catalog_size +
       armor_token_ids.shape(0) + resource_catalog_size +
@@ -500,7 +517,8 @@ AttackDefenseBatch::AttackDefenseBatch(
       illness_cure_catalog_size + heaven_herb_catalog_size +
       fever_mask_catalog_size + miracle_block_catalog_size +
       miracle_block_weapon_catalog_size + miracle_bounce_catalog_size +
-      miracle_bounce_weapon_catalog_size + miracle_bounce_miracle_catalog_size);
+      miracle_bounce_weapon_catalog_size + miracle_bounce_miracle_catalog_size +
+      miracle_reflection_catalog_size);
   append_catalog(weapon_token_ids, attack_values, "attack", unique_token_ids,
                  weapon_token_ids_, attack_values_);
   if (combo_) {
@@ -821,6 +839,18 @@ AttackDefenseBatch::AttackDefenseBatch(
     miracle_bounce_miracle_costs_ = copy_costs(
         miracle_bounce_miracle_costs, miracle_bounce_miracle_token_ids_.size(),
         "miracle-bounce miracle");
+  }
+  if (miracle_reflection_curriculum_) {
+    append_catalog(miracle_reflection_armor_token_ids,
+                   miracle_reflection_armor_defense_values,
+                   "miracle-reflection armor", unique_token_ids,
+                   miracle_reflection_armor_token_ids_,
+                   miracle_reflection_armor_defense_values_);
+    append_catalog(miracle_reflection_weapon_token_ids,
+                   miracle_reflection_weapon_attack_values,
+                   "miracle-reflection weapon", unique_token_ids,
+                   miracle_reflection_weapon_token_ids_,
+                   miracle_reflection_weapon_attack_values_);
   }
   if (elemental_) {
     if (weapon_elements.size() != weapon_token_ids_.size() ||
@@ -1460,6 +1490,40 @@ void AttackDefenseBatch::draw_miracle_bounce_miracle(std::size_t environment,
       static_cast<std::uint8_t>(CombatElement::NonElement);
 }
 
+void AttackDefenseBatch::draw_miracle_reflection_armor(std::size_t environment,
+                                                       std::size_t player,
+                                                       std::size_t slot) {
+  const auto index = static_cast<std::size_t>(
+      next_random(environment) % miracle_reflection_armor_token_ids_.size());
+  const auto offset = hand_offset(environment, player, slot);
+  hand_token_ids_by_player_[offset] =
+      static_cast<std::int64_t>(miracle_reflection_armor_token_ids_[index]);
+  hand_values_[offset] = miracle_reflection_armor_defense_values_[index];
+  hand_costs_[offset] = 0U;
+  hand_hit_rates_[offset] = 100U;
+  hand_effects_[offset] = kNoAttackEffect;
+  hand_card_kinds_by_player_[offset] = kMiracleReflectionArmorCardKind;
+  hand_elements_by_player_[offset] =
+      static_cast<std::uint8_t>(CombatElement::NonElement);
+}
+
+void AttackDefenseBatch::draw_miracle_reflection_weapon(std::size_t environment,
+                                                        std::size_t player,
+                                                        std::size_t slot) {
+  const auto index = static_cast<std::size_t>(
+      next_random(environment) % miracle_reflection_weapon_token_ids_.size());
+  const auto offset = hand_offset(environment, player, slot);
+  hand_token_ids_by_player_[offset] =
+      static_cast<std::int64_t>(miracle_reflection_weapon_token_ids_[index]);
+  hand_values_[offset] = miracle_reflection_weapon_attack_values_[index];
+  hand_costs_[offset] = 0U;
+  hand_hit_rates_[offset] = 100U;
+  hand_effects_[offset] = kNoAttackEffect;
+  hand_card_kinds_by_player_[offset] = kMiracleReflectionWeaponCardKind;
+  hand_elements_by_player_[offset] =
+      static_cast<std::uint8_t>(CombatElement::NonElement);
+}
+
 void AttackDefenseBatch::draw_weapon_family(std::size_t environment,
                                             std::size_t player,
                                             std::size_t slot) {
@@ -1476,7 +1540,8 @@ void AttackDefenseBatch::draw_weapon_family(std::size_t environment,
          attack_twice_weapon_token_ids_.size() +
          random_target_weapon_token_ids_.size() +
          illness_weapon_token_ids_.size() +
-         miracle_block_weapon_token_ids_.size()));
+         miracle_block_weapon_token_ids_.size() +
+         miracle_reflection_weapon_token_ids_.size()));
     if (index < weapon_token_ids_.size()) {
       draw_weapon(environment, player, slot);
       return;
@@ -1536,7 +1601,12 @@ void AttackDefenseBatch::draw_weapon_family(std::size_t environment,
       draw_illness_weapon(environment, player, slot);
       return;
     }
-    draw_miracle_block_weapon(environment, player, slot);
+    index -= illness_weapon_token_ids_.size();
+    if (index < miracle_block_weapon_token_ids_.size()) {
+      draw_miracle_block_weapon(environment, player, slot);
+      return;
+    }
+    draw_miracle_reflection_weapon(environment, player, slot);
     return;
   }
   if (attack_twice_weapon_curriculum_) {
@@ -1798,7 +1868,8 @@ void AttackDefenseBatch::draw_armor_family(std::size_t environment,
       (armor_token_ids_.size() + reflection_armor_token_ids_.size() +
        fever_mask_token_ids_.size() + miracle_block_token_ids_.size() +
        miracle_bounce_token_ids_.size() +
-       miracle_bounce_miracle_token_ids_.size()));
+       miracle_bounce_miracle_token_ids_.size() +
+       miracle_reflection_armor_token_ids_.size()));
   if (index < armor_token_ids_.size()) {
     draw_armor(environment, player, slot);
     return;
@@ -1823,7 +1894,12 @@ void AttackDefenseBatch::draw_armor_family(std::size_t environment,
     draw_miracle_bounce_armor(environment, player, slot);
     return;
   }
-  draw_miracle_bounce_miracle(environment, player, slot);
+  index -= miracle_bounce_token_ids_.size();
+  if (index < miracle_bounce_miracle_token_ids_.size()) {
+    draw_miracle_bounce_miracle(environment, player, slot);
+    return;
+  }
+  draw_miracle_reflection_armor(environment, player, slot);
 }
 
 void AttackDefenseBatch::draw_resource(std::size_t environment,
@@ -1848,7 +1924,9 @@ void AttackDefenseBatch::draw_resource(std::size_t environment,
       miracle_block_booster_token_ids_.size() +
       miracle_bounce_token_ids_.size() +
       miracle_bounce_booster_token_ids_.size() +
-      miracle_bounce_miracle_token_ids_.size();
+      miracle_bounce_miracle_token_ids_.size() +
+      miracle_reflection_armor_token_ids_.size() +
+      miracle_reflection_weapon_token_ids_.size();
   auto index =
       static_cast<std::size_t>(next_random(environment) % catalog_size);
   if (index < weapon_token_ids_.size()) {
@@ -1956,6 +2034,16 @@ void AttackDefenseBatch::draw_resource(std::size_t environment,
     return;
   }
   index -= miracle_bounce_miracle_token_ids_.size();
+  if (index < miracle_reflection_armor_token_ids_.size()) {
+    draw_miracle_reflection_armor(environment, player, slot);
+    return;
+  }
+  index -= miracle_reflection_armor_token_ids_.size();
+  if (index < miracle_reflection_weapon_token_ids_.size()) {
+    draw_miracle_reflection_weapon(environment, player, slot);
+    return;
+  }
+  index -= miracle_reflection_weapon_token_ids_.size();
   if (index < booster_token_ids_.size()) {
     draw_booster(environment, player, slot);
     return;
@@ -2012,7 +2100,9 @@ bool AttackDefenseBatch::is_weapon_kind(std::uint8_t kind) noexcept {
          kind == kSameDamageWeaponCardKind ||
          kind == kAttackTwiceWeaponCardKind ||
          kind == kRandomTargetWeaponCardKind ||
-         kind == kIllnessWeaponCardKind || kind == kMiracleBlockWeaponCardKind;
+         kind == kIllnessWeaponCardKind ||
+         kind == kMiracleBlockWeaponCardKind ||
+         kind == kMiracleReflectionWeaponCardKind;
 }
 
 bool AttackDefenseBatch::is_miracle_kind(std::uint8_t kind) noexcept {
@@ -2025,6 +2115,12 @@ bool AttackDefenseBatch::is_miracle_bounce_kind(std::uint8_t kind) noexcept {
   return kind == kMiracleBounceArmorCardKind ||
          kind == kMiracleBounceBoosterCardKind ||
          kind == kMiracleBounceMiracleCardKind;
+}
+
+bool AttackDefenseBatch::is_miracle_reflection_kind(
+    std::uint8_t kind) noexcept {
+  return kind == kMiracleReflectionArmorCardKind ||
+         kind == kMiracleReflectionWeaponCardKind;
 }
 
 std::uint16_t AttackDefenseBatch::defense_value_for_card(
@@ -2655,6 +2751,9 @@ void AttackDefenseBatch::step(ActionInput actions) {
         if (selected_kind == kReflectionArmorCardKind ||
             selected_kind == kReflectionWeaponCardKind) {
           resolve_reflection(environment, actor);
+        } else if (is_miracle_reflection_kind(selected_kind) &&
+                   is_miracle_kind(pending_base_kinds_[environment])) {
+          resolve_reflection(environment, actor);
         } else if (is_miracle_bounce_kind(selected_kind) &&
                    is_miracle_kind(pending_base_kinds_[environment])) {
           resolve_bounce(environment);
@@ -2865,11 +2964,13 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
       return;
     }
     const auto has_defense = selected_counts_[environment] > 0U;
-    const auto selected_reflection =
-        selected_base_kinds_[environment] == kReflectionArmorCardKind ||
-        selected_base_kinds_[environment] == kReflectionWeaponCardKind;
     const auto pending_miracle =
         is_miracle_kind(pending_base_kinds_[environment]);
+    const auto selected_reflection =
+        selected_base_kinds_[environment] == kReflectionArmorCardKind ||
+        selected_base_kinds_[environment] == kReflectionWeaponCardKind ||
+        (pending_miracle &&
+         is_miracle_reflection_kind(selected_base_kinds_[environment]));
     const auto selected_bounce =
         pending_miracle &&
         is_miracle_bounce_kind(selected_base_kinds_[environment]);
@@ -2886,7 +2987,8 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
            (kind == kArmorCardKind || kind == kDualRoleCardKind ||
             kind == kChanceDualRoleCardKind || kind == kFeverMaskCardKind ||
             kind == kMiracleBlockArmorCardKind ||
-            (kind == kMiracleBounceArmorCardKind && !pending_miracle)) &&
+            (kind == kMiracleBounceArmorCardKind && !pending_miracle) ||
+            (kind == kMiracleReflectionArmorCardKind && !pending_miracle)) &&
            (kind != kFeverMaskCardKind ||
             (pending_effects_[environment] != kColdOnDamageEffect &&
              pending_effects_[environment] != kHellOnDamageEffect)) &&
@@ -2913,7 +3015,8 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
             (is_miracle_bounce_kind(kind) && pending_miracle &&
              (kind != kMiracleBounceMiracleCardKind ||
               hand_costs_[card_offset] <=
-                  magic_points_[environment * kPlayerCount + perspective]))));
+                  magic_points_[environment * kPlayerCount + perspective])) ||
+            (is_miracle_reflection_kind(kind) && pending_miracle)));
     }
     return;
   }
@@ -4154,7 +4257,11 @@ FeverMaskResourceAttackDefenseBatch::FeverMaskResourceAttackDefenseBatch(
     TokenInput miracle_bounce_booster_token_ids,
     ValueInput miracle_bounce_booster_values,
     TokenInput miracle_bounce_miracle_token_ids,
-    ValueInput miracle_bounce_miracle_costs, std::uint64_t seed,
+    ValueInput miracle_bounce_miracle_costs,
+    TokenInput miracle_reflection_armor_token_ids,
+    ValueInput miracle_reflection_armor_defense_values,
+    TokenInput miracle_reflection_weapon_token_ids,
+    ValueInput miracle_reflection_weapon_attack_values, std::uint64_t seed,
     std::uint16_t initial_hp, std::uint16_t initial_mp)
     : AttackDefenseBatch(
           batch_size, weapon_token_ids, attack_values,
@@ -4208,6 +4315,11 @@ FeverMaskResourceAttackDefenseBatch::FeverMaskResourceAttackDefenseBatch(
           miracle_bounce_booster_token_ids.shape(0) > 0U,
           miracle_bounce_booster_token_ids, miracle_bounce_booster_values,
           miracle_bounce_miracle_token_ids.shape(0) > 0U,
-          miracle_bounce_miracle_token_ids, miracle_bounce_miracle_costs) {}
+          miracle_bounce_miracle_token_ids, miracle_bounce_miracle_costs,
+          miracle_reflection_armor_token_ids.shape(0) > 0U,
+          miracle_reflection_armor_token_ids,
+          miracle_reflection_armor_defense_values,
+          miracle_reflection_weapon_token_ids,
+          miracle_reflection_weapon_attack_values) {}
 
 } // namespace godfield_sim

@@ -55,6 +55,9 @@ MiracleBounceWeaponResourceAttackDefenseBatch = (
 MiracleBounceMiracleResourceAttackDefenseBatch = (
     godfield_sim.MiracleBounceMiracleResourceAttackDefenseBatch
 )
+MiracleReflectionResourceAttackDefenseBatch = (
+    godfield_sim.MiracleReflectionResourceAttackDefenseBatch
+)
 
 SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-07" / "bible.json"
 
@@ -681,6 +684,7 @@ def illness_cure_resource_batch(
     miracle_bounce: bool = False,
     miracle_bounce_weapon: bool = False,
     miracle_bounce_miracle: bool = False,
+    miracle_reflection: bool = False,
     miracle_block_defense: int = 15,
 ) -> (
     IllnessCureResourceAttackDefenseBatch
@@ -691,6 +695,7 @@ def illness_cure_resource_batch(
     | MiracleBounceResourceAttackDefenseBatch
     | MiracleBounceWeaponResourceAttackDefenseBatch
     | MiracleBounceMiracleResourceAttackDefenseBatch
+    | MiracleReflectionResourceAttackDefenseBatch
 ):
     base_args = list(absorption_weapon_resource_args())
     base_args[8] = np.asarray([armor_defense], dtype=np.uint16)
@@ -727,6 +732,7 @@ def illness_cure_resource_batch(
         or miracle_bounce
         or miracle_bounce_weapon
         or miracle_bounce_miracle
+        or miracle_reflection
     ):
         heaven_args = (
             *curriculum_args,
@@ -740,8 +746,11 @@ def illness_cure_resource_batch(
             or miracle_bounce
             or miracle_bounce_weapon
             or miracle_bounce_miracle
+            or miracle_reflection
         ):
-            if miracle_bounce_miracle:
+            if miracle_reflection:
+                batch_type = MiracleReflectionResourceAttackDefenseBatch
+            elif miracle_bounce_miracle:
                 batch_type = MiracleBounceMiracleResourceAttackDefenseBatch
             elif miracle_bounce_weapon:
                 batch_type = MiracleBounceWeaponResourceAttackDefenseBatch
@@ -764,6 +773,7 @@ def illness_cure_resource_batch(
                 or miracle_bounce
                 or miracle_bounce_weapon
                 or miracle_bounce_miracle
+                or miracle_reflection
                 else np.asarray([], dtype=np.uint32),
                 np.asarray([miracle_block_defense], dtype=np.uint16)
                 if miracle_block
@@ -771,48 +781,71 @@ def illness_cure_resource_batch(
                 or miracle_bounce
                 or miracle_bounce_weapon
                 or miracle_bounce_miracle
+                or miracle_reflection
                 else np.asarray([], dtype=np.uint16),
                 np.asarray([32, 33, 34], dtype=np.uint32)
                 if miracle_block_weapon
                 or miracle_bounce
                 or miracle_bounce_weapon
                 or miracle_bounce_miracle
+                or miracle_reflection
                 else np.asarray([], dtype=np.uint32),
                 np.asarray([11, 13, 15], dtype=np.uint16)
                 if miracle_block_weapon
                 or miracle_bounce
                 or miracle_bounce_weapon
                 or miracle_bounce_miracle
+                or miracle_reflection
                 else np.asarray([], dtype=np.uint16),
                 np.asarray([35], dtype=np.uint32)
                 if miracle_block_weapon
                 or miracle_bounce
                 or miracle_bounce_weapon
                 or miracle_bounce_miracle
+                or miracle_reflection
                 else np.asarray([], dtype=np.uint32),
                 np.asarray([15], dtype=np.uint16)
                 if miracle_block_weapon
                 or miracle_bounce
                 or miracle_bounce_weapon
                 or miracle_bounce_miracle
+                or miracle_reflection
                 else np.asarray([], dtype=np.uint16),
                 np.asarray([36], dtype=np.uint32)
-                if miracle_bounce or miracle_bounce_weapon or miracle_bounce_miracle
+                if miracle_bounce
+                or miracle_bounce_weapon
+                or miracle_bounce_miracle
+                or miracle_reflection
                 else np.asarray([], dtype=np.uint32),
                 np.asarray([9], dtype=np.uint16)
-                if miracle_bounce or miracle_bounce_weapon or miracle_bounce_miracle
+                if miracle_bounce
+                or miracle_bounce_weapon
+                or miracle_bounce_miracle
+                or miracle_reflection
                 else np.asarray([], dtype=np.uint16),
                 np.asarray([37], dtype=np.uint32)
-                if miracle_bounce_weapon or miracle_bounce_miracle
+                if miracle_bounce_weapon or miracle_bounce_miracle or miracle_reflection
                 else np.asarray([], dtype=np.uint32),
                 np.asarray([9], dtype=np.uint16)
-                if miracle_bounce_weapon or miracle_bounce_miracle
+                if miracle_bounce_weapon or miracle_bounce_miracle or miracle_reflection
                 else np.asarray([], dtype=np.uint16),
                 np.asarray([38], dtype=np.uint32)
-                if miracle_bounce_miracle
+                if miracle_bounce_miracle or miracle_reflection
                 else np.asarray([], dtype=np.uint32),
                 np.asarray([5], dtype=np.uint16)
-                if miracle_bounce_miracle
+                if miracle_bounce_miracle or miracle_reflection
+                else np.asarray([], dtype=np.uint16),
+                np.asarray([39, 40, 41], dtype=np.uint32)
+                if miracle_reflection
+                else np.asarray([], dtype=np.uint32),
+                np.asarray([8, 10, 12], dtype=np.uint16)
+                if miracle_reflection
+                else np.asarray([], dtype=np.uint16),
+                np.asarray([42], dtype=np.uint32)
+                if miracle_reflection
+                else np.asarray([], dtype=np.uint32),
+                np.asarray([10], dtype=np.uint16)
+                if miracle_reflection
                 else np.asarray([], dtype=np.uint16),
                 seed,
                 initial_hp,
@@ -1532,6 +1565,38 @@ def test_miracle_bounce_miracle_factory_adds_turbulence() -> None:
     assert np.all(batch.hand_elements[turbulence] == godfield_sim.ELEMENT_NON_ELEMENT)
 
 
+def test_miracle_reflection_factory_adds_moonlight_family() -> None:
+    simulation = create_attack_defense_simulation(
+        SNAPSHOT_PATH,
+        batch_size=512,
+        ruleset="miracle-reflection-resource-hand",
+    )
+    batch = simulation.batch
+
+    assert simulation.metadata.observation_schema_version == 7
+    assert simulation.metadata.ruleset_id == (
+        "plain-elemental-combo-stochastic-chance-absorption-weapon-dynamic-mp-"
+        "same-damage-weapon-attack-twice-weapon-random-target-weapon-illness-"
+        "weapon-illness-cure-heaven-herb-fever-mask-miracle-block-armor-weapon-"
+        "miracle-bounce-armor-weapon-miracle-miracle-reflection-armor-weapon-"
+        "additive-reflection-dual-role-resource-miracle-attack-defense-redraw-"
+        "duel-v1"
+    )
+    assert simulation.metadata.rule_catalog_size == 186
+    assert simulation.metadata.sampling_distribution == (
+        "elemental-miracle-reflection-resource-2-1-2-1-1-1-1-"
+        "initial-uniform-redraw-with-base-liveness"
+    )
+    assert batch.miracle_reflection_curriculum is True
+    moonlight_armor = batch.hand_card_kinds == godfield_sim.CARD_KIND_MIRACLE_REFLECTION_ARMOR
+    moonlight_weapon = batch.hand_card_kinds == godfield_sim.CARD_KIND_MIRACLE_REFLECTION_WEAPON
+    assert np.any(moonlight_armor)
+    assert np.any(moonlight_weapon)
+    assert np.all(
+        batch.hand_elements[moonlight_armor | moonlight_weapon] == godfield_sim.ELEMENT_NON_ELEMENT
+    )
+
+
 def miracle_block_defense_batch(
     attack_token: int,
     *,
@@ -1618,6 +1683,29 @@ def advanced_miracle_bounce_defense_batch(
         if defense_slots.size:
             return batch, attacker, int(defense_slots[0])
     raise AssertionError("fixture seeds did not expose advanced miracle-bounce defense")
+
+
+def miracle_reflection_defense_batch(
+    attack_token: int,
+    defense_token: int,
+) -> tuple[MiracleReflectionResourceAttackDefenseBatch, int, int]:
+    for seed in range(32768):
+        batch = illness_cure_resource_batch(seed=seed, miracle_reflection=True)
+        attacker = int(batch.active_players[0])
+        attack_slots = np.flatnonzero(batch.hand_token_ids[0] == attack_token)
+        if not attack_slots.size:
+            continue
+        attack_action = int(attack_slots[0]) + 1
+        if not batch.action_mask[0, attack_action]:
+            continue
+        batch.step(np.asarray([attack_action], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        if batch.phases[0] != godfield_sim.PHASE_DEFENSE:
+            continue
+        defense_slots = np.flatnonzero(batch.hand_token_ids[0] == defense_token)
+        if defense_slots.size:
+            return batch, attacker, int(defense_slots[0])
+    raise AssertionError("fixture seeds did not expose a miracle-reflection defense")
 
 
 @pytest.mark.parametrize("attack_token", [7, 9, 10])
@@ -1769,6 +1857,83 @@ def test_turbulence_is_masked_when_defender_cannot_pay_cost() -> None:
     )
 
     assert not batch.action_mask[0, turbulence_slot + 1]
+
+
+@pytest.mark.parametrize("defense_token", [39, 42])
+def test_moonlight_cards_reflect_miracles_to_original_attacker(
+    defense_token: int,
+) -> None:
+    batch, attacker, moonlight_slot = miracle_reflection_defense_batch(7, defense_token)
+    pending_attack = int(batch.pending_attacks[0])
+
+    assert batch.action_mask[0, moonlight_slot + 1]
+    batch.step(np.asarray([moonlight_slot + 1], dtype=np.int64))
+    batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+
+    assert batch.pending_reflected[0]
+    assert not batch.pending_bounced[0]
+    assert batch.pending_attacks[0] == pending_attack
+    assert batch.active_players[0] == attacker
+    assert batch.phases[0] == godfield_sim.PHASE_DEFENSE
+
+
+def test_moonlight_armor_uses_printed_defense_against_weapon() -> None:
+    batch, _attacker, moonlight_slot = miracle_reflection_defense_batch(2, 39)
+
+    assert batch.pending_base_kinds[0] == godfield_sim.CARD_KIND_WEAPON
+    assert batch.action_mask[0, moonlight_slot + 1]
+    batch.step(np.asarray([moonlight_slot + 1], dtype=np.int64))
+    assert batch.selected_values[0] == 8
+    batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+
+    assert not batch.pending_reflected[0]
+    assert round(float(batch.player_features[0, 0, 0]) * 100) == 38
+
+
+def test_moonlight_axe_is_base_attack_but_cannot_defend_weapons() -> None:
+    for seed in range(32768):
+        batch = illness_cure_resource_batch(seed=seed, miracle_reflection=True)
+        axe_slots = np.flatnonzero(batch.hand_token_ids[0] == 42)
+        if not axe_slots.size:
+            continue
+        axe_action = int(axe_slots[0]) + 1
+        assert batch.action_mask[0, axe_action]
+        batch.step(np.asarray([axe_action], dtype=np.int64))
+        assert batch.selected_values[0] == 10
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        assert batch.pending_attacks[0] == 10
+        break
+    else:
+        raise AssertionError("fixture seeds did not expose Moonlight Axe as an attack")
+
+    defense_batch, _attacker, axe_slot = miracle_reflection_defense_batch(2, 42)
+    assert not defense_batch.action_mask[0, axe_slot + 1]
+
+
+def test_miracle_reflection_is_one_hop_bounded() -> None:
+    for seed in range(32768):
+        batch = illness_cure_resource_batch(seed=seed, miracle_reflection=True)
+        attack_slots = np.flatnonzero(batch.hand_token_ids[0] == 7)
+        if not attack_slots.size:
+            continue
+        attack_action = int(attack_slots[0]) + 1
+        if not batch.action_mask[0, attack_action]:
+            continue
+        batch.step(np.asarray([attack_action], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        moonlight_slots = np.flatnonzero(batch.hand_token_ids[0] == 39)
+        if not moonlight_slots.size:
+            continue
+        batch.step(np.asarray([int(moonlight_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        second_redirects = np.flatnonzero(np.isin(batch.hand_token_ids[0], [36, 39, 42]))
+        if not second_redirects.size:
+            continue
+
+        assert batch.pending_reflected[0]
+        assert all(not batch.action_mask[0, int(slot) + 1] for slot in second_redirects)
+        return
+    raise AssertionError("fixture seeds did not expose a second miracle redirect")
 
 
 @pytest.mark.parametrize(
@@ -3346,6 +3511,22 @@ def test_resource_heuristics_index_miracle_attacks_in_the_miracle_namespace() ->
         sky_tokens | {sky_harpoon, turbulence}
     )
     assert miracle_bounce_miracle.policy_id == "evidenced-miracle-bounce-miracle-resource-combo-v1"
+
+    miracle_reflection = build_curriculum_heuristic(
+        snapshot,
+        vocabulary,
+        ruleset="miracle-reflection-resource-hand",
+    )
+    moonlight_armor = vocabulary.token_id("armor", "moonlight-armor")
+    moonlight_axe = vocabulary.token_id("weapons", "moonlight-axe")
+    assert miracle_reflection.defenses[moonlight_armor] == 12
+    assert miracle_reflection.attacks[moonlight_axe] == 10
+    assert miracle_reflection.defenses[moonlight_axe] == 0
+    assert miracle_reflection.miracle_reflection_defenses == {
+        vocabulary.token_id("armor", slug)
+        for slug in ("moonlight-armor", "moonlight-helm", "moonlight-shield")
+    } | {moonlight_axe}
+    assert miracle_reflection.policy_id == ("evidenced-miracle-reflection-resource-combo-v1")
 
 
 def test_fever_mask_heuristic_uses_plain_armor_when_curse_is_not_needed() -> None:

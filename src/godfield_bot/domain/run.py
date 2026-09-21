@@ -18,6 +18,7 @@ class RunStatus(StrEnum):
 
 class EventKind(StrEnum):
     OBSERVATION = "observation"
+    EVIDENCE = "evidence"
     GAME_STATE = "game_state"
     LEGAL_ACTIONS = "legal_actions"
     DECISION = "decision"

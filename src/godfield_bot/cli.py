@@ -688,6 +688,15 @@ def play_official_training_computers(
         Path,
         typer.Option(help="Local SQLite trajectory database."),
     ] = Path("runs", "godfield.sqlite"),
+    dream_evidence_catalog: Annotated[
+        Path,
+        typer.Option(
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            help="Pinned API catalog used only to decode passive Dream evidence.",
+        ),
+    ] = Path("data", "snapshots", "2026-09-21", "api-catalog-en.json"),
     headed: Annotated[
         bool,
         typer.Option("--headed/--headless", help="Show or hide the official browser client."),
@@ -756,6 +765,16 @@ def play_official_training_computers(
         Path | None,
         typer.Option(help="Optional owner-only screenshots for changed game states."),
     ] = None,
+    dream_evidence_probe: Annotated[
+        bool,
+        typer.Option(
+            "--dream-evidence-probe",
+            help=(
+                "Passively record true/displayed Dream identities and DOM selectability "
+                "after policy decisions."
+            ),
+        ),
+    ] = False,
     max_actions: Annotated[
         int,
         typer.Option(min=1, max=100, help="Hard browser-click budget for each game."),
@@ -815,6 +834,10 @@ def play_official_training_computers(
                         no_progress_seconds=no_progress_seconds,
                         unknown_screen_grace_seconds=unknown_screen_grace_seconds,
                         screenshot_directory=screenshot_directory,
+                        dream_evidence_probe=dream_evidence_probe,
+                        dream_evidence_catalog=(
+                            dream_evidence_catalog if dream_evidence_probe else None
+                        ),
                         policy=policy,
                         model_directory=neural_model,
                         bible_snapshot=snapshot if neural_model is not None else None,
@@ -961,6 +984,38 @@ def runs_events(
         for event in events
     ]
     typer.echo(json.dumps(rows, ensure_ascii=False, indent=2))
+
+
+@runs_app.command("dream-evidence")
+def runs_dream_evidence(
+    run_id: Annotated[str, typer.Argument()],
+    database: Annotated[
+        Path,
+        typer.Option(help="Ignored local SQLite trajectory database."),
+    ] = Path("runs", "godfield.sqlite"),
+) -> None:
+    """Summarize passive Dream identity and selectability evidence."""
+
+    from godfield_bot.domain.run import EventKind
+    from godfield_bot.dream_probe import DreamProbeSample, summarize_dream_evidence
+
+    store = RunStore(database)
+    run = store.get_run(run_id)
+    if run is None:
+        typer.echo("unknown run", err=True)
+        raise typer.Exit(code=1)
+    try:
+        samples = tuple(
+            DreamProbeSample.model_validate(event.payload)
+            for event in store.events(run_id)
+            if event.kind is EventKind.EVIDENCE
+        )
+    except ValueError as error:
+        typer.echo(f"invalid Dream evidence: {error}", err=True)
+        raise typer.Exit(code=1) from None
+    report = summarize_dream_evidence(samples)
+    payload = {"run_id": run_id, **report.model_dump(mode="json")}
+    typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
 @runs_app.command("record-probe")

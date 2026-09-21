@@ -11,6 +11,7 @@ from playwright.async_api import Page
 from pydantic import BaseModel, Field, JsonValue, model_validator
 
 from godfield_bot.account import start_account_session
+from godfield_bot.api_catalog import ApiCatalogSnapshot
 from godfield_bot.browser.controls import click_header_back, click_text_control
 from godfield_bot.browser.profile import open_account_context, prepare_private_directory
 from godfield_bot.config import AppSettings
@@ -19,6 +20,11 @@ from godfield_bot.domain.game import GameState
 from godfield_bot.domain.observation import ScreenKind, ScreenObservation
 from godfield_bot.domain.outcome import MatchOutcome, SparseTerminalReward
 from godfield_bot.domain.run import EventKind, RunMode, RunRecord, RunSpec, RunStatus
+from godfield_bot.dream_probe import (
+    capture_dream_evidence,
+    dream_probe_sample_digest,
+    install_dream_evidence_probe,
+)
 from godfield_bot.elements import CombatElement
 from godfield_bot.executor import execute_action
 from godfield_bot.game_state import GameStateParseError, parse_game_state
@@ -62,6 +68,8 @@ class TrainingRunConfig(BaseModel):
     policy: RunnerPolicyName = RunnerPolicyName.SAFE_OBSERVER
     model_directory: Path | None = None
     bible_snapshot: Path | None = None
+    dream_evidence_probe: bool = False
+    dream_evidence_catalog: Path | None = None
     neural_sampling_seed: int = Field(default=67, ge=0, le=2**63 - 1)
     max_in_match_actions: int = Field(default=0, ge=0, le=100)
     verified_weapon_attacks: dict[str, WeaponAttackRule] = Field(default_factory=dict)
@@ -90,6 +98,8 @@ class TrainingRunConfig(BaseModel):
             self.model_directory is None or self.bible_snapshot is None
         ):
             raise ValueError("neural Training control requires a model and Bible snapshot")
+        if self.dream_evidence_probe and self.dream_evidence_catalog is None:
+            raise ValueError("Dream evidence probe requires a pinned API catalog")
         return self
 
 
@@ -279,6 +289,28 @@ def build_action_transition(
     )
 
 
+async def _record_dream_evidence_if_needed(
+    page: Page,
+    catalog: ApiCatalogSnapshot,
+    store: RunStore,
+    run_id: str,
+    *,
+    previous_digest: str | None,
+    health_recorded: bool,
+) -> tuple[str | None, bool]:
+    evidence = await capture_dream_evidence(page, catalog)
+    if evidence is None:
+        return previous_digest, health_recorded
+    evidence_digest = dream_probe_sample_digest(evidence)
+    has_dream_evidence = evidence.dream_active or any(
+        item.disguised for item in evidence.items
+    )
+    if evidence_digest == previous_digest or (health_recorded and not has_dream_evidence):
+        return previous_digest, health_recorded
+    store.append_event(run_id, EventKind.EVIDENCE, evidence)
+    return evidence_digest, True
+
+
 def _screen_departure_reason(
     observation: ScreenObservation,
     *,
@@ -353,6 +385,16 @@ async def run_training_observer(
         bible_snapshot=config.bible_snapshot,
         neural_sampling_seed=config.neural_sampling_seed,
     )
+    dream_catalog = None
+    if config.dream_evidence_probe:
+        from godfield_bot.api_catalog import ApiCatalogError, read_api_catalog_snapshot
+
+        if config.dream_evidence_catalog is None:  # pragma: no cover - validated above
+            raise RunnerError("Dream evidence probe requires a pinned API catalog")
+        try:
+            dream_catalog = read_api_catalog_snapshot(config.dream_evidence_catalog)
+        except ApiCatalogError as error:
+            raise RunnerError("Dream evidence catalog is unreadable or invalid") from error
     store = RunStore(config.database)
     started = datetime.now(UTC)
     run: RunRecord | None = None
@@ -363,6 +405,8 @@ async def run_training_observer(
     outcome_reason = "wall_clock_limit"
     try:
         async with open_account_context(settings, headed=config.headed) as context:
+            if dream_catalog is not None:
+                await install_dream_evidence_probe(context, identity=settings.identity)
             client = await fingerprint_client(context)
             if client.sha256 != config.expected_client_sha256:
                 raise RunnerError("live client hash differs from the accepted snapshot")
@@ -384,6 +428,12 @@ async def run_training_observer(
                         "no_progress_seconds": config.no_progress_seconds,
                         "unknown_screen_grace_seconds": config.unknown_screen_grace_seconds,
                         "max_in_match_actions": config.max_in_match_actions,
+                        "dream_evidence_probe": dream_catalog is not None,
+                        "dream_evidence_catalog_sha256": (
+                            dream_catalog.content_sha256
+                            if dream_catalog is not None
+                            else None
+                        ),
                         "neural_weights_sha256": (
                             policy.manifest.weights_sha256
                             if isinstance(policy, OfficialTrainingNeuralPolicy)
@@ -420,6 +470,8 @@ async def run_training_observer(
             previous_parse_error_digest: str | None = None
             unknown_screen_started_at: float | None = None
             previous_unknown_screen_digest: str | None = None
+            previous_dream_evidence_digest: str | None = None
+            dream_probe_health_recorded = False
             loop = asyncio.get_running_loop()
             deadline = (
                 None if config.max_seconds == 0 else loop.time() + config.max_seconds
@@ -516,6 +568,18 @@ async def run_training_observer(
                     previous_state = before_state
                     if previous_digest != prior_digest:
                         last_progress_at = loop.time()
+                    if dream_catalog is not None:
+                        (
+                            previous_dream_evidence_digest,
+                            dream_probe_health_recorded,
+                        ) = await _record_dream_evidence_if_needed(
+                            page,
+                            dream_catalog,
+                            store,
+                            run.run_id,
+                            previous_digest=previous_dream_evidence_digest,
+                            health_recorded=dream_probe_health_recorded,
+                        )
                     terminal = append_sparse_terminal_events(
                         store,
                         run.run_id,
@@ -616,6 +680,18 @@ async def run_training_observer(
                             break
                 except GameStateParseError as error:
                     log.info("incomplete_game_frame", reason=str(error))
+                    if dream_catalog is not None:
+                        (
+                            previous_dream_evidence_digest,
+                            dream_probe_health_recorded,
+                        ) = await _record_dream_evidence_if_needed(
+                            page,
+                            dream_catalog,
+                            store,
+                            run.run_id,
+                            previous_digest=previous_dream_evidence_digest,
+                            health_recorded=dream_probe_health_recorded,
+                        )
                     parse_error_digest = hashlib.sha256(
                         observation.model_dump_json(exclude={"observed_at"}).encode()
                     ).hexdigest()

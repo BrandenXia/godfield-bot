@@ -72,6 +72,14 @@ def test_safe_observer_defaults_to_zero_action_budget() -> None:
     assert config.unknown_screen_grace_seconds == 15
 
 
+def test_dream_probe_requires_a_pinned_catalog() -> None:
+    with pytest.raises(ValidationError, match="requires a pinned API catalog"):
+        TrainingRunConfig(
+            expected_client_sha256="a" * 64,
+            dream_evidence_probe=True,
+        )
+
+
 def test_zero_max_seconds_disables_training_wall_clock_limit() -> None:
     config = TrainingRunConfig(expected_client_sha256="a" * 64, max_seconds=0)
 

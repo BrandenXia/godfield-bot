@@ -436,6 +436,29 @@ stored as an aborted, training-ineligible episode. The campaign starts a clean
 Training game and tolerates three consecutive frozen games by default; a
 completed game resets that retry streak.
 
+Dream remains outside the neural curriculum until the official client's
+information boundary is measured. Enable the passive sidecar while running the
+existing heuristic to record only ロキ-67's true/displayed model IDs, the
+current phase, displayed image, and whether each displayed card is selectable:
+
+```console
+uv run godfield-bot play-training \
+  --headless \
+  --max-games 0 \
+  --max-seconds 0 \
+  --dream-evidence-probe
+uv run godfield-bot runs dream-evidence <run-id>
+```
+
+The sidecar is installed before the official client starts, stores no account,
+room, token, or opponent-hand identifiers, and is read only after the policy
+has decided. It records one non-Dream health sample per game and then only
+Dream/disguise samples. Raw client hand order is joined to visual slots by the
+displayed asset; duplicate displayed assets are explicitly ambiguous rather
+than paired by guesswork. The evidence never enters `GameState`, legal-action
+generation, or policy inference. See
+[ADR 0050](docs/architecture/0050-dream-evidence-probe.md).
+
 To collect candidate-controlled games against the official computer, install
 the learning dependency and explicitly authorize one immutable schema-v4/v5
 candidate. The model can choose only among the same reviewed browser actions;

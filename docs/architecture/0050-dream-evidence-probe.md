@@ -76,3 +76,25 @@ accepted actions with no probe-induced liveness or action-acceptance failure.
 No Dream occurred in that game. Bounded health run
 `0c4c1518-e6ea-4111-881e-bee5679433e9` then recorded one sample with exact
 raw-to-rendered alignment before stopping at its intentional one-action limit.
+
+A subsequent passive campaign observed Dream in two games. Run
+`a9e89c28-af49-4b9f-a4aa-41e79a2871f5` contained a brief two-sample Dream and
+completed normally. Run `87cdd1a0-ab15-413f-a582-4adc36f738d7` retained Dream
+from G.F.4 through G.F.17 and produced 35 Dream samples. Across that sustained
+run, 165 disguised-item observations included 95 whose true and displayed
+model IDs differed. Every true identity was present in the sanitized client
+state, every disguise remained in the true artifact's category, and no
+cross-category disguise was observed. These are observations of the sampled
+official client, not a claim that cross-category disguises are impossible.
+
+The sustained run also exposed a browser liveness defect. Dream nests the true
+image and displayed mask inside an inner container while the clickable `div`
+can be a sibling of that container. Immediate-sibling-only discovery therefore
+reported only `wait` at G.F.17 even though the evidence sidecar independently
+reported five selectable displayed weapons. Observation and execution now
+retain the ordinary direct-sibling path and add a fail-closed fallback requiring
+exactly one rendered pointer `div` with the same bounds as the normalized hand
+image. Replaying the archived G.F.17 observation recovers all five weapon
+actions. Live run `8216aac0-6aaf-4b01-9eb0-460e40d870ba` then completed after
+28 accepted actions, confirming that the fallback does not regress ordinary
+hand selection; Dream did not occur in that validation game.

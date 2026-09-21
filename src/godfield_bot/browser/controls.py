@@ -127,18 +127,36 @@ async def click_hand_artifact(page: Page, *, slot: int, asset_path: str) -> None
               const path = new URL(selected.src).pathname;
               if (path !== wantedPath) return null;
               const selectedRect = selected.getBoundingClientRect();
-              let target = selected.nextElementSibling;
-              while (target?.tagName === 'IMG' && rendered(target)) {
-                const overlayRect = target.getBoundingClientRect();
+              let directTarget = selected.nextElementSibling;
+              while (directTarget?.tagName === 'IMG' && rendered(directTarget)) {
+                const overlayRect = directTarget.getBoundingClientRect();
                 const sameBounds = Math.abs(overlayRect.x - selectedRect.x) <= 1.5 &&
                   Math.abs(overlayRect.y - selectedRect.y) <= 1.5 &&
                   Math.abs(overlayRect.width - selectedRect.width) <= 1.5 &&
                   Math.abs(overlayRect.height - selectedRect.height) <= 1.5;
-                if (!sameBounds) return null;
-                target = target.nextElementSibling;
+                if (!sameBounds) {
+                  directTarget = null;
+                  break;
+                }
+                directTarget = directTarget.nextElementSibling;
               }
-              if (!target || target.tagName !== 'DIV' || !rendered(target) ||
-                  getComputedStyle(target).cursor !== 'pointer') return null;
+              const directMatches = directTarget?.tagName === 'DIV' &&
+                rendered(directTarget) && getComputedStyle(directTarget).cursor === 'pointer';
+              let target = directMatches ? directTarget : null;
+              if (!target) {
+                const targets = [...document.querySelectorAll('div')].filter((candidate) => {
+                  if (!rendered(candidate) || getComputedStyle(candidate).cursor !== 'pointer') {
+                    return false;
+                  }
+                  const candidateRect = candidate.getBoundingClientRect();
+                  return Math.abs(candidateRect.x - selectedRect.x) <= 1.5 &&
+                    Math.abs(candidateRect.y - selectedRect.y) <= 1.5 &&
+                    Math.abs(candidateRect.width - selectedRect.width) <= 1.5 &&
+                    Math.abs(candidateRect.height - selectedRect.height) <= 1.5;
+                });
+                if (targets.length !== 1) return null;
+                target = targets[0];
+              }
               const allDivs = [...document.querySelectorAll('div')];
               return {targetDomIndex: allDivs.indexOf(target), path};
             }

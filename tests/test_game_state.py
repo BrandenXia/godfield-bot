@@ -129,6 +129,55 @@ def test_wrapped_hand_is_spatially_ordered_and_excludes_trade_commands() -> None
     ]
 
 
+def test_dream_nested_overlay_recovers_unique_same_bounds_hand_target() -> None:
+    initial = game_observation()
+    weapon_bounds = initial.images[1].bounds
+    observation = initial.model_copy(
+        update={
+            "controls": (
+                *initial.controls,
+                VisibleControl(text="", tag="div", bounds=weapon_bounds),
+            ),
+            "images": (
+                *initial.images,
+                VisibleImage(path="/images/items/fake.webp", bounds=weapon_bounds),
+            ),
+        }
+    )
+
+    state = parse_game_state(observation, identity="ロキ-67")
+    actions = verified_browser_actions(
+        state,
+        observation,
+        verified_weapon_attacks={"bronze-club": ("ATK1", 1.0)},
+    )
+
+    assert state.hand[0].hit_target_bounds == weapon_bounds
+    assert state.hand[1].hit_target_bounds is None
+    assert [action.action_id for action in actions.actions] == [
+        "wait",
+        "artifact:0:weapons/bronze-club",
+    ]
+
+
+def test_dream_same_bounds_hand_target_fails_closed_when_not_unique() -> None:
+    initial = game_observation()
+    weapon_bounds = initial.images[1].bounds
+    observation = initial.model_copy(
+        update={
+            "controls": (
+                *initial.controls,
+                VisibleControl(text="", tag="div", bounds=weapon_bounds),
+                VisibleControl(text="", tag="div", bounds=weapon_bounds),
+            )
+        }
+    )
+
+    state = parse_game_state(observation, identity="ロキ-67")
+
+    assert state.hand[0].hit_target_bounds is None
+
+
 def test_fog_recovers_hidden_opponent_from_previous_observation() -> None:
     clear = game_observation()
     previous = parse_game_state(clear, identity="ロキ-67")

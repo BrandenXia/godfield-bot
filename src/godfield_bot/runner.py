@@ -308,6 +308,15 @@ async def _record_dream_evidence_if_needed(
     if evidence_digest == previous_digest or (health_recorded and not has_dream_evidence):
         return previous_digest, health_recorded
     store.append_event(run_id, EventKind.EVIDENCE, evidence)
+    log.info(
+        "dream_evidence_recorded",
+        run_id=run_id,
+        field_number=evidence.field_number,
+        phase=evidence.phase.value,
+        dream_active=evidence.dream_active,
+        disguised_items=sum(item.disguised for item in evidence.items),
+        hand_alignment=evidence.hand_alignment,
+    )
     return evidence_digest, True
 
 

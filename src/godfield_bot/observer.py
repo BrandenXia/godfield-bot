@@ -90,6 +90,11 @@ async def capture_screen(page: Page) -> ScreenObservation:
                 return style.display !== 'none' && style.visibility !== 'hidden' &&
                   rect.width > 0 && rect.height > 0;
               };
+              const sameBounds = (left, right) =>
+                Math.abs(left.x - right.x) <= 1.5 &&
+                Math.abs(left.y - right.y) <= 1.5 &&
+                Math.abs(left.width - right.width) <= 1.5 &&
+                Math.abs(left.height - right.height) <= 1.5;
               const text = [...document.querySelectorAll('span')]
                 .filter(rendered)
                 .map((element) => element.innerText.trim())
@@ -117,25 +122,33 @@ async def capture_screen(page: Page) -> ScreenObservation:
                   tag: element.tagName.toLowerCase(),
                   bounds: bounds(element),
                 }));
+              const handPointerTargets = [...document.querySelectorAll('div')]
+                .filter((element) => rendered(element) &&
+                  getComputedStyle(element).cursor === 'pointer')
+                .map((element) => ({element, bounds: bounds(element)}));
               const images = [...document.querySelectorAll('img')]
                 .filter(rendered)
                 .map((element) => {
                   const imageBounds = bounds(element);
                   let sibling = element.nextElementSibling;
                   while (sibling?.tagName === 'IMG' && rendered(sibling)) {
-                    const overlayBounds = bounds(sibling);
-                    const sameBounds = Math.abs(overlayBounds.x - imageBounds.x) <= 1.5 &&
-                      Math.abs(overlayBounds.y - imageBounds.y) <= 1.5 &&
-                      Math.abs(overlayBounds.width - imageBounds.width) <= 1.5 &&
-                      Math.abs(overlayBounds.height - imageBounds.height) <= 1.5;
-                    if (!sameBounds) break;
+                    if (!sameBounds(bounds(sibling), imageBounds)) break;
                     sibling = sibling.nextElementSibling;
                   }
                   const handImage = imageBounds.x >= 100 && imageBounds.x <= 850 &&
                     imageBounds.y >= 480 && imageBounds.y <= 690;
-                  const pointerTarget = sibling?.tagName === 'DIV' && rendered(sibling) &&
-                    getComputedStyle(sibling).cursor === 'pointer';
-                  const hitTarget = handImage && pointerTarget ? bounds(sibling) : null;
+                  const directTarget = handImage && sibling?.tagName === 'DIV' &&
+                    rendered(sibling) && getComputedStyle(sibling).cursor === 'pointer' &&
+                    sameBounds(bounds(sibling), imageBounds)
+                    ? bounds(sibling)
+                    : null;
+                  const fallbackTargets = handImage && directTarget === null
+                    ? handPointerTargets.filter((target) =>
+                        sameBounds(target.bounds, imageBounds))
+                    : [];
+                  const hitTarget = directTarget ?? (fallbackTargets.length === 1
+                    ? fallbackTargets[0].bounds
+                    : null);
                   return {
                     path: new URL(element.src).pathname,
                     bounds: imageBounds,

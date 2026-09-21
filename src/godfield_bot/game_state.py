@@ -337,6 +337,22 @@ def _item_coordinates(image: VisibleImage) -> tuple[str, str] | None:
     return match.group(1), match.group(2)
 
 
+def _hand_hit_target(
+    observation: ScreenObservation,
+    image: VisibleImage,
+) -> Bounds | None:
+    if image.hit_target_bounds is not None:
+        return image.hit_target_bounds
+    same_bounds_controls = [
+        control.bounds
+        for control in observation.controls
+        if not control.text
+        and control.tag == "div"
+        and _bounds_match(control.bounds, image.bounds)
+    ]
+    return same_bounds_controls[0] if len(same_bounds_controls) == 1 else None
+
+
 def _parse_hand(observation: ScreenObservation) -> tuple[HandArtifact, ...]:
     hand_images = sorted(
         (
@@ -365,7 +381,7 @@ def _parse_hand(observation: ScreenObservation) -> tuple[HandArtifact, ...]:
                 slug=slug,
                 asset_path=image.path,
                 bounds=image.bounds,
-                hit_target_bounds=image.hit_target_bounds,
+                hit_target_bounds=_hand_hit_target(observation, image),
             )
         )
     return tuple(hand)

@@ -104,14 +104,24 @@ than treating stale HP as observed. Exact untargeted attack panels remain
 executable under Fog because the official rule randomizes the target, while the
 Training game has exactly one living opponent.
 
-Under Dream, the client renders a same-bounds mask between an artifact image
-and its clickable `div`. Observation and execution now follow only that exact
-overlay chain to a pointer target. The hand normalizer also excludes Trade
-commands and preserves all rows in spatial order. This prevents a disguised
-weapon from being dropped from the hand and prevents the illegal empty Prayer
-that ended run `d2d97273-724b-431b-a312-34475641570c`. The Fog failure from run
+Under Dream, the client can render a same-bounds mask between an artifact image
+and its clickable `div`. The first fix followed the direct overlay chain to a
+pointer target. The hand normalizer also excludes Trade commands and preserves
+all rows in spatial order. This prevents a disguised weapon from being dropped
+from the hand and prevents the illegal empty Prayer that ended run
+`d2d97273-724b-431b-a312-34475641570c`. The Fog failure from run
 `bef9d31f-2245-4e6b-9a9e-bfa06f96a570` now replays as a typed partial
 observation rather than a parse error.
+
+Passive evidence run `87cdd1a0-ab15-413f-a582-4adc36f738d7` later exposed a
+second Dream layout: the image and mask were nested in an inner container while
+the pointer `div` was its sibling. At G.F.17 the bot therefore saw only `wait`
+despite five selectable displayed weapons and reached the no-progress limit.
+Observation, state normalization, and execution now recover a target only when
+there is exactly one rendered pointer `div` with the same bounds as the hand
+image. Ambiguous matches remain non-executable. The archived G.F.17 frame now
+exposes all five weapons, and ordinary-layout validation run
+`8216aac0-6aaf-4b01-9eb0-460e40d870ba` completed after 28 accepted actions.
 
 Run `308002d7-352a-48d9-880e-137acfe3e2b2` exposed the next liveness boundary.
 At field 13, ロキ-67 had 2 HP and 10 MP under Fog; Evil Broadsword was masked,

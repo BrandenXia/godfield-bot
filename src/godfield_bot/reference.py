@@ -1248,6 +1248,52 @@ def verified_fog_miracles(snapshot: BibleSnapshot) -> dict[str, tuple[int, Comba
     return result
 
 
+def verified_dark_cloud_weapon_cards(
+    snapshot: BibleSnapshot,
+) -> dict[str, tuple[int, CombatElement]]:
+    """Return fixed weapons that inflict Dark Cloud on positive damage."""
+
+    weapons = snapshot.catalog.get("weapons")
+    if weapons is None:
+        return {}
+    result: dict[str, tuple[int, CombatElement]] = {}
+    for artifact in weapons.items:
+        element = _combat_element(artifact)
+        if element is None or len(artifact.detail) != 5:
+            continue
+        attack = PLAIN_ATTACK_PATTERN.fullmatch(artifact.detail[1])
+        if (
+            attack is not None
+            and artifact.detail[2] == "Dark Cloud on damage"
+            and re.fullmatch(r"\$\d+", artifact.detail[3]) is not None
+            and artifact.detail[4].startswith("Gift Rate:")
+        ):
+            result[artifact.asset] = (int(attack.group(1)), element)
+    return result
+
+
+def verified_dark_cloud_miracles(snapshot: BibleSnapshot) -> dict[str, tuple[int, CombatElement]]:
+    """Return reusable direct Dark Cloud miracles with exact cost and element."""
+
+    miracles = snapshot.catalog.get("miracles")
+    if miracles is None:
+        return {}
+    result: dict[str, tuple[int, CombatElement]] = {}
+    for artifact in miracles.items:
+        element = _combat_element(artifact)
+        if element is None or len(artifact.detail) != 5:
+            continue
+        cost = re.fullmatch(r"(\d+)MP", artifact.detail[3])
+        if (
+            artifact.detail[1] == "Dark Cloud"
+            and artifact.detail[2] == "Cost"
+            and cost is not None
+            and artifact.detail[4].startswith("Gift Rate:")
+        ):
+            result[artifact.asset] = (int(cost.group(1)), element)
+    return result
+
+
 def verified_chance_attack_miracle_cards(
     snapshot: BibleSnapshot,
 ) -> dict[str, tuple[int, int, int, CombatElement]]:

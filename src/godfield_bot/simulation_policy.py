@@ -24,6 +24,8 @@ from godfield_bot.reference import (
     verified_attack_twice_weapon_cards,
     verified_chance_absorption_weapon_cards,
     verified_chance_attack_miracle_cards,
+    verified_dark_cloud_miracles,
+    verified_dark_cloud_weapon_cards,
     verified_dynamic_mp_weapon_cards,
     verified_effect_attack_miracle_cards,
     verified_fever_mask_armor,
@@ -83,9 +85,10 @@ MIRACLE_BOUNCE_MIRACLE_RESOURCE_HEURISTIC_POLICY_ID = (
 )
 MIRACLE_REFLECTION_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-miracle-reflection-resource-combo-v1"
 FOG_FLASH_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-fog-flash-resource-combo-v2"
+DARK_CLOUD_RESOURCE_HEURISTIC_POLICY_ID = "evidenced-dark-cloud-resource-combo-v1"
 FORGIVE_ACTION_INDEX = 19
 CONFIRM_ACTION_INDEX = 20
-MIRACLE_ATTACK_CARD_KINDS = frozenset({6, 8, 9, 36, 37})
+MIRACLE_ATTACK_CARD_KINDS = frozenset({6, 8, 9, 36, 37, 39})
 
 
 class SimulationPolicyError(RuntimeError):
@@ -113,6 +116,7 @@ class CurriculumHeuristic:
     miracle_reflection_defenses: frozenset[int] = frozenset()
     fog_attack_tokens: frozenset[int] = frozenset()
     flash_attack_tokens: frozenset[int] = frozenset()
+    dark_cloud_attack_tokens: frozenset[int] = frozenset()
     policy_id: str = HEURISTIC_POLICY_ID
 
 
@@ -160,21 +164,28 @@ def build_curriculum_heuristic(
     *,
     ruleset: AttackDefenseRuleset = "fixed-role",
 ) -> CurriculumHeuristic:
-    fog_flash_ruleset = ruleset == "fog-flash-resource-hand"
+    dark_cloud_ruleset = ruleset == "dark-cloud-resource-hand"
+    fog_flash_ruleset = ruleset in {
+        "fog-flash-resource-hand",
+        "dark-cloud-resource-hand",
+    }
     miracle_reflection_ruleset = ruleset in {
         "miracle-reflection-resource-hand",
         "fog-flash-resource-hand",
+        "dark-cloud-resource-hand",
     }
     miracle_bounce_miracle_ruleset = ruleset in {
         "miracle-bounce-miracle-resource-hand",
         "miracle-reflection-resource-hand",
         "fog-flash-resource-hand",
+        "dark-cloud-resource-hand",
     }
     miracle_bounce_weapon_ruleset = ruleset in {
         "miracle-bounce-weapon-resource-hand",
         "miracle-bounce-miracle-resource-hand",
         "miracle-reflection-resource-hand",
         "fog-flash-resource-hand",
+        "dark-cloud-resource-hand",
     }
     miracle_bounce_ruleset = ruleset in {
         "miracle-bounce-resource-hand",
@@ -182,6 +193,7 @@ def build_curriculum_heuristic(
         "miracle-bounce-miracle-resource-hand",
         "miracle-reflection-resource-hand",
         "fog-flash-resource-hand",
+        "dark-cloud-resource-hand",
     }
     miracle_block_weapon_ruleset = ruleset in {
         "miracle-block-weapon-resource-hand",
@@ -190,6 +202,7 @@ def build_curriculum_heuristic(
         "miracle-bounce-miracle-resource-hand",
         "miracle-reflection-resource-hand",
         "fog-flash-resource-hand",
+        "dark-cloud-resource-hand",
     }
     miracle_block_ruleset = ruleset in {
         "miracle-block-resource-hand",
@@ -199,6 +212,7 @@ def build_curriculum_heuristic(
         "miracle-bounce-miracle-resource-hand",
         "miracle-reflection-resource-hand",
         "fog-flash-resource-hand",
+        "dark-cloud-resource-hand",
     }
     if miracle_block_ruleset:
         ruleset = "fever-mask-resource-hand"
@@ -704,6 +718,7 @@ def build_curriculum_heuristic(
         policy_id = MIRACLE_REFLECTION_RESOURCE_HEURISTIC_POLICY_ID
     fog_attack_tokens: set[int] = set()
     flash_attack_tokens: set[int] = set()
+    dark_cloud_attack_tokens: set[int] = set()
     if fog_flash_ruleset:
         for slug, (hit_rate, attack, _element, curse) in verified_fog_flash_weapon_cards(
             snapshot
@@ -728,6 +743,17 @@ def build_curriculum_heuristic(
             attack_miracles[slug] = (0, cost)
             fog_attack_tokens.add(token)
         policy_id = FOG_FLASH_RESOURCE_HEURISTIC_POLICY_ID
+    if dark_cloud_ruleset:
+        for slug, (attack, _element) in verified_dark_cloud_weapon_cards(snapshot).items():
+            token = vocabulary.token_id("weapons", slug)
+            attack_token_values[token] = attack
+            dark_cloud_attack_tokens.add(token)
+        for slug, (cost, _element) in verified_dark_cloud_miracles(snapshot).items():
+            token = vocabulary.token_id("miracles", slug)
+            attack_token_values[token] = 0
+            attack_miracles[slug] = (0, cost)
+            dark_cloud_attack_tokens.add(token)
+        policy_id = DARK_CLOUD_RESOURCE_HEURISTIC_POLICY_ID
     return CurriculumHeuristic(
         attacks=attack_token_values,
         defenses=defense_token_values,
@@ -766,6 +792,7 @@ def build_curriculum_heuristic(
         miracle_reflection_defenses=frozenset(miracle_reflection_defenses),
         fog_attack_tokens=frozenset(fog_attack_tokens),
         flash_attack_tokens=frozenset(flash_attack_tokens),
+        dark_cloud_attack_tokens=frozenset(dark_cloud_attack_tokens),
         policy_id=policy_id,
     )
 
@@ -820,6 +847,7 @@ def curriculum_heuristic_actions(
                 opponent_hp = round(float(batch.player_features[environment, 1, 0]) * 100)
                 fog_flags = getattr(batch, "fog_flags", None)
                 flash_flags = getattr(batch, "flash_flags", None)
+                dark_cloud_flags = getattr(batch, "dark_cloud_flags", None)
                 actor_fogged = (
                     bool(fog_flags[environment, actor]) if fog_flags is not None else False
                 )
@@ -844,6 +872,11 @@ def curriculum_heuristic_actions(
                     illness_stage > 0
                     or (bool(fog_flags[environment, actor]) if fog_flags is not None else False)
                     or (bool(flash_flags[environment, actor]) if flash_flags is not None else False)
+                    or (
+                        bool(dark_cloud_flags[environment, actor])
+                        if dark_cloud_flags is not None
+                        else False
+                    )
                 )
                 if illness_cures:
                     cure_candidates = [
@@ -935,6 +968,11 @@ def curriculum_heuristic_actions(
                         if flash_flags is not None
                         else False
                     )
+                    opponent_dark_clouded = (
+                        bool(dark_cloud_flags[environment, opponent])
+                        if dark_cloud_flags is not None
+                        else False
+                    )
 
                     strategic_candidates: list[tuple[int, int, int, int]] = []
                     for expected_damage, action in attack_candidates:
@@ -942,7 +980,9 @@ def curriculum_heuristic_actions(
                         curse_utility = 0
                         if token in policy.fog_attack_tokens and not opponent_fogged:
                             curse_utility = 4
-                        elif token in policy.flash_attack_tokens and not opponent_flashed:
+                        elif (token in policy.flash_attack_tokens and not opponent_flashed) or (
+                            token in policy.dark_cloud_attack_tokens and not opponent_dark_clouded
+                        ):
                             curse_utility = 3
                         strategic_candidates.append(
                             (expected_damage + curse_utility, expected_damage, -action, action)

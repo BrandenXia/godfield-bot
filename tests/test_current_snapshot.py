@@ -23,6 +23,8 @@ from godfield_bot.reference import (
     verified_chance_absorption_weapon_cards,
     verified_chance_attack_miracle_cards,
     verified_cp_utility_miracle_cards,
+    verified_dark_cloud_miracles,
+    verified_dark_cloud_weapon_cards,
     verified_dynamic_mp_weapon_cards,
     verified_effect_attack_miracle_cards,
     verified_fever_mask_armor,
@@ -237,6 +239,8 @@ def test_committed_snapshot_matches_validated_live_catalog() -> None:
     }
     assert verified_fog_flash_attack_miracles(snapshot) == {"flash": (25, 1, 3, "light", "flash")}
     assert verified_fog_miracles(snapshot) == {"fog": (3, "water")}
+    assert verified_dark_cloud_weapon_cards(snapshot) == {"hexagon-doom": (11, "non-element")}
+    assert verified_dark_cloud_miracles(snapshot) == {"dark-cloud": (5, "darkness")}
     assert verified_effect_attack_miracle_cards(snapshot) == {
         "absorption": (10, 10, "light", "absorbHP")
     }

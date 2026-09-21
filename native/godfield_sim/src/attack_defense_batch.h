@@ -221,6 +221,17 @@ inline constexpr const char *kFogFlashResourceAttackDefenseRulesetId =
     "miracle-bounce-armor-weapon-miracle-miracle-reflection-armor-weapon-"
     "fog-flash-weapon-miracle-additive-reflection-dual-role-resource-miracle-"
     "attack-defense-redraw-duel-v1";
+inline constexpr std::uint32_t
+    kDarkCloudResourceAttackDefenseKernelSchemaVersion = 1;
+inline constexpr std::uint32_t
+    kDarkCloudResourceAttackDefenseObservationSchemaVersion = 9;
+inline constexpr const char *kDarkCloudResourceAttackDefenseRulesetId =
+    "plain-elemental-combo-stochastic-chance-absorption-weapon-dynamic-mp-"
+    "same-damage-weapon-attack-twice-weapon-random-target-weapon-illness-"
+    "weapon-illness-cure-heaven-herb-fever-mask-miracle-block-armor-weapon-"
+    "miracle-bounce-armor-weapon-miracle-miracle-reflection-armor-weapon-"
+    "fog-flash-weapon-miracle-dark-cloud-weapon-miracle-additive-reflection-"
+    "dual-role-resource-miracle-attack-defense-redraw-duel-v1";
 inline constexpr std::size_t kWeaponSlots = 5;
 inline constexpr std::size_t kArmorSlots = kHandSlots - kWeaponSlots;
 inline constexpr std::size_t kComboWeaponSlots = 4;
@@ -244,6 +255,8 @@ inline constexpr std::size_t kIllnessGlobalFeatureCount =
     kStochasticResourceGlobalFeatureCount + 2U;
 inline constexpr std::size_t kCurseGlobalFeatureCount =
     kIllnessGlobalFeatureCount + 4U;
+inline constexpr std::size_t kDarkCloudGlobalFeatureCount =
+    kCurseGlobalFeatureCount + 2U;
 
 enum class TurnPhase : std::uint8_t {
   Attack = 0,
@@ -345,6 +358,9 @@ public:
   [[nodiscard]] bool fog_flash_curriculum() const noexcept {
     return fog_flash_curriculum_;
   }
+  [[nodiscard]] bool dark_cloud_curriculum() const noexcept {
+    return dark_cloud_curriculum_;
+  }
   [[nodiscard]] std::uint16_t initial_mp() const noexcept {
     return initial_mp_;
   }
@@ -384,6 +400,7 @@ public:
   [[nodiscard]] UInt8_2D illness_stages_view() const;
   [[nodiscard]] UInt8_2D fog_flags_view() const;
   [[nodiscard]] UInt8_2D flash_flags_view() const;
+  [[nodiscard]] UInt8_2D dark_cloud_flags_view() const;
 
 protected:
   AttackDefenseBatch(
@@ -509,8 +526,14 @@ protected:
       ValueInput fog_flash_attack_miracle_hit_rates = {},
       ValueInput fog_flash_attack_miracle_effects = {},
       TokenInput fog_miracle_token_ids = {},
-      ElementInput fog_miracle_elements = {},
-      ValueInput fog_miracle_costs = {});
+      ElementInput fog_miracle_elements = {}, ValueInput fog_miracle_costs = {},
+      bool dark_cloud_curriculum = false,
+      TokenInput dark_cloud_weapon_token_ids = {},
+      ValueInput dark_cloud_weapon_attack_values = {},
+      ElementInput dark_cloud_weapon_elements = {},
+      TokenInput dark_cloud_miracle_token_ids = {},
+      ElementInput dark_cloud_miracle_elements = {},
+      ValueInput dark_cloud_miracle_costs = {});
 
 private:
   static constexpr std::size_t kMaximumBatchSize = 1'000'000;
@@ -597,6 +620,10 @@ private:
                                      std::size_t player, std::size_t slot);
   void draw_fog_miracle(std::size_t environment, std::size_t player,
                         std::size_t slot);
+  void draw_dark_cloud_weapon(std::size_t environment, std::size_t player,
+                              std::size_t slot);
+  void draw_dark_cloud_miracle(std::size_t environment, std::size_t player,
+                               std::size_t slot);
   void draw_weapon_family(std::size_t environment, std::size_t player,
                           std::size_t slot);
   void draw_armor_family(std::size_t environment, std::size_t player,
@@ -660,6 +687,7 @@ private:
   bool miracle_bounce_miracle_curriculum_;
   bool miracle_reflection_curriculum_;
   bool fog_flash_curriculum_;
+  bool dark_cloud_curriculum_;
   std::size_t global_feature_count_;
   std::uint16_t initial_mp_;
   std::vector<std::uint32_t> weapon_token_ids_;
@@ -772,6 +800,12 @@ private:
   std::vector<std::uint32_t> fog_miracle_token_ids_;
   std::vector<std::uint8_t> fog_miracle_elements_;
   std::vector<std::uint16_t> fog_miracle_costs_;
+  std::vector<std::uint32_t> dark_cloud_weapon_token_ids_;
+  std::vector<std::uint16_t> dark_cloud_weapon_attack_values_;
+  std::vector<std::uint8_t> dark_cloud_weapon_elements_;
+  std::vector<std::uint32_t> dark_cloud_miracle_token_ids_;
+  std::vector<std::uint8_t> dark_cloud_miracle_elements_;
+  std::vector<std::uint16_t> dark_cloud_miracle_costs_;
   std::vector<std::uint64_t> rng_states_;
   std::vector<std::uint64_t> episode_ids_;
   std::vector<std::uint16_t> hit_points_;
@@ -779,6 +813,7 @@ private:
   std::vector<std::uint8_t> illness_stages_;
   std::vector<std::uint8_t> fog_flags_;
   std::vector<std::uint8_t> flash_flags_;
+  std::vector<std::uint8_t> dark_cloud_flags_;
   std::vector<std::uint16_t> hand_values_;
   std::vector<std::uint16_t> hand_costs_;
   std::vector<std::uint16_t> hand_hit_rates_;
@@ -1527,8 +1562,15 @@ public:
       ValueInput fog_flash_attack_miracle_hit_rates,
       ValueInput fog_flash_attack_miracle_effects,
       TokenInput fog_miracle_token_ids, ElementInput fog_miracle_elements,
-      ValueInput fog_miracle_costs, std::uint64_t seed,
+      ValueInput fog_miracle_costs, TokenInput dark_cloud_weapon_token_ids,
+      ValueInput dark_cloud_weapon_attack_values,
+      ElementInput dark_cloud_weapon_elements,
+      TokenInput dark_cloud_miracle_token_ids,
+      ElementInput dark_cloud_miracle_elements,
+      ValueInput dark_cloud_miracle_costs, std::uint64_t seed,
       std::uint16_t initial_hp, std::uint16_t initial_mp);
 };
+
+using DarkCloudResourceAttackDefenseBatch = FeverMaskResourceAttackDefenseBatch;
 
 } // namespace godfield_sim

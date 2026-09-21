@@ -286,6 +286,17 @@ uv run godfield-bot models evaluate-simulation \
 uv run godfield-bot simulation benchmark \
   --ruleset fog-flash-resource-attack-defense \
   --batch-size 4096 --batch-steps 1000
+uv run godfield-bot models migrate-dark-cloud-features models/<schema-v8-model-id>
+uv run godfield-bot models train-simulation models/<schema-v9-model-id> \
+  --ruleset dark-cloud-resource-hand --batch-size 256 \
+  --rollout-steps 32 --updates 10
+uv run godfield-bot models evaluate-simulation \
+  models/<dark-cloud-candidate-id> \
+  --ruleset dark-cloud-resource-hand --games-per-seat 512 \
+  --minimum-score 0.5 --heuristic-noninferiority-margin 0.025
+uv run godfield-bot simulation benchmark \
+  --ruleset dark-cloud-resource-attack-defense \
+  --batch-size 4096 --batch-steps 1000
 ```
 
 `api observe-private --password-stdin` uses God Field's keyed private-room
@@ -594,7 +605,7 @@ seven-way pending-element signal. A recorded model migration preserves the six
 old global inputs and zero-initializes the new columns before elemental
 training. All rulesets are fingerprinted against the accepted client,
 artifact vocabulary, and exact rule catalog, and none is promotion-eligible.
-The cumulative ruleset line now reaches `fog-flash-resource-hand`. Its
+The cumulative ruleset line now reaches `dark-cloud-resource-hand`. Its
 `illness-weapon-resource-hand` foundation builds on schema-v7
 stochastic combat, additive miracles, Super Mirror, and Reflection Sword, then
 adds seven Bible-exact and API-verified ATK/DEF weapons, 14 effect-free chance weapons,
@@ -632,7 +643,12 @@ penetrating hit. Direct Fog is a reusable 3-MP miracle answered by the existing
 Angel, Sky, and Moonlight miracle defenses rather than ordinary armor. Mild
 and full cures remove Fog and Flash. Schema v8 adds four actor-relative
 Fog/Flash inputs with an explicit zero-column migration from schema v7. The
-cumulative catalog contains 191 cards. The catalog
+newest increment adds Hexagon Doom and `<Dark Cloud>`. Damage from Hexagon Doom
+inflicts Dark Cloud, while the reusable direct miracle costs 5 MP. Percentage
+attacks aimed at a clouded player hit certainly, and mild or full cures remove
+the status. Schema v9 adds actor-relative Dark Cloud inputs with an explicit
+zero-column migration from schema v8. The cumulative catalog contains 193
+cards. The catalog
 and sampling distribution are independently fingerprinted. See
 [ADR 0029](docs/architecture/0029-additive-miracle-curriculum.md),
 [ADR 0030](docs/architecture/0030-evidenced-super-mirror-curriculum.md),
@@ -648,7 +664,8 @@ and sampling distribution are independently fingerprinted. See
 [ADR 0045](docs/architecture/0045-miracle-bounce-curriculum.md),
 [ADR 0046](docs/architecture/0046-miracle-bounce-weapon-miracle-curriculum.md),
 [ADR 0047](docs/architecture/0047-miracle-reflection-curriculum.md), and
-[ADR 0048](docs/architecture/0048-fog-flash-curriculum.md).
+[ADR 0048](docs/architecture/0048-fog-flash-curriculum.md), and
+[ADR 0049](docs/architecture/0049-dark-cloud-curriculum.md).
 
 `models train-simulation` creates a bounded
 `heuristic-warmstart-recurrent-ppo-self-play-v1` candidate. The slot-aware

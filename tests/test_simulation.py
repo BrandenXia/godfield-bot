@@ -59,6 +59,7 @@ MiracleReflectionResourceAttackDefenseBatch = (
     godfield_sim.MiracleReflectionResourceAttackDefenseBatch
 )
 FogFlashResourceAttackDefenseBatch = godfield_sim.FogFlashResourceAttackDefenseBatch
+DarkCloudResourceAttackDefenseBatch = godfield_sim.DarkCloudResourceAttackDefenseBatch
 
 SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-20" / "bible.json"
 
@@ -687,7 +688,9 @@ def illness_cure_resource_batch(
     miracle_bounce_miracle: bool = False,
     miracle_reflection: bool = False,
     fog_flash: bool = False,
+    dark_cloud: bool = False,
     miracle_block_defense: int = 15,
+    chance_hit_rate: int = 50,
 ) -> (
     IllnessCureResourceAttackDefenseBatch
     | HeavenHerbResourceAttackDefenseBatch
@@ -699,9 +702,10 @@ def illness_cure_resource_batch(
     | MiracleBounceMiracleResourceAttackDefenseBatch
     | MiracleReflectionResourceAttackDefenseBatch
     | FogFlashResourceAttackDefenseBatch
+    | DarkCloudResourceAttackDefenseBatch
 ):
-    base_args = list(absorption_weapon_resource_args())
-    if fog_flash:
+    base_args = list(absorption_weapon_resource_args(chance_hit_rate=chance_hit_rate))
+    if fog_flash or dark_cloud:
         base_args[7] = np.asarray([4, 48, 49], dtype=np.uint32)
         base_args[8] = np.asarray([armor_defense, armor_defense, armor_defense], dtype=np.uint16)
         base_args[9] = np.asarray(
@@ -749,6 +753,7 @@ def illness_cure_resource_batch(
         or miracle_bounce_miracle
         or miracle_reflection
         or fog_flash
+        or dark_cloud
     ):
         heaven_args = (
             *curriculum_args,
@@ -764,8 +769,11 @@ def illness_cure_resource_batch(
             or miracle_bounce_miracle
             or miracle_reflection
             or fog_flash
+            or dark_cloud
         ):
-            if fog_flash:
+            if dark_cloud:
+                batch_type = DarkCloudResourceAttackDefenseBatch
+            elif fog_flash:
                 batch_type = FogFlashResourceAttackDefenseBatch
             elif miracle_reflection:
                 batch_type = MiracleReflectionResourceAttackDefenseBatch
@@ -915,6 +923,22 @@ def illness_cure_resource_batch(
                 if fog_flash
                 else np.asarray([], dtype=np.uint8),
                 np.asarray([3], dtype=np.uint16) if fog_flash else np.asarray([], dtype=np.uint16),
+                np.asarray([50], dtype=np.uint32)
+                if dark_cloud
+                else np.asarray([], dtype=np.uint32),
+                np.asarray([11], dtype=np.uint16)
+                if dark_cloud
+                else np.asarray([], dtype=np.uint16),
+                np.asarray([godfield_sim.ELEMENT_NON_ELEMENT], dtype=np.uint8)
+                if dark_cloud
+                else np.asarray([], dtype=np.uint8),
+                np.asarray([51], dtype=np.uint32)
+                if dark_cloud
+                else np.asarray([], dtype=np.uint32),
+                np.asarray([godfield_sim.ELEMENT_DARKNESS], dtype=np.uint8)
+                if dark_cloud
+                else np.asarray([], dtype=np.uint8),
+                np.asarray([5], dtype=np.uint16) if dark_cloud else np.asarray([], dtype=np.uint16),
                 seed,
                 initial_hp,
                 initial_mp,
@@ -1689,6 +1713,32 @@ def test_fog_flash_factory_adds_partial_information_curriculum() -> None:
     assert np.any(batch.hand_card_kinds == godfield_sim.CARD_KIND_FOG_MIRACLE)
 
 
+def test_dark_cloud_factory_adds_certain_hit_curriculum() -> None:
+    simulation = create_attack_defense_simulation(
+        SNAPSHOT_PATH,
+        batch_size=512,
+        ruleset="dark-cloud-resource-hand",
+    )
+    batch = simulation.batch
+
+    assert simulation.metadata.observation_schema_version == 9
+    assert (
+        simulation.metadata.global_feature_count
+        == godfield_sim.DARK_CLOUD_GLOBAL_FEATURE_COUNT
+        == 22
+    )
+    assert simulation.metadata.rule_catalog_size == 193
+    assert simulation.metadata.sampling_distribution == (
+        "elemental-dark-cloud-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness"
+    )
+    assert "dark-cloud-weapon-miracle" in simulation.metadata.ruleset_id
+    assert batch.dark_cloud_curriculum is True
+    assert batch.global_features.shape == (512, 22)
+    assert batch.dark_cloud_flags.shape == (512, 2)
+    assert np.any(batch.hand_card_kinds == godfield_sim.CARD_KIND_DARK_CLOUD_WEAPON)
+    assert np.any(batch.hand_card_kinds == godfield_sim.CARD_KIND_DARK_CLOUD_MIRACLE)
+
+
 def fog_flash_defense_batch(
     attack_token: int,
     *,
@@ -1716,6 +1766,40 @@ def fog_flash_defense_batch(
             defense_slot = int(defense_slots[0])
         return batch, attacker, defender, defense_slot
     raise AssertionError("fixture seeds did not expose the requested Fog/Flash exchange")
+
+
+def dark_cloud_defense_batch(
+    attack_token: int,
+    *,
+    required_defense_token: int | None = None,
+) -> tuple[DarkCloudResourceAttackDefenseBatch, int, int, int | None]:
+    for seed in range(32768):
+        batch = illness_cure_resource_batch(
+            seed=seed,
+            armor_defense=11,
+            fog_flash=True,
+            dark_cloud=True,
+        )
+        attacker = int(batch.active_players[0])
+        attack_slots = np.flatnonzero(batch.hand_token_ids[0] == attack_token)
+        if not attack_slots.size:
+            continue
+        attack_action = int(attack_slots[0]) + 1
+        if not batch.action_mask[0, attack_action]:
+            continue
+        batch.step(np.asarray([attack_action], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        if batch.phases[0] != godfield_sim.PHASE_DEFENSE:
+            continue
+        defender = int(batch.active_players[0])
+        defense_slot: int | None = None
+        if required_defense_token is not None:
+            defense_slots = np.flatnonzero(batch.hand_token_ids[0] == required_defense_token)
+            if not defense_slots.size:
+                continue
+            defense_slot = int(defense_slots[0])
+        return batch, attacker, defender, defense_slot
+    raise AssertionError("fixture seeds did not expose the requested Dark Cloud exchange")
 
 
 @pytest.mark.parametrize(
@@ -1831,6 +1915,128 @@ def test_mild_cure_clears_fog_without_requiring_disease() -> None:
         assert batch.fog_flags[0, defender] == 0
         return
     raise AssertionError("fixture seeds did not expose direct Fog followed by a mild cure")
+
+
+def test_dark_cloud_weapon_applies_only_after_positive_damage() -> None:
+    batch, _attacker, defender, _slot = dark_cloud_defense_batch(50)
+    batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+    assert batch.dark_cloud_flags[0, defender] == 1
+
+    blocked, _attacker, blocked_defender, armor_slot = dark_cloud_defense_batch(
+        50,
+        required_defense_token=48,
+    )
+    assert armor_slot is not None
+    assert blocked.action_mask[0, armor_slot + 1]
+    blocked.step(np.asarray([armor_slot + 1], dtype=np.int64))
+    blocked.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+    assert blocked.dark_cloud_flags[0, blocked_defender] == 0
+    batch.reset()
+    assert not np.any(batch.dark_cloud_flags)
+
+
+def test_direct_dark_cloud_costs_mp_is_reusable_and_rejects_ordinary_armor() -> None:
+    batch, attacker, defender, angel_slot = dark_cloud_defense_batch(
+        51,
+        required_defense_token=31,
+    )
+    assert int(batch.magic_points[0, attacker]) == 5
+    assert angel_slot is not None
+    ordinary_armor = np.flatnonzero(batch.hand_token_ids[0] == 4)
+    if ordinary_armor.size:
+        assert not batch.action_mask[0, int(ordinary_armor[0]) + 1]
+    assert batch.action_mask[0, angel_slot + 1]
+
+    batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+    assert batch.dark_cloud_flags[0, defender] == 1
+    np.testing.assert_allclose(batch.global_features[0, 20:22], [1.0, 0.0])
+    attack_actions = np.flatnonzero(batch.action_mask[0, 1:10])
+    assert attack_actions.size
+    batch.step(np.asarray([int(attack_actions[0]) + 1], dtype=np.int64))
+    batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+    if batch.phases[0] == godfield_sim.PHASE_DEFENSE:
+        batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+    assert int(batch.active_players[0]) == attacker
+    assert 51 in batch.hand_token_ids[0]
+
+    blocked, _attacker, blocked_defender, blocked_angel_slot = dark_cloud_defense_batch(
+        51,
+        required_defense_token=31,
+    )
+    assert blocked_angel_slot is not None
+    blocked.step(np.asarray([blocked_angel_slot + 1], dtype=np.int64))
+    blocked.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+    assert blocked.dark_cloud_flags[0, blocked_defender] == 0
+
+
+def test_dark_cloud_forces_percentage_attack_to_hit() -> None:
+    for seed in range(32768):
+        clouded = illness_cure_resource_batch(
+            seed=seed,
+            fog_flash=True,
+            dark_cloud=True,
+            chance_hit_rate=1,
+        )
+        curse_slots = np.flatnonzero(clouded.hand_token_ids[0] == 51)
+        if not curse_slots.size:
+            continue
+        curse_action = int(curse_slots[0]) + 1
+        if not clouded.action_mask[0, curse_action]:
+            continue
+        clouded.step(np.asarray([curse_action], dtype=np.int64))
+        clouded.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        defender = int(clouded.active_players[0])
+        clouded.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+        reply_actions = np.flatnonzero(clouded.action_mask[0, 1:10])
+        if not reply_actions.size:
+            continue
+        clouded.step(np.asarray([int(reply_actions[0]) + 1], dtype=np.int64))
+        if clouded.selected_counts[0] > 0:
+            clouded.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        if clouded.phases[0] == godfield_sim.PHASE_DEFENSE:
+            clouded.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+        if clouded.terminated[0]:
+            continue
+        chance_slots = np.flatnonzero(clouded.hand_token_ids[0] == 18)
+        if not chance_slots.size:
+            continue
+        action = int(chance_slots[0]) + 1
+        assert clouded.action_mask[0, action]
+        assert clouded.dark_cloud_flags[0, defender] == 1
+        clouded.step(np.asarray([action], dtype=np.int64))
+        clouded.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        assert clouded.phases[0] == godfield_sim.PHASE_DEFENSE
+        assert int(clouded.pending_attacks[0]) == 8
+        return
+    raise AssertionError("fixture seeds did not expose Dark Cloud followed by a chance attack")
+
+
+def test_mild_cure_clears_dark_cloud_without_requiring_disease() -> None:
+    for seed in range(32768):
+        batch = illness_cure_resource_batch(
+            seed=seed,
+            fog_flash=True,
+            dark_cloud=True,
+        )
+        curse_slots = np.flatnonzero(batch.hand_token_ids[0] == 51)
+        if not curse_slots.size:
+            continue
+        curse_action = int(curse_slots[0]) + 1
+        if not batch.action_mask[0, curse_action]:
+            continue
+        batch.step(np.asarray([curse_action], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        cured_player = int(batch.active_players[0])
+        batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+        cure_slots = np.flatnonzero(batch.hand_token_ids[0] == 25)
+        if not cure_slots.size:
+            continue
+        cure_action = int(cure_slots[0]) + 1
+        assert batch.action_mask[0, cure_action]
+        batch.step(np.asarray([cure_action], dtype=np.int64))
+        assert batch.dark_cloud_flags[0, cured_player] == 0
+        return
+    raise AssertionError("fixture seeds did not expose Dark Cloud followed by a mild cure")
 
 
 def test_flash_limits_defender_to_one_artifact() -> None:
@@ -3848,6 +4054,20 @@ def test_resource_heuristics_index_miracle_attacks_in_the_miracle_namespace() ->
     assert fog_flash.flash_attack_tokens == {flash_dagger, flash}
     assert fog_flash.miracle_reflection_defenses == miracle_reflection.miracle_reflection_defenses
     assert fog_flash.policy_id == "evidenced-fog-flash-resource-combo-v2"
+
+    dark_cloud = build_curriculum_heuristic(
+        snapshot,
+        vocabulary,
+        ruleset="dark-cloud-resource-hand",
+    )
+    hexagon_doom = vocabulary.token_id("weapons", "hexagon-doom")
+    dark_cloud_miracle = vocabulary.token_id("miracles", "dark-cloud")
+    assert dark_cloud.attacks[hexagon_doom] == 11
+    assert dark_cloud.attacks[dark_cloud_miracle] == 0
+    assert dark_cloud.attack_miracles is not None
+    assert dark_cloud.attack_miracles[dark_cloud_miracle] == (0, 5)
+    assert dark_cloud.dark_cloud_attack_tokens == {hexagon_doom, dark_cloud_miracle}
+    assert dark_cloud.policy_id == "evidenced-dark-cloud-resource-combo-v1"
 
 
 @pytest.mark.parametrize(

@@ -235,10 +235,18 @@ NB_MODULE(_native, module) {
       godfield_sim::kFogFlashResourceAttackDefenseObservationSchemaVersion;
   module.attr("FOG_FLASH_RESOURCE_ATTACK_DEFENSE_RULESET_ID") =
       godfield_sim::kFogFlashResourceAttackDefenseRulesetId;
+  module.attr("DARK_CLOUD_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION") =
+      godfield_sim::kDarkCloudResourceAttackDefenseKernelSchemaVersion;
+  module.attr("DARK_CLOUD_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION") =
+      godfield_sim::kDarkCloudResourceAttackDefenseObservationSchemaVersion;
+  module.attr("DARK_CLOUD_RESOURCE_ATTACK_DEFENSE_RULESET_ID") =
+      godfield_sim::kDarkCloudResourceAttackDefenseRulesetId;
   module.attr("ILLNESS_GLOBAL_FEATURE_COUNT") =
       godfield_sim::kIllnessGlobalFeatureCount;
   module.attr("CURSE_GLOBAL_FEATURE_COUNT") =
       godfield_sim::kCurseGlobalFeatureCount;
+  module.attr("DARK_CLOUD_GLOBAL_FEATURE_COUNT") =
+      godfield_sim::kDarkCloudGlobalFeatureCount;
   module.attr("ELEMENT_COUNT") = godfield_sim::kElementCount;
   module.attr("ELEMENTAL_GLOBAL_FEATURE_COUNT") =
       godfield_sim::kElementalGlobalFeatureCount;
@@ -301,6 +309,8 @@ NB_MODULE(_native, module) {
   module.attr("CARD_KIND_FOG_FLASH_WEAPON") = std::uint8_t{35U};
   module.attr("CARD_KIND_FOG_FLASH_ATTACK_MIRACLE") = std::uint8_t{36U};
   module.attr("CARD_KIND_FOG_MIRACLE") = std::uint8_t{37U};
+  module.attr("CARD_KIND_DARK_CLOUD_WEAPON") = std::uint8_t{38U};
+  module.attr("CARD_KIND_DARK_CLOUD_MIRACLE") = std::uint8_t{39U};
   module.attr("ILLNESS_NONE") = std::uint8_t{0U};
   module.attr("ILLNESS_COLD") = std::uint8_t{1U};
   module.attr("ILLNESS_FEVER") = std::uint8_t{2U};
@@ -406,6 +416,8 @@ NB_MODULE(_native, module) {
                    &AttackDefenseBatch::miracle_reflection_curriculum)
       .def_prop_ro("fog_flash_curriculum",
                    &AttackDefenseBatch::fog_flash_curriculum)
+      .def_prop_ro("dark_cloud_curriculum",
+                   &AttackDefenseBatch::dark_cloud_curriculum)
       .def_prop_ro("initial_mp", &AttackDefenseBatch::initial_mp)
       .def_prop_ro("global_feature_count",
                    &AttackDefenseBatch::global_feature_count)
@@ -471,6 +483,9 @@ NB_MODULE(_native, module) {
       .def_prop_ro("fog_flags", &AttackDefenseBatch::fog_flags_view,
                    nb::rv_policy::reference_internal)
       .def_prop_ro("flash_flags", &AttackDefenseBatch::flash_flags_view,
+                   nb::rv_policy::reference_internal)
+      .def_prop_ro("dark_cloud_flags",
+                   &AttackDefenseBatch::dark_cloud_flags_view,
                    nb::rv_policy::reference_internal)
       .def("reset", &AttackDefenseBatch::reset,
            nb::call_guard<nb::gil_scoped_release>())
@@ -1591,6 +1606,9 @@ NB_MODULE(_native, module) {
                    godfield_sim::ElementInput, godfield_sim::ValueInput,
                    godfield_sim::ValueInput, godfield_sim::ValueInput,
                    godfield_sim::TokenInput, godfield_sim::ElementInput,
+                   godfield_sim::ValueInput, godfield_sim::TokenInput,
+                   godfield_sim::ValueInput, godfield_sim::ElementInput,
+                   godfield_sim::TokenInput, godfield_sim::ElementInput,
                    godfield_sim::ValueInput, std::uint64_t, std::uint16_t,
                    std::uint16_t>(),
           nb::arg("batch_size"), nb::arg("weapon_token_ids"),
@@ -1679,7 +1697,12 @@ NB_MODULE(_native, module) {
           nb::arg("fog_flash_attack_miracle_hit_rates"),
           nb::arg("fog_flash_attack_miracle_effects"),
           nb::arg("fog_miracle_token_ids"), nb::arg("fog_miracle_elements"),
-          nb::arg("fog_miracle_costs"), nb::arg("seed") = 67U,
+          nb::arg("fog_miracle_costs"), nb::arg("dark_cloud_weapon_token_ids"),
+          nb::arg("dark_cloud_weapon_attack_values"),
+          nb::arg("dark_cloud_weapon_elements"),
+          nb::arg("dark_cloud_miracle_token_ids"),
+          nb::arg("dark_cloud_miracle_elements"),
+          nb::arg("dark_cloud_miracle_costs"), nb::arg("seed") = 67U,
           nb::arg("initial_hp") = 40U, nb::arg("initial_mp") = 10U);
 
   module.attr("MiracleBlockResourceAttackDefenseBatch") =
@@ -1695,5 +1718,7 @@ NB_MODULE(_native, module) {
   module.attr("MiracleReflectionResourceAttackDefenseBatch") =
       module.attr("FeverMaskResourceAttackDefenseBatch");
   module.attr("FogFlashResourceAttackDefenseBatch") =
+      module.attr("FeverMaskResourceAttackDefenseBatch");
+  module.attr("DarkCloudResourceAttackDefenseBatch") =
       module.attr("FeverMaskResourceAttackDefenseBatch");
 }

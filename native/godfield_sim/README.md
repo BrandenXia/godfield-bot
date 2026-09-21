@@ -9,7 +9,7 @@ uv sync --extra simulation --group dev
 
 Every included curriculum is intentionally incomplete and its generated
 trajectories are not eligible for live model promotion. The broadest current
-ruleset, `fog-flash-resource-hand`, includes elemental multi-card
+ruleset, `dark-cloud-resource-hand`, includes elemental multi-card
 combat, HP/MP utility, fixed and chance miracles, Absorption, reusable additive
 miracles, evidence-bounded one-hop reflection, seven fixed ATK/DEF weapons, 14
 effect-free chance weapons, and the chance/defense dual role of Jinn's Rocking
@@ -57,10 +57,15 @@ ordinary armor cannot answer it, while Angel block, Sky bounce, and Moonlight
 reflection retain their miracle behavior. Existing mild and full cures remove
 Fog and Flash. Four actor-relative curse features expand the observation to
 schema v8.
+Hexagon Doom and `<Dark Cloud>` add independent Dark Cloud state. The weapon
+inflicts it only after positive damage; the reusable direct miracle costs 5 MP.
+Percentage attacks aimed at a clouded player hit certainly, and existing mild
+or full cures remove the status. Two actor-relative inputs expand the
+observation to schema v9.
 
 The unobserved same-damage/reflection, attack-twice booster/reflection,
-random-target booster/reflection, and damage-triggered Fog/Flash redirect or
-Fever Mask interactions remain masked. Dream, Dark Cloud, and multiplayer Fog
-targeting remain outside the represented state. See ADR 0002 and ADRs 0029
-through 0048 in the root project for the
-interface and safety boundary.
+random-target booster/reflection, and damage-triggered Fog/Flash/Dark Cloud
+redirect or Fever Mask interactions remain masked. Dream and multiplayer Fog
+targeting remain outside the represented state. Dark Cloud counterattacks and
+guardians remain excluded. See ADR 0002 and ADRs 0029 through 0049 in the root
+project for the interface and safety boundary.

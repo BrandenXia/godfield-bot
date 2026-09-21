@@ -5,11 +5,12 @@ keeps a stable in-game identity and improves from completed games.
 
 The architecture is accepted and implementation is underway. The dedicated
 `ロキ-67` browser identity has been created and used only in bounded Training probes. The current
-official client and its in-game reference data were surveyed on 2026-09-06 and
-revalidated with element metadata on 2026-09-07; see
+official client and its in-game reference data were surveyed on 2026-09-06,
+enriched with element metadata on 2026-09-07, and freshly revalidated on
+2026-09-20; see
 [the research snapshot](docs/research/2026-09-06-godfield.md) and the
 [architecture decision](docs/architecture/0001-proposed-system.md). The
-[complete extracted Bible](data/snapshots/2026-09-07/bible.json) contains all
+[complete extracted Bible](data/snapshots/2026-09-20/bible.json) contains all
 291 visible artifact records. The pinned pygodfield client independently
 captured the current 296-model API catalog, including five trade models, in
 [the API catalog snapshot](data/snapshots/2026-09-09/api-catalog-en.json).
@@ -273,6 +274,17 @@ uv run godfield-bot models evaluate-simulation \
   --minimum-score 0.5 --heuristic-noninferiority-margin 0.025
 uv run godfield-bot simulation benchmark \
   --ruleset miracle-reflection-resource-attack-defense \
+  --batch-size 4096 --batch-steps 1000
+uv run godfield-bot models migrate-curse-features models/<schema-v7-model-id>
+uv run godfield-bot models train-simulation models/<schema-v8-model-id> \
+  --ruleset fog-flash-resource-hand --batch-size 256 \
+  --rollout-steps 32 --updates 10
+uv run godfield-bot models evaluate-simulation \
+  models/<fog-flash-candidate-id> \
+  --ruleset fog-flash-resource-hand --games-per-seat 512 \
+  --minimum-score 0.5 --heuristic-noninferiority-margin 0.025
+uv run godfield-bot simulation benchmark \
+  --ruleset fog-flash-resource-attack-defense \
   --batch-size 4096 --batch-steps 1000
 ```
 
@@ -582,7 +594,7 @@ seven-way pending-element signal. A recorded model migration preserves the six
 old global inputs and zero-initializes the new columns before elemental
 training. All rulesets are fingerprinted against the accepted client,
 artifact vocabulary, and exact rule catalog, and none is promotion-eligible.
-The cumulative ruleset line now reaches `miracle-reflection-resource-hand`. Its
+The cumulative ruleset line now reaches `fog-flash-resource-hand`. Its
 `illness-weapon-resource-hand` foundation builds on schema-v7
 stochastic combat, additive miracles, Super Mirror, and Reflection Sword, then
 adds seven Bible-exact and API-verified ATK/DEF weapons, 14 effect-free chance weapons,
@@ -613,7 +625,14 @@ neutral DEF8/10/12 and Moonlight Axe as a consumable ATK10 base weapon. All
 four reflect attack miracles specifically to the original caster; Moonlight
 armor retains its printed defense against ordinary weapons, while Moonlight
 Axe cannot defend them. Reflection and bounce share the one-hop redirect
-guard. The cumulative catalog contains 186 cards. The catalog
+guard. The latest increment adds Fog Gun, Fog Fan, Flash Dagger, `<Flash>`,
+and `<Fog>`. Fog hides the opponent's HP/MP from a fogged actor, Flash limits
+defense to one artifact, and damage-triggered curses apply only after a
+penetrating hit. Direct Fog is a reusable 3-MP miracle answered by the existing
+Angel, Sky, and Moonlight miracle defenses rather than ordinary armor. Mild
+and full cures remove Fog and Flash. Schema v8 adds four actor-relative
+Fog/Flash inputs with an explicit zero-column migration from schema v7. The
+cumulative catalog contains 191 cards. The catalog
 and sampling distribution are independently fingerprinted. See
 [ADR 0029](docs/architecture/0029-additive-miracle-curriculum.md),
 [ADR 0030](docs/architecture/0030-evidenced-super-mirror-curriculum.md),
@@ -626,9 +645,10 @@ and sampling distribution are independently fingerprinted. See
 [ADR 0037](docs/architecture/0037-attack-twice-weapon-curriculum.md),
 [ADR 0038](docs/architecture/0038-random-target-weapon-curriculum.md),
 [ADR 0039](docs/architecture/0039-illness-weapon-curriculum.md),
-[ADR 0045](docs/architecture/0045-miracle-bounce-curriculum.md), and
-[ADR 0046](docs/architecture/0046-miracle-bounce-weapon-miracle-curriculum.md), and
-[ADR 0047](docs/architecture/0047-miracle-reflection-curriculum.md).
+[ADR 0045](docs/architecture/0045-miracle-bounce-curriculum.md),
+[ADR 0046](docs/architecture/0046-miracle-bounce-weapon-miracle-curriculum.md),
+[ADR 0047](docs/architecture/0047-miracle-reflection-curriculum.md), and
+[ADR 0048](docs/architecture/0048-fog-flash-curriculum.md).
 
 `models train-simulation` creates a bounded
 `heuristic-warmstart-recurrent-ppo-self-play-v1` candidate. The slot-aware

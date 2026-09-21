@@ -58,8 +58,9 @@ MiracleBounceMiracleResourceAttackDefenseBatch = (
 MiracleReflectionResourceAttackDefenseBatch = (
     godfield_sim.MiracleReflectionResourceAttackDefenseBatch
 )
+FogFlashResourceAttackDefenseBatch = godfield_sim.FogFlashResourceAttackDefenseBatch
 
-SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-07" / "bible.json"
+SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-20" / "bible.json"
 
 
 def native_batch(*, batch_size: int = 4, attack: int = 13) -> FixedAttackBatch:
@@ -685,6 +686,7 @@ def illness_cure_resource_batch(
     miracle_bounce_weapon: bool = False,
     miracle_bounce_miracle: bool = False,
     miracle_reflection: bool = False,
+    fog_flash: bool = False,
     miracle_block_defense: int = 15,
 ) -> (
     IllnessCureResourceAttackDefenseBatch
@@ -696,9 +698,22 @@ def illness_cure_resource_batch(
     | MiracleBounceWeaponResourceAttackDefenseBatch
     | MiracleBounceMiracleResourceAttackDefenseBatch
     | MiracleReflectionResourceAttackDefenseBatch
+    | FogFlashResourceAttackDefenseBatch
 ):
     base_args = list(absorption_weapon_resource_args())
-    base_args[8] = np.asarray([armor_defense], dtype=np.uint16)
+    if fog_flash:
+        base_args[7] = np.asarray([4, 48, 49], dtype=np.uint32)
+        base_args[8] = np.asarray([armor_defense, armor_defense, armor_defense], dtype=np.uint16)
+        base_args[9] = np.asarray(
+            [
+                godfield_sim.ELEMENT_NON_ELEMENT,
+                godfield_sim.ELEMENT_FIRE,
+                godfield_sim.ELEMENT_LIGHT,
+            ],
+            dtype=np.uint8,
+        )
+    else:
+        base_args[8] = np.asarray([armor_defense], dtype=np.uint16)
     curriculum_args = (
         *base_args,
         np.asarray([19], dtype=np.uint32),
@@ -733,6 +748,7 @@ def illness_cure_resource_batch(
         or miracle_bounce_weapon
         or miracle_bounce_miracle
         or miracle_reflection
+        or fog_flash
     ):
         heaven_args = (
             *curriculum_args,
@@ -747,8 +763,11 @@ def illness_cure_resource_batch(
             or miracle_bounce_weapon
             or miracle_bounce_miracle
             or miracle_reflection
+            or fog_flash
         ):
-            if miracle_reflection:
+            if fog_flash:
+                batch_type = FogFlashResourceAttackDefenseBatch
+            elif miracle_reflection:
                 batch_type = MiracleReflectionResourceAttackDefenseBatch
             elif miracle_bounce_miracle:
                 batch_type = MiracleBounceMiracleResourceAttackDefenseBatch
@@ -774,6 +793,7 @@ def illness_cure_resource_batch(
                 or miracle_bounce_weapon
                 or miracle_bounce_miracle
                 or miracle_reflection
+                or fog_flash
                 else np.asarray([], dtype=np.uint32),
                 np.asarray([miracle_block_defense], dtype=np.uint16)
                 if miracle_block
@@ -782,6 +802,7 @@ def illness_cure_resource_batch(
                 or miracle_bounce_weapon
                 or miracle_bounce_miracle
                 or miracle_reflection
+                or fog_flash
                 else np.asarray([], dtype=np.uint16),
                 np.asarray([32, 33, 34], dtype=np.uint32)
                 if miracle_block_weapon
@@ -789,6 +810,7 @@ def illness_cure_resource_batch(
                 or miracle_bounce_weapon
                 or miracle_bounce_miracle
                 or miracle_reflection
+                or fog_flash
                 else np.asarray([], dtype=np.uint32),
                 np.asarray([11, 13, 15], dtype=np.uint16)
                 if miracle_block_weapon
@@ -796,6 +818,7 @@ def illness_cure_resource_batch(
                 or miracle_bounce_weapon
                 or miracle_bounce_miracle
                 or miracle_reflection
+                or fog_flash
                 else np.asarray([], dtype=np.uint16),
                 np.asarray([35], dtype=np.uint32)
                 if miracle_block_weapon
@@ -803,6 +826,7 @@ def illness_cure_resource_batch(
                 or miracle_bounce_weapon
                 or miracle_bounce_miracle
                 or miracle_reflection
+                or fog_flash
                 else np.asarray([], dtype=np.uint32),
                 np.asarray([15], dtype=np.uint16)
                 if miracle_block_weapon
@@ -810,43 +834,87 @@ def illness_cure_resource_batch(
                 or miracle_bounce_weapon
                 or miracle_bounce_miracle
                 or miracle_reflection
+                or fog_flash
                 else np.asarray([], dtype=np.uint16),
                 np.asarray([36], dtype=np.uint32)
                 if miracle_bounce
                 or miracle_bounce_weapon
                 or miracle_bounce_miracle
                 or miracle_reflection
+                or fog_flash
                 else np.asarray([], dtype=np.uint32),
                 np.asarray([9], dtype=np.uint16)
                 if miracle_bounce
                 or miracle_bounce_weapon
                 or miracle_bounce_miracle
                 or miracle_reflection
+                or fog_flash
                 else np.asarray([], dtype=np.uint16),
                 np.asarray([37], dtype=np.uint32)
-                if miracle_bounce_weapon or miracle_bounce_miracle or miracle_reflection
+                if miracle_bounce_weapon
+                or miracle_bounce_miracle
+                or miracle_reflection
+                or fog_flash
                 else np.asarray([], dtype=np.uint32),
                 np.asarray([9], dtype=np.uint16)
-                if miracle_bounce_weapon or miracle_bounce_miracle or miracle_reflection
+                if miracle_bounce_weapon
+                or miracle_bounce_miracle
+                or miracle_reflection
+                or fog_flash
                 else np.asarray([], dtype=np.uint16),
                 np.asarray([38], dtype=np.uint32)
-                if miracle_bounce_miracle or miracle_reflection
+                if miracle_bounce_miracle or miracle_reflection or fog_flash
                 else np.asarray([], dtype=np.uint32),
                 np.asarray([5], dtype=np.uint16)
-                if miracle_bounce_miracle or miracle_reflection
+                if miracle_bounce_miracle or miracle_reflection or fog_flash
                 else np.asarray([], dtype=np.uint16),
                 np.asarray([39, 40, 41], dtype=np.uint32)
-                if miracle_reflection
+                if miracle_reflection or fog_flash
                 else np.asarray([], dtype=np.uint32),
                 np.asarray([8, 10, 12], dtype=np.uint16)
-                if miracle_reflection
+                if miracle_reflection or fog_flash
                 else np.asarray([], dtype=np.uint16),
                 np.asarray([42], dtype=np.uint32)
-                if miracle_reflection
+                if miracle_reflection or fog_flash
                 else np.asarray([], dtype=np.uint32),
                 np.asarray([10], dtype=np.uint16)
-                if miracle_reflection
+                if miracle_reflection or fog_flash
                 else np.asarray([], dtype=np.uint16),
+                np.asarray([43, 44, 45], dtype=np.uint32)
+                if fog_flash
+                else np.asarray([], dtype=np.uint32),
+                np.asarray([3, 3, 2], dtype=np.uint16)
+                if fog_flash
+                else np.asarray([], dtype=np.uint16),
+                np.asarray(
+                    [
+                        godfield_sim.ELEMENT_WATER,
+                        godfield_sim.ELEMENT_WATER,
+                        godfield_sim.ELEMENT_LIGHT,
+                    ],
+                    dtype=np.uint8,
+                )
+                if fog_flash
+                else np.asarray([], dtype=np.uint8),
+                np.asarray([100, 50, 100], dtype=np.uint16)
+                if fog_flash
+                else np.asarray([], dtype=np.uint16),
+                np.asarray([1, 1, 2], dtype=np.uint16)
+                if fog_flash
+                else np.asarray([], dtype=np.uint16),
+                np.asarray([46], dtype=np.uint32) if fog_flash else np.asarray([], dtype=np.uint32),
+                np.asarray([1], dtype=np.uint16) if fog_flash else np.asarray([], dtype=np.uint16),
+                np.asarray([godfield_sim.ELEMENT_LIGHT], dtype=np.uint8)
+                if fog_flash
+                else np.asarray([], dtype=np.uint8),
+                np.asarray([3], dtype=np.uint16) if fog_flash else np.asarray([], dtype=np.uint16),
+                np.asarray([25], dtype=np.uint16) if fog_flash else np.asarray([], dtype=np.uint16),
+                np.asarray([2], dtype=np.uint16) if fog_flash else np.asarray([], dtype=np.uint16),
+                np.asarray([47], dtype=np.uint32) if fog_flash else np.asarray([], dtype=np.uint32),
+                np.asarray([godfield_sim.ELEMENT_WATER], dtype=np.uint8)
+                if fog_flash
+                else np.asarray([], dtype=np.uint8),
+                np.asarray([3], dtype=np.uint16) if fog_flash else np.asarray([], dtype=np.uint16),
                 seed,
                 initial_hp,
                 initial_mp,
@@ -1595,6 +1663,234 @@ def test_miracle_reflection_factory_adds_moonlight_family() -> None:
     assert np.all(
         batch.hand_elements[moonlight_armor | moonlight_weapon] == godfield_sim.ELEMENT_NON_ELEMENT
     )
+
+
+def test_fog_flash_factory_adds_partial_information_curriculum() -> None:
+    simulation = create_attack_defense_simulation(
+        SNAPSHOT_PATH,
+        batch_size=512,
+        ruleset="fog-flash-resource-hand",
+    )
+    batch = simulation.batch
+
+    assert simulation.metadata.observation_schema_version == 8
+    assert simulation.metadata.global_feature_count == godfield_sim.CURSE_GLOBAL_FEATURE_COUNT == 20
+    assert simulation.metadata.rule_catalog_size == 191
+    assert simulation.metadata.sampling_distribution == (
+        "elemental-fog-flash-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness"
+    )
+    assert "fog-flash-weapon-miracle" in simulation.metadata.ruleset_id
+    assert batch.fog_flash_curriculum is True
+    assert batch.global_features.shape == (512, 20)
+    assert batch.fog_flags.shape == (512, 2)
+    assert batch.flash_flags.shape == (512, 2)
+    assert np.any(batch.hand_card_kinds == godfield_sim.CARD_KIND_FOG_FLASH_WEAPON)
+    assert np.any(batch.hand_card_kinds == godfield_sim.CARD_KIND_FOG_FLASH_ATTACK_MIRACLE)
+    assert np.any(batch.hand_card_kinds == godfield_sim.CARD_KIND_FOG_MIRACLE)
+
+
+def fog_flash_defense_batch(
+    attack_token: int,
+    *,
+    required_defense_token: int | None = None,
+) -> tuple[FogFlashResourceAttackDefenseBatch, int, int, int | None]:
+    for seed in range(32768):
+        batch = illness_cure_resource_batch(seed=seed, fog_flash=True)
+        attacker = int(batch.active_players[0])
+        attack_slots = np.flatnonzero(batch.hand_token_ids[0] == attack_token)
+        if not attack_slots.size:
+            continue
+        attack_action = int(attack_slots[0]) + 1
+        if not batch.action_mask[0, attack_action]:
+            continue
+        batch.step(np.asarray([attack_action], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        if batch.phases[0] != godfield_sim.PHASE_DEFENSE:
+            continue
+        defender = int(batch.active_players[0])
+        defense_slot: int | None = None
+        if required_defense_token is not None:
+            defense_slots = np.flatnonzero(batch.hand_token_ids[0] == required_defense_token)
+            if not defense_slots.size:
+                continue
+            defense_slot = int(defense_slots[0])
+        return batch, attacker, defender, defense_slot
+    raise AssertionError("fixture seeds did not expose the requested Fog/Flash exchange")
+
+
+@pytest.mark.parametrize(
+    ("attack_token", "flag_name"),
+    [(43, "fog_flags"), (45, "flash_flags")],
+)
+def test_fog_flash_weapons_apply_curse_only_after_damage(
+    attack_token: int,
+    flag_name: str,
+) -> None:
+    batch, _attacker, defender, _slot = fog_flash_defense_batch(attack_token)
+    batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+
+    flags = getattr(batch, flag_name)
+    assert flags[0, defender] == 1
+
+    if attack_token == 45:
+        return
+
+    blocked, _attacker, blocked_defender, armor_slot = fog_flash_defense_batch(
+        attack_token,
+        required_defense_token=48,
+    )
+    assert armor_slot is not None
+    assert blocked.action_mask[0, armor_slot + 1]
+    blocked.step(np.asarray([armor_slot + 1], dtype=np.int64))
+    blocked.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+
+    blocked_flags = getattr(blocked, flag_name)
+    assert blocked_flags[0, blocked_defender] == 0
+
+
+def test_direct_fog_costs_mp_and_hides_opponent_resources() -> None:
+    batch, attacker, defender, _slot = fog_flash_defense_batch(47)
+    attacker_mp = int(batch.magic_points[0, attacker])
+    assert attacker_mp == 7
+
+    batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+
+    assert batch.fog_flags[0, defender] == 1
+    assert int(batch.active_players[0]) == defender
+    np.testing.assert_allclose(batch.player_features[0, 1, :2], [0.0, 0.0])
+    np.testing.assert_allclose(batch.global_features[0, 16:20], [1.0, 0.0, 0.0, 0.0])
+
+    attack_slot = next(
+        slot
+        for slot, token in enumerate(map(int, batch.hand_token_ids[0]))
+        if token in {2, 7, 10, 13, 17, 19, 20, 21, 23, 24, 32, 33, 34, 42, 43, 45, 47}
+        and batch.action_mask[0, slot + 1]
+    )
+    batch.step(np.asarray([attack_slot + 1], dtype=np.int64))
+    batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+    batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+    assert int(batch.active_players[0]) == attacker
+    assert 47 in batch.hand_token_ids[0]
+
+
+def test_direct_fog_rejects_ordinary_armor_but_angel_blocks_it() -> None:
+    batch, _attacker, defender, angel_slot = fog_flash_defense_batch(
+        47,
+        required_defense_token=31,
+    )
+    assert angel_slot is not None
+    ordinary_armor = np.flatnonzero(batch.hand_token_ids[0] == 4)
+    if ordinary_armor.size:
+        assert not batch.action_mask[0, int(ordinary_armor[0]) + 1]
+    assert batch.action_mask[0, angel_slot + 1]
+
+    batch.step(np.asarray([angel_slot + 1], dtype=np.int64))
+    batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+
+    assert batch.fog_flags[0, defender] == 0
+    assert batch.phases[0] == godfield_sim.PHASE_ATTACK
+
+
+def test_direct_fog_can_be_reflected_one_hop() -> None:
+    batch, attacker, defender, moonlight_slot = fog_flash_defense_batch(
+        47,
+        required_defense_token=39,
+    )
+    assert moonlight_slot is not None
+    assert batch.action_mask[0, moonlight_slot + 1]
+
+    batch.step(np.asarray([moonlight_slot + 1], dtype=np.int64))
+    batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+
+    assert batch.pending_reflected[0]
+    assert int(batch.active_players[0]) == attacker
+    assert batch.phases[0] == godfield_sim.PHASE_DEFENSE
+    second_redirects = np.flatnonzero(np.isin(batch.hand_token_ids[0], [36, 39, 42]))
+    assert all(not batch.action_mask[0, int(slot) + 1] for slot in second_redirects)
+    batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+    assert batch.fog_flags[0, attacker] == 1
+    assert batch.fog_flags[0, defender] == 0
+
+
+def test_mild_cure_clears_fog_without_requiring_disease() -> None:
+    for seed in range(32768):
+        batch = illness_cure_resource_batch(seed=seed, fog_flash=True)
+        attack_slots = np.flatnonzero(batch.hand_token_ids[0] == 47)
+        if not attack_slots.size:
+            continue
+        batch.step(np.asarray([int(attack_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        defender = int(batch.active_players[0])
+        batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+        cure_slots = np.flatnonzero(batch.hand_token_ids[0] == 25)
+        if not cure_slots.size:
+            continue
+        cure_action = int(cure_slots[0]) + 1
+        assert batch.action_mask[0, cure_action]
+        batch.step(np.asarray([cure_action], dtype=np.int64))
+        assert batch.fog_flags[0, defender] == 0
+        return
+    raise AssertionError("fixture seeds did not expose direct Fog followed by a mild cure")
+
+
+def test_flash_limits_defender_to_one_artifact() -> None:
+    guaranteed_attack_tokens = {
+        2,
+        7,
+        10,
+        13,
+        17,
+        19,
+        20,
+        21,
+        23,
+        24,
+        32,
+        33,
+        34,
+        42,
+        43,
+        45,
+        47,
+    }
+
+    def start_guaranteed_attack(batch: FogFlashResourceAttackDefenseBatch) -> bool:
+        for slot, token in enumerate(map(int, batch.hand_token_ids[0])):
+            action = slot + 1
+            if token not in guaranteed_attack_tokens or not batch.action_mask[0, action]:
+                continue
+            batch.step(np.asarray([action], dtype=np.int64))
+            batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+            return batch.phases[0] == godfield_sim.PHASE_DEFENSE
+        return False
+
+    for seed in range(32768):
+        batch = illness_cure_resource_batch(seed=seed, fog_flash=True)
+        flash_slots = np.flatnonzero(batch.hand_token_ids[0] == 45)
+        if not flash_slots.size:
+            continue
+        batch.step(np.asarray([int(flash_slots[0]) + 1], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        flashed_player = int(batch.active_players[0])
+        batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+        if not start_guaranteed_attack(batch):
+            continue
+        batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+        if not start_guaranteed_attack(batch):
+            continue
+        if int(batch.active_players[0]) != flashed_player:
+            continue
+        legal_defenses = np.flatnonzero(batch.action_mask[0, 1:10])
+        if legal_defenses.size < 2:
+            continue
+
+        batch.step(np.asarray([int(legal_defenses[0]) + 1], dtype=np.int64))
+
+        assert batch.flash_flags[0, flashed_player] == 1
+        assert batch.action_mask[0, godfield_sim.CONFIRM_ACTION_INDEX]
+        assert not np.any(batch.action_mask[0, 1:10])
+        return
+    raise AssertionError("fixture seeds did not expose Flash with two legal defense artifacts")
 
 
 def miracle_block_defense_batch(
@@ -3527,6 +3823,80 @@ def test_resource_heuristics_index_miracle_attacks_in_the_miracle_namespace() ->
         for slug in ("moonlight-armor", "moonlight-helm", "moonlight-shield")
     } | {moonlight_axe}
     assert miracle_reflection.policy_id == ("evidenced-miracle-reflection-resource-combo-v1")
+
+    fog_flash = build_curriculum_heuristic(
+        snapshot,
+        vocabulary,
+        ruleset="fog-flash-resource-hand",
+    )
+    fog_gun = vocabulary.token_id("weapons", "fog-gun")
+    fog_fan = vocabulary.token_id("weapons", "fog-fan")
+    flash_dagger = vocabulary.token_id("weapons", "flash-dagger")
+    flash = vocabulary.token_id("miracles", "flash")
+    fog = vocabulary.token_id("miracles", "fog")
+    assert fog_flash.attacks[fog_gun] == 3
+    assert fog_flash.attacks[fog_fan] == 2
+    assert fog_flash.attacks[flash_dagger] == 2
+    assert fog_flash.attacks[flash] == 0
+    assert fog_flash.attacks[fog] == 0
+    assert fog_flash.attack_miracles is not None
+    assert fog_flash.attack_miracles[flash] == (0, 3)
+    assert fog_flash.attack_miracles[fog] == (0, 3)
+    assert fog_fan in fog_flash.chance_attack_tokens
+    assert flash in fog_flash.chance_attack_tokens
+    assert fog_flash.fog_attack_tokens == {fog_gun, fog_fan, fog}
+    assert fog_flash.flash_attack_tokens == {flash_dagger, flash}
+    assert fog_flash.miracle_reflection_defenses == miracle_reflection.miracle_reflection_defenses
+    assert fog_flash.policy_id == "evidenced-fog-flash-resource-combo-v2"
+
+
+@pytest.mark.parametrize(
+    ("status_token", "status_value", "flag_name"),
+    [(101, 0, "fog_flags"), (102, 2, "flash_flags")],
+)
+def test_fog_flash_heuristic_values_new_status_but_avoids_reapplying_it(
+    status_token: int,
+    status_value: int,
+    flag_name: str,
+) -> None:
+    hand = np.zeros((1, 9), dtype=np.int64)
+    hand[0, :2] = [status_token, 2]
+    legal = np.zeros((1, 21), dtype=np.bool_)
+    legal[0, 1:3] = True
+    player_features = np.zeros((1, 2, 4), dtype=np.float32)
+    player_features[0, :, 0] = [0.40, 0.40]
+    fog_flags = np.zeros((1, 2), dtype=np.uint8)
+    flash_flags = np.zeros((1, 2), dtype=np.uint8)
+    batch = type(
+        "FogFlashPolicyBatch",
+        (),
+        {
+            "hand_token_ids": hand,
+            "action_mask": legal,
+            "phases": np.asarray([godfield_sim.PHASE_ATTACK], dtype=np.uint8),
+            "combo": True,
+            "selected_counts": np.asarray([0], dtype=np.uint8),
+            "resource_curriculum": True,
+            "active_players": np.asarray([0], dtype=np.uint8),
+            "magic_points": np.asarray([[10, 10]], dtype=np.uint16),
+            "player_features": player_features,
+            "fog_flags": fog_flags,
+            "flash_flags": flash_flags,
+        },
+    )()
+    simulation = type("FogFlashPolicySimulation", (), {"batch": batch})()
+    policy = CurriculumHeuristic(
+        attacks={status_token: status_value, 2: 3},
+        defenses={},
+        fog_attack_tokens=frozenset({status_token}) if flag_name == "fog_flags" else frozenset(),
+        flash_attack_tokens=(
+            frozenset({status_token}) if flag_name == "flash_flags" else frozenset()
+        ),
+    )
+
+    assert curriculum_heuristic_actions(simulation, np.asarray([0]), policy)[0] == 1
+    getattr(batch, flag_name)[0, 1] = 1
+    assert curriculum_heuristic_actions(simulation, np.asarray([0]), policy)[0] == 2
 
 
 def test_fever_mask_heuristic_uses_plain_armor_when_curse_is_not_needed() -> None:

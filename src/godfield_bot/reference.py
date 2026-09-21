@@ -1148,6 +1148,106 @@ def verified_miracle_reflection_weapons(snapshot: BibleSnapshot) -> dict[str, in
     return result
 
 
+def verified_fog_flash_weapon_cards(
+    snapshot: BibleSnapshot,
+) -> dict[str, tuple[int, int, CombatElement, Literal["fog", "flash"]]]:
+    """Return fixed and chance weapons that inflict Fog or Flash on damage."""
+
+    effects: dict[str, Literal["fog", "flash"]] = {
+        "Fog on damage": "fog",
+        "Flash on damage": "flash",
+    }
+    weapons = snapshot.catalog.get("weapons")
+    if weapons is None:
+        return {}
+    result: dict[str, tuple[int, int, CombatElement, Literal["fog", "flash"]]] = {}
+    for artifact in weapons.items:
+        element = _combat_element(artifact)
+        if element is None or len(artifact.detail) != 5:
+            continue
+        fixed = PLAIN_ATTACK_PATTERN.fullmatch(artifact.detail[1])
+        chance = PROBABILISTIC_ATTACK_PATTERN.fullmatch(artifact.detail[1])
+        curse = effects.get(artifact.detail[2])
+        if (
+            curse is None
+            or (fixed is None and chance is None)
+            or re.fullmatch(r"\$\d+", artifact.detail[3]) is None
+            or not artifact.detail[4].startswith("Gift Rate:")
+        ):
+            continue
+        hit_rate = 100 if fixed is not None else int(cast(re.Match[str], chance).group(1))
+        attack = int((fixed or cast(re.Match[str], chance)).group(1 if fixed is not None else 2))
+        if 1 <= hit_rate <= 100 and attack > 0:
+            result[artifact.asset] = (hit_rate, attack, element, curse)
+    return result
+
+
+def verified_fog_flash_attack_miracles(
+    snapshot: BibleSnapshot,
+) -> dict[str, tuple[int, int, int, CombatElement, Literal["fog", "flash"]]]:
+    """Return chance attack miracles that inflict Fog or Flash on damage."""
+
+    effects: dict[str, Literal["fog", "flash"]] = {
+        "Fog on damage": "fog",
+        "Flash on damage": "flash",
+    }
+    miracles = snapshot.catalog.get("miracles")
+    if miracles is None:
+        return {}
+    result: dict[
+        str,
+        tuple[int, int, int, CombatElement, Literal["fog", "flash"]],
+    ] = {}
+    for artifact in miracles.items:
+        element = _combat_element(artifact)
+        if element is None or len(artifact.detail) != 6:
+            continue
+        attack = PROBABILISTIC_ATTACK_PATTERN.fullmatch(artifact.detail[1])
+        curse = effects.get(artifact.detail[2])
+        cost = re.fullmatch(r"(\d+)MP", artifact.detail[4])
+        if (
+            attack is None
+            or curse is None
+            or artifact.detail[3] != "Cost"
+            or cost is None
+            or not artifact.detail[5].startswith("Gift Rate:")
+        ):
+            continue
+        hit_rate = int(attack.group(1))
+        attack_value = int(attack.group(2))
+        if 1 <= hit_rate <= 100 and attack_value > 0:
+            result[artifact.asset] = (
+                hit_rate,
+                attack_value,
+                int(cost.group(1)),
+                element,
+                curse,
+            )
+    return result
+
+
+def verified_fog_miracles(snapshot: BibleSnapshot) -> dict[str, tuple[int, CombatElement]]:
+    """Return reusable direct Fog miracles with exact MP costs and element."""
+
+    miracles = snapshot.catalog.get("miracles")
+    if miracles is None:
+        return {}
+    result: dict[str, tuple[int, CombatElement]] = {}
+    for artifact in miracles.items:
+        element = _combat_element(artifact)
+        if element is None or len(artifact.detail) != 5:
+            continue
+        cost = re.fullmatch(r"(\d+)MP", artifact.detail[3])
+        if (
+            artifact.detail[1] == "Fog"
+            and artifact.detail[2] == "Cost"
+            and cost is not None
+            and artifact.detail[4].startswith("Gift Rate:")
+        ):
+            result[artifact.asset] = (int(cost.group(1)), element)
+    return result
+
+
 def verified_chance_attack_miracle_cards(
     snapshot: BibleSnapshot,
 ) -> dict[str, tuple[int, int, int, CombatElement]]:

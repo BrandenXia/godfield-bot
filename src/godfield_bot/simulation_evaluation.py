@@ -65,6 +65,7 @@ class SimulationEvaluationConfig(BaseModel):
         "miracle-bounce-weapon-resource-hand",
         "miracle-bounce-miracle-resource-hand",
         "miracle-reflection-resource-hand",
+        "fog-flash-resource-hand",
     ] = "fixed-role"
     games_per_seat: int = Field(default=512, ge=1, le=100_000)
     max_decisions_per_game: int = Field(default=512, ge=2, le=100_000)
@@ -225,6 +226,7 @@ def _evaluate_side(
         "miracle-bounce-weapon-resource-hand",
         "miracle-bounce-miracle-resource-hand",
         "miracle-reflection-resource-hand",
+        "fog-flash-resource-hand",
     ],
 ) -> _SideEvaluation:
     simulation = create_attack_defense_simulation(

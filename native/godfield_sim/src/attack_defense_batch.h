@@ -210,6 +210,17 @@ inline constexpr const char *kMiracleReflectionResourceAttackDefenseRulesetId =
     "miracle-bounce-armor-weapon-miracle-miracle-reflection-armor-weapon-"
     "additive-reflection-dual-role-resource-miracle-attack-defense-redraw-"
     "duel-v1";
+inline constexpr std::uint32_t
+    kFogFlashResourceAttackDefenseKernelSchemaVersion = 1;
+inline constexpr std::uint32_t
+    kFogFlashResourceAttackDefenseObservationSchemaVersion = 8;
+inline constexpr const char *kFogFlashResourceAttackDefenseRulesetId =
+    "plain-elemental-combo-stochastic-chance-absorption-weapon-dynamic-mp-"
+    "same-damage-weapon-attack-twice-weapon-random-target-weapon-illness-"
+    "weapon-illness-cure-heaven-herb-fever-mask-miracle-block-armor-weapon-"
+    "miracle-bounce-armor-weapon-miracle-miracle-reflection-armor-weapon-"
+    "fog-flash-weapon-miracle-additive-reflection-dual-role-resource-miracle-"
+    "attack-defense-redraw-duel-v1";
 inline constexpr std::size_t kWeaponSlots = 5;
 inline constexpr std::size_t kArmorSlots = kHandSlots - kWeaponSlots;
 inline constexpr std::size_t kComboWeaponSlots = 4;
@@ -231,6 +242,8 @@ inline constexpr std::size_t kStochasticResourceGlobalFeatureCount =
     kElementalGlobalFeatureCount + 1U;
 inline constexpr std::size_t kIllnessGlobalFeatureCount =
     kStochasticResourceGlobalFeatureCount + 2U;
+inline constexpr std::size_t kCurseGlobalFeatureCount =
+    kIllnessGlobalFeatureCount + 4U;
 
 enum class TurnPhase : std::uint8_t {
   Attack = 0,
@@ -329,6 +342,9 @@ public:
   [[nodiscard]] bool miracle_reflection_curriculum() const noexcept {
     return miracle_reflection_curriculum_;
   }
+  [[nodiscard]] bool fog_flash_curriculum() const noexcept {
+    return fog_flash_curriculum_;
+  }
   [[nodiscard]] std::uint16_t initial_mp() const noexcept {
     return initial_mp_;
   }
@@ -366,6 +382,8 @@ public:
   [[nodiscard]] UInt16_1D turn_numbers_view() const;
   [[nodiscard]] UInt16_2D magic_points_view() const;
   [[nodiscard]] UInt8_2D illness_stages_view() const;
+  [[nodiscard]] UInt8_2D fog_flags_view() const;
+  [[nodiscard]] UInt8_2D flash_flags_view() const;
 
 protected:
   AttackDefenseBatch(
@@ -477,7 +495,22 @@ protected:
       TokenInput miracle_reflection_armor_token_ids = {},
       ValueInput miracle_reflection_armor_defense_values = {},
       TokenInput miracle_reflection_weapon_token_ids = {},
-      ValueInput miracle_reflection_weapon_attack_values = {});
+      ValueInput miracle_reflection_weapon_attack_values = {},
+      bool fog_flash_curriculum = false,
+      TokenInput fog_flash_weapon_token_ids = {},
+      ValueInput fog_flash_weapon_attack_values = {},
+      ElementInput fog_flash_weapon_elements = {},
+      ValueInput fog_flash_weapon_hit_rates = {},
+      ValueInput fog_flash_weapon_effects = {},
+      TokenInput fog_flash_attack_miracle_token_ids = {},
+      ValueInput fog_flash_attack_miracle_values = {},
+      ElementInput fog_flash_attack_miracle_elements = {},
+      ValueInput fog_flash_attack_miracle_costs = {},
+      ValueInput fog_flash_attack_miracle_hit_rates = {},
+      ValueInput fog_flash_attack_miracle_effects = {},
+      TokenInput fog_miracle_token_ids = {},
+      ElementInput fog_miracle_elements = {},
+      ValueInput fog_miracle_costs = {});
 
 private:
   static constexpr std::size_t kMaximumBatchSize = 1'000'000;
@@ -558,6 +591,12 @@ private:
                                      std::size_t player, std::size_t slot);
   void draw_miracle_reflection_weapon(std::size_t environment,
                                       std::size_t player, std::size_t slot);
+  void draw_fog_flash_weapon(std::size_t environment, std::size_t player,
+                             std::size_t slot);
+  void draw_fog_flash_attack_miracle(std::size_t environment,
+                                     std::size_t player, std::size_t slot);
+  void draw_fog_miracle(std::size_t environment, std::size_t player,
+                        std::size_t slot);
   void draw_weapon_family(std::size_t environment, std::size_t player,
                           std::size_t slot);
   void draw_armor_family(std::size_t environment, std::size_t player,
@@ -620,6 +659,7 @@ private:
   bool miracle_bounce_weapon_curriculum_;
   bool miracle_bounce_miracle_curriculum_;
   bool miracle_reflection_curriculum_;
+  bool fog_flash_curriculum_;
   std::size_t global_feature_count_;
   std::uint16_t initial_mp_;
   std::vector<std::uint32_t> weapon_token_ids_;
@@ -718,11 +758,27 @@ private:
   std::vector<std::uint16_t> miracle_reflection_armor_defense_values_;
   std::vector<std::uint32_t> miracle_reflection_weapon_token_ids_;
   std::vector<std::uint16_t> miracle_reflection_weapon_attack_values_;
+  std::vector<std::uint32_t> fog_flash_weapon_token_ids_;
+  std::vector<std::uint16_t> fog_flash_weapon_attack_values_;
+  std::vector<std::uint8_t> fog_flash_weapon_elements_;
+  std::vector<std::uint16_t> fog_flash_weapon_hit_rates_;
+  std::vector<std::uint8_t> fog_flash_weapon_effects_;
+  std::vector<std::uint32_t> fog_flash_attack_miracle_token_ids_;
+  std::vector<std::uint16_t> fog_flash_attack_miracle_values_;
+  std::vector<std::uint8_t> fog_flash_attack_miracle_elements_;
+  std::vector<std::uint16_t> fog_flash_attack_miracle_costs_;
+  std::vector<std::uint16_t> fog_flash_attack_miracle_hit_rates_;
+  std::vector<std::uint8_t> fog_flash_attack_miracle_effects_;
+  std::vector<std::uint32_t> fog_miracle_token_ids_;
+  std::vector<std::uint8_t> fog_miracle_elements_;
+  std::vector<std::uint16_t> fog_miracle_costs_;
   std::vector<std::uint64_t> rng_states_;
   std::vector<std::uint64_t> episode_ids_;
   std::vector<std::uint16_t> hit_points_;
   std::vector<std::uint16_t> magic_points_;
   std::vector<std::uint8_t> illness_stages_;
+  std::vector<std::uint8_t> fog_flags_;
+  std::vector<std::uint8_t> flash_flags_;
   std::vector<std::uint16_t> hand_values_;
   std::vector<std::uint16_t> hand_costs_;
   std::vector<std::uint16_t> hand_hit_rates_;
@@ -1458,7 +1514,20 @@ public:
       TokenInput miracle_reflection_armor_token_ids,
       ValueInput miracle_reflection_armor_defense_values,
       TokenInput miracle_reflection_weapon_token_ids,
-      ValueInput miracle_reflection_weapon_attack_values, std::uint64_t seed,
+      ValueInput miracle_reflection_weapon_attack_values,
+      TokenInput fog_flash_weapon_token_ids,
+      ValueInput fog_flash_weapon_attack_values,
+      ElementInput fog_flash_weapon_elements,
+      ValueInput fog_flash_weapon_hit_rates,
+      ValueInput fog_flash_weapon_effects,
+      TokenInput fog_flash_attack_miracle_token_ids,
+      ValueInput fog_flash_attack_miracle_values,
+      ElementInput fog_flash_attack_miracle_elements,
+      ValueInput fog_flash_attack_miracle_costs,
+      ValueInput fog_flash_attack_miracle_hit_rates,
+      ValueInput fog_flash_attack_miracle_effects,
+      TokenInput fog_miracle_token_ids, ElementInput fog_miracle_elements,
+      ValueInput fog_miracle_costs, std::uint64_t seed,
       std::uint16_t initial_hp, std::uint16_t initial_mp);
 };
 

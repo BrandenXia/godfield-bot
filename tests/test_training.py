@@ -20,6 +20,8 @@ from godfield_bot.domain.reference import BibleSnapshot
 from godfield_bot.domain.replay import ReplaySample
 from godfield_bot.domain.run import RunMode
 from godfield_bot.features import (
+    CURSE_FEATURE_SCHEMA_VERSION,
+    CURSE_GLOBAL_FEATURE_COUNT,
     ILLNESS_FEATURE_SCHEMA_VERSION,
     ILLNESS_GLOBAL_FEATURE_COUNT,
     RESOURCE_FEATURE_SCHEMA_VERSION,
@@ -31,6 +33,7 @@ from godfield_bot.imitation import ImitationTrainingConfig, train_imitation_cand
 from godfield_bot.legal_actions import game_state_digest, observation_only_actions
 from godfield_bot.model_registry import (
     COMBO_FEATURE_MIGRATION,
+    CURSE_FEATURE_MIGRATION,
     ELEMENT_FEATURE_MIGRATION,
     ILLNESS_FEATURE_MIGRATION,
     RESOURCE_FEATURE_MIGRATION,
@@ -39,6 +42,7 @@ from godfield_bot.model_registry import (
     initialize_model,
     load_model,
     migrate_combo_features,
+    migrate_curse_features,
     migrate_element_features,
     migrate_illness_features,
     migrate_resource_features,
@@ -355,6 +359,48 @@ def test_illness_migration_adds_zero_initialized_actor_relative_inputs(tmp_path)
     for name, value in source_state.items():
         if name != "global_encoder.0.weight":
             torch.testing.assert_close(value, illness_state[name], rtol=0, atol=0)
+
+
+def test_curse_migration_adds_zero_initialized_actor_relative_inputs(tmp_path) -> None:
+    vocabulary = load_vocabulary(SNAPSHOT)
+    root = tmp_path / "models"
+    illness = initialize_model(
+        root,
+        vocabulary,
+        client_sha256=BIBLE.client.sha256,
+        feature_schema_version=ILLNESS_FEATURE_SCHEMA_VERSION,
+        global_feature_count=ILLNESS_GLOBAL_FEATURE_COUNT,
+    )
+    curse = migrate_curse_features(
+        root / illness.model_id,
+        root,
+        vocabulary,
+        client_sha256=BIBLE.client.sha256,
+    )
+    _, illness_model = load_model(root / illness.model_id)
+    _, curse_model = load_model(root / curse.model_id)
+    source_state = illness_model.state_dict()
+    curse_state = curse_model.state_dict()
+
+    assert curse.feature_schema_version == CURSE_FEATURE_SCHEMA_VERSION
+    assert curse.architecture.global_feature_count == CURSE_GLOBAL_FEATURE_COUNT
+    assert curse.parent_model_id == illness.model_id
+    assert curse.training_algorithm == CURSE_FEATURE_MIGRATION
+    torch.testing.assert_close(
+        curse_state["global_encoder.0.weight"][:, :ILLNESS_GLOBAL_FEATURE_COUNT],
+        source_state["global_encoder.0.weight"],
+        rtol=0,
+        atol=0,
+    )
+    assert (
+        torch.count_nonzero(
+            curse_state["global_encoder.0.weight"][:, ILLNESS_GLOBAL_FEATURE_COUNT:]
+        )
+        == 0
+    )
+    for name, value in source_state.items():
+        if name != "global_encoder.0.weight":
+            torch.testing.assert_close(value, curse_state[name], rtol=0, atol=0)
 
 
 def test_schema_v3_model_requires_explicit_policy_architecture(tmp_path) -> None:

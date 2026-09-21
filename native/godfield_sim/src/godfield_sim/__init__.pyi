@@ -81,7 +81,11 @@ MIRACLE_BOUNCE_MIRACLE_RESOURCE_ATTACK_DEFENSE_RULESET_ID: Final[str]
 MIRACLE_REFLECTION_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION: Final[int]
 MIRACLE_REFLECTION_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION: Final[int]
 MIRACLE_REFLECTION_RESOURCE_ATTACK_DEFENSE_RULESET_ID: Final[str]
+FOG_FLASH_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION: Final[int]
+FOG_FLASH_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION: Final[int]
+FOG_FLASH_RESOURCE_ATTACK_DEFENSE_RULESET_ID: Final[str]
 ILLNESS_GLOBAL_FEATURE_COUNT: Final[int]
+CURSE_GLOBAL_FEATURE_COUNT: Final[int]
 MIXED_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION: Final[int]
 MIXED_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION: Final[int]
 MIXED_ATTACK_DEFENSE_RULESET_ID: Final[str]
@@ -133,6 +137,9 @@ CARD_KIND_MIRACLE_BOUNCE_BOOSTER: Final[int]
 CARD_KIND_MIRACLE_BOUNCE_MIRACLE: Final[int]
 CARD_KIND_MIRACLE_REFLECTION_ARMOR: Final[int]
 CARD_KIND_MIRACLE_REFLECTION_WEAPON: Final[int]
+CARD_KIND_FOG_FLASH_WEAPON: Final[int]
+CARD_KIND_FOG_FLASH_ATTACK_MIRACLE: Final[int]
+CARD_KIND_FOG_MIRACLE: Final[int]
 ILLNESS_NONE: Final[int]
 ILLNESS_COLD: Final[int]
 ILLNESS_FEVER: Final[int]
@@ -255,6 +262,8 @@ class AttackDefenseBatch:
     @property
     def miracle_reflection_curriculum(self) -> bool: ...
     @property
+    def fog_flash_curriculum(self) -> bool: ...
+    @property
     def initial_mp(self) -> int: ...
     @property
     def global_feature_count(self) -> int: ...
@@ -274,6 +283,10 @@ class AttackDefenseBatch:
     def hand_elements(self) -> npt.NDArray[np.uint8]: ...
     @property
     def illness_stages(self) -> npt.NDArray[np.uint8]: ...
+    @property
+    def fog_flags(self) -> npt.NDArray[np.uint8]: ...
+    @property
+    def flash_flags(self) -> npt.NDArray[np.uint8]: ...
     @property
     def action_mask(self) -> npt.NDArray[np.bool_]: ...
     @property
@@ -1032,4 +1045,7 @@ class MiracleBounceMiracleResourceAttackDefenseBatch(AttackDefenseBatch):
     def __init__(self, *args: object, **kwargs: object) -> None: ...
 
 class MiracleReflectionResourceAttackDefenseBatch(AttackDefenseBatch):
+    def __init__(self, *args: object, **kwargs: object) -> None: ...
+
+class FogFlashResourceAttackDefenseBatch(AttackDefenseBatch):
     def __init__(self, *args: object, **kwargs: object) -> None: ...

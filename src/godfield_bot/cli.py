@@ -357,7 +357,7 @@ def play_private_api_game(
     bible_snapshot: Annotated[
         Path,
         typer.Option(exists=True, dir_okay=False, readable=True),
-    ] = Path("data", "snapshots", "2026-09-07", "bible.json"),
+    ] = Path("data", "snapshots", "2026-09-20", "bible.json"),
     database: Annotated[
         Path,
         typer.Option(help="Local SQLite trajectory database."),
@@ -583,7 +583,7 @@ def run_bot(
     snapshot: Annotated[
         Path,
         typer.Option(exists=True, dir_okay=False, readable=True),
-    ] = Path("data", "snapshots", "2026-09-07", "bible.json"),
+    ] = Path("data", "snapshots", "2026-09-20", "bible.json"),
     database: Annotated[
         Path,
         typer.Option(help="Ignored local SQLite trajectory database."),
@@ -683,7 +683,7 @@ def play_official_training_computers(
     snapshot: Annotated[
         Path,
         typer.Option(exists=True, dir_okay=False, readable=True),
-    ] = Path("data", "snapshots", "2026-09-07", "bible.json"),
+    ] = Path("data", "snapshots", "2026-09-20", "bible.json"),
     database: Annotated[
         Path,
         typer.Option(help="Local SQLite trajectory database."),
@@ -1055,7 +1055,7 @@ def models_init(
     snapshot: Annotated[
         Path,
         typer.Option(exists=True, dir_okay=False, readable=True),
-    ] = Path("data", "snapshots", "2026-09-07", "bible.json"),
+    ] = Path("data", "snapshots", "2026-09-20", "bible.json"),
     root_directory: Annotated[
         Path,
         typer.Option(help="Ignored root directory for model artifacts."),
@@ -1096,7 +1096,7 @@ def models_migrate_element_features(
     snapshot: Annotated[
         Path,
         typer.Option(exists=True, dir_okay=False, readable=True),
-    ] = Path("data", "snapshots", "2026-09-07", "bible.json"),
+    ] = Path("data", "snapshots", "2026-09-20", "bible.json"),
     root_directory: Annotated[
         Path,
         typer.Option(help="Ignored root directory for the migrated model."),
@@ -1136,7 +1136,7 @@ def models_migrate_combo_features(
     snapshot: Annotated[
         Path,
         typer.Option(exists=True, dir_okay=False, readable=True),
-    ] = Path("data", "snapshots", "2026-09-07", "bible.json"),
+    ] = Path("data", "snapshots", "2026-09-20", "bible.json"),
     root_directory: Annotated[
         Path,
         typer.Option(help="Ignored root directory for the migrated model."),
@@ -1176,7 +1176,7 @@ def models_migrate_resource_features(
     snapshot: Annotated[
         Path,
         typer.Option(exists=True, dir_okay=False, readable=True),
-    ] = Path("data", "snapshots", "2026-09-07", "bible.json"),
+    ] = Path("data", "snapshots", "2026-09-20", "bible.json"),
     root_directory: Annotated[
         Path,
         typer.Option(help="Ignored root directory for the migrated model."),
@@ -1216,7 +1216,7 @@ def models_migrate_stochastic_resource_features(
     snapshot: Annotated[
         Path,
         typer.Option(exists=True, dir_okay=False, readable=True),
-    ] = Path("data", "snapshots", "2026-09-07", "bible.json"),
+    ] = Path("data", "snapshots", "2026-09-20", "bible.json"),
     root_directory: Annotated[
         Path,
         typer.Option(help="Ignored root directory for the migrated model."),
@@ -1256,7 +1256,7 @@ def models_migrate_illness_features(
     snapshot: Annotated[
         Path,
         typer.Option(exists=True, dir_okay=False, readable=True),
-    ] = Path("data", "snapshots", "2026-09-07", "bible.json"),
+    ] = Path("data", "snapshots", "2026-09-20", "bible.json"),
     root_directory: Annotated[
         Path,
         typer.Option(help="Ignored root directory for the migrated model."),
@@ -1287,6 +1287,46 @@ def models_migrate_illness_features(
     typer.echo(manifest.model_dump_json(indent=2))
 
 
+@models_app.command("migrate-curse-features")
+def models_migrate_curse_features(
+    source_model: Annotated[
+        Path,
+        typer.Argument(exists=True, file_okay=False, readable=True),
+    ],
+    snapshot: Annotated[
+        Path,
+        typer.Option(exists=True, dir_okay=False, readable=True),
+    ] = Path("data", "snapshots", "2026-09-20", "bible.json"),
+    root_directory: Annotated[
+        Path,
+        typer.Option(help="Ignored root directory for the migrated model."),
+    ] = Path("models"),
+) -> None:
+    """Expand schema v7 with actor-relative Fog and Flash inputs."""
+
+    try:
+        from godfield_bot.domain.reference import BibleSnapshot
+        from godfield_bot.features import ArtifactVocabulary
+        from godfield_bot.model_registry import migrate_curse_features
+
+        bible = BibleSnapshot.model_validate_json(snapshot.read_text(encoding="utf-8"))
+        vocabulary = ArtifactVocabulary.from_snapshot(bible)
+        manifest = migrate_curse_features(
+            source_model,
+            root_directory,
+            vocabulary,
+            client_sha256=bible.client.sha256,
+        )
+    except (ImportError, OSError, ValueError) as error:
+        structlog.get_logger().error(
+            "model_curse_migration_failed",
+            error_type=type(error).__name__,
+            reason=str(error).splitlines()[0],
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(manifest.model_dump_json(indent=2))
+
+
 @models_app.command("train-replay")
 def models_train_replay(
     base_model: Annotated[
@@ -1300,7 +1340,7 @@ def models_train_replay(
     snapshot: Annotated[
         Path,
         typer.Option(exists=True, dir_okay=False, readable=True),
-    ] = Path("data", "snapshots", "2026-09-07", "bible.json"),
+    ] = Path("data", "snapshots", "2026-09-20", "bible.json"),
     root_directory: Annotated[
         Path,
         typer.Option(help="Ignored root directory for the new candidate."),
@@ -1359,7 +1399,7 @@ def models_train_outcomes(
     snapshot: Annotated[
         Path,
         typer.Option(exists=True, dir_okay=False, readable=True),
-    ] = Path("data", "snapshots", "2026-09-07", "bible.json"),
+    ] = Path("data", "snapshots", "2026-09-20", "bible.json"),
     root_directory: Annotated[
         Path,
         typer.Option(help="Ignored root directory for the new candidate."),
@@ -1435,7 +1475,7 @@ def models_train_simulation(
     snapshot: Annotated[
         Path,
         typer.Option(exists=True, dir_okay=False, readable=True),
-    ] = Path("data", "snapshots", "2026-09-07", "bible.json"),
+    ] = Path("data", "snapshots", "2026-09-20", "bible.json"),
     root_directory: Annotated[
         Path,
         typer.Option(help="Ignored root directory for the new candidate."),
@@ -1468,6 +1508,7 @@ def models_train_simulation(
             "miracle-bounce-weapon-resource-hand",
             "miracle-bounce-miracle-resource-hand",
             "miracle-reflection-resource-hand",
+            "fog-flash-resource-hand",
         ],
         typer.Option(help="Attack/defense hand-distribution curriculum."),
     ] = "fixed-role",
@@ -1594,7 +1635,7 @@ def models_evaluate_simulation(
     snapshot: Annotated[
         Path,
         typer.Option(exists=True, dir_okay=False, readable=True),
-    ] = Path("data", "snapshots", "2026-09-07", "bible.json"),
+    ] = Path("data", "snapshots", "2026-09-20", "bible.json"),
     evaluation_directory: Annotated[
         Path,
         typer.Option(help="Owner-only directory for immutable evaluation reports."),
@@ -1627,6 +1668,7 @@ def models_evaluate_simulation(
             "miracle-bounce-weapon-resource-hand",
             "miracle-bounce-miracle-resource-hand",
             "miracle-reflection-resource-hand",
+            "fog-flash-resource-hand",
         ],
         typer.Option(help="Attack/defense hand-distribution curriculum."),
     ] = "fixed-role",
@@ -1727,7 +1769,7 @@ def models_evaluate_live_shadow(
     snapshot: Annotated[
         Path,
         typer.Option(exists=True, dir_okay=False, readable=True),
-    ] = Path("data", "snapshots", "2026-09-07", "bible.json"),
+    ] = Path("data", "snapshots", "2026-09-20", "bible.json"),
     evaluation_directory: Annotated[
         Path,
         typer.Option(help="Owner-only directory for immutable live-shadow reports."),
@@ -1838,7 +1880,7 @@ def simulation_benchmark(
     snapshot: Annotated[
         Path,
         typer.Option(exists=True, dir_okay=False, readable=True),
-    ] = Path("data", "snapshots", "2026-09-07", "bible.json"),
+    ] = Path("data", "snapshots", "2026-09-20", "bible.json"),
     batch_size: Annotated[
         int,
         typer.Option(min=1, max=1_000_000, help="Parallel native curriculum games."),
@@ -1877,6 +1919,7 @@ def simulation_benchmark(
             "miracle-bounce-weapon-resource-attack-defense",
             "miracle-bounce-miracle-resource-attack-defense",
             "miracle-reflection-resource-attack-defense",
+            "fog-flash-resource-attack-defense",
         ],
         typer.Option(help="Native curriculum ruleset to benchmark."),
     ] = "attack-defense",
@@ -1925,8 +1968,11 @@ def simulation_benchmark(
                 "miracle-bounce-weapon-resource-hand",
                 "miracle-bounce-miracle-resource-hand",
                 "miracle-reflection-resource-hand",
+                "fog-flash-resource-hand",
             ]
-            if ruleset == "miracle-reflection-resource-attack-defense":
+            if ruleset == "fog-flash-resource-attack-defense":
+                attack_defense_ruleset = "fog-flash-resource-hand"
+            elif ruleset == "miracle-reflection-resource-attack-defense":
                 attack_defense_ruleset = "miracle-reflection-resource-hand"
             elif ruleset == "miracle-bounce-miracle-resource-attack-defense":
                 attack_defense_ruleset = "miracle-bounce-miracle-resource-hand"

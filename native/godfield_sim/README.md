@@ -9,7 +9,7 @@ uv sync --extra simulation --group dev
 
 Every included curriculum is intentionally incomplete and its generated
 trajectories are not eligible for live model promotion. The broadest current
-ruleset, `miracle-reflection-resource-hand`, includes elemental multi-card
+ruleset, `fog-flash-resource-hand`, includes elemental multi-card
 combat, HP/MP utility, fixed and chance miracles, Absorption, reusable additive
 miracles, evidence-bounded one-hop reflection, seven fixed ATK/DEF weapons, 14
 effect-free chance weapons, and the chance/defense dual role of Jinn's Rocking
@@ -49,9 +49,18 @@ Moonlight Helm, Shield, and Armor retain neutral DEF8/10/12 against compatible
 weapon attacks and reflect attack miracles to the original caster. Moonlight
 Axe is a consumable neutral ATK10 base weapon with the same miracle-only
 reflection defense. Bounce and reflection use the same one-hop redirect guard.
+Fog Gun, Fog Fan, Flash Dagger, `<Flash>`, and `<Fog>` add independent Fog and
+Flash state. A fogged actor receives zeroed opponent HP/MP observations, while
+a flashed defender may select exactly one defensive artifact. Damage-triggered
+curses require positive damage. Direct Fog is a reusable 3-MP attack miracle;
+ordinary armor cannot answer it, while Angel block, Sky bounce, and Moonlight
+reflection retain their miracle behavior. Existing mild and full cures remove
+Fog and Flash. Four actor-relative curse features expand the observation to
+schema v8.
 
 The unobserved same-damage/reflection, attack-twice booster/reflection,
-random-target booster/reflection, and status/reflection interactions remain
-masked. Fog, Flash, and their cure effects remain outside the represented
-state. See ADR 0002 and ADRs 0029 through 0047 in the root project for the
+random-target booster/reflection, and damage-triggered Fog/Flash redirect or
+Fever Mask interactions remain masked. Dream, Dark Cloud, and multiplayer Fog
+targeting remain outside the represented state. See ADR 0002 and ADRs 0029
+through 0048 in the root project for the
 interface and safety boundary.

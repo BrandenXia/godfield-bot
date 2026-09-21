@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from godfield_bot.domain.reference import BibleSnapshot
 from godfield_bot.elements import COMBAT_ELEMENT_IDS
-from godfield_bot.features import ArtifactVocabulary
+from godfield_bot.features import CURSE_GLOBAL_FEATURE_COUNT, ArtifactVocabulary
 from godfield_bot.reference import (
     plain_attack_booster_cards,
     plain_attack_weapon_cards,
@@ -32,6 +32,9 @@ from godfield_bot.reference import (
     verified_dynamic_mp_weapon_cards,
     verified_effect_attack_miracle_cards,
     verified_fever_mask_armor,
+    verified_fog_flash_attack_miracles,
+    verified_fog_flash_weapon_cards,
+    verified_fog_miracles,
     verified_heaven_herb_cards,
     verified_hp_utility_miracle_cards,
     verified_illness_cure_miracles,
@@ -81,6 +84,7 @@ AttackDefenseRuleset = Literal[
     "miracle-bounce-weapon-resource-hand",
     "miracle-bounce-miracle-resource-hand",
     "miracle-reflection-resource-hand",
+    "fog-flash-resource-hand",
 ]
 
 
@@ -141,6 +145,7 @@ class SimulationMetadata(BaseModel):
         "elemental-miracle-bounce-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-miracle-bounce-miracle-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-miracle-reflection-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
+        "elemental-fog-flash-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
     ] = "uniform-redraw-with-replacement"
     promotion_eligible: Literal[False] = False
 
@@ -446,6 +451,61 @@ def _miracle_reflection_catalog(
     return armor_catalog, weapon_catalog
 
 
+def _fog_flash_catalog(
+    snapshot: BibleSnapshot,
+    vocabulary: ArtifactVocabulary,
+) -> tuple[list[dict[str, object]], list[dict[str, object]], list[dict[str, object]]]:
+    curse_ids = {"fog": 1, "flash": 2}
+    weapons = verified_fog_flash_weapon_cards(snapshot)
+    attack_miracles = verified_fog_flash_attack_miracles(snapshot)
+    fog_miracles = verified_fog_miracles(snapshot)
+    if not weapons or not attack_miracles or not fog_miracles:
+        raise ValueError("accepted snapshot lacks a complete Fog/Flash family")
+    weapon_catalog: list[dict[str, object]] = [
+        {
+            "attack": attack,
+            "curse": curse,
+            "curse_id": curse_ids[curse],
+            "element": element,
+            "element_id": COMBAT_ELEMENT_IDS[element],
+            "hit_rate": hit_rate,
+            "kind": "fog-flash-weapon",
+            "slug": slug,
+            "token_id": vocabulary.token_id("weapons", slug),
+        }
+        for slug, (hit_rate, attack, element, curse) in sorted(weapons.items())
+    ]
+    attack_miracle_catalog: list[dict[str, object]] = [
+        {
+            "attack": attack,
+            "cost": cost,
+            "curse": curse,
+            "curse_id": curse_ids[curse],
+            "element": element,
+            "element_id": COMBAT_ELEMENT_IDS[element],
+            "hit_rate": hit_rate,
+            "kind": "fog-flash-attack-miracle",
+            "slug": slug,
+            "token_id": vocabulary.token_id("miracles", slug),
+        }
+        for slug, (hit_rate, attack, cost, element, curse) in sorted(attack_miracles.items())
+    ]
+    fog_miracle_catalog: list[dict[str, object]] = [
+        {
+            "cost": cost,
+            "curse": "fog",
+            "curse_id": curse_ids["fog"],
+            "element": element,
+            "element_id": COMBAT_ELEMENT_IDS[element],
+            "kind": "fog-miracle",
+            "slug": slug,
+            "token_id": vocabulary.token_id("miracles", slug),
+        }
+        for slug, (cost, element) in sorted(fog_miracles.items())
+    ]
+    return weapon_catalog, attack_miracle_catalog, fog_miracle_catalog
+
+
 def create_fixed_attack_simulation(
     snapshot_path: Path,
     *,
@@ -549,6 +609,9 @@ def create_attack_defense_simulation(
             FEVER_MASK_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
             FEVER_MASK_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
             FEVER_MASK_RESOURCE_ATTACK_DEFENSE_RULESET_ID,
+            FOG_FLASH_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
+            FOG_FLASH_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
+            FOG_FLASH_RESOURCE_ATTACK_DEFENSE_RULESET_ID,
             HAND_SLOTS,
             HEAVEN_HERB_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
             HEAVEN_HERB_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
@@ -610,6 +673,7 @@ def create_attack_defense_simulation(
             ElementalAttackDefenseBatch,
             ExpandedResourceAttackDefenseBatch,
             FeverMaskResourceAttackDefenseBatch,
+            FogFlashResourceAttackDefenseBatch,
             HeavenHerbResourceAttackDefenseBatch,
             IllnessCureResourceAttackDefenseBatch,
             IllnessWeaponResourceAttackDefenseBatch,
@@ -639,26 +703,34 @@ def create_attack_defense_simulation(
         miracle_bounce_weapon_batch_type = MiracleBounceWeaponResourceAttackDefenseBatch
         miracle_bounce_miracle_batch_type = MiracleBounceMiracleResourceAttackDefenseBatch
         miracle_reflection_batch_type = MiracleReflectionResourceAttackDefenseBatch
+        fog_flash_batch_type = FogFlashResourceAttackDefenseBatch
     except ImportError as error:
         raise SimulationUnavailableError(
             "native simulation is unavailable; run `uv sync --extra simulation --group dev`"
         ) from error
 
-    miracle_reflection_ruleset = ruleset == "miracle-reflection-resource-hand"
+    fog_flash_ruleset = ruleset == "fog-flash-resource-hand"
+    miracle_reflection_ruleset = ruleset in {
+        "miracle-reflection-resource-hand",
+        "fog-flash-resource-hand",
+    }
     miracle_bounce_miracle_ruleset = ruleset in {
         "miracle-bounce-miracle-resource-hand",
         "miracle-reflection-resource-hand",
+        "fog-flash-resource-hand",
     }
     miracle_bounce_weapon_ruleset = ruleset in {
         "miracle-bounce-weapon-resource-hand",
         "miracle-bounce-miracle-resource-hand",
         "miracle-reflection-resource-hand",
+        "fog-flash-resource-hand",
     }
     miracle_bounce_ruleset = ruleset in {
         "miracle-bounce-resource-hand",
         "miracle-bounce-weapon-resource-hand",
         "miracle-bounce-miracle-resource-hand",
         "miracle-reflection-resource-hand",
+        "fog-flash-resource-hand",
     }
     miracle_block_weapon_ruleset = ruleset in {
         "miracle-block-weapon-resource-hand",
@@ -666,6 +738,7 @@ def create_attack_defense_simulation(
         "miracle-bounce-weapon-resource-hand",
         "miracle-bounce-miracle-resource-hand",
         "miracle-reflection-resource-hand",
+        "fog-flash-resource-hand",
     }
     miracle_block_ruleset = ruleset in {
         "miracle-block-resource-hand",
@@ -674,6 +747,7 @@ def create_attack_defense_simulation(
         "miracle-bounce-weapon-resource-hand",
         "miracle-bounce-miracle-resource-hand",
         "miracle-reflection-resource-hand",
+        "fog-flash-resource-hand",
     }
     if miracle_block_ruleset:
         ruleset = "fever-mask-resource-hand"
@@ -997,8 +1071,15 @@ def create_attack_defense_simulation(
                     if miracle_reflection_ruleset
                     else ([], [])
                 )
+                (
+                    fog_flash_weapon_catalog,
+                    fog_flash_attack_miracle_catalog,
+                    fog_miracle_catalog,
+                ) = _fog_flash_catalog(snapshot, vocabulary) if fog_flash_ruleset else ([], [], [])
                 advanced_batch_type: Any
-                if miracle_reflection_ruleset:
+                if fog_flash_ruleset:
+                    advanced_batch_type = fog_flash_batch_type
+                elif miracle_reflection_ruleset:
                     advanced_batch_type = miracle_reflection_batch_type
                 elif miracle_bounce_miracle_ruleset:
                     advanced_batch_type = miracle_bounce_miracle_batch_type
@@ -1910,6 +1991,104 @@ def create_attack_defense_simulation(
                                                                                 ),
                                                                                 dtype=np.uint16,
                                                                             ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    fog_flash_weapon_catalog,
+                                                                                    "token_id",
+                                                                                ),
+                                                                                dtype=np.uint32,
+                                                                            ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    fog_flash_weapon_catalog,
+                                                                                    "attack",
+                                                                                ),
+                                                                                dtype=np.uint16,
+                                                                            ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    fog_flash_weapon_catalog,
+                                                                                    "element_id",
+                                                                                ),
+                                                                                dtype=np.uint8,
+                                                                            ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    fog_flash_weapon_catalog,
+                                                                                    "hit_rate",
+                                                                                ),
+                                                                                dtype=np.uint16,
+                                                                            ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    fog_flash_weapon_catalog,
+                                                                                    "curse_id",
+                                                                                ),
+                                                                                dtype=np.uint16,
+                                                                            ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    fog_flash_attack_miracle_catalog,
+                                                                                    "token_id",
+                                                                                ),
+                                                                                dtype=np.uint32,
+                                                                            ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    fog_flash_attack_miracle_catalog,
+                                                                                    "attack",
+                                                                                ),
+                                                                                dtype=np.uint16,
+                                                                            ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    fog_flash_attack_miracle_catalog,
+                                                                                    "element_id",
+                                                                                ),
+                                                                                dtype=np.uint8,
+                                                                            ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    fog_flash_attack_miracle_catalog,
+                                                                                    "cost",
+                                                                                ),
+                                                                                dtype=np.uint16,
+                                                                            ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    fog_flash_attack_miracle_catalog,
+                                                                                    "hit_rate",
+                                                                                ),
+                                                                                dtype=np.uint16,
+                                                                            ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    fog_flash_attack_miracle_catalog,
+                                                                                    "curse_id",
+                                                                                ),
+                                                                                dtype=np.uint16,
+                                                                            ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    fog_miracle_catalog,
+                                                                                    "token_id",
+                                                                                ),
+                                                                                dtype=np.uint32,
+                                                                            ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    fog_miracle_catalog,
+                                                                                    "element_id",
+                                                                                ),
+                                                                                dtype=np.uint8,
+                                                                            ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    fog_miracle_catalog,
+                                                                                    "cost",
+                                                                                ),
+                                                                                dtype=np.uint16,
+                                                                            ),
                                                                             seed,
                                                                             initial_hp,
                                                                             initial_mp,
@@ -2097,6 +2276,9 @@ def create_attack_defense_simulation(
                     + miracle_bounce_miracle_catalog
                     + miracle_reflection_armor_catalog
                     + miracle_reflection_weapon_catalog
+                    + fog_flash_weapon_catalog
+                    + fog_flash_attack_miracle_catalog
+                    + fog_miracle_catalog
                 )
             else:
                 batch = ResourceAttackDefenseBatch(
@@ -2180,11 +2362,21 @@ def create_attack_defense_simulation(
         "elemental-miracle-bounce-weapon-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-miracle-bounce-miracle-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-miracle-reflection-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
+        "elemental-fog-flash-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
     ]
     action_semantics: Literal["atomic-attack-defense-macro", "sequential-combo-selection"] = (
         "atomic-attack-defense-macro"
     )
-    if miracle_reflection_ruleset:
+    if fog_flash_ruleset:
+        kernel_schema_version = FOG_FLASH_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION
+        observation_schema_version = FOG_FLASH_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION
+        ruleset_id = FOG_FLASH_RESOURCE_ATTACK_DEFENSE_RULESET_ID
+        global_feature_count = CURSE_GLOBAL_FEATURE_COUNT
+        sampling_distribution = (
+            "elemental-fog-flash-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness"
+        )
+        action_semantics = "sequential-combo-selection"
+    elif miracle_reflection_ruleset:
         kernel_schema_version = MIRACLE_REFLECTION_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION
         observation_schema_version = (
             MIRACLE_REFLECTION_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION

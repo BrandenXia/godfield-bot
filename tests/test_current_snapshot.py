@@ -26,6 +26,9 @@ from godfield_bot.reference import (
     verified_dynamic_mp_weapon_cards,
     verified_effect_attack_miracle_cards,
     verified_fever_mask_armor,
+    verified_fog_flash_attack_miracles,
+    verified_fog_flash_weapon_cards,
+    verified_fog_miracles,
     verified_heaven_herb_cards,
     verified_hp_utility_miracle_cards,
     verified_illness_cure_miracles,
@@ -45,7 +48,7 @@ from godfield_bot.reference import (
     verified_stochastic_hp_sundries,
 )
 
-SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-07" / "bible.json"
+SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-20" / "bible.json"
 
 
 def test_committed_snapshot_matches_validated_live_catalog() -> None:
@@ -227,6 +230,13 @@ def test_committed_snapshot_matches_validated_live_catalog() -> None:
         "moonlight-shield": 10,
     }
     assert verified_miracle_reflection_weapons(snapshot) == {"moonlight-axe": 10}
+    assert verified_fog_flash_weapon_cards(snapshot) == {
+        "flash-dagger": (100, 2, "light", "flash"),
+        "fog-fan": (50, 3, "water", "fog"),
+        "fog-gun": (100, 3, "water", "fog"),
+    }
+    assert verified_fog_flash_attack_miracles(snapshot) == {"flash": (25, 1, 3, "light", "flash")}
+    assert verified_fog_miracles(snapshot) == {"fog": (3, "water")}
     assert verified_effect_attack_miracle_cards(snapshot) == {
         "absorption": (10, 10, "light", "absorbHP")
     }

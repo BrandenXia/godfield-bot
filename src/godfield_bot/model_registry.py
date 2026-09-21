@@ -11,6 +11,8 @@ from pydantic import BaseModel, Field, JsonValue
 
 from godfield_bot.browser.profile import prepare_private_directory
 from godfield_bot.features import (
+    CURSE_FEATURE_SCHEMA_VERSION,
+    CURSE_GLOBAL_FEATURE_COUNT,
     ELEMENT_FEATURE_SCHEMA_VERSION,
     FEATURE_SCHEMA_VERSION,
     GLOBAL_FEATURE_COUNT,
@@ -81,6 +83,7 @@ COMBO_FEATURE_MIGRATION = "feature-schema-v4-combo-selection-v1"
 RESOURCE_FEATURE_MIGRATION = "feature-schema-v5-hp-mp-utility-miracle-cost-v1"
 STOCHASTIC_RESOURCE_FEATURE_MIGRATION = "feature-schema-v6-chance-and-absorption-miracle-v1"
 ILLNESS_FEATURE_MIGRATION = "feature-schema-v7-actor-relative-illness-state-v1"
+CURSE_FEATURE_MIGRATION = "feature-schema-v8-actor-relative-fog-flash-state-v1"
 SUPPORTED_OBSERVATION_SCHEMAS = {
     (LEGACY_FEATURE_SCHEMA_VERSION, LEGACY_GLOBAL_FEATURE_COUNT),
     (ELEMENT_FEATURE_SCHEMA_VERSION, GLOBAL_FEATURE_COUNT),
@@ -91,6 +94,7 @@ SUPPORTED_OBSERVATION_SCHEMAS = {
         STOCHASTIC_RESOURCE_GLOBAL_FEATURE_COUNT,
     ),
     (ILLNESS_FEATURE_SCHEMA_VERSION, ILLNESS_GLOBAL_FEATURE_COUNT),
+    (CURSE_FEATURE_SCHEMA_VERSION, CURSE_GLOBAL_FEATURE_COUNT),
 }
 
 
@@ -576,6 +580,92 @@ def migrate_illness_features(
         seed=source.seed,
         parent_model_id=source.model_id,
         training_algorithm=ILLNESS_FEATURE_MIGRATION,
+        training_dataset_sha256=migration_digest,
+        training_context=migration_input,
+    )
+    temporary_manifest = model_directory / "manifest.json.tmp"
+    temporary_manifest.write_text(
+        manifest.model_dump_json(indent=2) + "\n",
+        encoding="utf-8",
+    )
+    os.chmod(temporary_manifest, 0o600)
+    os.replace(temporary_manifest, model_directory / "manifest.json")
+    return manifest
+
+
+def migrate_curse_features(
+    source_model_directory: Path,
+    root: Path,
+    vocabulary: ArtifactVocabulary,
+    *,
+    client_sha256: str,
+) -> ModelManifest:
+    """Expand a schema-v7 checkpoint with actor-relative Fog/Flash inputs."""
+
+    source, source_model = load_model(source_model_directory)
+    if source.feature_schema_version != ILLNESS_FEATURE_SCHEMA_VERSION or (
+        source.architecture.global_feature_count != ILLNESS_GLOBAL_FEATURE_COUNT
+    ):
+        raise ValueError("curse migration requires a feature-schema-v7 source model")
+    if source.architecture.policy_architecture != SLOT_AWARE_POLICY:
+        raise ValueError("curse migration requires a slot-aware-v1 source model")
+    if source.client_sha256 != client_sha256:
+        raise ValueError("source model client fingerprint differs from the Bible snapshot")
+    if source.vocabulary_sha256 != vocabulary_digest(vocabulary):
+        raise ValueError("source model vocabulary differs from the Bible snapshot")
+
+    architecture = source.architecture.model_copy(
+        update={"global_feature_count": CURSE_GLOBAL_FEATURE_COUNT}
+    )
+    migrated_model = _build_model(architecture)
+    migrated_state = source_model.state_dict()
+    input_weight_name = "global_encoder.0.weight"
+    source_input_weights = migrated_state[input_weight_name]
+    expanded_input_weights = source_input_weights.new_zeros(
+        (source_input_weights.shape[0], CURSE_GLOBAL_FEATURE_COUNT)
+    )
+    expanded_input_weights[:, :ILLNESS_GLOBAL_FEATURE_COUNT] = source_input_weights
+    migrated_state[input_weight_name] = expanded_input_weights
+    migrated_model.load_state_dict(migrated_state)
+
+    migration_input: dict[str, JsonValue] = {
+        "schema_version": 1,
+        "algorithm": CURSE_FEATURE_MIGRATION,
+        "source_model_id": source.model_id,
+        "source_weights_sha256": source.weights_sha256,
+        "source_feature_schema_version": source.feature_schema_version,
+        "target_feature_schema_version": CURSE_FEATURE_SCHEMA_VERSION,
+        "new_global_inputs": 4,
+        "new_input_initialization": "zero",
+        "semantic_change": "actor-relative self and opponent Fog and Flash flags",
+    }
+    migration_digest = hashlib.sha256(
+        json.dumps(migration_input, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+
+    prepare_private_directory(root)
+    model_id = str(uuid4())
+    model_directory = root / model_id
+    prepare_private_directory(model_directory)
+    weights_file = "weights.pt"
+    weights_path = model_directory / weights_file
+    temporary_weights = model_directory / "weights.pt.tmp"
+    torch.save(migrated_model.state_dict(), temporary_weights)
+    os.chmod(temporary_weights, 0o600)
+    os.replace(temporary_weights, weights_path)
+    manifest = ModelManifest(
+        feature_schema_version=CURSE_FEATURE_SCHEMA_VERSION,
+        model_id=model_id,
+        created_at=datetime.now(UTC),
+        status=ModelStatus.INITIALIZED,
+        client_sha256=source.client_sha256,
+        vocabulary_sha256=source.vocabulary_sha256,
+        weights_sha256=_file_digest(weights_path),
+        weights_file=weights_file,
+        architecture=architecture,
+        seed=source.seed,
+        parent_model_id=source.model_id,
+        training_algorithm=CURSE_FEATURE_MIGRATION,
         training_dataset_sha256=migration_digest,
         training_context=migration_input,
     )

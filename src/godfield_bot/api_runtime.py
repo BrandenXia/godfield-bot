@@ -89,7 +89,7 @@ class PrivateApiRunConfig(BaseModel):
     entry_team: int = Field(default=0, ge=0, le=4)
     policy: ApiPolicyName = ApiPolicyName.OBSERVER
     model_directory: Path | None = None
-    bible_snapshot: Path = Path("data", "snapshots", "2026-09-07", "bible.json")
+    bible_snapshot: Path = Path("data", "snapshots", "2026-09-20", "bible.json")
     max_in_match_actions: int = Field(default=0, ge=0, le=1000)
     max_seconds: float = Field(default=90.0, ge=0.0, le=3600.0)
     poll_seconds: float = Field(default=1.0, ge=0.25, le=10.0)

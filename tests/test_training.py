@@ -24,6 +24,8 @@ from godfield_bot.features import (
     CURSE_GLOBAL_FEATURE_COUNT,
     DARK_CLOUD_FEATURE_SCHEMA_VERSION,
     DARK_CLOUD_GLOBAL_FEATURE_COUNT,
+    DREAM_FEATURE_SCHEMA_VERSION,
+    DREAM_GLOBAL_FEATURE_COUNT,
     ILLNESS_FEATURE_SCHEMA_VERSION,
     ILLNESS_GLOBAL_FEATURE_COUNT,
     RESOURCE_FEATURE_SCHEMA_VERSION,
@@ -37,6 +39,7 @@ from godfield_bot.model_registry import (
     COMBO_FEATURE_MIGRATION,
     CURSE_FEATURE_MIGRATION,
     DARK_CLOUD_FEATURE_MIGRATION,
+    DREAM_FEATURE_MIGRATION,
     ELEMENT_FEATURE_MIGRATION,
     ILLNESS_FEATURE_MIGRATION,
     RESOURCE_FEATURE_MIGRATION,
@@ -47,6 +50,7 @@ from godfield_bot.model_registry import (
     migrate_combo_features,
     migrate_curse_features,
     migrate_dark_cloud_features,
+    migrate_dream_features,
     migrate_element_features,
     migrate_illness_features,
     migrate_resource_features,
@@ -449,6 +453,48 @@ def test_dark_cloud_migration_adds_zero_initialized_actor_relative_inputs(
     for name, value in source_state.items():
         if name != "global_encoder.0.weight":
             torch.testing.assert_close(value, dark_cloud_state[name], rtol=0, atol=0)
+
+
+def test_dream_migration_adds_zero_initialized_actor_relative_inputs(tmp_path) -> None:
+    vocabulary = load_vocabulary(SNAPSHOT)
+    root = tmp_path / "models"
+    dark_cloud = initialize_model(
+        root,
+        vocabulary,
+        client_sha256=BIBLE.client.sha256,
+        feature_schema_version=DARK_CLOUD_FEATURE_SCHEMA_VERSION,
+        global_feature_count=DARK_CLOUD_GLOBAL_FEATURE_COUNT,
+    )
+    dream = migrate_dream_features(
+        root / dark_cloud.model_id,
+        root,
+        vocabulary,
+        client_sha256=BIBLE.client.sha256,
+    )
+    _, dark_cloud_model = load_model(root / dark_cloud.model_id)
+    _, dream_model = load_model(root / dream.model_id)
+    source_state = dark_cloud_model.state_dict()
+    dream_state = dream_model.state_dict()
+
+    assert dream.feature_schema_version == DREAM_FEATURE_SCHEMA_VERSION
+    assert dream.architecture.global_feature_count == DREAM_GLOBAL_FEATURE_COUNT
+    assert dream.parent_model_id == dark_cloud.model_id
+    assert dream.training_algorithm == DREAM_FEATURE_MIGRATION
+    torch.testing.assert_close(
+        dream_state["global_encoder.0.weight"][:, :DARK_CLOUD_GLOBAL_FEATURE_COUNT],
+        source_state["global_encoder.0.weight"],
+        rtol=0,
+        atol=0,
+    )
+    assert (
+        torch.count_nonzero(
+            dream_state["global_encoder.0.weight"][:, DARK_CLOUD_GLOBAL_FEATURE_COUNT:]
+        )
+        == 0
+    )
+    for name, value in source_state.items():
+        if name != "global_encoder.0.weight":
+            torch.testing.assert_close(value, dream_state[name], rtol=0, atol=0)
 
 
 def test_schema_v3_model_requires_explicit_policy_architecture(tmp_path) -> None:

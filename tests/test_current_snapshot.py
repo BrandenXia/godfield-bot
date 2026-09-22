@@ -25,6 +25,8 @@ from godfield_bot.reference import (
     verified_cp_utility_miracle_cards,
     verified_dark_cloud_miracles,
     verified_dark_cloud_weapon_cards,
+    verified_dream_miracles,
+    verified_dream_weapon_cards,
     verified_dynamic_mp_weapon_cards,
     verified_effect_attack_miracle_cards,
     verified_fever_mask_armor,
@@ -241,6 +243,11 @@ def test_committed_snapshot_matches_validated_live_catalog() -> None:
     assert verified_fog_miracles(snapshot) == {"fog": (3, "water")}
     assert verified_dark_cloud_weapon_cards(snapshot) == {"hexagon-doom": (11, "non-element")}
     assert verified_dark_cloud_miracles(snapshot) == {"dark-cloud": (5, "darkness")}
+    assert verified_dream_weapon_cards(snapshot) == {
+        "bogus-spear": (10, "non-element"),
+        "dream-mallet": (4, "wood"),
+    }
+    assert verified_dream_miracles(snapshot) == {"dream": (6, "wood")}
     assert verified_effect_attack_miracle_cards(snapshot) == {
         "absorption": (10, 10, "light", "absorbHP")
     }

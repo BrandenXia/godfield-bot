@@ -9,7 +9,7 @@ uv sync --extra simulation --group dev
 
 Every included curriculum is intentionally incomplete and its generated
 trajectories are not eligible for live model promotion. The broadest current
-ruleset, `dark-cloud-resource-hand`, includes elemental multi-card
+ruleset, `dream-resource-hand`, includes elemental multi-card
 combat, HP/MP utility, fixed and chance miracles, Absorption, reusable additive
 miracles, evidence-bounded one-hop reflection, seven fixed ATK/DEF weapons, 14
 effect-free chance weapons, and the chance/defense dual role of Jinn's Rocking
@@ -62,10 +62,22 @@ inflicts it only after positive damage; the reusable direct miracle costs 5 MP.
 Percentage attacks aimed at a clouded player hit certainly, and existing mild
 or full cures remove the status. Two actor-relative inputs expand the
 observation to schema v9.
+Bogus Spear, Dream Mallet, and `<Dream>` add independent Dream state. The two
+weapons inflict it only after positive damage; the reusable direct miracle
+costs 6 MP. Each newly drawn ordinary fixed-value weapon or armor has an
+independent 50% chance to expose an identity sampled uniformly from the same
+semantic catalog.
+The neural observation and action mask contain only that displayed token,
+value, and element, while combat resolves the hidden true card. Two
+actor-relative inputs expand the observation to schema v10. The true-token
+view is diagnostic-only and is not included in training tensors or heuristic
+policy input.
 
 The unobserved same-damage/reflection, attack-twice booster/reflection,
 random-target booster/reflection, and damage-triggered Fog/Flash/Dark Cloud
-redirect or Fever Mask interactions remain masked. Dream and multiplayer Fog
-targeting remain outside the represented state. Dark Cloud counterattacks and
-guardians remain excluded. See ADR 0002 and ADRs 0029 through 0049 in the root
-project for the interface and safety boundary.
+redirect or Fever Mask interactions remain masked. Dream disguises for special
+weapons, miracles, sundries, and armor with active effects remain truthful
+rather than speculating about their displayed semantics. Dreaming Hat, Jupiter
+Ring, Dream guardians, Dark Cloud counterattacks, and multiplayer Fog targeting
+remain excluded. See ADR 0002 and ADRs 0029 through 0051 in the root project
+for the interface and safety boundary.

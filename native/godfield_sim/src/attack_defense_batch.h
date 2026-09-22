@@ -232,6 +232,18 @@ inline constexpr const char *kDarkCloudResourceAttackDefenseRulesetId =
     "miracle-bounce-armor-weapon-miracle-miracle-reflection-armor-weapon-"
     "fog-flash-weapon-miracle-dark-cloud-weapon-miracle-additive-reflection-"
     "dual-role-resource-miracle-attack-defense-redraw-duel-v1";
+inline constexpr std::uint32_t kDreamResourceAttackDefenseKernelSchemaVersion =
+    1;
+inline constexpr std::uint32_t
+    kDreamResourceAttackDefenseObservationSchemaVersion = 10;
+inline constexpr const char *kDreamResourceAttackDefenseRulesetId =
+    "plain-elemental-combo-stochastic-chance-absorption-weapon-dynamic-mp-"
+    "same-damage-weapon-attack-twice-weapon-random-target-weapon-illness-"
+    "weapon-illness-cure-heaven-herb-fever-mask-miracle-block-armor-weapon-"
+    "miracle-bounce-armor-weapon-miracle-miracle-reflection-armor-weapon-"
+    "fog-flash-weapon-miracle-dark-cloud-weapon-miracle-dream-weapon-miracle-"
+    "displayed-identity-additive-reflection-dual-role-resource-miracle-attack-"
+    "defense-redraw-duel-v1";
 inline constexpr std::size_t kWeaponSlots = 5;
 inline constexpr std::size_t kArmorSlots = kHandSlots - kWeaponSlots;
 inline constexpr std::size_t kComboWeaponSlots = 4;
@@ -257,6 +269,8 @@ inline constexpr std::size_t kCurseGlobalFeatureCount =
     kIllnessGlobalFeatureCount + 4U;
 inline constexpr std::size_t kDarkCloudGlobalFeatureCount =
     kCurseGlobalFeatureCount + 2U;
+inline constexpr std::size_t kDreamGlobalFeatureCount =
+    kDarkCloudGlobalFeatureCount + 2U;
 
 enum class TurnPhase : std::uint8_t {
   Attack = 0,
@@ -361,6 +375,9 @@ public:
   [[nodiscard]] bool dark_cloud_curriculum() const noexcept {
     return dark_cloud_curriculum_;
   }
+  [[nodiscard]] bool dream_curriculum() const noexcept {
+    return dream_curriculum_;
+  }
   [[nodiscard]] std::uint16_t initial_mp() const noexcept {
     return initial_mp_;
   }
@@ -376,6 +393,7 @@ public:
   [[nodiscard]] Float3D player_features_view() const;
   [[nodiscard]] Bool2D player_mask_view() const;
   [[nodiscard]] Int64_2D hand_token_ids_view() const;
+  [[nodiscard]] Int64_2D actual_hand_token_ids_view() const;
   [[nodiscard]] Bool2D hand_mask_view() const;
   [[nodiscard]] UInt8_2D hand_card_kinds_view() const;
   [[nodiscard]] UInt8_2D hand_elements_view() const;
@@ -401,6 +419,7 @@ public:
   [[nodiscard]] UInt8_2D fog_flags_view() const;
   [[nodiscard]] UInt8_2D flash_flags_view() const;
   [[nodiscard]] UInt8_2D dark_cloud_flags_view() const;
+  [[nodiscard]] UInt8_2D dream_flags_view() const;
 
 protected:
   AttackDefenseBatch(
@@ -533,7 +552,13 @@ protected:
       ElementInput dark_cloud_weapon_elements = {},
       TokenInput dark_cloud_miracle_token_ids = {},
       ElementInput dark_cloud_miracle_elements = {},
-      ValueInput dark_cloud_miracle_costs = {});
+      ValueInput dark_cloud_miracle_costs = {}, bool dream_curriculum = false,
+      TokenInput dream_weapon_token_ids = {},
+      ValueInput dream_weapon_attack_values = {},
+      ElementInput dream_weapon_elements = {},
+      TokenInput dream_miracle_token_ids = {},
+      ElementInput dream_miracle_elements = {},
+      ValueInput dream_miracle_costs = {});
 
 private:
   static constexpr std::size_t kMaximumBatchSize = 1'000'000;
@@ -624,6 +649,12 @@ private:
                               std::size_t slot);
   void draw_dark_cloud_miracle(std::size_t environment, std::size_t player,
                                std::size_t slot);
+  void draw_dream_weapon(std::size_t environment, std::size_t player,
+                         std::size_t slot);
+  void draw_dream_miracle(std::size_t environment, std::size_t player,
+                          std::size_t slot);
+  void refresh_displayed_card(std::size_t environment, std::size_t player,
+                              std::size_t slot);
   void draw_weapon_family(std::size_t environment, std::size_t player,
                           std::size_t slot);
   void draw_armor_family(std::size_t environment, std::size_t player,
@@ -688,6 +719,7 @@ private:
   bool miracle_reflection_curriculum_;
   bool fog_flash_curriculum_;
   bool dark_cloud_curriculum_;
+  bool dream_curriculum_;
   std::size_t global_feature_count_;
   std::uint16_t initial_mp_;
   std::vector<std::uint32_t> weapon_token_ids_;
@@ -806,6 +838,12 @@ private:
   std::vector<std::uint32_t> dark_cloud_miracle_token_ids_;
   std::vector<std::uint8_t> dark_cloud_miracle_elements_;
   std::vector<std::uint16_t> dark_cloud_miracle_costs_;
+  std::vector<std::uint32_t> dream_weapon_token_ids_;
+  std::vector<std::uint16_t> dream_weapon_attack_values_;
+  std::vector<std::uint8_t> dream_weapon_elements_;
+  std::vector<std::uint32_t> dream_miracle_token_ids_;
+  std::vector<std::uint8_t> dream_miracle_elements_;
+  std::vector<std::uint16_t> dream_miracle_costs_;
   std::vector<std::uint64_t> rng_states_;
   std::vector<std::uint64_t> episode_ids_;
   std::vector<std::uint16_t> hit_points_;
@@ -814,6 +852,7 @@ private:
   std::vector<std::uint8_t> fog_flags_;
   std::vector<std::uint8_t> flash_flags_;
   std::vector<std::uint8_t> dark_cloud_flags_;
+  std::vector<std::uint8_t> dream_flags_;
   std::vector<std::uint16_t> hand_values_;
   std::vector<std::uint16_t> hand_costs_;
   std::vector<std::uint16_t> hand_hit_rates_;
@@ -821,6 +860,10 @@ private:
   std::vector<std::int64_t> hand_token_ids_by_player_;
   std::vector<std::uint8_t> hand_card_kinds_by_player_;
   std::vector<std::uint8_t> hand_elements_by_player_;
+  std::vector<std::int64_t> displayed_hand_token_ids_by_player_;
+  std::vector<std::uint16_t> displayed_hand_values_;
+  std::vector<std::uint8_t> displayed_hand_card_kinds_by_player_;
+  std::vector<std::uint8_t> displayed_hand_elements_by_player_;
   std::vector<std::uint8_t> active_players_;
   std::vector<std::uint8_t> phases_;
   std::vector<std::uint8_t> pending_attackers_;
@@ -835,7 +878,9 @@ private:
   std::unique_ptr<bool[]> selected_hand_mask_;
   std::vector<std::uint8_t> selected_counts_;
   std::vector<std::uint16_t> selected_values_;
+  std::vector<std::uint16_t> selected_displayed_values_;
   std::vector<std::uint8_t> selected_elements_;
+  std::vector<std::uint8_t> selected_displayed_elements_;
   std::vector<std::uint16_t> selected_costs_;
   std::vector<std::uint8_t> selected_base_kinds_;
   std::vector<std::uint16_t> selected_hit_rates_;
@@ -847,6 +892,7 @@ private:
   std::vector<float> global_features_;
   std::vector<float> player_features_;
   std::vector<std::int64_t> visible_hand_token_ids_;
+  std::vector<std::int64_t> visible_actual_hand_token_ids_;
   std::vector<std::uint8_t> visible_hand_card_kinds_;
   std::vector<std::uint8_t> visible_hand_elements_;
   std::unique_ptr<bool[]> player_mask_;
@@ -1567,10 +1613,14 @@ public:
       ElementInput dark_cloud_weapon_elements,
       TokenInput dark_cloud_miracle_token_ids,
       ElementInput dark_cloud_miracle_elements,
-      ValueInput dark_cloud_miracle_costs, std::uint64_t seed,
+      ValueInput dark_cloud_miracle_costs, TokenInput dream_weapon_token_ids,
+      ValueInput dream_weapon_attack_values, ElementInput dream_weapon_elements,
+      TokenInput dream_miracle_token_ids, ElementInput dream_miracle_elements,
+      ValueInput dream_miracle_costs, std::uint64_t seed,
       std::uint16_t initial_hp, std::uint16_t initial_mp);
 };
 
 using DarkCloudResourceAttackDefenseBatch = FeverMaskResourceAttackDefenseBatch;
+using DreamResourceAttackDefenseBatch = FeverMaskResourceAttackDefenseBatch;
 
 } // namespace godfield_sim

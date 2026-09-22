@@ -5,6 +5,7 @@ import pytest
 
 from godfield_bot.domain.reference import BibleSnapshot
 from godfield_bot.features import ArtifactVocabulary
+from godfield_bot.reference import plain_attack_weapon_cards, plain_defense_armor_cards
 from godfield_bot.simulation import (
     benchmark_attack_defense_simulation,
     benchmark_fixed_attack_simulation,
@@ -60,6 +61,7 @@ MiracleReflectionResourceAttackDefenseBatch = (
 )
 FogFlashResourceAttackDefenseBatch = godfield_sim.FogFlashResourceAttackDefenseBatch
 DarkCloudResourceAttackDefenseBatch = godfield_sim.DarkCloudResourceAttackDefenseBatch
+DreamResourceAttackDefenseBatch = godfield_sim.DreamResourceAttackDefenseBatch
 
 SNAPSHOT_PATH = Path(__file__).parents[1] / "data" / "snapshots" / "2026-09-20" / "bible.json"
 
@@ -689,6 +691,7 @@ def illness_cure_resource_batch(
     miracle_reflection: bool = False,
     fog_flash: bool = False,
     dark_cloud: bool = False,
+    dream: bool = False,
     miracle_block_defense: int = 15,
     chance_hit_rate: int = 50,
 ) -> (
@@ -703,9 +706,10 @@ def illness_cure_resource_batch(
     | MiracleReflectionResourceAttackDefenseBatch
     | FogFlashResourceAttackDefenseBatch
     | DarkCloudResourceAttackDefenseBatch
+    | DreamResourceAttackDefenseBatch
 ):
     base_args = list(absorption_weapon_resource_args(chance_hit_rate=chance_hit_rate))
-    if fog_flash or dark_cloud:
+    if fog_flash or dark_cloud or dream:
         base_args[7] = np.asarray([4, 48, 49], dtype=np.uint32)
         base_args[8] = np.asarray([armor_defense, armor_defense, armor_defense], dtype=np.uint16)
         base_args[9] = np.asarray(
@@ -754,6 +758,7 @@ def illness_cure_resource_batch(
         or miracle_reflection
         or fog_flash
         or dark_cloud
+        or dream
     ):
         heaven_args = (
             *curriculum_args,
@@ -770,8 +775,11 @@ def illness_cure_resource_batch(
             or miracle_reflection
             or fog_flash
             or dark_cloud
+            or dream
         ):
-            if dark_cloud:
+            if dream:
+                batch_type = DreamResourceAttackDefenseBatch
+            elif dark_cloud:
                 batch_type = DarkCloudResourceAttackDefenseBatch
             elif fog_flash:
                 batch_type = FogFlashResourceAttackDefenseBatch
@@ -924,21 +932,36 @@ def illness_cure_resource_batch(
                 else np.asarray([], dtype=np.uint8),
                 np.asarray([3], dtype=np.uint16) if fog_flash else np.asarray([], dtype=np.uint16),
                 np.asarray([50], dtype=np.uint32)
-                if dark_cloud
+                if dark_cloud or dream
                 else np.asarray([], dtype=np.uint32),
                 np.asarray([11], dtype=np.uint16)
-                if dark_cloud
+                if dark_cloud or dream
                 else np.asarray([], dtype=np.uint16),
                 np.asarray([godfield_sim.ELEMENT_NON_ELEMENT], dtype=np.uint8)
-                if dark_cloud
+                if dark_cloud or dream
                 else np.asarray([], dtype=np.uint8),
                 np.asarray([51], dtype=np.uint32)
-                if dark_cloud
+                if dark_cloud or dream
                 else np.asarray([], dtype=np.uint32),
                 np.asarray([godfield_sim.ELEMENT_DARKNESS], dtype=np.uint8)
-                if dark_cloud
+                if dark_cloud or dream
                 else np.asarray([], dtype=np.uint8),
-                np.asarray([5], dtype=np.uint16) if dark_cloud else np.asarray([], dtype=np.uint16),
+                np.asarray([5], dtype=np.uint16)
+                if dark_cloud or dream
+                else np.asarray([], dtype=np.uint16),
+                np.asarray([52, 53], dtype=np.uint32) if dream else np.asarray([], dtype=np.uint32),
+                np.asarray([10, 4], dtype=np.uint16) if dream else np.asarray([], dtype=np.uint16),
+                np.asarray(
+                    [godfield_sim.ELEMENT_NON_ELEMENT, godfield_sim.ELEMENT_WOOD],
+                    dtype=np.uint8,
+                )
+                if dream
+                else np.asarray([], dtype=np.uint8),
+                np.asarray([54], dtype=np.uint32) if dream else np.asarray([], dtype=np.uint32),
+                np.asarray([godfield_sim.ELEMENT_WOOD], dtype=np.uint8)
+                if dream
+                else np.asarray([], dtype=np.uint8),
+                np.asarray([6], dtype=np.uint16) if dream else np.asarray([], dtype=np.uint16),
                 seed,
                 initial_hp,
                 initial_mp,
@@ -1739,6 +1762,29 @@ def test_dark_cloud_factory_adds_certain_hit_curriculum() -> None:
     assert np.any(batch.hand_card_kinds == godfield_sim.CARD_KIND_DARK_CLOUD_MIRACLE)
 
 
+def test_dream_factory_adds_displayed_identity_curriculum() -> None:
+    simulation = create_attack_defense_simulation(
+        SNAPSHOT_PATH,
+        batch_size=512,
+        ruleset="dream-resource-hand",
+    )
+    batch = simulation.batch
+
+    assert simulation.metadata.observation_schema_version == 10
+    assert simulation.metadata.global_feature_count == godfield_sim.DREAM_GLOBAL_FEATURE_COUNT == 24
+    assert simulation.metadata.rule_catalog_size == 196
+    assert simulation.metadata.sampling_distribution == (
+        "elemental-dream-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness"
+    )
+    assert "dream-weapon-miracle-displayed-identity" in simulation.metadata.ruleset_id
+    assert batch.dream_curriculum is True
+    assert batch.global_features.shape == (512, 24)
+    assert batch.dream_flags.shape == (512, 2)
+    assert batch.actual_hand_token_ids.shape == (512, 9)
+    assert np.any(batch.hand_card_kinds == godfield_sim.CARD_KIND_DREAM_WEAPON)
+    assert np.any(batch.hand_card_kinds == godfield_sim.CARD_KIND_DREAM_MIRACLE)
+
+
 def fog_flash_defense_batch(
     attack_token: int,
     *,
@@ -1800,6 +1846,41 @@ def dark_cloud_defense_batch(
             defense_slot = int(defense_slots[0])
         return batch, attacker, defender, defense_slot
     raise AssertionError("fixture seeds did not expose the requested Dark Cloud exchange")
+
+
+def dream_defense_batch(
+    attack_token: int,
+    *,
+    required_defense_token: int | None = None,
+) -> tuple[DreamResourceAttackDefenseBatch, int, int, int | None]:
+    for seed in range(32768):
+        batch = illness_cure_resource_batch(
+            seed=seed,
+            armor_defense=11,
+            fog_flash=True,
+            dark_cloud=True,
+            dream=True,
+        )
+        attacker = int(batch.active_players[0])
+        attack_slots = np.flatnonzero(batch.hand_token_ids[0] == attack_token)
+        if not attack_slots.size:
+            continue
+        attack_action = int(attack_slots[0]) + 1
+        if not batch.action_mask[0, attack_action]:
+            continue
+        batch.step(np.asarray([attack_action], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        if batch.phases[0] != godfield_sim.PHASE_DEFENSE:
+            continue
+        defender = int(batch.active_players[0])
+        defense_slot: int | None = None
+        if required_defense_token is not None:
+            defense_slots = np.flatnonzero(batch.hand_token_ids[0] == required_defense_token)
+            if not defense_slots.size:
+                continue
+            defense_slot = int(defense_slots[0])
+        return batch, attacker, defender, defense_slot
+    raise AssertionError("fixture seeds did not expose the requested Dream exchange")
 
 
 @pytest.mark.parametrize(
@@ -2037,6 +2118,158 @@ def test_mild_cure_clears_dark_cloud_without_requiring_disease() -> None:
         assert batch.dark_cloud_flags[0, cured_player] == 0
         return
     raise AssertionError("fixture seeds did not expose Dark Cloud followed by a mild cure")
+
+
+def test_dream_weapon_applies_only_after_positive_damage() -> None:
+    batch, _attacker, defender, _slot = dream_defense_batch(52)
+    batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+    assert batch.dream_flags[0, defender] == 1
+    np.testing.assert_allclose(batch.global_features[0, 22:24], [1.0, 0.0])
+
+    blocked, _attacker, blocked_defender, armor_slot = dream_defense_batch(
+        52,
+        required_defense_token=48,
+    )
+    assert armor_slot is not None
+    assert blocked.action_mask[0, armor_slot + 1]
+    blocked.step(np.asarray([armor_slot + 1], dtype=np.int64))
+    blocked.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+    assert blocked.dream_flags[0, blocked_defender] == 0
+
+    batch.reset()
+    assert not np.any(batch.dream_flags)
+
+
+def test_direct_dream_costs_mp_is_reusable_and_angel_can_block_it() -> None:
+    batch, attacker, defender, angel_slot = dream_defense_batch(
+        54,
+        required_defense_token=31,
+    )
+    assert int(batch.magic_points[0, attacker]) == 4
+    assert angel_slot is not None
+    ordinary_armor = np.flatnonzero(batch.hand_token_ids[0] == 4)
+    if ordinary_armor.size:
+        assert not batch.action_mask[0, int(ordinary_armor[0]) + 1]
+    assert batch.action_mask[0, angel_slot + 1]
+
+    batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+    assert batch.dream_flags[0, defender] == 1
+    attack_actions = np.flatnonzero(batch.action_mask[0, 1:10])
+    assert attack_actions.size
+    batch.step(np.asarray([int(attack_actions[0]) + 1], dtype=np.int64))
+    batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+    if batch.phases[0] == godfield_sim.PHASE_DEFENSE:
+        batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+    assert int(batch.active_players[0]) == attacker
+    assert 54 in batch.actual_hand_token_ids[0]
+
+    blocked, _attacker, blocked_defender, blocked_angel_slot = dream_defense_batch(
+        54,
+        required_defense_token=31,
+    )
+    assert blocked_angel_slot is not None
+    blocked.step(np.asarray([blocked_angel_slot + 1], dtype=np.int64))
+    blocked.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+    assert blocked.dream_flags[0, blocked_defender] == 0
+
+
+def test_mild_cure_clears_dream_and_restores_true_hand_identity() -> None:
+    for seed in range(32768):
+        batch = illness_cure_resource_batch(
+            seed=seed,
+            fog_flash=True,
+            dark_cloud=True,
+            dream=True,
+        )
+        curse_slots = np.flatnonzero(batch.hand_token_ids[0] == 54)
+        if not curse_slots.size:
+            continue
+        curse_action = int(curse_slots[0]) + 1
+        if not batch.action_mask[0, curse_action]:
+            continue
+        batch.step(np.asarray([curse_action], dtype=np.int64))
+        batch.step(np.asarray([godfield_sim.CONFIRM_ACTION_INDEX], dtype=np.int64))
+        cured_player = int(batch.active_players[0])
+        batch.step(np.asarray([godfield_sim.FORGIVE_ACTION_INDEX], dtype=np.int64))
+        cure_slots = np.flatnonzero(batch.hand_token_ids[0] == 25)
+        if not cure_slots.size:
+            continue
+        cure_action = int(cure_slots[0]) + 1
+        assert batch.action_mask[0, cure_action]
+        batch.step(np.asarray([cure_action], dtype=np.int64))
+        assert batch.dream_flags[0, cured_player] == 0
+        np.testing.assert_array_equal(batch.hand_token_ids, batch.actual_hand_token_ids)
+        return
+    raise AssertionError("fixture seeds did not expose Dream followed by a mild cure")
+
+
+def test_dream_policy_observes_disguise_while_resolution_keeps_true_card() -> None:
+    snapshot = BibleSnapshot.model_validate_json(SNAPSHOT_PATH.read_text(encoding="utf-8"))
+    vocabulary = ArtifactVocabulary.from_snapshot(snapshot)
+    weapon_values = {
+        vocabulary.token_id("weapons", slug): attack
+        for slug, (attack, _element) in plain_attack_weapon_cards(snapshot).items()
+    }
+    armor_tokens = {
+        vocabulary.token_id("armor", slug) for slug in plain_defense_armor_cards(snapshot)
+    }
+    simulation = create_attack_defense_simulation(
+        SNAPSHOT_PATH,
+        batch_size=1024,
+        ruleset="dream-resource-hand",
+    )
+    batch = simulation.batch
+    policy = build_curriculum_heuristic(snapshot, vocabulary, ruleset="dream-resource-hand")
+
+    for _ in range(512):
+        different = batch.hand_token_ids != batch.actual_hand_token_ids
+        for environment, slot in np.argwhere(different):
+            environment = int(environment)
+            slot = int(slot)
+            actor = int(batch.active_players[environment])
+            assert batch.dream_flags[environment, actor] == 1
+            kind = int(batch.hand_card_kinds[environment, slot])
+            visible_token = int(batch.hand_token_ids[environment, slot])
+            actual_token = int(batch.actual_hand_token_ids[environment, slot])
+            if kind == godfield_sim.CARD_KIND_WEAPON:
+                assert visible_token in weapon_values
+                assert actual_token in weapon_values
+            else:
+                assert kind == godfield_sim.CARD_KIND_ARMOR
+                assert visible_token in armor_tokens
+                assert actual_token in armor_tokens
+
+            if (
+                kind != godfield_sim.CARD_KIND_WEAPON
+                or batch.phases[environment] != godfield_sim.PHASE_ATTACK
+                or batch.selected_counts[environment] != 0
+                or not batch.action_mask[environment, slot + 1]
+                or weapon_values[visible_token] == weapon_values[actual_token]
+            ):
+                continue
+
+            rows = np.arange(batch.batch_size, dtype=np.int64)
+            actions = curriculum_heuristic_actions(simulation, rows, policy)
+            actions[environment] = slot + 1
+            batch.step(actions)
+
+            assert batch.selected_counts[environment] == 1
+            assert int(batch.selected_values[environment]) == weapon_values[visible_token]
+            assert batch.global_features[environment, 5] == pytest.approx(
+                weapon_values[visible_token] / 100
+            )
+            batch.reset_done()
+            next_actions = curriculum_heuristic_actions(simulation, rows, policy)
+            next_actions[environment] = godfield_sim.CONFIRM_ACTION_INDEX
+            batch.step(next_actions)
+            assert int(batch.pending_attacks[environment]) == weapon_values[actual_token]
+            return
+
+        rows = np.arange(batch.batch_size, dtype=np.int64)
+        batch.step(curriculum_heuristic_actions(simulation, rows, policy))
+        batch.reset_done()
+
+    raise AssertionError("Dream rollout did not expose a value-changing weapon disguise")
 
 
 def test_flash_limits_defender_to_one_artifact() -> None:
@@ -4068,6 +4301,22 @@ def test_resource_heuristics_index_miracle_attacks_in_the_miracle_namespace() ->
     assert dark_cloud.attack_miracles[dark_cloud_miracle] == (0, 5)
     assert dark_cloud.dark_cloud_attack_tokens == {hexagon_doom, dark_cloud_miracle}
     assert dark_cloud.policy_id == "evidenced-dark-cloud-resource-combo-v1"
+
+    dream = build_curriculum_heuristic(
+        snapshot,
+        vocabulary,
+        ruleset="dream-resource-hand",
+    )
+    bogus_spear = vocabulary.token_id("weapons", "bogus-spear")
+    dream_mallet = vocabulary.token_id("weapons", "dream-mallet")
+    dream_miracle = vocabulary.token_id("miracles", "dream")
+    assert dream.attacks[bogus_spear] == 10
+    assert dream.attacks[dream_mallet] == 4
+    assert dream.attacks[dream_miracle] == 0
+    assert dream.attack_miracles is not None
+    assert dream.attack_miracles[dream_miracle] == (0, 6)
+    assert dream.dream_attack_tokens == {bogus_spear, dream_mallet, dream_miracle}
+    assert dream.policy_id == "evidenced-dream-resource-combo-v1"
 
 
 @pytest.mark.parametrize(

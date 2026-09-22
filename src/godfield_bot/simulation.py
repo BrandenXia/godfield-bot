@@ -14,6 +14,7 @@ from godfield_bot.elements import COMBAT_ELEMENT_IDS
 from godfield_bot.features import (
     CURSE_GLOBAL_FEATURE_COUNT,
     DARK_CLOUD_GLOBAL_FEATURE_COUNT,
+    DREAM_GLOBAL_FEATURE_COUNT,
     ArtifactVocabulary,
 )
 from godfield_bot.reference import (
@@ -35,6 +36,8 @@ from godfield_bot.reference import (
     verified_chance_attack_miracle_cards,
     verified_dark_cloud_miracles,
     verified_dark_cloud_weapon_cards,
+    verified_dream_miracles,
+    verified_dream_weapon_cards,
     verified_dynamic_mp_weapon_cards,
     verified_effect_attack_miracle_cards,
     verified_fever_mask_armor,
@@ -92,6 +95,7 @@ AttackDefenseRuleset = Literal[
     "miracle-reflection-resource-hand",
     "fog-flash-resource-hand",
     "dark-cloud-resource-hand",
+    "dream-resource-hand",
 ]
 
 
@@ -154,6 +158,7 @@ class SimulationMetadata(BaseModel):
         "elemental-miracle-reflection-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-fog-flash-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-dark-cloud-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
+        "elemental-dream-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
     ] = "uniform-redraw-with-replacement"
     promotion_eligible: Literal[False] = False
 
@@ -547,6 +552,39 @@ def _dark_cloud_catalog(
     return weapon_catalog, miracle_catalog
 
 
+def _dream_catalog(
+    snapshot: BibleSnapshot,
+    vocabulary: ArtifactVocabulary,
+) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    weapons = verified_dream_weapon_cards(snapshot)
+    miracles = verified_dream_miracles(snapshot)
+    if not weapons or not miracles:
+        raise ValueError("accepted snapshot lacks a complete Dream family")
+    weapon_catalog: list[dict[str, object]] = [
+        {
+            "attack": attack,
+            "element": element,
+            "element_id": COMBAT_ELEMENT_IDS[element],
+            "kind": "dream-weapon",
+            "slug": slug,
+            "token_id": vocabulary.token_id("weapons", slug),
+        }
+        for slug, (attack, element) in sorted(weapons.items())
+    ]
+    miracle_catalog: list[dict[str, object]] = [
+        {
+            "cost": cost,
+            "element": element,
+            "element_id": COMBAT_ELEMENT_IDS[element],
+            "kind": "dream-miracle",
+            "slug": slug,
+            "token_id": vocabulary.token_id("miracles", slug),
+        }
+        for slug, (cost, element) in sorted(miracles.items())
+    ]
+    return weapon_catalog, miracle_catalog
+
+
 def create_fixed_attack_simulation(
     snapshot_path: Path,
     *,
@@ -637,6 +675,9 @@ def create_attack_defense_simulation(
             DARK_CLOUD_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
             DARK_CLOUD_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
             DARK_CLOUD_RESOURCE_ATTACK_DEFENSE_RULESET_ID,
+            DREAM_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
+            DREAM_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
+            DREAM_RESOURCE_ATTACK_DEFENSE_RULESET_ID,
             DUAL_ROLE_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
             DUAL_ROLE_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
             DUAL_ROLE_RESOURCE_ATTACK_DEFENSE_RULESET_ID,
@@ -713,6 +754,7 @@ def create_attack_defense_simulation(
             ChanceWeaponResourceAttackDefenseBatch,
             ComboAttackDefenseBatch,
             DarkCloudResourceAttackDefenseBatch,
+            DreamResourceAttackDefenseBatch,
             DualRoleResourceAttackDefenseBatch,
             DynamicMpWeaponResourceAttackDefenseBatch,
             ElementalAttackDefenseBatch,
@@ -750,26 +792,34 @@ def create_attack_defense_simulation(
         miracle_reflection_batch_type = MiracleReflectionResourceAttackDefenseBatch
         fog_flash_batch_type = FogFlashResourceAttackDefenseBatch
         dark_cloud_batch_type = DarkCloudResourceAttackDefenseBatch
+        dream_batch_type = DreamResourceAttackDefenseBatch
     except ImportError as error:
         raise SimulationUnavailableError(
             "native simulation is unavailable; run `uv sync --extra simulation --group dev`"
         ) from error
 
-    dark_cloud_ruleset = ruleset == "dark-cloud-resource-hand"
+    dream_ruleset = ruleset == "dream-resource-hand"
+    dark_cloud_ruleset = ruleset in {
+        "dark-cloud-resource-hand",
+        "dream-resource-hand",
+    }
     fog_flash_ruleset = ruleset in {
         "fog-flash-resource-hand",
         "dark-cloud-resource-hand",
+        "dream-resource-hand",
     }
     miracle_reflection_ruleset = ruleset in {
         "miracle-reflection-resource-hand",
         "fog-flash-resource-hand",
         "dark-cloud-resource-hand",
+        "dream-resource-hand",
     }
     miracle_bounce_miracle_ruleset = ruleset in {
         "miracle-bounce-miracle-resource-hand",
         "miracle-reflection-resource-hand",
         "fog-flash-resource-hand",
         "dark-cloud-resource-hand",
+        "dream-resource-hand",
     }
     miracle_bounce_weapon_ruleset = ruleset in {
         "miracle-bounce-weapon-resource-hand",
@@ -777,6 +827,7 @@ def create_attack_defense_simulation(
         "miracle-reflection-resource-hand",
         "fog-flash-resource-hand",
         "dark-cloud-resource-hand",
+        "dream-resource-hand",
     }
     miracle_bounce_ruleset = ruleset in {
         "miracle-bounce-resource-hand",
@@ -785,6 +836,7 @@ def create_attack_defense_simulation(
         "miracle-reflection-resource-hand",
         "fog-flash-resource-hand",
         "dark-cloud-resource-hand",
+        "dream-resource-hand",
     }
     miracle_block_weapon_ruleset = ruleset in {
         "miracle-block-weapon-resource-hand",
@@ -794,6 +846,7 @@ def create_attack_defense_simulation(
         "miracle-reflection-resource-hand",
         "fog-flash-resource-hand",
         "dark-cloud-resource-hand",
+        "dream-resource-hand",
     }
     miracle_block_ruleset = ruleset in {
         "miracle-block-resource-hand",
@@ -804,6 +857,7 @@ def create_attack_defense_simulation(
         "miracle-reflection-resource-hand",
         "fog-flash-resource-hand",
         "dark-cloud-resource-hand",
+        "dream-resource-hand",
     }
     if miracle_block_ruleset:
         ruleset = "fever-mask-resource-hand"
@@ -1136,8 +1190,14 @@ def create_attack_defense_simulation(
                     dark_cloud_weapon_catalog,
                     dark_cloud_miracle_catalog,
                 ) = _dark_cloud_catalog(snapshot, vocabulary) if dark_cloud_ruleset else ([], [])
+                (
+                    dream_weapon_catalog,
+                    dream_miracle_catalog,
+                ) = _dream_catalog(snapshot, vocabulary) if dream_ruleset else ([], [])
                 advanced_batch_type: Any
-                if dark_cloud_ruleset:
+                if dream_ruleset:
+                    advanced_batch_type = dream_batch_type
+                elif dark_cloud_ruleset:
                     advanced_batch_type = dark_cloud_batch_type
                 elif fog_flash_ruleset:
                     advanced_batch_type = fog_flash_batch_type
@@ -2193,6 +2253,48 @@ def create_attack_defense_simulation(
                                                                                 ),
                                                                                 dtype=np.uint16,
                                                                             ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    dream_weapon_catalog,
+                                                                                    "token_id",
+                                                                                ),
+                                                                                dtype=np.uint32,
+                                                                            ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    dream_weapon_catalog,
+                                                                                    "attack",
+                                                                                ),
+                                                                                dtype=np.uint16,
+                                                                            ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    dream_weapon_catalog,
+                                                                                    "element_id",
+                                                                                ),
+                                                                                dtype=np.uint8,
+                                                                            ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    dream_miracle_catalog,
+                                                                                    "token_id",
+                                                                                ),
+                                                                                dtype=np.uint32,
+                                                                            ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    dream_miracle_catalog,
+                                                                                    "element_id",
+                                                                                ),
+                                                                                dtype=np.uint8,
+                                                                            ),
+                                                                            np.asarray(
+                                                                                _catalog_column(
+                                                                                    dream_miracle_catalog,
+                                                                                    "cost",
+                                                                                ),
+                                                                                dtype=np.uint16,
+                                                                            ),
                                                                             seed,
                                                                             initial_hp,
                                                                             initial_mp,
@@ -2385,6 +2487,8 @@ def create_attack_defense_simulation(
                     + fog_miracle_catalog
                     + dark_cloud_weapon_catalog
                     + dark_cloud_miracle_catalog
+                    + dream_weapon_catalog
+                    + dream_miracle_catalog
                 )
             else:
                 batch = ResourceAttackDefenseBatch(
@@ -2470,11 +2574,21 @@ def create_attack_defense_simulation(
         "elemental-miracle-reflection-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-fog-flash-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-dark-cloud-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
+        "elemental-dream-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
     ]
     action_semantics: Literal["atomic-attack-defense-macro", "sequential-combo-selection"] = (
         "atomic-attack-defense-macro"
     )
-    if dark_cloud_ruleset:
+    if dream_ruleset:
+        kernel_schema_version = DREAM_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION
+        observation_schema_version = DREAM_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION
+        ruleset_id = DREAM_RESOURCE_ATTACK_DEFENSE_RULESET_ID
+        global_feature_count = DREAM_GLOBAL_FEATURE_COUNT
+        sampling_distribution = (
+            "elemental-dream-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness"
+        )
+        action_semantics = "sequential-combo-selection"
+    elif dark_cloud_ruleset:
         kernel_schema_version = DARK_CLOUD_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION
         observation_schema_version = DARK_CLOUD_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION
         ruleset_id = DARK_CLOUD_RESOURCE_ATTACK_DEFENSE_RULESET_ID

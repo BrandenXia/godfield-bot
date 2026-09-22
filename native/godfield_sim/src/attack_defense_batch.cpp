@@ -52,6 +52,8 @@ constexpr std::uint8_t kFogFlashAttackMiracleCardKind = 36U;
 constexpr std::uint8_t kFogMiracleCardKind = 37U;
 constexpr std::uint8_t kDarkCloudWeaponCardKind = 38U;
 constexpr std::uint8_t kDarkCloudMiracleCardKind = 39U;
+constexpr std::uint8_t kDreamWeaponCardKind = 40U;
+constexpr std::uint8_t kDreamMiracleCardKind = 41U;
 constexpr std::uint8_t kNoAttackEffect = 0U;
 constexpr std::uint8_t kAbsorbHpAttackEffect = 1U;
 constexpr std::uint8_t kSameDamageAttackEffect = 2U;
@@ -66,6 +68,8 @@ constexpr std::uint8_t kDirectFogEffect = 10U;
 constexpr std::uint8_t kMiracleBlockDefenseEffect = 11U;
 constexpr std::uint8_t kDarkCloudOnDamageEffect = 12U;
 constexpr std::uint8_t kDirectDarkCloudEffect = 13U;
+constexpr std::uint8_t kDreamOnDamageEffect = 14U;
+constexpr std::uint8_t kDirectDreamEffect = 15U;
 constexpr std::uint8_t kColdIllnessStage = 1U;
 constexpr std::uint8_t kFeverIllnessStage = 2U;
 constexpr std::uint8_t kHellIllnessStage = 3U;
@@ -347,7 +351,10 @@ AttackDefenseBatch::AttackDefenseBatch(
     ElementInput dark_cloud_weapon_elements,
     TokenInput dark_cloud_miracle_token_ids,
     ElementInput dark_cloud_miracle_elements,
-    ValueInput dark_cloud_miracle_costs)
+    ValueInput dark_cloud_miracle_costs, bool dream_curriculum,
+    TokenInput dream_weapon_token_ids, ValueInput dream_weapon_attack_values,
+    ElementInput dream_weapon_elements, TokenInput dream_miracle_token_ids,
+    ElementInput dream_miracle_elements, ValueInput dream_miracle_costs)
     : batch_size_(batch_size), base_seed_(seed), initial_hp_(initial_hp),
       mixed_hands_(mixed_hands), elemental_(elemental), combo_(combo),
       resource_curriculum_(resource_curriculum),
@@ -374,17 +381,21 @@ AttackDefenseBatch::AttackDefenseBatch(
       miracle_reflection_curriculum_(miracle_reflection_curriculum),
       fog_flash_curriculum_(fog_flash_curriculum),
       dark_cloud_curriculum_(dark_cloud_curriculum),
+      dream_curriculum_(dream_curriculum),
       global_feature_count_(
-          dark_cloud_curriculum
-              ? kDarkCloudGlobalFeatureCount
-              : (fog_flash_curriculum
-                     ? kCurseGlobalFeatureCount
-                     : (illness_weapon_curriculum
-                            ? kIllnessGlobalFeatureCount
-                            : (stochastic_resource_curriculum
-                                   ? kStochasticResourceGlobalFeatureCount
-                                   : (elemental ? kElementalGlobalFeatureCount
-                                                : kGlobalFeatureCount))))),
+          dream_curriculum
+              ? kDreamGlobalFeatureCount
+              : (dark_cloud_curriculum
+                     ? kDarkCloudGlobalFeatureCount
+                     : (fog_flash_curriculum
+                            ? kCurseGlobalFeatureCount
+                            : (illness_weapon_curriculum
+                                   ? kIllnessGlobalFeatureCount
+                                   : (stochastic_resource_curriculum
+                                          ? kStochasticResourceGlobalFeatureCount
+                                          : (elemental
+                                                 ? kElementalGlobalFeatureCount
+                                                 : kGlobalFeatureCount)))))),
       initial_mp_(initial_mp) {
   if (batch_size_ == 0 || batch_size_ > kMaximumBatchSize) {
     throw std::invalid_argument("batch_size must be between 1 and 1000000");
@@ -497,6 +508,10 @@ AttackDefenseBatch::AttackDefenseBatch(
     throw std::invalid_argument(
         "Dark Cloud curriculum requires Fog/Flash semantics");
   }
+  if (dream_curriculum_ && !dark_cloud_curriculum_) {
+    throw std::invalid_argument(
+        "Dream curriculum requires Dark Cloud semantics");
+  }
 
   std::unordered_set<std::uint32_t> unique_token_ids;
   const auto booster_catalog_size = combo_ ? booster_token_ids.shape(0) : 0U;
@@ -577,6 +592,10 @@ AttackDefenseBatch::AttackDefenseBatch(
       dark_cloud_curriculum_ ? dark_cloud_weapon_token_ids.shape(0) +
                                    dark_cloud_miracle_token_ids.shape(0)
                              : 0U;
+  const auto dream_catalog_size =
+      dream_curriculum_
+          ? dream_weapon_token_ids.shape(0) + dream_miracle_token_ids.shape(0)
+          : 0U;
   unique_token_ids.reserve(
       weapon_token_ids.shape(0) + booster_catalog_size +
       armor_token_ids.shape(0) + resource_catalog_size +
@@ -591,7 +610,7 @@ AttackDefenseBatch::AttackDefenseBatch(
       miracle_block_weapon_catalog_size + miracle_bounce_catalog_size +
       miracle_bounce_weapon_catalog_size + miracle_bounce_miracle_catalog_size +
       miracle_reflection_catalog_size + fog_flash_catalog_size +
-      dark_cloud_catalog_size);
+      dark_cloud_catalog_size + dream_catalog_size);
   append_catalog(weapon_token_ids, attack_values, "attack", unique_token_ids,
                  weapon_token_ids_, attack_values_);
   if (combo_) {
@@ -981,6 +1000,20 @@ AttackDefenseBatch::AttackDefenseBatch(
         copy_costs(dark_cloud_miracle_costs,
                    dark_cloud_miracle_token_ids_.size(), "Dark Cloud miracle");
   }
+  if (dream_curriculum_) {
+    append_catalog(dream_weapon_token_ids, dream_weapon_attack_values,
+                   "Dream weapon", unique_token_ids, dream_weapon_token_ids_,
+                   dream_weapon_attack_values_);
+    dream_weapon_elements_ = copy_elements(
+        dream_weapon_elements, dream_weapon_token_ids_.size(), "Dream weapon");
+    append_token_catalog(dream_miracle_token_ids, "Dream miracle",
+                         unique_token_ids, dream_miracle_token_ids_);
+    dream_miracle_elements_ =
+        copy_elements(dream_miracle_elements, dream_miracle_token_ids_.size(),
+                      "Dream miracle");
+    dream_miracle_costs_ = copy_costs(
+        dream_miracle_costs, dream_miracle_token_ids_.size(), "Dream miracle");
+  }
   if (elemental_) {
     if (weapon_elements.size() != weapon_token_ids_.size() ||
         booster_elements.size() != booster_token_ids_.size() ||
@@ -1018,6 +1051,7 @@ AttackDefenseBatch::AttackDefenseBatch(
   fog_flags_.assign(batch_size_ * kPlayerCount, 0U);
   flash_flags_.assign(batch_size_ * kPlayerCount, 0U);
   dark_cloud_flags_.assign(batch_size_ * kPlayerCount, 0U);
+  dream_flags_.assign(batch_size_ * kPlayerCount, 0U);
   hand_values_.resize(batch_size_ * kPlayerCount * kHandSlots);
   hand_costs_.assign(batch_size_ * kPlayerCount * kHandSlots, 0U);
   hand_hit_rates_.assign(batch_size_ * kPlayerCount * kHandSlots, 100U);
@@ -1026,6 +1060,13 @@ AttackDefenseBatch::AttackDefenseBatch(
   hand_token_ids_by_player_.resize(batch_size_ * kPlayerCount * kHandSlots);
   hand_card_kinds_by_player_.resize(batch_size_ * kPlayerCount * kHandSlots);
   hand_elements_by_player_.resize(batch_size_ * kPlayerCount * kHandSlots);
+  displayed_hand_token_ids_by_player_.resize(batch_size_ * kPlayerCount *
+                                             kHandSlots);
+  displayed_hand_values_.resize(batch_size_ * kPlayerCount * kHandSlots);
+  displayed_hand_card_kinds_by_player_.resize(batch_size_ * kPlayerCount *
+                                              kHandSlots);
+  displayed_hand_elements_by_player_.resize(batch_size_ * kPlayerCount *
+                                            kHandSlots);
   active_players_.resize(batch_size_);
   phases_.resize(batch_size_);
   pending_attackers_.resize(batch_size_);
@@ -1037,7 +1078,9 @@ AttackDefenseBatch::AttackDefenseBatch(
   pending_base_kinds_.resize(batch_size_);
   selected_counts_.resize(batch_size_);
   selected_values_.resize(batch_size_);
+  selected_displayed_values_.resize(batch_size_);
   selected_elements_.resize(batch_size_);
+  selected_displayed_elements_.resize(batch_size_);
   selected_costs_.resize(batch_size_);
   selected_base_kinds_.resize(batch_size_);
   selected_hit_rates_.assign(batch_size_, 100U);
@@ -1047,6 +1090,7 @@ AttackDefenseBatch::AttackDefenseBatch(
   global_features_.resize(batch_size_ * global_feature_count_);
   player_features_.resize(batch_size_ * kPlayerCount * kPlayerFeatureCount);
   visible_hand_token_ids_.resize(batch_size_ * kHandSlots);
+  visible_actual_hand_token_ids_.resize(batch_size_ * kHandSlots);
   visible_hand_card_kinds_.resize(batch_size_ * kHandSlots);
   visible_hand_elements_.resize(batch_size_ * kHandSlots);
 
@@ -1736,6 +1780,72 @@ void AttackDefenseBatch::draw_dark_cloud_miracle(std::size_t environment,
   hand_elements_by_player_[offset] = dark_cloud_miracle_elements_[index];
 }
 
+void AttackDefenseBatch::draw_dream_weapon(std::size_t environment,
+                                           std::size_t player,
+                                           std::size_t slot) {
+  const auto index = static_cast<std::size_t>(next_random(environment) %
+                                              dream_weapon_token_ids_.size());
+  const auto offset = hand_offset(environment, player, slot);
+  hand_token_ids_by_player_[offset] =
+      static_cast<std::int64_t>(dream_weapon_token_ids_[index]);
+  hand_values_[offset] = dream_weapon_attack_values_[index];
+  hand_costs_[offset] = 0U;
+  hand_hit_rates_[offset] = 100U;
+  hand_effects_[offset] = kDreamOnDamageEffect;
+  hand_card_kinds_by_player_[offset] = kDreamWeaponCardKind;
+  hand_elements_by_player_[offset] = dream_weapon_elements_[index];
+}
+
+void AttackDefenseBatch::draw_dream_miracle(std::size_t environment,
+                                            std::size_t player,
+                                            std::size_t slot) {
+  const auto index = static_cast<std::size_t>(next_random(environment) %
+                                              dream_miracle_token_ids_.size());
+  const auto offset = hand_offset(environment, player, slot);
+  hand_token_ids_by_player_[offset] =
+      static_cast<std::int64_t>(dream_miracle_token_ids_[index]);
+  hand_values_[offset] = 0U;
+  hand_costs_[offset] = dream_miracle_costs_[index];
+  hand_hit_rates_[offset] = 100U;
+  hand_effects_[offset] = kDirectDreamEffect;
+  hand_card_kinds_by_player_[offset] = kDreamMiracleCardKind;
+  hand_elements_by_player_[offset] = dream_miracle_elements_[index];
+}
+
+void AttackDefenseBatch::refresh_displayed_card(std::size_t environment,
+                                                std::size_t player,
+                                                std::size_t slot) {
+  const auto offset = hand_offset(environment, player, slot);
+  displayed_hand_token_ids_by_player_[offset] =
+      hand_token_ids_by_player_[offset];
+  displayed_hand_values_[offset] = hand_values_[offset];
+  displayed_hand_card_kinds_by_player_[offset] =
+      hand_card_kinds_by_player_[offset];
+  displayed_hand_elements_by_player_[offset] = hand_elements_by_player_[offset];
+  const auto kind = hand_card_kinds_by_player_[offset];
+  if (!dream_curriculum_ ||
+      dream_flags_[environment * kPlayerCount + player] == 0U ||
+      (kind != kWeaponCardKind && kind != kArmorCardKind) ||
+      (next_random(environment) & 1U) == 0U) {
+    return;
+  }
+  if (kind == kWeaponCardKind) {
+    const auto fake = static_cast<std::size_t>(next_random(environment) %
+                                               weapon_token_ids_.size());
+    displayed_hand_token_ids_by_player_[offset] =
+        static_cast<std::int64_t>(weapon_token_ids_[fake]);
+    displayed_hand_values_[offset] = attack_values_[fake];
+    displayed_hand_elements_by_player_[offset] = weapon_elements_[fake];
+  } else if (kind == kArmorCardKind) {
+    const auto fake = static_cast<std::size_t>(next_random(environment) %
+                                               armor_token_ids_.size());
+    displayed_hand_token_ids_by_player_[offset] =
+        static_cast<std::int64_t>(armor_token_ids_[fake]);
+    displayed_hand_values_[offset] = defense_values_[fake];
+    displayed_hand_elements_by_player_[offset] = armor_elements_[fake];
+  }
+}
+
 void AttackDefenseBatch::draw_weapon_family(std::size_t environment,
                                             std::size_t player,
                                             std::size_t slot) {
@@ -1755,7 +1865,7 @@ void AttackDefenseBatch::draw_weapon_family(std::size_t environment,
          miracle_block_weapon_token_ids_.size() +
          miracle_reflection_weapon_token_ids_.size() +
          fog_flash_weapon_token_ids_.size() +
-         dark_cloud_weapon_token_ids_.size()));
+         dark_cloud_weapon_token_ids_.size() + dream_weapon_token_ids_.size()));
     if (index < weapon_token_ids_.size()) {
       draw_weapon(environment, player, slot);
       return;
@@ -1830,7 +1940,12 @@ void AttackDefenseBatch::draw_weapon_family(std::size_t environment,
       draw_fog_flash_weapon(environment, player, slot);
       return;
     }
-    draw_dark_cloud_weapon(environment, player, slot);
+    index -= fog_flash_weapon_token_ids_.size();
+    if (index < dark_cloud_weapon_token_ids_.size()) {
+      draw_dark_cloud_weapon(environment, player, slot);
+      return;
+    }
+    draw_dream_weapon(environment, player, slot);
     return;
   }
   if (attack_twice_weapon_curriculum_) {
@@ -2154,7 +2269,8 @@ void AttackDefenseBatch::draw_resource(std::size_t environment,
       fog_flash_weapon_token_ids_.size() +
       fog_flash_attack_miracle_token_ids_.size() +
       fog_miracle_token_ids_.size() + dark_cloud_weapon_token_ids_.size() +
-      dark_cloud_miracle_token_ids_.size();
+      dark_cloud_miracle_token_ids_.size() + dream_weapon_token_ids_.size() +
+      dream_miracle_token_ids_.size();
   auto index =
       static_cast<std::size_t>(next_random(environment) % catalog_size);
   if (index < weapon_token_ids_.size()) {
@@ -2297,6 +2413,16 @@ void AttackDefenseBatch::draw_resource(std::size_t environment,
     return;
   }
   index -= dark_cloud_miracle_token_ids_.size();
+  if (index < dream_weapon_token_ids_.size()) {
+    draw_dream_weapon(environment, player, slot);
+    return;
+  }
+  index -= dream_weapon_token_ids_.size();
+  if (index < dream_miracle_token_ids_.size()) {
+    draw_dream_miracle(environment, player, slot);
+    return;
+  }
+  index -= dream_miracle_token_ids_.size();
   if (index < booster_token_ids_.size()) {
     draw_booster(environment, player, slot);
     return;
@@ -2356,7 +2482,8 @@ bool AttackDefenseBatch::is_weapon_kind(std::uint8_t kind) noexcept {
          kind == kIllnessWeaponCardKind ||
          kind == kMiracleBlockWeaponCardKind ||
          kind == kMiracleReflectionWeaponCardKind ||
-         kind == kFogFlashWeaponCardKind || kind == kDarkCloudWeaponCardKind;
+         kind == kFogFlashWeaponCardKind || kind == kDarkCloudWeaponCardKind ||
+         kind == kDreamWeaponCardKind;
 }
 
 bool AttackDefenseBatch::is_miracle_kind(std::uint8_t kind) noexcept {
@@ -2364,7 +2491,8 @@ bool AttackDefenseBatch::is_miracle_kind(std::uint8_t kind) noexcept {
          kind == kChanceAttackMiracleCardKind ||
          kind == kEffectAttackMiracleCardKind ||
          kind == kFogFlashAttackMiracleCardKind ||
-         kind == kFogMiracleCardKind || kind == kDarkCloudMiracleCardKind;
+         kind == kFogMiracleCardKind || kind == kDarkCloudMiracleCardKind ||
+         kind == kDreamMiracleCardKind;
 }
 
 bool AttackDefenseBatch::is_miracle_bounce_kind(std::uint8_t kind) noexcept {
@@ -2428,6 +2556,7 @@ void AttackDefenseBatch::redraw_consumed(std::size_t environment,
     } else {
       draw_armor(environment, player, slot);
     }
+    refresh_displayed_card(environment, player, slot);
     return;
   }
   if (combo_) {
@@ -2439,12 +2568,14 @@ void AttackDefenseBatch::redraw_consumed(std::size_t environment,
     if (!has_weapon(environment, player)) {
       draw_weapon_family(environment, player, slot);
     }
+    refresh_displayed_card(environment, player, slot);
     return;
   }
   draw_mixed(environment, player, slot);
   if (!has_weapon(environment, player)) {
     draw_weapon_family(environment, player, slot);
   }
+  refresh_displayed_card(environment, player, slot);
 }
 
 void AttackDefenseBatch::reset_environment(std::size_t environment) {
@@ -2461,6 +2592,8 @@ void AttackDefenseBatch::reset_environment(std::size_t environment) {
   flash_flags_[environment * kPlayerCount + 1U] = 0U;
   dark_cloud_flags_[environment * kPlayerCount] = 0U;
   dark_cloud_flags_[environment * kPlayerCount + 1U] = 0U;
+  dream_flags_[environment * kPlayerCount] = 0U;
+  dream_flags_[environment * kPlayerCount + 1U] = 0U;
   active_players_[environment] =
       static_cast<std::uint8_t>(next_random(environment) & 1U);
   phases_[environment] = static_cast<std::uint8_t>(TurnPhase::Attack);
@@ -2484,9 +2617,11 @@ void AttackDefenseBatch::reset_environment(std::size_t environment) {
     if (!mixed_hands_) {
       for (std::size_t slot = 0; slot < kWeaponSlots; ++slot) {
         draw_weapon(environment, player, slot);
+        refresh_displayed_card(environment, player, slot);
       }
       for (std::size_t slot = kWeaponSlots; slot < kHandSlots; ++slot) {
         draw_armor(environment, player, slot);
+        refresh_displayed_card(environment, player, slot);
       }
       continue;
     }
@@ -2562,34 +2697,40 @@ void AttackDefenseBatch::reset_environment(std::size_t environment) {
       } else if (card_kinds[slot] == kChanceAttackMiracleCardKind) {
         if (fog_flash_attack_miracle_token_ids_.empty()) {
           draw_chance_miracle(environment, player, slot);
-          continue;
-        }
-        const auto index = static_cast<std::size_t>(
-            next_random(environment) %
-            (chance_miracle_token_ids_.size() +
-             fog_flash_attack_miracle_token_ids_.size()));
-        if (index < chance_miracle_token_ids_.size()) {
-          draw_chance_miracle(environment, player, slot);
         } else {
-          draw_fog_flash_attack_miracle(environment, player, slot);
+          const auto index = static_cast<std::size_t>(
+              next_random(environment) %
+              (chance_miracle_token_ids_.size() +
+               fog_flash_attack_miracle_token_ids_.size()));
+          if (index < chance_miracle_token_ids_.size()) {
+            draw_chance_miracle(environment, player, slot);
+          } else {
+            draw_fog_flash_attack_miracle(environment, player, slot);
+          }
         }
       } else if (card_kinds[slot] == kEffectAttackMiracleCardKind) {
         if (fog_miracle_token_ids_.empty() &&
-            dark_cloud_miracle_token_ids_.empty()) {
+            dark_cloud_miracle_token_ids_.empty() &&
+            dream_miracle_token_ids_.empty()) {
           draw_effect_miracle(environment, player, slot);
-          continue;
-        }
-        const auto index = static_cast<std::size_t>(
-            next_random(environment) %
-            (effect_miracle_token_ids_.size() + fog_miracle_token_ids_.size() +
-             dark_cloud_miracle_token_ids_.size()));
-        if (index < effect_miracle_token_ids_.size()) {
-          draw_effect_miracle(environment, player, slot);
-        } else if (index < effect_miracle_token_ids_.size() +
-                               fog_miracle_token_ids_.size()) {
-          draw_fog_miracle(environment, player, slot);
         } else {
-          draw_dark_cloud_miracle(environment, player, slot);
+          const auto index = static_cast<std::size_t>(
+              next_random(environment) % (effect_miracle_token_ids_.size() +
+                                          fog_miracle_token_ids_.size() +
+                                          dark_cloud_miracle_token_ids_.size() +
+                                          dream_miracle_token_ids_.size()));
+          if (index < effect_miracle_token_ids_.size()) {
+            draw_effect_miracle(environment, player, slot);
+          } else if (index < effect_miracle_token_ids_.size() +
+                                 fog_miracle_token_ids_.size()) {
+            draw_fog_miracle(environment, player, slot);
+          } else if (index < effect_miracle_token_ids_.size() +
+                                 fog_miracle_token_ids_.size() +
+                                 dark_cloud_miracle_token_ids_.size()) {
+            draw_dark_cloud_miracle(environment, player, slot);
+          } else {
+            draw_dream_miracle(environment, player, slot);
+          }
         }
       } else if (card_kinds[slot] == kHpUtilityCardKind) {
         const auto hp_count = hp_utility_token_ids_.size();
@@ -2615,6 +2756,7 @@ void AttackDefenseBatch::reset_environment(std::size_t environment) {
       } else {
         draw_armor_family(environment, player, slot);
       }
+      refresh_displayed_card(environment, player, slot);
     }
   }
   refresh_environment_views(environment);
@@ -2642,7 +2784,10 @@ void AttackDefenseBatch::clear_selection(std::size_t environment) noexcept {
               false);
   selected_counts_[environment] = 0U;
   selected_values_[environment] = 0U;
+  selected_displayed_values_[environment] = 0U;
   selected_elements_[environment] =
+      static_cast<std::uint8_t>(CombatElement::NonElement);
+  selected_displayed_elements_[environment] =
       static_cast<std::uint8_t>(CombatElement::NonElement);
   selected_costs_[environment] = 0U;
   selected_base_kinds_[environment] = 0U;
@@ -2665,7 +2810,7 @@ void AttackDefenseBatch::consume_selection(std::size_t environment,
         kind == kIllnessCureMiracleCardKind ||
         kind == kMiracleBounceMiracleCardKind ||
         kind == kFogFlashAttackMiracleCardKind || kind == kFogMiracleCardKind ||
-        kind == kDarkCloudMiracleCardKind) {
+        kind == kDarkCloudMiracleCardKind || kind == kDreamMiracleCardKind) {
       continue;
     }
     redraw_consumed(environment, player, slot, kind);
@@ -2838,6 +2983,10 @@ void AttackDefenseBatch::resolve_defense(std::size_t environment,
        pending_effects_[environment] == kDarkCloudOnDamageEffect)) {
     dark_cloud_flags_[curse_offset] = 1U;
   }
+  if (pending_effects_[environment] == kDirectDreamEffect ||
+      (damage > 0U && pending_effects_[environment] == kDreamOnDamageEffect)) {
+    dream_flags_[curse_offset] = 1U;
+  }
   if (pending_effects_[environment] == kSameDamageAttackEffect && damage > 0U) {
     const auto source = static_cast<std::size_t>(pending_sources_[environment]);
     auto &source_hp = hit_points_[environment * kPlayerCount + source];
@@ -3002,6 +3151,11 @@ void AttackDefenseBatch::step(ActionInput actions) {
             fog_flags_[cure_offset] = 0U;
             flash_flags_[cure_offset] = 0U;
             dark_cloud_flags_[cure_offset] = 0U;
+            dream_flags_[cure_offset] = 0U;
+            for (std::size_t hand_slot = 0; hand_slot < kHandSlots;
+                 ++hand_slot) {
+              refresh_displayed_card(environment, actor, hand_slot);
+            }
             if (kind == kIllnessCureMiracleCardKind) {
               auto &actor_mp =
                   magic_points_[environment * kPlayerCount + actor];
@@ -3049,8 +3203,13 @@ void AttackDefenseBatch::step(ActionInput actions) {
                 dynamic_mp_weapon ? static_cast<std::uint16_t>(
                                         hand_values_[card_offset] * actor_mp)
                                   : hand_values_[card_offset];
+            selected_displayed_values_[environment] =
+                dynamic_mp_weapon ? selected_values_[environment]
+                                  : displayed_hand_values_[card_offset];
             selected_elements_[environment] =
                 hand_elements_by_player_[card_offset];
+            selected_displayed_elements_[environment] =
+                displayed_hand_elements_by_player_[card_offset];
             selected_costs_[environment] =
                 dynamic_mp_weapon ? actor_mp : hand_costs_[card_offset];
             selected_base_kinds_[environment] = kind;
@@ -3059,11 +3218,18 @@ void AttackDefenseBatch::step(ActionInput actions) {
           } else {
             selected_values_[environment] = static_cast<std::uint16_t>(
                 selected_values_[environment] + hand_values_[card_offset]);
+            selected_displayed_values_[environment] =
+                static_cast<std::uint16_t>(
+                    selected_displayed_values_[environment] +
+                    displayed_hand_values_[card_offset]);
             selected_costs_[environment] = static_cast<std::uint16_t>(
                 selected_costs_[environment] + hand_costs_[card_offset]);
             selected_elements_[environment] =
                 combine_attack_elements(selected_elements_[environment],
                                         hand_elements_by_player_[card_offset]);
+            selected_displayed_elements_[environment] = combine_attack_elements(
+                selected_displayed_elements_[environment],
+                displayed_hand_elements_by_player_[card_offset]);
           }
           ++selected_counts_[environment];
         }
@@ -3104,9 +3270,16 @@ void AttackDefenseBatch::step(ActionInput actions) {
                     is_miracle_kind(pending_base_kinds_[environment])
                 ? pending_attacks_[environment]
                 : defense_value_for_card(card_offset);
+        const auto displayed_defense_value =
+            kind == kArmorCardKind ? displayed_hand_values_[card_offset]
+                                   : defense_value;
         selected_values_[environment] = static_cast<std::uint16_t>(
             selected_values_[environment] + defense_value);
+        selected_displayed_values_[environment] = static_cast<std::uint16_t>(
+            selected_displayed_values_[environment] + displayed_defense_value);
         selected_elements_[environment] = hand_elements_by_player_[card_offset];
+        selected_displayed_elements_[environment] =
+            displayed_hand_elements_by_player_[card_offset];
         if (selected_counts_[environment] == 0U) {
           selected_base_kinds_[environment] = kind;
         }
@@ -3169,17 +3342,19 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
   const auto phase = static_cast<TurnPhase>(phases_[environment]);
   global_features_[global_offset + 4U] =
       phase == TurnPhase::Defense ? 1.0F : 0.0F;
-  global_features_[global_offset + 5U] = normalized(
-      combo_ && phase == TurnPhase::Attack ? selected_values_[environment]
-                                           : pending_attacks_[environment]);
+  global_features_[global_offset + 5U] =
+      normalized(combo_ && phase == TurnPhase::Attack
+                     ? selected_displayed_values_[environment]
+                     : pending_attacks_[environment]);
   if (elemental_) {
     std::fill_n(global_features_.data() + global_offset + kGlobalFeatureCount,
                 kElementCount, 0.0F);
     if (phase == TurnPhase::Defense ||
         (combo_ && selected_counts_[environment] > 0U)) {
-      const auto visible_element = phase == TurnPhase::Defense
-                                       ? pending_elements_[environment]
-                                       : selected_elements_[environment];
+      const auto visible_element =
+          phase == TurnPhase::Defense
+              ? pending_elements_[environment]
+              : selected_displayed_elements_[environment];
       global_features_[global_offset + kGlobalFeatureCount + visible_element] =
           1.0F;
     }
@@ -3206,6 +3381,8 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
     } else if (effect == kDarkCloudOnDamageEffect ||
                effect == kDirectDarkCloudEffect) {
       encoded_effect = -0.75F;
+    } else if (effect == kDreamOnDamageEffect || effect == kDirectDreamEffect) {
+      encoded_effect = -0.625F;
     }
     global_features_[global_offset + kElementalGlobalFeatureCount] =
         encoded_effect;
@@ -3238,6 +3415,13 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
     global_features_[global_offset + kCurseGlobalFeatureCount + 1U] =
         static_cast<float>(dark_cloud_flags_[curse_offset + opponent]);
   }
+  if (dream_curriculum_) {
+    const auto curse_offset = environment * kPlayerCount;
+    global_features_[global_offset + kDarkCloudGlobalFeatureCount] =
+        static_cast<float>(dream_flags_[curse_offset + perspective]);
+    global_features_[global_offset + kDarkCloudGlobalFeatureCount + 1U] =
+        static_cast<float>(dream_flags_[curse_offset + opponent]);
+  }
 
   const auto player_offset = environment * kPlayerCount * kPlayerFeatureCount;
   const std::size_t ordered_players[kPlayerCount] = {perspective, opponent};
@@ -3264,13 +3448,16 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
     const auto selected =
         combo_ && selected_hand_mask_[environment * kHandSlots + slot];
     const auto source = hand_offset(environment, perspective, slot);
-    const auto token = selected ? 0 : hand_token_ids_by_player_[source];
+    const auto token =
+        selected ? 0 : displayed_hand_token_ids_by_player_[source];
     visible_hand_token_ids_[visible_hand_offset + slot] = token;
+    visible_actual_hand_token_ids_[visible_hand_offset + slot] =
+        selected ? 0 : hand_token_ids_by_player_[source];
     hand_mask_[visible_hand_offset + slot] = token != 0;
     visible_hand_card_kinds_[visible_hand_offset + slot] =
-        selected ? 0U : hand_card_kinds_by_player_[source];
+        selected ? 0U : displayed_hand_card_kinds_by_player_[source];
     visible_hand_elements_[visible_hand_offset + slot] =
-        selected ? 0U : hand_elements_by_player_[source];
+        selected ? 0U : displayed_hand_elements_by_player_[source];
   }
 
   const auto action_offset = environment * kActionCount;
@@ -3285,7 +3472,7 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
         if (selected_hand_mask_[environment * kHandSlots + slot]) {
           continue;
         }
-        const auto kind = hand_card_kinds_by_player_[hand_offset(
+        const auto kind = displayed_hand_card_kinds_by_player_[hand_offset(
             environment, perspective, slot)];
         if (has_base) {
           const auto card_offset = hand_offset(environment, perspective, slot);
@@ -3316,12 +3503,14 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
                                     illness_stage == kFeverIllnessStage ||
                                     fog_flags_[curse_offset] != 0U ||
                                     flash_flags_[curse_offset] != 0U ||
-                                    dark_cloud_flags_[curse_offset] != 0U;
+                                    dark_cloud_flags_[curse_offset] != 0U ||
+                                    dream_flags_[curse_offset] != 0U;
         const auto has_any_curse = illness_stage != 0U ||
                                    fog_flags_[curse_offset] != 0U ||
                                    flash_flags_[curse_offset] != 0U ||
-                                   dark_cloud_flags_[curse_offset] != 0U;
-        const auto cure_scope = hand_values_[card_offset];
+                                   dark_cloud_flags_[curse_offset] != 0U ||
+                                   dream_flags_[curse_offset] != 0U;
+        const auto cure_scope = displayed_hand_values_[card_offset];
         const auto legal_illness_cure =
             illness_cure_curriculum_ &&
             (kind == kIllnessCureSundryCardKind ||
@@ -3336,7 +3525,8 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
               kind == kEffectAttackMiracleCardKind ||
               kind == kFogFlashAttackMiracleCardKind ||
               kind == kFogMiracleCardKind ||
-              kind == kDarkCloudMiracleCardKind) &&
+              kind == kDarkCloudMiracleCardKind ||
+              kind == kDreamMiracleCardKind) &&
              hand_costs_[card_offset] <= mp) ||
             (kind == kHpUtilityCardKind && hp < kMaximumResource) ||
             (kind == kMpUtilityCardKind && mp < kMaximumResource) ||
@@ -3353,7 +3543,8 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
         is_miracle_kind(pending_base_kinds_[environment]);
     const auto pending_direct_curse =
         pending_base_kinds_[environment] == kFogMiracleCardKind ||
-        pending_base_kinds_[environment] == kDarkCloudMiracleCardKind;
+        pending_base_kinds_[environment] == kDarkCloudMiracleCardKind ||
+        pending_base_kinds_[environment] == kDreamMiracleCardKind;
     const auto defender_flash =
         flash_flags_[environment * kPlayerCount + perspective] != 0U;
     const auto selected_reflection =
@@ -3371,7 +3562,7 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
         continue;
       }
       const auto card_offset = hand_offset(environment, perspective, slot);
-      const auto kind = hand_card_kinds_by_player_[card_offset];
+      const auto kind = displayed_hand_card_kinds_by_player_[card_offset];
       action_mask_[action_offset + slot + 1U] =
           ((!defender_flash || !has_defense) &&
            (!pending_direct_curse || kind == kMiracleBlockArmorCardKind) &&
@@ -3388,12 +3579,14 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
              pending_effects_[environment] != kFlashOnDamageEffect &&
              pending_effects_[environment] != kDirectFogEffect &&
              pending_effects_[environment] != kDarkCloudOnDamageEffect &&
-             pending_effects_[environment] != kDirectDarkCloudEffect)) &&
+             pending_effects_[environment] != kDirectDarkCloudEffect &&
+             pending_effects_[environment] != kDreamOnDamageEffect &&
+             pending_effects_[environment] != kDirectDreamEffect)) &&
            ((kind == kMiracleBlockArmorCardKind &&
              is_miracle_kind(pending_base_kinds_[environment])) ||
             defense_element_is_compatible(
                 pending_elements_[environment],
-                hand_elements_by_player_[card_offset]))) ||
+                displayed_hand_elements_by_player_[card_offset]))) ||
           ((!defender_flash || !has_defense) && !selected_reflection &&
            !selected_bounce && pending_miracle &&
            (kind == kMiracleBlockWeaponCardKind ||
@@ -3409,6 +3602,8 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
            pending_effects_[environment] != kFlashOnDamageEffect &&
            pending_effects_[environment] != kDarkCloudOnDamageEffect &&
            pending_effects_[environment] != kDirectDarkCloudEffect &&
+           pending_effects_[environment] != kDreamOnDamageEffect &&
+           pending_effects_[environment] != kDirectDreamEffect &&
            (kind == kReflectionArmorCardKind ||
             (kind == kReflectionWeaponCardKind &&
              is_weapon_kind(pending_base_kinds_[environment]) &&
@@ -3482,6 +3677,11 @@ Int64_2D AttackDefenseBatch::hand_token_ids_view() const {
   return Int64_2D(visible_hand_token_ids_.data(), {batch_size_, kHandSlots});
 }
 
+Int64_2D AttackDefenseBatch::actual_hand_token_ids_view() const {
+  return Int64_2D(visible_actual_hand_token_ids_.data(),
+                  {batch_size_, kHandSlots});
+}
+
 Bool2D AttackDefenseBatch::hand_mask_view() const {
   return Bool2D(hand_mask_.get(), {batch_size_, kHandSlots});
 }
@@ -3539,11 +3739,11 @@ UInt8_1D AttackDefenseBatch::selected_counts_view() const {
 }
 
 UInt16_1D AttackDefenseBatch::selected_values_view() const {
-  return UInt16_1D(selected_values_.data(), {batch_size_});
+  return UInt16_1D(selected_displayed_values_.data(), {batch_size_});
 }
 
 UInt8_1D AttackDefenseBatch::selected_elements_view() const {
-  return UInt8_1D(selected_elements_.data(), {batch_size_});
+  return UInt8_1D(selected_displayed_elements_.data(), {batch_size_});
 }
 
 Float2D AttackDefenseBatch::terminal_returns_view() const {
@@ -3580,6 +3780,10 @@ UInt8_2D AttackDefenseBatch::flash_flags_view() const {
 
 UInt8_2D AttackDefenseBatch::dark_cloud_flags_view() const {
   return UInt8_2D(dark_cloud_flags_.data(), {batch_size_, kPlayerCount});
+}
+
+UInt8_2D AttackDefenseBatch::dream_flags_view() const {
+  return UInt8_2D(dream_flags_.data(), {batch_size_, kPlayerCount});
 }
 
 ElementalAttackDefenseBatch::ElementalAttackDefenseBatch(
@@ -4692,7 +4896,10 @@ FeverMaskResourceAttackDefenseBatch::FeverMaskResourceAttackDefenseBatch(
     ElementInput dark_cloud_weapon_elements,
     TokenInput dark_cloud_miracle_token_ids,
     ElementInput dark_cloud_miracle_elements,
-    ValueInput dark_cloud_miracle_costs, std::uint64_t seed,
+    ValueInput dark_cloud_miracle_costs, TokenInput dream_weapon_token_ids,
+    ValueInput dream_weapon_attack_values, ElementInput dream_weapon_elements,
+    TokenInput dream_miracle_token_ids, ElementInput dream_miracle_elements,
+    ValueInput dream_miracle_costs, std::uint64_t seed,
     std::uint16_t initial_hp, std::uint16_t initial_mp)
     : AttackDefenseBatch(
           batch_size, weapon_token_ids, attack_values,
@@ -4762,6 +4969,10 @@ FeverMaskResourceAttackDefenseBatch::FeverMaskResourceAttackDefenseBatch(
           dark_cloud_weapon_token_ids.shape(0) > 0U,
           dark_cloud_weapon_token_ids, dark_cloud_weapon_attack_values,
           dark_cloud_weapon_elements, dark_cloud_miracle_token_ids,
-          dark_cloud_miracle_elements, dark_cloud_miracle_costs) {}
+          dark_cloud_miracle_elements, dark_cloud_miracle_costs,
+          dream_weapon_token_ids.shape(0) > 0U, dream_weapon_token_ids,
+          dream_weapon_attack_values, dream_weapon_elements,
+          dream_miracle_token_ids, dream_miracle_elements,
+          dream_miracle_costs) {}
 
 } // namespace godfield_sim

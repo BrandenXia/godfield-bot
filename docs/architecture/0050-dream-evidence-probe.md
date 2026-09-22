@@ -4,6 +4,11 @@
 
 Accepted, 2026-09-21.
 
+The simulator restriction in this decision is superseded by the additional
+official-CPU evidence and strict observation design in
+[ADR 0051](0051-dream-curriculum.md). The passive-probe boundary remains in
+force.
+
 ## Context
 
 The official Bible says Dream makes 50% of received artifacts look false. The
@@ -58,11 +63,11 @@ never added to `ScreenObservation`, `GameState`, legal actions, neural features,
 or policy inputs. The browser script contains no click or command path. A probe
 failure fails the game run instead of silently disabling evidence.
 
-This probe does not yet authorize Dream in the native simulator. The simulator
-design will be selected only after official-CPU evidence establishes whether
-true identity is delivered and whether action availability discloses true card
-role. Until then, existing Dream liveness recovery remains heuristic-only and
-Dream observations remain outside neural control.
+At the time of this decision, the probe did not authorize Dream in the native
+simulator. ADR 0051 subsequently authorizes an evidence-bounded native
+curriculum with strict displayed-identity policy input. Live browser-neural
+control remains separately excluded; the passive evidence objects still never
+enter live policy inference.
 
 ## Verification
 

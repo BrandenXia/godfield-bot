@@ -1422,6 +1422,46 @@ def models_migrate_dark_cloud_features(
     typer.echo(manifest.model_dump_json(indent=2))
 
 
+@models_app.command("migrate-dream-features")
+def models_migrate_dream_features(
+    source_model: Annotated[
+        Path,
+        typer.Argument(exists=True, file_okay=False, readable=True),
+    ],
+    snapshot: Annotated[
+        Path,
+        typer.Option(exists=True, dir_okay=False, readable=True),
+    ] = Path("data", "snapshots", "2026-09-20", "bible.json"),
+    root_directory: Annotated[
+        Path,
+        typer.Option(help="Ignored root directory for the migrated model."),
+    ] = Path("models"),
+) -> None:
+    """Expand schema v9 with actor-relative Dream inputs."""
+
+    try:
+        from godfield_bot.domain.reference import BibleSnapshot
+        from godfield_bot.features import ArtifactVocabulary
+        from godfield_bot.model_registry import migrate_dream_features
+
+        bible = BibleSnapshot.model_validate_json(snapshot.read_text(encoding="utf-8"))
+        vocabulary = ArtifactVocabulary.from_snapshot(bible)
+        manifest = migrate_dream_features(
+            source_model,
+            root_directory,
+            vocabulary,
+            client_sha256=bible.client.sha256,
+        )
+    except (ImportError, OSError, ValueError) as error:
+        structlog.get_logger().error(
+            "model_dream_migration_failed",
+            error_type=type(error).__name__,
+            reason=str(error).splitlines()[0],
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(manifest.model_dump_json(indent=2))
+
+
 @models_app.command("train-replay")
 def models_train_replay(
     base_model: Annotated[
@@ -1605,6 +1645,7 @@ def models_train_simulation(
             "miracle-reflection-resource-hand",
             "fog-flash-resource-hand",
             "dark-cloud-resource-hand",
+            "dream-resource-hand",
         ],
         typer.Option(help="Attack/defense hand-distribution curriculum."),
     ] = "fixed-role",
@@ -1766,6 +1807,7 @@ def models_evaluate_simulation(
             "miracle-reflection-resource-hand",
             "fog-flash-resource-hand",
             "dark-cloud-resource-hand",
+            "dream-resource-hand",
         ],
         typer.Option(help="Attack/defense hand-distribution curriculum."),
     ] = "fixed-role",
@@ -2018,6 +2060,7 @@ def simulation_benchmark(
             "miracle-reflection-resource-attack-defense",
             "fog-flash-resource-attack-defense",
             "dark-cloud-resource-attack-defense",
+            "dream-resource-attack-defense",
         ],
         typer.Option(help="Native curriculum ruleset to benchmark."),
     ] = "attack-defense",
@@ -2068,8 +2111,11 @@ def simulation_benchmark(
                 "miracle-reflection-resource-hand",
                 "fog-flash-resource-hand",
                 "dark-cloud-resource-hand",
+                "dream-resource-hand",
             ]
-            if ruleset == "dark-cloud-resource-attack-defense":
+            if ruleset == "dream-resource-attack-defense":
+                attack_defense_ruleset = "dream-resource-hand"
+            elif ruleset == "dark-cloud-resource-attack-defense":
                 attack_defense_ruleset = "dark-cloud-resource-hand"
             elif ruleset == "fog-flash-resource-attack-defense":
                 attack_defense_ruleset = "fog-flash-resource-hand"

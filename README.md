@@ -299,8 +299,10 @@ uv run godfield-bot simulation benchmark \
   --batch-size 4096 --batch-steps 1000
 uv run godfield-bot models migrate-dream-features models/<schema-v9-model-id>
 uv run godfield-bot models train-simulation models/<schema-v10-model-id> \
-  --ruleset dream-resource-hand --batch-size 256 \
-  --rollout-steps 32 --updates 10
+  --ruleset dream-resource-hand --batch-size 512 \
+  --rollout-steps 32 --updates 40 --ppo-epochs 2 \
+  --environment-minibatch-size 128 --teacher-updates 128 \
+  --teacher-epochs 2 --heuristic-opponent-fraction 1.0
 uv run godfield-bot models evaluate-simulation \
   models/<dream-candidate-id> \
   --ruleset dream-resource-hand --games-per-seat 512 \

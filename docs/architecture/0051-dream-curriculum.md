@@ -64,3 +64,27 @@ prove that pre-confirmation observations contain the displayed value while
 confirmation resolves the hidden true value. The full legacy simulator suite
 also guards every earlier initial-deal and response path against displayed-view
 regressions.
+
+On 2026-09-22, schema-v9 baseline
+`820aafbb-5295-4763-b876-5a7c1efa2435` was migrated to schema-v10 parent
+`b3b5887a-025b-435c-8952-049f6042d8dc`. Candidate
+`df08842c-f5e8-4317-8721-0245310c92ac` was then trained from that parent with
+2,097,152 heuristic-teacher transitions and 655,360 PPO transitions. The
+teacher's final action accuracy was 96.69%. The candidate weights are bound by
+SHA-256
+`471b096142e7468d9e7ff8189aa5c8490927cfefa5d103c57a32f362ef4e522c`.
+
+The unchanged candidate passed the strict 512-pair gate on three independent
+deal seeds. Each evaluation completed all 2,048 games across the frozen-parent
+and frozen-heuristic matchups:
+
+| Seed | Parent score | Parent lower bound | Heuristic score | Heuristic lower bound | Report |
+| ---: | ---: | ---: | ---: | ---: | --- |
+| 22067 | 59.86% | 57.03% | 51.46% | 48.99% | `13d380f5-3b2f-4988-92b9-b5dc06d2ca83` |
+| 22068 | 57.71% | 54.73% | 51.66% | 48.95% | `929aa00d-c7d4-4e39-8bab-42eb7b4527bb` |
+| 22069 | 58.89% | 56.04% | 50.20% | 47.61% | `c8e99dae-17c5-4a67-bf35-97e277ece466` |
+
+The required paired lower bounds were strictly above 50% against the parent
+and at least 47.5% against the heuristic. All reports remain
+`promotion_eligible: false`; this is repeatable curriculum evidence, not live
+deployment authorization.

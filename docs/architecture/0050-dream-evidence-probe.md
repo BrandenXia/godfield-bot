@@ -103,3 +103,11 @@ image. Replaying the archived G.F.17 observation recovers all five weapon
 actions. Live run `8216aac0-6aaf-4b01-9eb0-460e40d870ba` then completed after
 28 accepted actions, confirming that the fallback does not regress ordinary
 hand selection; Dream did not occur in that validation game.
+
+A 2026-09-22 campaign added 29 official-CPU runs, of which 27 completed. Run
+`1a948b94-9c6b-4d9a-8dc3-fdd219bbeee1` retained Dream for ten samples. Its one
+affected Venus Ring received a same-ID fake assignment and produced six
+disguised observations across attack, defense, and terminal phases. All eight
+unambiguous samples retained exact raw-to-rendered alignment and no
+cross-category disguise occurred. This corroborates same-ID sampling and
+category preservation but does not broaden the evidence boundary in ADR 0051.

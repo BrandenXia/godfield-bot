@@ -224,3 +224,25 @@ byte-for-byte unchanged through the no-progress limit. Because there was no
 verified action to execute, restarting that isolated game is the only safe
 recovery. Bounded gameplay retry now prevents this client-local freeze from
 terminating an otherwise healthy long-running collection campaign.
+
+The 2026-09-22 evidence campaign completed 27 of 29 games with four wins and
+23 losses. Runs `1cb2bc71-c604-4818-a1a9-e00eb3ab185d` and
+`e529f45b-4e5d-4ac8-8fd5-8165a68d79dd` failed while selecting Rock and Big
+Tree from wrapped second-row positions. In both frames, normalization had
+already verified one root pointer control at the card bounds. The execution
+fallback nevertheless counted nested pointer descendants at those same bounds
+as independent targets and rejected the selection as ambiguous.
+
+Hand execution now uses the observer's existing root-pointer rule: a fallback
+candidate is eligible only when its parent is not itself a pointer target.
+The ordinary direct-sibling and same-bounds Dream-overlay paths remain intact,
+and multiple independent root targets still fail closed. A browser-backed
+regression reproduces the nested pointer layers and separately verifies the
+ambiguous-root rejection.
+
+Post-fix official Training run `5a621f3d-f7ca-4491-a73b-4623e78bc824`
+completed with a classified terminal loss after 49 accepted actions. It
+exercised attack, defense, chance, pass, and Forgive flows without a browser
+contract, transport, no-progress, or teardown failure. That run used a
+single-row hand layout, so the browser-backed wrapped-card regression remains
+the direct validation of the repaired fallback branch.

@@ -149,7 +149,11 @@ async def click_hand_artifact(page: Page, *, slot: int, asset_path: str) -> None
                     return false;
                   }
                   const candidateRect = candidate.getBoundingClientRect();
-                  return Math.abs(candidateRect.x - selectedRect.x) <= 1.5 &&
+                  const parentCursor = candidate.parentElement
+                    ? getComputedStyle(candidate.parentElement).cursor
+                    : '';
+                  return parentCursor !== 'pointer' &&
+                    Math.abs(candidateRect.x - selectedRect.x) <= 1.5 &&
                     Math.abs(candidateRect.y - selectedRect.y) <= 1.5 &&
                     Math.abs(candidateRect.width - selectedRect.width) <= 1.5 &&
                     Math.abs(candidateRect.height - selectedRect.height) <= 1.5;

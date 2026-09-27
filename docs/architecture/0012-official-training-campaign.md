@@ -246,3 +246,25 @@ exercised attack, defense, chance, pass, and Forgive flows without a browser
 contract, transport, no-progress, or teardown failure. That run used a
 single-row hand layout, so the browser-backed wrapped-card regression remains
 the direct validation of the repaired fallback branch.
+
+A schema-v10 one-intervention canary cohort later produced three stored games,
+although only the first two completed. Run
+`715005c1-bf7b-47bc-a0f7-51e99d96e532` completed after 30 actions with no
+candidate disagreement. Run `a4e42bcb-0bc7-4407-81fa-4797291addbb` completed
+after 18 actions and used its single permitted candidate intervention. Run
+`86800838-5f9a-4d2b-aa31-33901ebe4f7f` also used one early intervention, then
+independently reached a stable unsupported panel at G.F.16 after 21 actions.
+The client had accepted Romance Water and Severe Gale Sword, displayed both
+assets and the utility's `HP+15` detail, named the sole opponent, and exposed
+aggregate `ATK13`; the single-artifact parser nevertheless emitted only Wait
+until `no_progress_limit`. The fail-closed canary guard then stopped the cohort.
+
+Official Training now exposes a confirmation only for this bounded combination
+class: exactly one Bible-audited fixed weapon or affordable fixed miracle plus
+exactly one deterministic HP/MP sundry. Recognition verifies the two action
+panel assets, the card-local utility detail, the aggregate attack display, the
+actor, the sole named target, and the panel hit target. Execution revalidates
+the same exact asset set, actor, display, and target in the live DOM before
+clicking. It reuses the existing neural confirmation action-head slot; chance
+attacks, boosters, and combinations with any additional or unknown card remain
+fail closed.

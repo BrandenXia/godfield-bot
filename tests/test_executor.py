@@ -208,3 +208,42 @@ def test_utility_dispatches_through_verified_untargeted_panel(monkeypatch) -> No
         "actor_name": "ロキ-67",
         "effect_display": "HP+5",
     }
+
+
+def test_attack_utility_combo_dispatches_with_exact_panel_context(monkeypatch) -> None:
+    captured: dict[str, Any] = {}
+
+    async def fake_click_action_panel(page: object, **kwargs: object) -> None:
+        captured["page"] = page
+        captured.update(kwargs)
+
+    monkeypatch.setattr(executor, "click_action_panel", fake_click_action_panel)
+    page = object()
+    action = LegalAction(
+        action_id="confirm:combo:severe-gale-sword+romance-water:1:CPU",
+        kind=ActionKind.CONFIRM,
+        label="Confirm selected attack and utility",
+        artifact_asset_path="/images/items/weapons/severe-gale-sword.webp",
+        target_player_index=1,
+        target_player_name="CPU",
+        control_panel="left",
+        context_asset_paths=(
+            "/images/items/sundries/romance-water.webp",
+            "/images/items/weapons/severe-gale-sword.webp",
+        ),
+        actor_player_name="ロキ-67",
+        expected_action_display="ATK13",
+    )
+
+    result = asyncio.run(executor.execute_action(page, action))  # type: ignore[arg-type]
+
+    assert result.dispatched is True
+    assert captured == {
+        "page": page,
+        "asset_path": "/images/items/weapons/severe-gale-sword.webp",
+        "target_name": "CPU",
+        "panel": "left",
+        "context_asset_paths": action.context_asset_paths,
+        "actor_name": "ロキ-67",
+        "action_display": "ATK13",
+    }

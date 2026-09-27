@@ -635,6 +635,11 @@ recovery as a fallback when no attack or HP recovery is currently usable. This
 prevents a disabled or Dream-masked weapon from deadlocking a turn when an
 independently verified utility remains clickable. Additive boosters, multi-hit,
 resource-consuming, state-dependent, and self-damaging weapons remain excluded.
+The browser bridge also recognizes the exact two-card panel produced when one
+audited fixed attack and one deterministic HP/MP utility resolve together. It
+requires both card assets, the utility's card-local effect label, the aggregate
+attack display, the actor, and the sole named target to match again at click
+time; larger or unknown combinations remain blocked.
 It can also Forgive a targeted incoming interaction or mirrored reflected
 attack after revalidating every visible context artifact and panel identity,
 and select plain armor during a verified neutral defense before confirming

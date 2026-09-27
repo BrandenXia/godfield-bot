@@ -837,6 +837,99 @@ def test_heuristic_confirms_selected_hp_utility_from_recorded_stall() -> None:
     assert [action.action_id for action in blocked.actions] == ["wait"]
 
 
+def test_heuristic_confirms_recorded_hp_utility_attack_combo() -> None:
+    initial = state()
+    selected = initial.model_copy(
+        update={
+            "field_number": 16,
+            "players": tuple(
+                player.model_copy(update={"hp": 61}) if player.is_self else player
+                for player in initial.players
+            ),
+            "action_actor": "ロキ-67",
+            "action_target": "CPU",
+            "action_display": "ATK13",
+            "action_artifact_asset_path": None,
+            "action_hit_target_bounds": Bounds(x=115, y=93, width=310, height=300),
+            "phase_control": "DEF11",
+        }
+    )
+    romance_water = VisibleImage(
+        path="/images/items/sundries/romance-water.webp",
+        bounds=Bounds(x=125, y=103, width=80, height=80),
+    )
+    severe_gale_sword = VisibleImage(
+        path="/images/items/weapons/severe-gale-sword.webp",
+        bounds=Bounds(x=125, y=203, width=80, height=80),
+    )
+    utility_effect = VisibleText(
+        text="HP+15",
+        bounds=Bounds(x=238, y=140, width=125, height=22),
+        color="rgb(79, 79, 79)",
+    )
+    observation = ScreenObservation(
+        observed_at=selected.observed_at,
+        url="https://godfield.net/?lang=en",
+        title="God Field",
+        kind=ScreenKind.GAME,
+        viewport_width=1280,
+        viewport_height=800,
+        text=("Training", "G.F.16", "Romance Water", "HP+15", "ATK13"),
+        text_elements=(utility_effect,),
+        controls=(),
+        images=(romance_water, severe_gale_sword),
+    )
+    weapon_rules = {"severe-gale-sword": ("ATK13", 13.0)}
+    hp_utilities = {"romance-water": 15}
+
+    actions = verified_browser_actions(
+        selected,
+        observation,
+        verified_weapon_attacks=weapon_rules,
+        plain_hp_utilities=hp_utilities,
+    )
+    decision = HeuristicV0Policy(
+        weapon_rules,
+        {"iron-shield": 4},
+        plain_hp_utilities=hp_utilities,
+    ).decide(selected, actions)
+
+    assert [action.action_id for action in actions.actions] == [
+        "wait",
+        "confirm:combo:severe-gale-sword+romance-water:1:CPU",
+    ]
+    combo = actions.actions[1]
+    assert combo.kind is ActionKind.CONFIRM
+    assert combo.artifact_asset_path == severe_gale_sword.path
+    assert combo.context_asset_paths == (romance_water.path, severe_gale_sword.path)
+    assert combo.actor_player_name == "ロキ-67"
+    assert combo.expected_action_display == "ATK13"
+    assert decision.chosen_action_id == combo.action_id
+    assert decision.executable is True
+
+    missing_effect = verified_browser_actions(
+        selected,
+        observation.model_copy(update={"text_elements": ()}),
+        verified_weapon_attacks=weapon_rules,
+        plain_hp_utilities=hp_utilities,
+    )
+    assert [action.action_id for action in missing_effect.actions] == ["wait"]
+
+    unknown_third_card = romance_water.model_copy(
+        update={
+            "path": "/images/items/sundries/unknown.webp",
+            "bounds": Bounds(x=125, y=303, width=80, height=80),
+        }
+    )
+    unsupported = verified_browser_actions(
+        selected,
+        observation.model_copy(update={"images": (*observation.images, unknown_third_card)}),
+        verified_weapon_attacks=weapon_rules,
+        plain_hp_utilities=hp_utilities,
+    )
+    assert [action.action_id for action in unsupported.actions] == ["wait"]
+
+
 def test_heuristic_heals_at_low_hp_unless_an_attack_is_lethal() -> None:
     initial = state()
     weapon = initial.hand[0].model_copy(update={"hit_target_bounds": initial.hand[0].bounds})

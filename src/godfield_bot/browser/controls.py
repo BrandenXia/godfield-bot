@@ -578,8 +578,11 @@ async def click_action_panel(
     asset_path: str,
     target_name: str,
     panel: str,
+    context_asset_paths: tuple[str, ...] = (),
+    actor_name: str | None = None,
+    action_display: str | None = None,
 ) -> None:
-    """Confirm a selected artifact after revalidating its named target and action panel."""
+    """Confirm exact selected artifacts after revalidating the target and action panel."""
 
     if panel == "left":
         panel_min_x, panel_max_x = 100, 150
@@ -592,30 +595,56 @@ async def click_action_panel(
         dict[str, Any] | None,
         await page.evaluate(
             """
-            ({wantedPath, wantedTarget, panelMinX, panelMaxX}) => {
+            ({wantedPath, wantedPaths, wantedTarget, wantedActor, wantedDisplay,
+              panelMinX, panelMaxX}) => {
               const rendered = (element) => {
                 const style = getComputedStyle(element);
                 const rect = element.getBoundingClientRect();
                 return style.display !== 'none' && style.visibility !== 'hidden' &&
                   rect.width > 0 && rect.height > 0;
               };
-              const selectedImages = [...document.querySelectorAll('img')].filter((element) => {
-                if (!rendered(element) || new URL(element.src).pathname !== wantedPath) {
-                  return false;
-                }
+              const selectedImages = [...document.querySelectorAll('img[src*="/images/items/"]')]
+                .filter((element) => {
+                if (!rendered(element)) return false;
                 const rect = element.getBoundingClientRect();
                 return rect.x >= panelMinX && rect.x <= panelMaxX + 50 &&
-                  rect.y >= 80 && rect.y <= 200 &&
+                  rect.y >= 80 && rect.y <= 380 &&
                   rect.width >= 60 && rect.width <= 100 &&
                   rect.height >= 60 && rect.height <= 100;
               });
-              if (selectedImages.length !== 1) return null;
-              const targets = [...document.querySelectorAll('span')].filter((element) => {
+              const actualPaths = selectedImages
+                .map((element) => new URL(element.src).pathname)
+                .sort();
+              const expectedPaths = [...wantedPaths].sort();
+              if (!expectedPaths.includes(wantedPath) ||
+                  actualPaths.length !== expectedPaths.length ||
+                  actualPaths.some((value, index) => value !== expectedPaths[index])) return null;
+              const spans = [...document.querySelectorAll('span')].filter(rendered);
+              const targets = spans.filter((element) => {
                 if (!rendered(element) || element.innerText.trim() !== wantedTarget) return false;
                 const rect = element.getBoundingClientRect();
                 return rect.x >= 451 && rect.x <= 750 && rect.y >= 40 && rect.y <= 80;
               });
               if (targets.length !== 1) return null;
+              if (wantedActor !== null) {
+                const actors = spans.filter((element) => {
+                  const rect = element.getBoundingClientRect();
+                  return element.innerText.trim() === wantedActor &&
+                    rect.x >= 100 && rect.x <= 450 && rect.y >= 40 && rect.y <= 80;
+                });
+                if (actors.length !== 1) return null;
+              }
+              if (wantedDisplay !== null) {
+                const displayMinX = panelMinX === 100 ? 100 : 451;
+                const displayMaxX = panelMinX === 100 ? 450 : 750;
+                const displays = spans.filter((element) => {
+                  const rect = element.getBoundingClientRect();
+                  return element.innerText.trim() === wantedDisplay &&
+                    rect.x >= displayMinX && rect.x <= displayMaxX &&
+                    rect.y >= 390 && rect.y <= 450;
+                });
+                if (displays.length !== 1) return null;
+              }
               const allDivs = [...document.querySelectorAll('div')];
               const candidates = allDivs.filter((element) => {
                 if (!rendered(element) || getComputedStyle(element).cursor !== 'pointer') {
@@ -637,7 +666,10 @@ async def click_action_panel(
             """,
             {
                 "wantedPath": asset_path,
+                "wantedPaths": list(context_asset_paths or (asset_path,)),
                 "wantedTarget": target_name,
+                "wantedActor": actor_name,
+                "wantedDisplay": action_display,
                 "panelMinX": panel_min_x,
                 "panelMaxX": panel_max_x,
             },

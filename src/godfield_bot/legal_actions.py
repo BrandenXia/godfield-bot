@@ -83,16 +83,22 @@ def verified_browser_actions(
         )
     ]
     self_player = state.players[state.self_player_index]
-    observed_action_assets = tuple(
-        image.path
-        for image in observation.images
-        if ITEM_ASSET_PATTERN.fullmatch(image.path) is not None
-        and 100 <= image.bounds.x <= 450
-        and 80 <= image.bounds.y <= 380
-        and 60 <= image.bounds.width <= 100
-        and 60 <= image.bounds.height <= 100
-        and image.hit_target_bounds is None
+    observed_action_images = tuple(
+        sorted(
+            (
+                image
+                for image in observation.images
+                if ITEM_ASSET_PATTERN.fullmatch(image.path) is not None
+                and 100 <= image.bounds.x <= 450
+                and 80 <= image.bounds.y <= 380
+                and 60 <= image.bounds.width <= 100
+                and 60 <= image.bounds.height <= 100
+                and image.hit_target_bounds is None
+            ),
+            key=lambda image: (image.bounds.y, image.bounds.x, image.path),
+        )
     )
+    observed_action_assets = tuple(image.path for image in observed_action_images)
     incoming_context_assets = observed_action_assets or (
         (state.action_artifact_asset_path,) if state.action_artifact_asset_path is not None else ()
     )
@@ -217,6 +223,90 @@ def verified_browser_actions(
             for element in observation.text_elements
         )
         == 1
+    )
+    combo_attack: tuple[str, str, tuple[str, ...]] | None = None
+    combo_utility: tuple[str, str] | None = None
+    if len(observed_action_images) == 2:
+        for image in observed_action_images:
+            weapon = WEAPON_ASSET_PATTERN.fullmatch(image.path)
+            weapon_rule = (
+                (verified_weapon_attacks or {}).get(weapon.group(1)) if weapon is not None else None
+            )
+            miracle = MIRACLE_ASSET_PATTERN.fullmatch(image.path)
+            miracle_rule = (
+                (verified_miracle_attacks or {}).get(miracle.group(1))
+                if miracle is not None
+                else None
+            )
+            attack_displays: tuple[str, ...] = ()
+            attack_slug: str | None = None
+            if (
+                weapon is not None
+                and weapon_rule is not None
+                and PROBABILISTIC_ATTACK_PATTERN.fullmatch(weapon_rule[0]) is None
+            ):
+                attack_slug = weapon.group(1)
+                attack_displays = resolved_weapon_attack_displays(
+                    weapon_rule,
+                    mp=self_player.mp,
+                )
+            elif (
+                miracle is not None
+                and miracle_rule is not None
+                and miracle_rule[1] <= self_player.mp
+            ):
+                attack_slug = miracle.group(1)
+                attack_displays = (f"ATK{miracle_rule[0]}",)
+            if attack_slug is not None and attack_displays:
+                if combo_attack is not None:
+                    combo_attack = None
+                    break
+                combo_attack = (image.path, attack_slug, attack_displays)
+                continue
+
+            sundry = SUNDRY_ASSET_PATTERN.fullmatch(image.path)
+            hp_utility = (
+                (plain_hp_utilities or {}).get(sundry.group(1)) if sundry is not None else None
+            )
+            mp_utility = (
+                (plain_mp_utilities or {}).get(sundry.group(1)) if sundry is not None else None
+            )
+            utility_display = (
+                f"HP+{hp_utility}"
+                if hp_utility is not None and self_player.hp < 100
+                else f"MP+{mp_utility}"
+                if mp_utility is not None and self_player.mp < 100
+                else None
+            )
+            utility_display_matches_card = (
+                utility_display is not None
+                and sum(
+                    element.text == utility_display
+                    and image.bounds.x + 70 <= element.bounds.x <= image.bounds.x + 300
+                    and image.bounds.y <= element.bounds.y <= image.bounds.y + 100
+                    for element in observation.text_elements
+                )
+                == 1
+            )
+            if sundry is not None and utility_display is not None and utility_display_matches_card:
+                if combo_utility is not None:
+                    combo_utility = None
+                    break
+                combo_utility = (sundry.group(1), utility_display)
+                continue
+
+            combo_attack = None
+            combo_utility = None
+            break
+    self_attack_utility_combo_confirmation = (
+        len(living_opponents) == 1
+        and state.action_actor == self_player.name
+        and state.action_target == living_opponents[0][1].name
+        and state.action_artifact_asset_path is None
+        and combo_attack is not None
+        and combo_utility is not None
+        and state.action_display in combo_attack[2]
+        and state.action_hit_target_bounds is not None
     )
     self_fixed_attack_confirmation = (
         len(living_opponents) == 1
@@ -365,6 +455,33 @@ def verified_browser_actions(
                 control_panel="left",
             )
         )
+    if (
+        self_attack_utility_combo_confirmation
+        and combo_attack is not None
+        and combo_utility is not None
+    ):
+        target_index, target = living_opponents[0]
+        attack_path, attack_slug, _ = combo_attack
+        utility_slug, utility_display = combo_utility
+        actions.append(
+            LegalAction(
+                action_id=(
+                    f"confirm:combo:{attack_slug}+{utility_slug}:{target_index}:{target.name}"
+                ),
+                kind=ActionKind.CONFIRM,
+                label=(
+                    f"Confirm the selected {attack_slug} attack and "
+                    f"{utility_display} {utility_slug} utility on {target.name}"
+                ),
+                artifact_asset_path=attack_path,
+                target_player_index=target_index,
+                target_player_name=target.name,
+                control_panel="left",
+                context_asset_paths=observed_action_assets,
+                actor_player_name=self_player.name,
+                expected_action_display=state.action_display,
+            )
+        )
     if self_untargeted_attack_confirmation and selected_attack_slug is not None:
         fog_randomized = any(not player.stats_visible for _, player in living_opponents)
         chance_attack = (
@@ -463,7 +580,8 @@ def verified_browser_actions(
         coverage_complete=False,
         blocked_reason=(
             "only verified weapon, fixed miracle, or deterministic HP/MP utility selection "
-            "and confirmation, weapon-free Pray, incoming or reflected "
+            "and confirmation, one fixed-attack plus deterministic-utility combination, "
+            "weapon-free Pray, incoming or reflected "
             "Forgive, last-resort Exchange, and neutral plain-armor selection and "
             "confirmation are supported"
         ),

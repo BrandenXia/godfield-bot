@@ -136,6 +136,9 @@ async def execute_action(
             asset_path=action.artifact_asset_path,
             target_name=action.target_player_name,
             panel=action.control_panel,
+            context_asset_paths=action.context_asset_paths,
+            actor_name=action.actor_player_name,
+            action_display=action.expected_action_display,
         )
     else:
         raise ActionExecutionError(f"unsupported executable action: {action.kind}")

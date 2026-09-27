@@ -268,3 +268,28 @@ the same exact asset set, actor, display, and target in the live DOM before
 clicking. It reuses the existing neural confirmation action-head slot; chance
 attacks, boosters, and combinations with any additional or unknown card remain
 fail closed.
+
+The following canary continuation stored seven more terminal run records. Five
+were classified losses: `584aadf7-9922-4e23-87ec-e43c76acd989`,
+`1cbfea86-e9f7-473b-9021-dd520d8463a5`,
+`f2cbc638-457d-4f67-b518-126cfe774b36`,
+`2b34aa65-387d-40bb-8e60-0d5373bc231c`, and
+`c23bc9e1-4bfc-4e4e-abad-47158b1e3a2e`. Together they contributed 163 canary
+samples, 41 exact-view candidate evaluations, four disagreements, and two
+executed interventions. The bounded attack-plus-utility combination did not
+occur, so its live execution contract remains unexercised.
+
+Runs `ba7d8e46-3f90-478d-822d-f26385616a8c` and
+`0042b2de-b2d8-4f79-909d-e6e6a58774b7` failed after 12 and five dispatched
+actions. Both selected an ordinary single weapon while ロキ-67 was Dreaming.
+The stored observations contained the real selected weapon and the overlapping
+client-only `/images/items/fake.webp` mask. State parsing correctly ignored the
+mask because it does not match the category-and-asset path grammar, but the new
+exact DOM comparison counted every path below `/images/items/` and rejected the
+otherwise valid single-card panel.
+
+Click-time action-panel collection now applies the same exact artifact grammar
+as observation normalization before comparing its path multiset. A
+browser-backed regression verifies both a two-card panel and a single-card
+panel with the overlapping Dream mask; real additional artifacts still cause
+an exact-context mismatch and fail closed.

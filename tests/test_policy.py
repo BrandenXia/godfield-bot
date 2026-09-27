@@ -862,6 +862,10 @@ def test_heuristic_confirms_recorded_hp_utility_attack_combo() -> None:
         path="/images/items/weapons/severe-gale-sword.webp",
         bounds=Bounds(x=125, y=203, width=80, height=80),
     )
+    dream_overlay = VisibleImage(
+        path="/images/items/fake.webp",
+        bounds=Bounds(x=125, y=203, width=80, height=80),
+    )
     utility_effect = VisibleText(
         text="HP+15",
         bounds=Bounds(x=238, y=140, width=125, height=22),
@@ -877,7 +881,7 @@ def test_heuristic_confirms_recorded_hp_utility_attack_combo() -> None:
         text=("Training", "G.F.16", "Romance Water", "HP+15", "ATK13"),
         text_elements=(utility_effect,),
         controls=(),
-        images=(romance_water, severe_gale_sword),
+        images=(romance_water, severe_gale_sword, dream_overlay),
     )
     weapon_rules = {"severe-gale-sword": ("ATK13", 13.0)}
     hp_utilities = {"romance-water": 15}

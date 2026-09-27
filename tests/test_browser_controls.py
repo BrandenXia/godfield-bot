@@ -96,6 +96,7 @@ async def _exercise_exact_combo_action_panel_contract() -> None:
                   .card { position: absolute; left: 125px; width: 80px; height: 80px; }
                   #utility { top: 103px; }
                   #weapon { top: 203px; }
+                  #dream-overlay { top: 203px; }
                   #panel { position: absolute; left: 115px; top: 93px;
                     width: 310px; height: 300px; cursor: pointer; }
                 </style>
@@ -107,6 +108,7 @@ async def _exercise_exact_combo_action_panel_contract() -> None:
                   src="/images/items/sundries/romance-water.webp">
                 <img id="weapon" class="card"
                   src="/images/items/weapons/severe-gale-sword.webp">
+                <img id="dream-overlay" class="card" src="/images/items/fake.webp">
                 <script>window.clickCount = 0;</script>
                 """
             )
@@ -136,6 +138,17 @@ async def _exercise_exact_combo_action_panel_contract() -> None:
                     actor_name="ロキ-67",
                     action_display="ATK13",
                 )
+
+            await page.locator("#utility").evaluate("(element) => element.remove()")
+            await click_action_panel(
+                page,
+                asset_path="/images/items/weapons/severe-gale-sword.webp",
+                target_name="CPU",
+                panel="left",
+                actor_name="ロキ-67",
+                action_display="ATK13",
+            )
+            assert await page.evaluate("window.clickCount") == 2
         finally:
             await browser.close()
 

@@ -594,7 +594,7 @@ async def click_action_panel(
     descriptor = cast(
         dict[str, Any] | None,
         await page.evaluate(
-            """
+            r"""
             ({wantedPath, wantedPaths, wantedTarget, wantedActor, wantedDisplay,
               panelMinX, panelMaxX}) => {
               const rendered = (element) => {
@@ -606,6 +606,10 @@ async def click_action_panel(
               const selectedImages = [...document.querySelectorAll('img[src*="/images/items/"]')]
                 .filter((element) => {
                 if (!rendered(element)) return false;
+                const path = new URL(element.src).pathname;
+                if (!/^\/images\/items\/[^/]+\/[^/]+\.(?:png|svg|webp)$/.test(path)) {
+                  return false;
+                }
                 const rect = element.getBoundingClientRect();
                 return rect.x >= panelMinX && rect.x <= panelMaxX + 50 &&
                   rect.y >= 80 && rect.y <= 380 &&

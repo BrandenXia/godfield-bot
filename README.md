@@ -581,6 +581,9 @@ by encoding reason so lost training coverage remains visible.
 Official Training recognizes both direct and nested Dream overlays. A nested
 card is executable only when the observer and click path find exactly one
 rendered pointer target with the same bounds; ambiguous matches fail closed.
+The client-only `/images/items/fake.webp` Dream mask is not an artifact identity
+and is excluded consistently from both observed and click-time action-panel
+asset sets.
 If a displayed weapon still blocks Prayer, no reviewed artifact is clickable,
 and the client exposes exactly one verified Exchange control, the heuristic
 redraws the hand. Neural control resets its recurrent state across that

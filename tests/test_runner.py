@@ -88,6 +88,43 @@ def test_training_shadow_requires_snapshot_and_cannot_mix_with_control() -> None
         )
 
 
+def test_training_canary_requires_complete_admission_and_cannot_mix_with_shadow() -> None:
+    common = {
+        "expected_client_sha256": "a" * 64,
+        "policy": RunnerPolicyName.OFFICIAL_TRAINING_CANARY,
+        "max_in_match_actions": 1,
+        "verified_weapon_attacks": {"bronze-club": ("ATK1", 1.0)},
+        "plain_armor_defenses": {"iron-shield": 4},
+    }
+    with pytest.raises(ValidationError, match="model, Bible snapshot, and readiness report"):
+        TrainingRunConfig(**common)
+
+    config = TrainingRunConfig(
+        **common,
+        model_directory=Path("models/candidate"),
+        bible_snapshot=Path("bible.json"),
+        canary_readiness_report=Path("readiness.json"),
+    )
+
+    assert config.policy is RunnerPolicyName.OFFICIAL_TRAINING_CANARY
+    with pytest.raises(ValidationError, match="cannot be combined"):
+        TrainingRunConfig(
+            **common,
+            model_directory=Path("models/candidate"),
+            shadow_model_directory=Path("models/shadow"),
+            bible_snapshot=Path("bible.json"),
+            canary_readiness_report=Path("readiness.json"),
+        )
+
+
+def test_training_canary_report_cannot_be_attached_to_another_policy() -> None:
+    with pytest.raises(ValidationError, match="requires canary policy"):
+        TrainingRunConfig(
+            expected_client_sha256="a" * 64,
+            canary_readiness_report=Path("readiness.json"),
+        )
+
+
 def test_safe_observer_defaults_to_zero_action_budget() -> None:
     config = TrainingRunConfig(expected_client_sha256="a" * 64)
 

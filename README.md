@@ -459,7 +459,7 @@ statistics are hidden, a selectable card lies beyond the nine-slot input, or
 the current response cannot be represented exactly:
 
 ```console
-uv run godfield-bot play-training \
+uv run --extra training godfield-bot play-training \
   --shadow-model models/df08842c-f5e8-4317-8721-0245310c92ac \
   --headless \
   --max-games 0 \
@@ -495,6 +495,30 @@ browser action family. A passing report permits design of a separately
 authorized guarded intervention; it is not deployment or promotion approval.
 See [ADR 0052](docs/architecture/0052-official-training-schema-v10-shadow.md)
 and [ADR 0053](docs/architecture/0053-official-training-shadow-readiness.md).
+
+The guarded canary is now available as a separate, explicit mode. It admits only
+the exact schema-v10 weights named by a passing readiness report. The candidate
+may replace the heuristic on at most one exact-view disagreement in a game, and
+only when its proposal probability is at least `0.75` and its lead over the
+heuristic action is at least `0.25`. The heuristic controls the rest of the game:
+
+```console
+uv run --extra training godfield-bot play-training \
+  --canary-model models/df08842c-f5e8-4317-8721-0245310c92ac \
+  --canary-readiness-report \
+    models/training-shadow-evaluations/da85614f-695e-4045-93c6-b5839741d6d0.json \
+  --confirm-canary-intervention \
+  --headless \
+  --max-games 1 \
+  --max-seconds 0 \
+  --max-actions 300
+```
+
+Start with one game and audit its `official_training_canary` evidence before
+increasing `--max-games`. These mixed-policy runs intentionally have no run-level
+`model_id`, so candidate-filtered outcome export cannot treat them as fully
+neural-controlled games. See
+[ADR 0054](docs/architecture/0054-official-training-one-intervention-canary.md).
 
 The evidence-bounded native schema-v10 curriculum uses a strict
 displayed-identity observation boundary. Enable the passive Dream evidence

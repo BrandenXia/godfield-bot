@@ -799,6 +799,26 @@ def play_official_training_computers(
             ),
         ),
     ] = None,
+    canary_model: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True,
+            file_okay=False,
+            readable=True,
+            help=(
+                "Schema-v10 candidate allowed one guarded disagreement per Training game."
+            ),
+        ),
+    ] = None,
+    canary_readiness_report: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            help="Passing immutable shadow-readiness report for --canary-model.",
+        ),
+    ] = None,
     neural_seed: Annotated[
         int,
         typer.Option(
@@ -814,6 +834,13 @@ def play_official_training_computers(
             help="Confirm that the selected candidate may control official Training games.",
         ),
     ] = False,
+    confirm_canary_intervention: Annotated[
+        bool,
+        typer.Option(
+            "--confirm-canary-intervention",
+            help="Confirm one guarded candidate intervention in each official Training game.",
+        ),
+    ] = False,
 ) -> None:
     """Continuously play God Field's official browser-local Training computer."""
 
@@ -827,12 +854,31 @@ def play_official_training_computers(
             raise RunnerError("--confirm-neural-control requires --neural-model")
         if neural_model is not None and shadow_model is not None:
             raise RunnerError("--shadow-model cannot be combined with --neural-model")
+        if canary_model is not None and not confirm_canary_intervention:
+            raise RunnerError(
+                "Training canary requires --confirm-canary-intervention"
+            )
+        if canary_model is None and confirm_canary_intervention:
+            raise RunnerError(
+                "--confirm-canary-intervention requires --canary-model"
+            )
+        if canary_model is None and canary_readiness_report is not None:
+            raise RunnerError("--canary-readiness-report requires --canary-model")
+        if canary_model is not None and canary_readiness_report is None:
+            raise RunnerError("--canary-model requires --canary-readiness-report")
+        if canary_model is not None and (
+            neural_model is not None or shadow_model is not None
+        ):
+            raise RunnerError(
+                "--canary-model cannot be combined with --neural-model or --shadow-model"
+            )
         bible = BibleSnapshot.model_validate_json(snapshot.read_text(encoding="utf-8"))
-        policy = (
-            RunnerPolicyName.OFFICIAL_TRAINING_NEURAL
-            if neural_model is not None
-            else RunnerPolicyName.HEURISTIC_V0
-        )
+        if neural_model is not None:
+            policy = RunnerPolicyName.OFFICIAL_TRAINING_NEURAL
+        elif canary_model is not None:
+            policy = RunnerPolicyName.OFFICIAL_TRAINING_CANARY
+        else:
+            policy = RunnerPolicyName.HEURISTIC_V0
         summary = asyncio.run(
             run_training_campaign(
                 AppSettings(),
@@ -852,11 +898,16 @@ def play_official_training_computers(
                             dream_evidence_catalog if dream_evidence_probe else None
                         ),
                         policy=policy,
-                        model_directory=neural_model,
+                        model_directory=neural_model or canary_model,
                         shadow_model_directory=shadow_model,
+                        canary_readiness_report=canary_readiness_report,
                         bible_snapshot=(
                             snapshot
-                            if neural_model is not None or shadow_model is not None
+                            if (
+                                neural_model is not None
+                                or shadow_model is not None
+                                or canary_model is not None
+                            )
                             else None
                         ),
                         neural_sampling_seed=neural_seed,

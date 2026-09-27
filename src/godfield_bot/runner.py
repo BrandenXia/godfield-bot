@@ -40,6 +40,12 @@ from godfield_bot.policy import (
 )
 from godfield_bot.reference import fingerprint_client
 from godfield_bot.run_store import RunStore
+from godfield_bot.training_canary import (
+    CANARY_MAX_INTERVENTIONS,
+    CANARY_MINIMUM_BEHAVIOR_MARGIN,
+    CANARY_MINIMUM_PROPOSAL_PROBABILITY,
+    OfficialTrainingCanaryPolicy,
+)
 from godfield_bot.weapon_rules import WeaponAttackRule
 
 if TYPE_CHECKING:
@@ -52,6 +58,7 @@ class RunnerPolicyName(StrEnum):
     SAFE_OBSERVER = "safe-observer-v0"
     HEURISTIC_V0 = "heuristic-v0"
     OFFICIAL_TRAINING_NEURAL = "official-training-neural-v1"
+    OFFICIAL_TRAINING_CANARY = "official-training-neural-canary-v1"
 
 
 class TrainingRunConfig(BaseModel):
@@ -72,6 +79,7 @@ class TrainingRunConfig(BaseModel):
     policy: RunnerPolicyName = RunnerPolicyName.SAFE_OBSERVER
     model_directory: Path | None = None
     shadow_model_directory: Path | None = None
+    canary_readiness_report: Path | None = None
     bible_snapshot: Path | None = None
     dream_evidence_probe: bool = False
     dream_evidence_catalog: Path | None = None
@@ -92,6 +100,7 @@ class TrainingRunConfig(BaseModel):
         executable_policies = {
             RunnerPolicyName.HEURISTIC_V0,
             RunnerPolicyName.OFFICIAL_TRAINING_NEURAL,
+            RunnerPolicyName.OFFICIAL_TRAINING_CANARY,
         }
         if self.policy in executable_policies and self.max_in_match_actions < 1:
             raise ValueError("executable policy requires a positive in-match action budget")
@@ -103,10 +112,27 @@ class TrainingRunConfig(BaseModel):
             self.model_directory is None or self.bible_snapshot is None
         ):
             raise ValueError("neural Training control requires a model and Bible snapshot")
+        if self.policy is RunnerPolicyName.OFFICIAL_TRAINING_CANARY and (
+            self.model_directory is None
+            or self.bible_snapshot is None
+            or self.canary_readiness_report is None
+        ):
+            raise ValueError(
+                "Training canary requires a model, Bible snapshot, and readiness report"
+            )
+        if (
+            self.policy is not RunnerPolicyName.OFFICIAL_TRAINING_CANARY
+            and self.canary_readiness_report is not None
+        ):
+            raise ValueError("Training canary readiness report requires canary policy")
         if self.shadow_model_directory is not None and self.bible_snapshot is None:
             raise ValueError("Training shadow requires a model and Bible snapshot")
         if (
-            self.policy is RunnerPolicyName.OFFICIAL_TRAINING_NEURAL
+            self.policy
+            in {
+                RunnerPolicyName.OFFICIAL_TRAINING_NEURAL,
+                RunnerPolicyName.OFFICIAL_TRAINING_CANARY,
+            }
             and self.shadow_model_directory is not None
         ):
             raise ValueError("Training shadow cannot be combined with neural control")
@@ -216,7 +242,10 @@ def _record_policy_state(
         return digest, None, None, state
     executable_policy = (
         policy
-        if isinstance(policy, (HeuristicV0Policy, OfficialTrainingNeuralPolicy))
+        if isinstance(
+            policy,
+            (HeuristicV0Policy, OfficialTrainingNeuralPolicy, OfficialTrainingCanaryPolicy),
+        )
         else None
     )
     legal_actions = verified_browser_actions(
@@ -260,6 +289,25 @@ def _record_policy_state(
         (EventKind.LEGAL_ACTIONS, legal_actions),
         (EventKind.DECISION, decision),
     )
+    if isinstance(policy, OfficialTrainingCanaryPolicy):
+        canary_evidence = policy.last_evidence
+        if (
+            canary_evidence is None
+            or canary_evidence.state_digest != decision.state_digest
+            or canary_evidence.chosen_action_id != decision.chosen_action_id
+        ):
+            raise RunnerError("Training canary decision is missing matching attribution")
+        events += ((EventKind.EVIDENCE, canary_evidence),)
+        log.info(
+            "training_canary_recorded",
+            run_id=run_id,
+            model_id=canary_evidence.model_id,
+            proposal=canary_evidence.proposed_action_id,
+            chosen=canary_evidence.chosen_action_id,
+            intervention=canary_evidence.intervention_executed,
+            interventions_used=canary_evidence.interventions_used,
+            reason=canary_evidence.reason,
+        )
     if shadow_policy is not None:
         shadow_evidence = shadow_policy.evaluate(state, legal_actions, decision)
         events += ((EventKind.EVIDENCE, shadow_evidence),)
@@ -371,6 +419,7 @@ def _policy_from_name(
     *,
     model_directory: Path | None = None,
     bible_snapshot: Path | None = None,
+    canary_readiness_report: Path | None = None,
     neural_sampling_seed: int = 67,
 ) -> Policy:
     if name is RunnerPolicyName.SAFE_OBSERVER:
@@ -401,6 +450,30 @@ def _policy_from_name(
             plain_mp_utilities,
             neural_sampling_seed,
         )
+    if name is RunnerPolicyName.OFFICIAL_TRAINING_CANARY:
+        if (
+            model_directory is None
+            or bible_snapshot is None
+            or canary_readiness_report is None
+        ):
+            raise RunnerError(
+                "Training canary requires a model, Bible snapshot, and readiness report"
+            )
+        from godfield_bot.domain.reference import BibleSnapshot
+
+        snapshot = BibleSnapshot.model_validate_json(
+            bible_snapshot.read_text(encoding="utf-8")
+        )
+        return OfficialTrainingCanaryPolicy(
+            model_directory,
+            snapshot,
+            canary_readiness_report,
+            verified_weapon_attacks,
+            plain_armor_defenses,
+            verified_miracle_attacks,
+            plain_hp_utilities,
+            plain_mp_utilities,
+        )
     raise RunnerError(f"unsupported policy: {name}")
 
 
@@ -420,6 +493,7 @@ async def run_training_observer(
         config.plain_armor_defenses,
         model_directory=config.model_directory,
         bible_snapshot=config.bible_snapshot,
+        canary_readiness_report=config.canary_readiness_report,
         neural_sampling_seed=config.neural_sampling_seed,
     )
     shadow_policy = None
@@ -498,6 +572,51 @@ async def run_training_observer(
                         "neural_sampling_seed": (
                             config.neural_sampling_seed
                             if isinstance(policy, OfficialTrainingNeuralPolicy)
+                            else None
+                        ),
+                        "canary_policy_id": (
+                            policy.policy_id
+                            if isinstance(policy, OfficialTrainingCanaryPolicy)
+                            else None
+                        ),
+                        "canary_model_id": (
+                            policy.manifest.model_id
+                            if isinstance(policy, OfficialTrainingCanaryPolicy)
+                            else None
+                        ),
+                        "canary_weights_sha256": (
+                            policy.manifest.weights_sha256
+                            if isinstance(policy, OfficialTrainingCanaryPolicy)
+                            else None
+                        ),
+                        "canary_feature_schema_version": (
+                            policy.manifest.feature_schema_version
+                            if isinstance(policy, OfficialTrainingCanaryPolicy)
+                            else None
+                        ),
+                        "canary_readiness_evaluation_id": (
+                            policy.readiness.evaluation_id
+                            if isinstance(policy, OfficialTrainingCanaryPolicy)
+                            else None
+                        ),
+                        "canary_readiness_input_sha256": (
+                            policy.readiness.input_sha256
+                            if isinstance(policy, OfficialTrainingCanaryPolicy)
+                            else None
+                        ),
+                        "canary_max_interventions": (
+                            CANARY_MAX_INTERVENTIONS
+                            if isinstance(policy, OfficialTrainingCanaryPolicy)
+                            else None
+                        ),
+                        "canary_minimum_proposal_probability": (
+                            CANARY_MINIMUM_PROPOSAL_PROBABILITY
+                            if isinstance(policy, OfficialTrainingCanaryPolicy)
+                            else None
+                        ),
+                        "canary_minimum_behavior_margin": (
+                            CANARY_MINIMUM_BEHAVIOR_MARGIN
+                            if isinstance(policy, OfficialTrainingCanaryPolicy)
                             else None
                         ),
                         "shadow_policy_id": (

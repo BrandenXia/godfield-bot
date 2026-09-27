@@ -523,6 +523,26 @@ even if the general campaign retry allowance is nonzero, because a retry would
 refresh the one-intervention budget. See
 [ADR 0054](docs/architecture/0054-official-training-one-intervention-canary.md).
 
+A stronger PPO-continuation candidate is now awaiting prospective shadow
+evidence. It passed three independent native gates, including a 4,096-game
+check, but prior shadow runs cannot be reused because the readiness contract is
+bound to the exact model and weight digest. Collect a fresh continuous cohort
+while the heuristic retains every browser click:
+
+```console
+UV_CACHE_DIR=.uv-cache uv run --extra training godfield-bot play-training \
+  --shadow-model models/088ef7a5-c8bf-46e2-8469-4d2390719839 \
+  --headless \
+  --max-games 0 \
+  --max-seconds 0 \
+  --max-actions 300
+```
+
+Then rerun `models evaluate-training-shadow-readiness` for that candidate.
+Until it passes, continue using the earlier candidate and readiness report for
+any explicitly authorized canary. See
+[ADR 0055](docs/architecture/0055-schema-v10-ppo-continuation.md).
+
 The evidence-bounded native schema-v10 curriculum uses a strict
 displayed-identity observation boundary. Enable the passive Dream evidence
 sidecar while running the existing live heuristic to record only ロキ-67's

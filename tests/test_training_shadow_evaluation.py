@@ -405,3 +405,120 @@ def test_training_shadow_readiness_rejects_wrong_evidence_identity(tmp_path: Pat
     assert "shadow evidence has the wrong model identity" in (
         result.report.metrics.evidence_errors[0]
     )
+
+
+def test_training_shadow_readiness_excludes_pre_game_setup_failure(tmp_path: Path) -> None:
+    candidate_directory, _model_id = _candidate(tmp_path)
+    native_directory = tmp_path / "native"
+    _native_evaluation(candidate_directory, native_directory)
+    database = tmp_path / "runs.sqlite"
+    _record_run(database, candidate_directory)
+
+    candidate, _model = load_model(candidate_directory)
+    policy = OfficialTrainingShadowPolicy(candidate_directory, BIBLE)
+    store = RunStore(database)
+    failed = store.start_run(
+        RunSpec(
+            mode=RunMode.TRAINING,
+            identity="ロキ-67",
+            client_sha256=candidate.client_sha256,
+            policy_id="heuristic-v0",
+            config={
+                "shadow_policy_id": policy.policy_id,
+                "shadow_model_id": candidate.model_id,
+                "shadow_weights_sha256": candidate.weights_sha256,
+                "shadow_feature_schema_version": DREAM_FEATURE_SCHEMA_VERSION,
+            },
+        )
+    )
+    store.append_event(
+        failed.run_id,
+        EventKind.ERROR,
+        {"error_type": "TimeoutError", "reason": "setup timed out"},
+    )
+    store.finish_run(
+        failed.run_id,
+        RunStatus.FAILED,
+        outcome={"reason": "setup timed out", "error_type": "TimeoutError"},
+    )
+
+    result = evaluate_training_shadow_readiness(
+        candidate_model_directory=candidate_directory,
+        bible_snapshot_path=SNAPSHOT,
+        native_evaluation_directory=native_directory,
+        database_path=database,
+        evaluation_directory=tmp_path / "reports",
+        config=_config(),
+    )
+
+    assert result.report.passed is True
+    assert result.report.metrics.matching_runs == 1
+    assert result.report.metrics.failed_runs == 0
+    assert result.report.metrics.excluded_runs["no-shadow-evidence"] == 1
+
+
+def test_training_shadow_readiness_accepts_aborted_departure_marker(tmp_path: Path) -> None:
+    candidate_directory, _model_id = _candidate(tmp_path)
+    native_directory = tmp_path / "native"
+    _native_evaluation(candidate_directory, native_directory)
+    database = tmp_path / "runs.sqlite"
+    _record_run(database, candidate_directory)
+
+    candidate, _model = load_model(candidate_directory)
+    policy = OfficialTrainingShadowPolicy(candidate_directory, BIBLE)
+    store = RunStore(database)
+    aborted = store.start_run(
+        RunSpec(
+            mode=RunMode.TRAINING,
+            identity="ロキ-67",
+            client_sha256=candidate.client_sha256,
+            policy_id="heuristic-v0",
+            config={
+                "shadow_policy_id": policy.policy_id,
+                "shadow_model_id": candidate.model_id,
+                "shadow_weights_sha256": candidate.weights_sha256,
+                "shadow_feature_schema_version": DREAM_FEATURE_SCHEMA_VERSION,
+            },
+        )
+    )
+    state = _state()
+    legal, behavior = _action_inputs(state)
+    evidence = policy.evaluate(state, legal, behavior)
+    store.append_events(
+        aborted.run_id,
+        (
+            (EventKind.OBSERVATION, _observation(state.observed_at)),
+            (EventKind.GAME_STATE, state),
+            (EventKind.LEGAL_ACTIONS, legal),
+            (EventKind.DECISION, behavior),
+            (EventKind.EVIDENCE, evidence),
+            (
+                EventKind.MATCH_END,
+                {
+                    "classification": "unclassified_terminal_candidate",
+                    "screen_kind": "home",
+                    "visible_text": ["Genesis"],
+                    "unknown_seconds": 0,
+                },
+            ),
+        ),
+    )
+    store.finish_run(
+        aborted.run_id,
+        RunStatus.ABORTED,
+        outcome={"reason": "left_gameplay_screen", "in_match_actions": 1},
+    )
+
+    result = evaluate_training_shadow_readiness(
+        candidate_model_directory=candidate_directory,
+        bible_snapshot_path=SNAPSHOT,
+        native_evaluation_directory=native_directory,
+        database_path=database,
+        evaluation_directory=tmp_path / "reports",
+        config=_config(),
+    )
+
+    assert result.report.passed is True
+    assert result.report.metrics.matching_runs == 2
+    assert result.report.metrics.operational_aborts == 1
+    assert result.report.metrics.evidence_error_count == 0

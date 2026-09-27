@@ -54,6 +54,12 @@ REQUIRED_ACTION_FAMILIES: Final = (
     "pass",
 )
 STATUS_STRATA: Final = ("illness", "flash", "dark-cloud", "dream")
+OPERATIONAL_TERMINAL_CLASSIFICATIONS: Final = frozenset(
+    {
+        "sustained_unknown_terminal_candidate",
+        "unclassified_terminal_candidate",
+    }
+)
 
 
 class TrainingShadowReadinessError(RuntimeError):
@@ -255,14 +261,30 @@ def _validate_terminal_evidence(
     for index, event in enumerate(events):
         if event.kind is not EventKind.MATCH_END:
             continue
+        try:
+            outcome = MatchOutcome.model_validate(event.payload)
+        except ValidationError:
+            classification = event.payload.get("classification")
+            if (
+                run.status is RunStatus.ABORTED
+                and classification in OPERATIONAL_TERMINAL_CLASSIFICATIONS
+            ):
+                if index + 1 < len(events) and events[index + 1].kind is EventKind.REWARD:
+                    counts.add_error(
+                        run.run_id,
+                        event.sequence,
+                        "operational terminal candidate has an unexpected reward",
+                    )
+                continue
+            counts.add_error(run.run_id, event.sequence, "invalid terminal outcome")
+            continue
         if index + 1 >= len(events) or events[index + 1].kind is not EventKind.REWARD:
             counts.add_error(run.run_id, event.sequence, "terminal outcome has no adjacent reward")
             continue
         try:
-            outcome = MatchOutcome.model_validate(event.payload)
             reward = SparseTerminalReward.model_validate(events[index + 1].payload)
         except ValidationError:
-            counts.add_error(run.run_id, event.sequence, "invalid terminal outcome or reward")
+            counts.add_error(run.run_id, event.sequence, "invalid terminal reward")
             continue
         if (
             reward.result is not outcome.result
@@ -641,6 +663,13 @@ def evaluate_training_shadow_readiness(
             excluded[reason] += 1
             continue
         events = store.events(run.run_id)
+        if not any(
+            event.kind is EventKind.EVIDENCE
+            and event.payload.get("evidence_type") == "official_training_shadow"
+            for event in events
+        ):
+            excluded["no-shadow-evidence"] += 1
+            continue
         _evaluate_run(
             run,
             events,

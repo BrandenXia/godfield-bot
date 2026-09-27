@@ -510,6 +510,7 @@ uv run --extra training godfield-bot play-training \
   --confirm-canary-intervention \
   --headless \
   --max-games 1 \
+  --max-gameplay-retries 0 \
   --max-seconds 0 \
   --max-actions 300
 ```
@@ -517,7 +518,9 @@ uv run --extra training godfield-bot play-training \
 Start with one game and audit its `official_training_canary` evidence before
 increasing `--max-games`. These mixed-policy runs intentionally have no run-level
 `model_id`, so candidate-filtered outcome export cannot treat them as fully
-neural-controlled games. See
+neural-controlled games. Canary gameplay aborts are never retried automatically,
+even if the general campaign retry allowance is nonzero, because a retry would
+refresh the one-intervention budget. See
 [ADR 0054](docs/architecture/0054-official-training-one-intervention-canary.md).
 
 The evidence-bounded native schema-v10 curriculum uses a strict

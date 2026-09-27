@@ -43,7 +43,10 @@ candidate-controlled episode.
 
 An unaccepted browser action still ends the game under the existing fail-closed
 runner contract. The consumed intervention is never replayed or replaced by a
-second candidate action.
+second candidate action. Any gameplay abort ends a canary campaign without the
+normal automatic gameplay retry, because starting another game would refresh the
+intervention budget. Pre-game setup recovery remains bounded and cannot spend an
+intervention.
 
 ## Consequences
 

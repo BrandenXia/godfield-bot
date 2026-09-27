@@ -389,6 +389,44 @@ def test_training_campaign_restarts_after_frozen_game(monkeypatch) -> None:
     assert summary.run_ids == ("run-stalled", "run-win")
 
 
+def test_training_canary_never_retries_a_gameplay_abort(monkeypatch) -> None:
+    calls = 0
+
+    async def fake_run(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return training_run(
+            "run-canary-stalled",
+            status=RunStatus.ABORTED,
+            reason="no_progress_limit",
+        )
+
+    monkeypatch.setattr("godfield_bot.runner.run_training_observer", fake_run)
+    config = TrainingCampaignConfig(
+        game=TrainingRunConfig(
+            expected_client_sha256="a" * 64,
+            policy=RunnerPolicyName.OFFICIAL_TRAINING_CANARY,
+            model_directory=Path("models/candidate"),
+            bible_snapshot=Path("bible.json"),
+            canary_readiness_report=Path("readiness.json"),
+            max_in_match_actions=100,
+            verified_weapon_attacks={"bronze-club": ("ATK1", 1.0)},
+            plain_armor_defenses={"iron-shield": 4},
+        ),
+        max_games=1,
+        restart_delay_seconds=0,
+        max_gameplay_retries=3,
+    )
+
+    summary = asyncio.run(run_training_campaign(AppSettings(), config))
+
+    assert calls == 1
+    assert summary.stop_reason == "aborted:no_progress_limit"
+    assert summary.games_started == 1
+    assert summary.games_completed == 0
+    assert summary.gameplay_failures == 1
+
+
 def test_training_campaign_retries_transient_setup_failure(monkeypatch) -> None:
     runs = iter(
         [

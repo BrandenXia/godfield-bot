@@ -1012,7 +1012,10 @@ async def run_training_campaign(
             consecutive_setup_failures = 0
             gameplay_failures += 1
             consecutive_gameplay_failures += 1
-            if consecutive_gameplay_failures <= config.max_gameplay_retries:
+            if (
+                game_config.policy is not RunnerPolicyName.OFFICIAL_TRAINING_CANARY
+                and consecutive_gameplay_failures <= config.max_gameplay_retries
+            ):
                 log.warning(
                     "training_campaign_gameplay_retry",
                     run_id=run.run_id,

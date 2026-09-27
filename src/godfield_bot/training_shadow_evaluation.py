@@ -37,7 +37,7 @@ from godfield_bot.training_shadow import (
     TrainingShadowEvidence,
 )
 
-TRAINING_SHADOW_READINESS_GATE_ID: Final = "official-training-shadow-readiness-v1"
+TRAINING_SHADOW_READINESS_GATE_ID: Final = "official-training-shadow-readiness-v2"
 VISIBILITY_ABSTAIN_REASON: Final = (
     "hidden player statistics require a visibility-aware feature schema"
 )
@@ -72,7 +72,7 @@ class TrainingShadowReadinessConfig(BaseModel):
     minimum_completion_lower_bound: float = Field(default=0.80, ge=0, le=1)
     minimum_exact_view_opportunities: int = Field(default=500, ge=1, le=1_000_000)
     minimum_exact_view_coverage_lower_bound: float = Field(default=0.98, ge=0, le=1)
-    maximum_encoding_gaps: int = Field(default=5, ge=0, le=1_000_000)
+    maximum_encoding_gaps: int | None = Field(default=None, ge=0, le=1_000_000)
     minimum_illness_opportunities: int = Field(default=20, ge=0, le=1_000_000)
     minimum_flash_opportunities: int = Field(default=10, ge=0, le=1_000_000)
     minimum_dark_cloud_opportunities: int = Field(default=20, ge=0, le=1_000_000)
@@ -119,7 +119,10 @@ class TrainingShadowReadinessMetrics(BaseModel):
 class TrainingShadowReadinessReport(BaseModel):
     schema_version: Literal[1] = 1
     evaluation_id: str
-    gate_id: Literal["official-training-shadow-readiness-v1"] = (
+    gate_id: Literal[
+        "official-training-shadow-readiness-v1",
+        "official-training-shadow-readiness-v2",
+    ] = (
         TRAINING_SHADOW_READINESS_GATE_ID
     )
     created_at: datetime
@@ -768,7 +771,10 @@ def evaluate_training_shadow_readiness(
             f"{metrics.exact_view_coverage_lower_bound:.4f} is below "
             f"{config.minimum_exact_view_coverage_lower_bound:.4f}"
         )
-    if metrics.encoding_gaps > config.maximum_encoding_gaps:
+    if (
+        config.maximum_encoding_gaps is not None
+        and metrics.encoding_gaps > config.maximum_encoding_gaps
+    ):
         reasons.append(
             f"encoding gaps {metrics.encoding_gaps} exceed {config.maximum_encoding_gaps}"
         )

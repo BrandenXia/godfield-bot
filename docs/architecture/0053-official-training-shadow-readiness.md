@@ -56,7 +56,7 @@ The default thresholds require:
 - three passing native evaluations;
 - 20 completed official games and a 0.80 Wilson lower bound on completion;
 - 500 exact-view opportunities and a 0.98 Wilson lower bound on coverage;
-- at most five exact-view encoding gaps;
+- at most five exact-view encoding gaps under the original v1 gate;
 - at least 20 illness, 10 Flash, 20 Dark Cloud, and 20 Dream opportunities;
 - at least 20 verified hidden-visibility abstentions;
 - at least one proposal in each reviewed action family;
@@ -78,6 +78,11 @@ completion lower bound, 0.9902 exact-view coverage lower bound, zero integrity
 errors, and complete required status/action-family representation. Immutable
 local report `da85614f-695e-4045-93c6-b5839741d6d0` records the full input
 digest and source identities.
+
+ADR 0056 supersedes the absolute five-gap condition for new reports. The v2
+gate retains gaps in the strict 98% Wilson coverage calculation but is monotonic
+as the prospective cohort grows. Existing v1 reports remain valid for their
+exact immutable inputs.
 
 ## Safety boundary
 

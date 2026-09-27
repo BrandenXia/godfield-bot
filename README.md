@@ -488,13 +488,17 @@ uv run godfield-bot models evaluate-training-shadow-readiness \
   models/df08842c-f5e8-4317-8721-0245310c92ac
 ```
 
-The readiness report separates deliberate hidden-Fog abstentions from actual
+The v2 readiness report separates deliberate hidden-Fog abstentions from actual
 exact-view encoding gaps, validates every event group and terminal outcome, and
-requires coverage across Dream and other represented statuses plus every
-browser action family. A passing report permits design of a separately
-authorized guarded intervention; it is not deployment or promotion approval.
-See [ADR 0052](docs/architecture/0052-official-training-schema-v10-shadow.md)
-and [ADR 0053](docs/architecture/0053-official-training-shadow-readiness.md).
+requires a 98% Wilson lower bound on exact-view coverage across Dream and other
+represented statuses plus every browser action family. Encoding failures remain
+fail-closed and heuristic-controlled; their rate, rather than a non-monotonic
+absolute count, governs admission. A passing report permits design of a
+separately authorized guarded intervention; it is not deployment or promotion
+approval.
+See [ADR 0052](docs/architecture/0052-official-training-schema-v10-shadow.md),
+[ADR 0053](docs/architecture/0053-official-training-shadow-readiness.md), and
+[ADR 0056](docs/architecture/0056-monotonic-training-shadow-coverage.md).
 
 The guarded canary is now available as a separate, explicit mode. It admits only
 the exact schema-v10 weights named by a passing readiness report. The candidate

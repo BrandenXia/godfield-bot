@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Literal
 from unittest.mock import Mock
 
 import pytest
@@ -62,6 +63,10 @@ def _readiness(
     *,
     passed: bool = True,
     model_id: str | None = None,
+    gate_id: Literal[
+        "official-training-shadow-readiness-v1",
+        "official-training-shadow-readiness-v2",
+    ] = "official-training-shadow-readiness-v2",
 ) -> Path:
     metrics = {
         "runs_scanned": 20,
@@ -107,6 +112,7 @@ def _readiness(
     }
     report = TrainingShadowReadinessReport(
         evaluation_id="readiness-1",
+        gate_id=gate_id,
         created_at=datetime.now(UTC),
         candidate_model_id=model_id or manifest.model_id,
         candidate_weights_sha256=manifest.weights_sha256,
@@ -330,3 +336,22 @@ def test_canary_rejects_nonpassing_or_mismatched_readiness(tmp_path: Path) -> No
             {"bronze-club": ("ATK1", 1.0)},
             {"iron-shield": 4},
         )
+
+
+def test_canary_accepts_legacy_absolute_gap_readiness_report(tmp_path: Path) -> None:
+    directory, manifest = _candidate(tmp_path)
+    readiness = _readiness(
+        tmp_path,
+        manifest,
+        gate_id="official-training-shadow-readiness-v1",
+    )
+
+    policy = OfficialTrainingCanaryPolicy(
+        directory,
+        BIBLE,
+        readiness,
+        {"bronze-club": ("ATK1", 1.0)},
+        {"iron-shield": 4},
+    )
+
+    assert policy.readiness.gate_id == "official-training-shadow-readiness-v1"

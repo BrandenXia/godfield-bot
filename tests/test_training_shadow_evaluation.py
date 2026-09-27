@@ -25,6 +25,7 @@ from godfield_bot.simulation_evaluation import (
 from godfield_bot.simulation_policy import DREAM_RESOURCE_HEURISTIC_POLICY_ID
 from godfield_bot.training_shadow import DREAM_RULESET_ID, OfficialTrainingShadowPolicy
 from godfield_bot.training_shadow_evaluation import (
+    TRAINING_SHADOW_READINESS_GATE_ID,
     TrainingShadowReadinessConfig,
     evaluate_training_shadow_readiness,
 )
@@ -356,6 +357,13 @@ def _config() -> TrainingShadowReadinessConfig:
     )
 
 
+def test_default_readiness_config_uses_monotonic_coverage_gate() -> None:
+    config = TrainingShadowReadinessConfig()
+
+    assert config.maximum_encoding_gaps is None
+    assert config.minimum_exact_view_coverage_lower_bound == 0.98
+
+
 def test_training_shadow_readiness_writes_immutable_adapter_report(tmp_path: Path) -> None:
     candidate_directory, _model_id = _candidate(tmp_path)
     native_directory = tmp_path / "native"
@@ -373,6 +381,7 @@ def test_training_shadow_readiness_writes_immutable_adapter_report(tmp_path: Pat
     )
 
     assert result.report.passed is True
+    assert result.report.gate_id == TRAINING_SHADOW_READINESS_GATE_ID
     assert result.report.ready_for_guarded_intervention is True
     assert result.report.metrics.completed_games == 1
     assert result.report.metrics.exact_view_opportunities == 1

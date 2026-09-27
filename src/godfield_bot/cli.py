@@ -630,7 +630,7 @@ def run_bot(
     ] = RunnerPolicyName.SAFE_OBSERVER,
     max_actions: Annotated[
         int,
-        typer.Option(min=0, max=100, help="Hard in-match browser-click budget."),
+        typer.Option(min=0, max=1000, help="Hard in-match browser-click budget."),
     ] = 0,
 ) -> None:
     """Run one bounded Training session under a hard in-match action budget."""
@@ -777,8 +777,8 @@ def play_official_training_computers(
     ] = False,
     max_actions: Annotated[
         int,
-        typer.Option(min=1, max=100, help="Hard browser-click budget for each game."),
-    ] = 100,
+        typer.Option(min=1, max=1000, help="Hard browser-click budget for each game."),
+    ] = 300,
     neural_model: Annotated[
         Path | None,
         typer.Option(
@@ -1981,6 +1981,60 @@ def models_evaluate_simulation(
     ) as error:
         structlog.get_logger().error(
             "simulation_evaluation_failed",
+            error_type=type(error).__name__,
+            reason=str(error).splitlines()[0],
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(result.model_dump_json(indent=2))
+
+
+@models_app.command("evaluate-training-shadow-readiness")
+def models_evaluate_training_shadow_readiness(
+    candidate_model: Annotated[
+        Path,
+        typer.Argument(exists=True, file_okay=False, readable=True),
+    ],
+    database: Annotated[
+        Path,
+        typer.Option(exists=True, dir_okay=False, readable=True),
+    ] = Path("runs", "godfield.sqlite"),
+    snapshot: Annotated[
+        Path,
+        typer.Option(exists=True, dir_okay=False, readable=True),
+    ] = Path("data", "snapshots", "2026-09-20", "bible.json"),
+    native_evaluation_directory: Annotated[
+        Path,
+        typer.Option(
+            exists=True,
+            file_okay=False,
+            readable=True,
+            help="Directory containing immutable native curriculum reports.",
+        ),
+    ] = Path("models", "evaluations"),
+    evaluation_directory: Annotated[
+        Path,
+        typer.Option(help="Owner-only directory for Training-shadow readiness reports."),
+    ] = Path("models", "training-shadow-evaluations"),
+) -> None:
+    """Audit schema-v10 official-CPU shadow evidence without granting control."""
+
+    try:
+        from godfield_bot.training_shadow_evaluation import (
+            TrainingShadowReadinessConfig,
+            evaluate_training_shadow_readiness,
+        )
+
+        result = evaluate_training_shadow_readiness(
+            candidate_model_directory=candidate_model,
+            bible_snapshot_path=snapshot,
+            native_evaluation_directory=native_evaluation_directory,
+            database_path=database,
+            evaluation_directory=evaluation_directory,
+            config=TrainingShadowReadinessConfig(),
+        )
+    except (ImportError, OSError, ValueError, RuntimeError) as error:
+        structlog.get_logger().error(
+            "training_shadow_readiness_failed",
             error_type=type(error).__name__,
             reason=str(error).splitlines()[0],
         )

@@ -76,7 +76,7 @@ class TrainingRunConfig(BaseModel):
     dream_evidence_probe: bool = False
     dream_evidence_catalog: Path | None = None
     neural_sampling_seed: int = Field(default=67, ge=0, le=2**63 - 1)
-    max_in_match_actions: int = Field(default=0, ge=0, le=100)
+    max_in_match_actions: int = Field(default=0, ge=0, le=1000)
     verified_weapon_attacks: dict[str, WeaponAttackRule] = Field(default_factory=dict)
     verified_miracle_attacks: dict[str, tuple[int, int, CombatElement]] = Field(
         default_factory=dict

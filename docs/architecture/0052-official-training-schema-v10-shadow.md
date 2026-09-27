@@ -86,3 +86,6 @@ completed normally on 2026-09-27. All nine executable decisions were covered,
 all nine proposals agreed with the heuristic, and the interleaved Dream evidence
 remained independently readable. The game was a loss; agreement in one game
 does not alter the non-control safety boundary.
+
+The broader prospective cohort and its adapter-readiness gate are recorded in
+[ADR 0053](0053-official-training-shadow-readiness.md).

@@ -437,7 +437,7 @@ PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot play-training \
   --headless \
   --max-games 0 \
   --max-seconds 0 \
-  --max-actions 100 \
+  --max-actions 300 \
   --no-progress-seconds 60 \
   --unknown-screen-grace-seconds 15 \
   --max-setup-retries 3 \
@@ -447,7 +447,9 @@ PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot play-training \
 A game whose official client exposes no progress for the configured interval is
 stored as an aborted, training-ineligible episode. The campaign starts a clean
 Training game and tolerates three consecutive frozen games by default; a
-completed game resets that retry streak.
+completed game resets that retry streak. The default browser-click budget is
+300 because a verified progressing official game exceeded the former 100-click
+ceiling; the independent no-progress timer remains the deadlock guard.
 
 Dream remains outside live browser-neural control, but schema-v10 candidates
 can now run as passive shadows behind the live heuristic. The bridge parses
@@ -461,7 +463,8 @@ uv run godfield-bot play-training \
   --shadow-model models/df08842c-f5e8-4317-8721-0245310c92ac \
   --headless \
   --max-games 0 \
-  --max-seconds 0
+  --max-seconds 0 \
+  --max-actions 300
 uv run godfield-bot runs training-shadow <run-id> [<run-id> ...]
 ```
 
@@ -477,8 +480,21 @@ uv run godfield-bot runs evaluate-training-shadow \
 ```
 
 Coverage and agreement are diagnostics, not win-rate evidence and not
-authorization for neural control. See
-[ADR 0052](docs/architecture/0052-official-training-schema-v10-shadow.md).
+authorization for neural control. Once a prospective cohort is available, bind
+it to the candidate's immutable native reports and audit the adapter boundary:
+
+```console
+uv run godfield-bot models evaluate-training-shadow-readiness \
+  models/df08842c-f5e8-4317-8721-0245310c92ac
+```
+
+The readiness report separates deliberate hidden-Fog abstentions from actual
+exact-view encoding gaps, validates every event group and terminal outcome, and
+requires coverage across Dream and other represented statuses plus every
+browser action family. A passing report permits design of a separately
+authorized guarded intervention; it is not deployment or promotion approval.
+See [ADR 0052](docs/architecture/0052-official-training-schema-v10-shadow.md)
+and [ADR 0053](docs/architecture/0053-official-training-shadow-readiness.md).
 
 The evidence-bounded native schema-v10 curriculum uses a strict
 displayed-identity observation boundary. Enable the passive Dream evidence
@@ -515,7 +531,7 @@ PLAYWRIGHT_BROWSERS_PATH=.playwright uv run godfield-bot play-training \
   --neural-model models/d349d664-bfce-4997-9ff9-eb94482c20d1 \
   --confirm-neural-control \
   --max-games 20 \
-  --max-actions 100
+  --max-actions 300
 uv run godfield-bot runs export-outcomes runs/official-d349d664.jsonl \
   --model-id d349d664-bfce-4997-9ff9-eb94482c20d1
 uv run godfield-bot models train-outcomes \

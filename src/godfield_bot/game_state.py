@@ -13,6 +13,11 @@ FIELD_PATTERN = re.compile(r"^G\.F\.(\d+)$")
 ITEM_PATTERN = re.compile(r"^/images/items/([^/]+)/([^/]+)\.(?:png|svg|webp)$")
 FOG_SCENE_PATH = "/images/screens/fog.webp"
 FOG_CURSE_PATH = "/images/curses/small/fog.webp"
+SMALL_CURSE_PATTERN = re.compile(
+    r"^/images/curses/small/"
+    r"(cold|fever|hell|heaven|fog|flash|darkcloud|dream)\.webp$"
+)
+ILLNESS_STAGES = {"cold": 1, "fever": 2, "hell": 3, "heaven": 4}
 NEUTRAL_TEXT_COLOR = "rgb(79, 79, 79)"
 ATTACK_DISPLAY_PATTERN = re.compile(r"^ATK\d+$")
 REFLECTED_ATTACK_DISPLAY_PATTERN = re.compile(r"^(?:\d+%)?ATK\d+$")
@@ -299,6 +304,17 @@ def _parse_players(
             <= 3
             and marker.bounds.x < hp_label.bounds.x
         ]
+        visible_curses = {
+            match.group(1)
+            for image in observation.images
+            if (match := SMALL_CURSE_PATTERN.fullmatch(image.path)) is not None
+            and hp_label.bounds.y
+            <= image.bounds.y
+            <= hp_label.bounds.y + hp_label.bounds.height + 5
+        }
+        visible_illnesses = visible_curses & ILLNESS_STAGES.keys()
+        if len(visible_illnesses) > 1:
+            raise GameStateParseError("player row has multiple visible illness stages")
         players.append(
             PlayerState(
                 name=name,
@@ -306,6 +322,15 @@ def _parse_players(
                 mp=_label_value(row, "MP", "$"),
                 money=_label_value(row, "$", None),
                 is_self=name == identity,
+                illness_stage=(
+                    ILLNESS_STAGES[next(iter(visible_illnesses))]
+                    if visible_illnesses
+                    else 0
+                ),
+                fogged="fog" in visible_curses,
+                flashed="flash" in visible_curses,
+                dark_clouded="darkcloud" in visible_curses,
+                dreaming="dream" in visible_curses,
                 status_marker_color=(markers[0].background_color if len(markers) == 1 else None),
                 hit_target_bounds=_current_player_hit_target(
                     observation,

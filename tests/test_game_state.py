@@ -83,7 +83,16 @@ def test_game_observation_normalizes_players_and_hand() -> None:
     assert state.action_actor == "ロキ-67"
     assert state.action_display == "Pray"
     assert state.players[1].model_dump(
-        exclude={"is_self", "status_marker_color", "hit_target_bounds"}
+        exclude={
+            "is_self",
+            "illness_stage",
+            "fogged",
+            "flashed",
+            "dark_clouded",
+            "dreaming",
+            "status_marker_color",
+            "hit_target_bounds",
+        }
     ) == {
         "name": "CPU",
         "hp": 35,
@@ -93,6 +102,46 @@ def test_game_observation_normalizes_players_and_hand() -> None:
     }
     assert state.players[1].hit_target_bounds == bounds(780, 264, 340, 40)
     assert [artifact.slug for artifact in state.hand] == ["bronze-club", "iron-shield"]
+
+
+def test_game_observation_normalizes_visible_curse_icons() -> None:
+    initial = game_observation()
+    observation = initial.model_copy(
+        update={
+            "images": (
+                *initial.images,
+                VisibleImage(
+                    path="/images/curses/small/fever.webp",
+                    bounds=bounds(974, 155, 30, 16),
+                ),
+                VisibleImage(
+                    path="/images/curses/small/fog.webp",
+                    bounds=bounds(1003, 155, 30, 16),
+                ),
+                VisibleImage(
+                    path="/images/curses/small/darkcloud.webp",
+                    bounds=bounds(1090, 288, 30, 16),
+                ),
+                VisibleImage(
+                    path="/images/curses/small/dream.webp",
+                    bounds=bounds(1061, 288, 30, 16),
+                ),
+                VisibleImage(
+                    path="/images/curses/medium/hell.webp",
+                    bounds=bounds(580, 138, 80, 80),
+                ),
+            )
+        }
+    )
+
+    state = parse_game_state(observation, identity="ロキ-67")
+
+    assert state.players[0].illness_stage == 2
+    assert state.players[0].fogged is True
+    assert state.players[0].flashed is False
+    assert state.players[1].dark_clouded is True
+    assert state.players[1].dreaming is True
+    assert state.players[1].illness_stage == 0
 
 
 def test_wrapped_hand_is_spatially_ordered_and_excludes_trade_commands() -> None:

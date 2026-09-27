@@ -788,6 +788,17 @@ def play_official_training_computers(
             help="Candidate directory allowed to choose reviewed Training actions.",
         ),
     ] = None,
+    shadow_model: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True,
+            file_okay=False,
+            readable=True,
+            help=(
+                "Schema-v10 candidate scored passively while heuristic-v0 keeps control."
+            ),
+        ),
+    ] = None,
     neural_seed: Annotated[
         int,
         typer.Option(
@@ -814,6 +825,8 @@ def play_official_training_computers(
             raise RunnerError("neural Training control requires --confirm-neural-control")
         if neural_model is None and confirm_neural_control:
             raise RunnerError("--confirm-neural-control requires --neural-model")
+        if neural_model is not None and shadow_model is not None:
+            raise RunnerError("--shadow-model cannot be combined with --neural-model")
         bible = BibleSnapshot.model_validate_json(snapshot.read_text(encoding="utf-8"))
         policy = (
             RunnerPolicyName.OFFICIAL_TRAINING_NEURAL
@@ -840,7 +853,12 @@ def play_official_training_computers(
                         ),
                         policy=policy,
                         model_directory=neural_model,
-                        bible_snapshot=snapshot if neural_model is not None else None,
+                        shadow_model_directory=shadow_model,
+                        bible_snapshot=(
+                            snapshot
+                            if neural_model is not None or shadow_model is not None
+                            else None
+                        ),
                         neural_sampling_seed=neural_seed,
                         max_in_match_actions=max_actions,
                         verified_weapon_attacks=verified_browser_weapon_attacks(bible),
@@ -1009,12 +1027,91 @@ def runs_dream_evidence(
             DreamProbeSample.model_validate(event.payload)
             for event in store.events(run_id)
             if event.kind is EventKind.EVIDENCE
+            and "dream_active" in event.payload
+            and "items" in event.payload
         )
     except ValueError as error:
         typer.echo(f"invalid Dream evidence: {error}", err=True)
         raise typer.Exit(code=1) from None
     report = summarize_dream_evidence(samples)
     payload = {"run_id": run_id, **report.model_dump(mode="json")}
+    typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
+
+
+@runs_app.command("training-shadow")
+def runs_training_shadow(
+    run_ids: Annotated[list[str], typer.Argument(help="One or more Training run IDs.")],
+    database: Annotated[
+        Path,
+        typer.Option(help="Ignored local SQLite trajectory database."),
+    ] = Path("runs", "godfield.sqlite"),
+) -> None:
+    """Summarize passive schema-v10 proposals recorded during Training games."""
+
+    from godfield_bot.domain.run import EventKind
+    from godfield_bot.training_shadow import (
+        TrainingShadowEvidence,
+        summarize_training_shadow,
+    )
+
+    store = RunStore(database)
+    missing = [run_id for run_id in run_ids if store.get_run(run_id) is None]
+    if missing:
+        typer.echo(f"unknown run: {missing[0]}", err=True)
+        raise typer.Exit(code=1)
+    try:
+        samples = tuple(
+            TrainingShadowEvidence.model_validate(event.payload)
+            for run_id in run_ids
+            for event in store.events(run_id)
+            if event.kind is EventKind.EVIDENCE
+            and event.payload.get("evidence_type") == "official_training_shadow"
+        )
+        report = summarize_training_shadow(samples)
+    except ValueError as error:
+        typer.echo(f"invalid Training shadow evidence: {error}", err=True)
+        raise typer.Exit(code=1) from None
+    payload = {"run_ids": run_ids, **report.model_dump(mode="json")}
+    typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
+
+
+@runs_app.command("evaluate-training-shadow")
+def runs_evaluate_training_shadow(
+    model_directory: Annotated[
+        Path,
+        typer.Argument(exists=True, file_okay=False, readable=True),
+    ],
+    run_ids: Annotated[list[str], typer.Argument(help="One or more Training run IDs.")],
+    snapshot: Annotated[
+        Path,
+        typer.Option(exists=True, dir_okay=False, readable=True),
+    ] = Path("data", "snapshots", "2026-09-20", "bible.json"),
+    database: Annotated[
+        Path,
+        typer.Option(help="Ignored local SQLite trajectory database."),
+    ] = Path("runs", "godfield.sqlite"),
+) -> None:
+    """Replay stored heuristic decisions through a schema-v10 shadow model."""
+
+    from godfield_bot.domain.reference import BibleSnapshot
+    from godfield_bot.training_shadow import (
+        evaluate_recorded_training_runs,
+        summarize_training_shadow,
+    )
+
+    try:
+        bible = BibleSnapshot.model_validate_json(snapshot.read_text(encoding="utf-8"))
+        samples = evaluate_recorded_training_runs(
+            RunStore(database),
+            model_directory,
+            bible,
+            tuple(run_ids),
+        )
+        report = summarize_training_shadow(samples)
+    except (OSError, ValueError, GameStateParseError, RunStoreError) as error:
+        typer.echo(f"Training shadow replay failed: {error}", err=True)
+        raise typer.Exit(code=1) from None
+    payload = {"run_ids": run_ids, **report.model_dump(mode="json")}
     typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
 
 

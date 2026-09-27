@@ -1,3 +1,4 @@
+import hashlib
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -9,6 +10,8 @@ from godfield_bot.domain.game import GameState, HandArtifact, PlayerState
 from godfield_bot.domain.observation import Bounds
 from godfield_bot.domain.reference import BibleSnapshot
 from godfield_bot.features import (
+    DREAM_FEATURE_SCHEMA_VERSION,
+    DREAM_GLOBAL_FEATURE_COUNT,
     RESOURCE_FEATURE_SCHEMA_VERSION,
     FeatureEncodingError,
     StateFeatureEncoder,
@@ -73,6 +76,103 @@ def test_browser_encoder_can_bind_resource_candidate_schema() -> None:
     ).encode(state(), observation_only_actions(state()))
 
     assert features.schema_version == RESOURCE_FEATURE_SCHEMA_VERSION
+
+
+def test_browser_encoder_can_bind_visible_schema_v10_status_and_effect_features() -> None:
+    vocabulary = load_vocabulary(SNAPSHOT)
+    response_state = state().model_copy(
+        update={
+            "players": (
+                state().players[0].model_copy(
+                    update={"illness_stage": 2, "fogged": True, "dreaming": True}
+                ),
+                state().players[1].model_copy(
+                    update={"flashed": True, "dark_clouded": True}
+                ),
+            ),
+            "action_actor": "CPU",
+            "action_target": "ロキ-67",
+            "action_display": "ATK10",
+            "action_artifact_asset_path": "/images/items/weapons/bogus-spear.webp",
+            "phase_control": "Forgive",
+        }
+    )
+    encoder = StateFeatureEncoder(
+        vocabulary,
+        BIBLE,
+        feature_schema_version=DREAM_FEATURE_SCHEMA_VERSION,
+    )
+
+    features = encoder.encode(response_state, observation_only_actions(response_state))
+
+    assert features.schema_version == DREAM_FEATURE_SCHEMA_VERSION
+    assert encoder.global_feature_count == DREAM_GLOBAL_FEATURE_COUNT
+    assert features.global_features[3] == 0.0
+    assert features.player_features[0][2] == 0.0
+    assert features.player_features[1][2] == 0.0
+    assert features.global_features[13:] == (
+        -0.625,
+        0.5,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        1.0,
+        1.0,
+        0.0,
+    )
+
+
+def test_schema_v10_encodes_absorption_miracle_pending_effect() -> None:
+    vocabulary = load_vocabulary(SNAPSHOT)
+    response_state = state().model_copy(
+        update={
+            "action_actor": "CPU",
+            "action_target": "ロキ-67",
+            "action_display": "ATK10",
+            "action_artifact_asset_path": "/images/items/miracles/absorption.webp",
+            "phase_control": "Forgive",
+        }
+    )
+
+    features = StateFeatureEncoder(
+        vocabulary,
+        BIBLE,
+        feature_schema_version=DREAM_FEATURE_SCHEMA_VERSION,
+    ).encode(response_state, observation_only_actions(response_state))
+
+    assert features.global_features[13] == 1.0
+
+
+def test_clear_status_state_digest_remains_compatible_with_legacy_trajectories() -> None:
+    game_state = state()
+    legacy_json = game_state.model_dump_json(
+        exclude={
+            "observed_at": True,
+            "players": {
+                "__all__": {
+                    "illness_stage",
+                    "fogged",
+                    "flashed",
+                    "dark_clouded",
+                    "dreaming",
+                }
+            },
+        }
+    )
+
+    assert game_state_digest(game_state) == hashlib.sha256(legacy_json.encode()).hexdigest()
+    cursed_state = game_state.model_copy(
+        update={
+            "players": (
+                game_state.players[0].model_copy(update={"dreaming": True}),
+                game_state.players[1],
+            )
+        }
+    )
+    assert game_state_digest(cursed_state) != game_state_digest(game_state)
 
 
 def test_browser_encoder_truncates_unselectable_overflow_hand() -> None:

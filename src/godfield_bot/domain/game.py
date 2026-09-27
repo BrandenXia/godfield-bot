@@ -12,6 +12,11 @@ class PlayerState(BaseModel):
     money: int = Field(ge=0)
     is_self: bool
     stats_visible: bool = True
+    illness_stage: int = Field(default=0, ge=0, le=4)
+    fogged: bool = False
+    flashed: bool = False
+    dark_clouded: bool = False
+    dreaming: bool = False
     status_marker_color: str | None = None
     hit_target_bounds: Bounds | None = None
 

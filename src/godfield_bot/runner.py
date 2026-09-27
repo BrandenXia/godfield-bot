@@ -5,6 +5,7 @@ from contextlib import suppress
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import structlog
 from playwright.async_api import Page
@@ -41,6 +42,9 @@ from godfield_bot.reference import fingerprint_client
 from godfield_bot.run_store import RunStore
 from godfield_bot.weapon_rules import WeaponAttackRule
 
+if TYPE_CHECKING:
+    from godfield_bot.training_shadow import OfficialTrainingShadowPolicy
+
 log = structlog.get_logger()
 
 
@@ -67,6 +71,7 @@ class TrainingRunConfig(BaseModel):
     screenshot_directory: Path | None = None
     policy: RunnerPolicyName = RunnerPolicyName.SAFE_OBSERVER
     model_directory: Path | None = None
+    shadow_model_directory: Path | None = None
     bible_snapshot: Path | None = None
     dream_evidence_probe: bool = False
     dream_evidence_catalog: Path | None = None
@@ -98,6 +103,13 @@ class TrainingRunConfig(BaseModel):
             self.model_directory is None or self.bible_snapshot is None
         ):
             raise ValueError("neural Training control requires a model and Bible snapshot")
+        if self.shadow_model_directory is not None and self.bible_snapshot is None:
+            raise ValueError("Training shadow requires a model and Bible snapshot")
+        if (
+            self.policy is RunnerPolicyName.OFFICIAL_TRAINING_NEURAL
+            and self.shadow_model_directory is not None
+        ):
+            raise ValueError("Training shadow cannot be combined with neural control")
         if self.dream_evidence_probe and self.dream_evidence_catalog is None:
             raise ValueError("Dream evidence probe requires a pinned API catalog")
         return self
@@ -192,6 +204,7 @@ def _record_policy_state(
     policy: Policy,
     previous_digest: str | None,
     previous_state: GameState | None,
+    shadow_policy: "OfficialTrainingShadowPolicy | None" = None,
 ) -> tuple[str, PolicyDecision | None, LegalAction | None, GameState]:
     state = parse_game_state(
         observation,
@@ -241,10 +254,25 @@ def _record_policy_state(
     ]
     if len(chosen_actions) != 1:
         raise RunnerError("policy chose an action outside the recorded legal set")
-    store.append_event(run_id, EventKind.OBSERVATION, observation)
-    store.append_event(run_id, EventKind.GAME_STATE, state)
-    store.append_event(run_id, EventKind.LEGAL_ACTIONS, legal_actions)
-    store.append_event(run_id, EventKind.DECISION, decision)
+    events: tuple[tuple[EventKind, BaseModel | dict[str, JsonValue]], ...] = (
+        (EventKind.OBSERVATION, observation),
+        (EventKind.GAME_STATE, state),
+        (EventKind.LEGAL_ACTIONS, legal_actions),
+        (EventKind.DECISION, decision),
+    )
+    if shadow_policy is not None:
+        shadow_evidence = shadow_policy.evaluate(state, legal_actions, decision)
+        events += ((EventKind.EVIDENCE, shadow_evidence),)
+        log.info(
+            "training_shadow_recorded",
+            run_id=run_id,
+            model_id=shadow_evidence.model_id,
+            covered=shadow_evidence.covered,
+            proposal=shadow_evidence.proposed_action_id,
+            agreement=shadow_evidence.agreement,
+            abstain_reason=shadow_evidence.abstain_reason,
+        )
+    store.append_events(run_id, events)
     log.info(
         "policy_decision_recorded",
         run_id=run_id,
@@ -394,6 +422,20 @@ async def run_training_observer(
         bible_snapshot=config.bible_snapshot,
         neural_sampling_seed=config.neural_sampling_seed,
     )
+    shadow_policy = None
+    if config.shadow_model_directory is not None:
+        if config.bible_snapshot is None:  # pragma: no cover - validated above
+            raise RunnerError("Training shadow requires a Bible snapshot")
+        from godfield_bot.domain.reference import BibleSnapshot
+        from godfield_bot.training_shadow import OfficialTrainingShadowPolicy
+
+        snapshot = BibleSnapshot.model_validate_json(
+            config.bible_snapshot.read_text(encoding="utf-8")
+        )
+        shadow_policy = OfficialTrainingShadowPolicy(
+            config.shadow_model_directory,
+            snapshot,
+        )
     dream_catalog = None
     if config.dream_evidence_probe:
         from godfield_bot.api_catalog import ApiCatalogError, read_api_catalog_snapshot
@@ -456,6 +498,24 @@ async def run_training_observer(
                         "neural_sampling_seed": (
                             config.neural_sampling_seed
                             if isinstance(policy, OfficialTrainingNeuralPolicy)
+                            else None
+                        ),
+                        "shadow_policy_id": (
+                            shadow_policy.policy_id if shadow_policy is not None else None
+                        ),
+                        "shadow_model_id": (
+                            shadow_policy.manifest.model_id
+                            if shadow_policy is not None
+                            else None
+                        ),
+                        "shadow_weights_sha256": (
+                            shadow_policy.manifest.weights_sha256
+                            if shadow_policy is not None
+                            else None
+                        ),
+                        "shadow_feature_schema_version": (
+                            shadow_policy.manifest.feature_schema_version
+                            if shadow_policy is not None
                             else None
                         ),
                     },
@@ -573,6 +633,7 @@ async def run_training_observer(
                         policy,
                         previous_digest,
                         previous_state,
+                        shadow_policy,
                     )
                     previous_state = before_state
                     if previous_digest != prior_digest:

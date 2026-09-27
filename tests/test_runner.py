@@ -1,5 +1,6 @@
 import asyncio
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
@@ -60,6 +61,30 @@ def test_neural_policy_requires_model_and_snapshot_paths() -> None:
             max_in_match_actions=1,
             verified_weapon_attacks={"bronze-club": ("ATK1", 1.0)},
             plain_armor_defenses={"iron-shield": 4},
+        )
+
+
+def test_training_shadow_requires_snapshot_and_cannot_mix_with_control() -> None:
+    with pytest.raises(ValidationError, match="Training shadow requires"):
+        TrainingRunConfig(
+            expected_client_sha256="a" * 64,
+            policy=RunnerPolicyName.HEURISTIC_V0,
+            max_in_match_actions=1,
+            verified_weapon_attacks={"bronze-club": ("ATK1", 1.0)},
+            plain_armor_defenses={"iron-shield": 4},
+            shadow_model_directory=Path("models/shadow"),
+        )
+
+    with pytest.raises(ValidationError, match="cannot be combined"):
+        TrainingRunConfig(
+            expected_client_sha256="a" * 64,
+            policy=RunnerPolicyName.OFFICIAL_TRAINING_NEURAL,
+            max_in_match_actions=1,
+            verified_weapon_attacks={"bronze-club": ("ATK1", 1.0)},
+            plain_armor_defenses={"iron-shield": 4},
+            model_directory=Path("models/control"),
+            shadow_model_directory=Path("models/shadow"),
+            bible_snapshot=Path("bible.json"),
         )
 
 

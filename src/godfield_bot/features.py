@@ -1,4 +1,5 @@
 import re
+from collections.abc import Collection
 from pathlib import Path
 from typing import Literal, cast
 
@@ -9,6 +10,21 @@ from godfield_bot.domain.game import GameState
 from godfield_bot.domain.reference import BibleSnapshot
 from godfield_bot.elements import COMBAT_ELEMENT_IDS, COMBAT_ELEMENTS, ELEMENT_IMAGE_PATHS
 from godfield_bot.legal_actions import game_state_digest
+from godfield_bot.reference import (
+    verified_absorption_weapon_cards,
+    verified_attack_twice_weapon_cards,
+    verified_chance_absorption_weapon_cards,
+    verified_dark_cloud_miracles,
+    verified_dark_cloud_weapon_cards,
+    verified_dream_miracles,
+    verified_dream_weapon_cards,
+    verified_effect_attack_miracle_cards,
+    verified_fog_flash_attack_miracles,
+    verified_fog_flash_weapon_cards,
+    verified_fog_miracles,
+    verified_illness_weapon_cards,
+    verified_same_damage_weapon_cards,
+)
 
 PAD_TOKEN = "<PAD>"
 UNKNOWN_TOKEN = "<UNKNOWN>"
@@ -101,7 +117,7 @@ class ArtifactVocabulary(BaseModel):
 
 
 class StateFeatures(BaseModel):
-    schema_version: Literal[4, 5] = 4
+    schema_version: Literal[4, 5, 6, 7, 8, 9, 10] = 4
     global_features: tuple[float, ...]
     player_features: tuple[tuple[float, ...], ...]
     player_mask: tuple[bool, ...]
@@ -111,7 +127,6 @@ class StateFeatures(BaseModel):
 
 
 class StateFeatureEncoder:
-    global_feature_count = GLOBAL_FEATURE_COUNT
     player_feature_count = PLAYER_FEATURE_COUNT
 
     def __init__(
@@ -125,15 +140,27 @@ class StateFeatureEncoder:
     ) -> None:
         if max_players < 2 or max_hand_slots < 1:
             raise ValueError("feature limits must support a playable game")
-        if feature_schema_version not in {
-            FEATURE_SCHEMA_VERSION,
-            RESOURCE_FEATURE_SCHEMA_VERSION,
-        }:
-            raise ValueError("browser features require feature schema v4 or v5")
+        global_feature_counts = {
+            FEATURE_SCHEMA_VERSION: GLOBAL_FEATURE_COUNT,
+            RESOURCE_FEATURE_SCHEMA_VERSION: GLOBAL_FEATURE_COUNT,
+            STOCHASTIC_RESOURCE_FEATURE_SCHEMA_VERSION: (
+                STOCHASTIC_RESOURCE_GLOBAL_FEATURE_COUNT
+            ),
+            ILLNESS_FEATURE_SCHEMA_VERSION: ILLNESS_GLOBAL_FEATURE_COUNT,
+            CURSE_FEATURE_SCHEMA_VERSION: CURSE_GLOBAL_FEATURE_COUNT,
+            DARK_CLOUD_FEATURE_SCHEMA_VERSION: DARK_CLOUD_GLOBAL_FEATURE_COUNT,
+            DREAM_FEATURE_SCHEMA_VERSION: DREAM_GLOBAL_FEATURE_COUNT,
+        }
+        if feature_schema_version not in global_feature_counts:
+            raise ValueError("browser features require feature schema v4 through v10")
         self.vocabulary = vocabulary
         self.max_players = max_players
         self.max_hand_slots = max_hand_slots
-        self.feature_schema_version = cast(Literal[4, 5], feature_schema_version)
+        self.feature_schema_version = cast(
+            Literal[4, 5, 6, 7, 8, 9, 10],
+            feature_schema_version,
+        )
+        self.global_feature_count = global_feature_counts[feature_schema_version]
         self.artifact_element_ids: dict[str, int] = {}
         for category in snapshot.catalog.values():
             for artifact in category.items:
@@ -143,6 +170,137 @@ class StateFeatureEncoder:
                     element = ELEMENT_IMAGE_PATHS.get(artifact.element_image_paths[0])
                     if element is not None:
                         self.artifact_element_ids[artifact.image_path] = COMBAT_ELEMENT_IDS[element]
+        self.pending_effects: dict[str, float] = {}
+        self.ambiguous_pending_effects: set[str] = set()
+        self._register_pending_effects(
+            snapshot,
+            "weapons",
+            {
+                *verified_absorption_weapon_cards(snapshot),
+                *verified_chance_absorption_weapon_cards(snapshot),
+            },
+            1.0,
+        )
+        self._register_pending_effects(
+            snapshot,
+            "miracles",
+            {
+                slug
+                for slug, rule in verified_effect_attack_miracle_cards(snapshot).items()
+                if rule[3] == "absorbHP"
+            },
+            1.0,
+        )
+        self._register_pending_effects(
+            snapshot,
+            "weapons",
+            verified_same_damage_weapon_cards(snapshot),
+            -1.0,
+        )
+        self._register_pending_effects(
+            snapshot,
+            "weapons",
+            {
+                slug
+                for slug, rule in verified_illness_weapon_cards(snapshot).items()
+                if rule[2] == 1
+            },
+            0.5,
+        )
+        self._register_pending_effects(
+            snapshot,
+            "weapons",
+            {
+                slug
+                for slug, rule in verified_illness_weapon_cards(snapshot).items()
+                if rule[2] == 3
+            },
+            0.75,
+        )
+        fog_flash_weapons = verified_fog_flash_weapon_cards(snapshot)
+        self._register_pending_effects(
+            snapshot,
+            "weapons",
+            {slug for slug, rule in fog_flash_weapons.items() if rule[3] == "fog"},
+            0.875,
+        )
+        self._register_pending_effects(
+            snapshot,
+            "weapons",
+            {slug for slug, rule in fog_flash_weapons.items() if rule[3] == "flash"},
+            -0.875,
+        )
+        fog_flash_miracles = verified_fog_flash_attack_miracles(snapshot)
+        self._register_pending_effects(
+            snapshot,
+            "miracles",
+            {slug for slug, rule in fog_flash_miracles.items() if rule[4] == "fog"},
+            0.875,
+        )
+        self._register_pending_effects(
+            snapshot,
+            "miracles",
+            {slug for slug, rule in fog_flash_miracles.items() if rule[4] == "flash"},
+            -0.875,
+        )
+        self._register_pending_effects(
+            snapshot,
+            "miracles",
+            verified_fog_miracles(snapshot),
+            0.875,
+        )
+        self._register_pending_effects(
+            snapshot,
+            "weapons",
+            verified_dark_cloud_weapon_cards(snapshot),
+            -0.75,
+        )
+        self._register_pending_effects(
+            snapshot,
+            "miracles",
+            verified_dark_cloud_miracles(snapshot),
+            -0.75,
+        )
+        self._register_pending_effects(
+            snapshot,
+            "weapons",
+            verified_dream_weapon_cards(snapshot),
+            -0.625,
+        )
+        self._register_pending_effects(
+            snapshot,
+            "miracles",
+            verified_dream_miracles(snapshot),
+            -0.625,
+        )
+        self._register_ambiguous_pending_effects(
+            snapshot,
+            "weapons",
+            verified_attack_twice_weapon_cards(snapshot),
+        )
+
+    def _register_pending_effects(
+        self,
+        snapshot: BibleSnapshot,
+        category: str,
+        slugs: Collection[str],
+        encoded_effect: float,
+    ) -> None:
+        selected_slugs = set(slugs)
+        for artifact in snapshot.catalog[category].items:
+            if artifact.asset in selected_slugs:
+                self.pending_effects[artifact.image_path] = encoded_effect
+
+    def _register_ambiguous_pending_effects(
+        self,
+        snapshot: BibleSnapshot,
+        category: str,
+        slugs: Collection[str],
+    ) -> None:
+        selected_slugs = set(slugs)
+        for artifact in snapshot.catalog[category].items:
+            if artifact.asset in selected_slugs:
+                self.ambiguous_pending_effects.add(artifact.image_path)
 
     def encode(self, state: GameState, legal_actions: LegalActionSet) -> StateFeatures:
         if legal_actions.state_digest != game_state_digest(state):
@@ -153,6 +311,10 @@ class StateFeatureEncoder:
             )
         if len(state.players) > self.max_players:
             raise FeatureEncodingError("player count exceeds model capacity")
+        if self.feature_schema_version >= ILLNESS_FEATURE_SCHEMA_VERSION and len(
+            state.players
+        ) != 2:
+            raise FeatureEncodingError("schema-v7+ browser features require exactly two players")
         if len(state.hand) > self.max_hand_slots and any(
             action.kind is ActionKind.SELECT_ARTIFACT
             and action.artifact_slot is not None
@@ -187,20 +349,65 @@ class StateFeatureEncoder:
                 pending_element := self.artifact_element_ids.get(state.action_artifact_asset_path)
             ) is not None:
                 pending_element_features[pending_element] = 1.0
-        global_features = (
+        global_features: tuple[float, ...] = (
             min(state.field_number, 100) / 100.0,
             min(self_player.hp, 100) / 100.0,
             min(self_player.mp, 100) / 100.0,
-            min(self_player.money, 100) / 100.0,
+            (
+                0.0
+                if self.feature_schema_version >= STOCHASTIC_RESOURCE_FEATURE_SCHEMA_VERSION
+                else min(self_player.money, 100) / 100.0
+            ),
             float(is_response_phase),
             min(pending_attack, 100) / 100.0,
             *pending_element_features,
         )
+        if self.feature_schema_version >= STOCHASTIC_RESOURCE_FEATURE_SCHEMA_VERSION:
+            pending_effect = 0.0
+            if is_response_phase and state.action_artifact_asset_path is not None:
+                if state.action_artifact_asset_path in self.ambiguous_pending_effects:
+                    raise FeatureEncodingError(
+                        "attack-twice response does not expose its remaining-strike count"
+                    )
+                pending_effect = self.pending_effects.get(
+                    state.action_artifact_asset_path,
+                    0.0,
+                )
+            global_features += (pending_effect,)
+        if self.feature_schema_version >= ILLNESS_FEATURE_SCHEMA_VERSION:
+            opponent = next(player for player in state.players if not player.is_self)
+            global_features += (
+                self_player.illness_stage / 4.0,
+                opponent.illness_stage / 4.0,
+            )
+        if self.feature_schema_version >= CURSE_FEATURE_SCHEMA_VERSION:
+            global_features += (
+                float(self_player.fogged),
+                float(opponent.fogged),
+                float(self_player.flashed),
+                float(opponent.flashed),
+            )
+        if self.feature_schema_version >= DARK_CLOUD_FEATURE_SCHEMA_VERSION:
+            global_features += (
+                float(self_player.dark_clouded),
+                float(opponent.dark_clouded),
+            )
+        if self.feature_schema_version >= DREAM_FEATURE_SCHEMA_VERSION:
+            global_features += (
+                float(self_player.dreaming),
+                float(opponent.dreaming),
+            )
+        if len(global_features) != self.global_feature_count:
+            raise FeatureEncodingError("browser global feature width is inconsistent")
         players: list[tuple[float, ...]] = [
             (
                 min(player.hp, 100) / 100.0,
                 min(player.mp, 100) / 100.0,
-                min(player.money, 100) / 100.0,
+                (
+                    0.0
+                    if self.feature_schema_version >= STOCHASTIC_RESOURCE_FEATURE_SCHEMA_VERSION
+                    else min(player.money, 100) / 100.0
+                ),
                 float(player.is_self),
             )
             for player in state.players

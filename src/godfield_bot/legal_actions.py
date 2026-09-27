@@ -1,6 +1,7 @@
 import hashlib
 import re
 from collections.abc import Mapping
+from typing import Any
 
 from godfield_bot.domain.action import ActionKind, LegalAction, LegalActionSet
 from godfield_bot.domain.game import GameState
@@ -16,10 +17,30 @@ ITEM_ASSET_PATTERN = re.compile(r"^/images/items/[^/]+/[^/]+\.(?:png|svg|webp)$"
 PROBABILISTIC_ATTACK_PATTERN = re.compile(r"^\d+%ATK(\d+)$")
 VERIFIED_RANDOM_TARGET_WEAPONS = frozenset({"dangerous-pestle"})
 EXCHANGE_ASSET_PATH = "/images/items/trade/exchange.webp"
+_PLAYER_STATUS_DIGEST_FIELDS = {
+    "illness_stage",
+    "fogged",
+    "flashed",
+    "dark_clouded",
+    "dreaming",
+}
 
 
 def game_state_digest(state: GameState) -> str:
-    canonical = state.model_dump_json(exclude={"observed_at"})
+    statuses_are_clear = all(
+        player.illness_stage == 0
+        and not player.fogged
+        and not player.flashed
+        and not player.dark_clouded
+        and not player.dreaming
+        for player in state.players
+    )
+    exclude: Any = {"observed_at": True}
+    if statuses_are_clear:
+        # Keep status-free states byte-for-byte compatible with trajectories
+        # recorded before these additive browser fields existed.
+        exclude["players"] = {"__all__": _PLAYER_STATUS_DIGEST_FIELDS}
+    canonical = state.model_dump_json(exclude=exclude)
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 

@@ -449,10 +449,41 @@ stored as an aborted, training-ineligible episode. The campaign starts a clean
 Training game and tolerates three consecutive frozen games by default; a
 completed game resets that retry streak.
 
-Dream remains outside live browser-neural control, but the evidence-bounded
-native schema-v10 curriculum now uses a strict displayed-identity observation
-boundary. Enable the passive sidecar while running the existing live heuristic
-to record only ロキ-67's true/displayed model IDs, the
+Dream remains outside live browser-neural control, but schema-v10 candidates
+can now run as passive shadows behind the live heuristic. The bridge parses
+visible illness and curse icons, uses only reviewed browser actions, and stores
+the candidate's proposal without allowing it to click. It abstains when player
+statistics are hidden, a selectable card lies beyond the nine-slot input, or
+the current response cannot be represented exactly:
+
+```console
+uv run godfield-bot play-training \
+  --shadow-model models/df08842c-f5e8-4317-8721-0245310c92ac \
+  --headless \
+  --max-games 0 \
+  --max-seconds 0
+uv run godfield-bot runs training-shadow <run-id> [<run-id> ...]
+```
+
+The recurrent shadow state advances only when the proposal agrees with the
+action the heuristic actually executed; disagreement or an unrepresentable
+state resets it. To evaluate existing raw Training observations without writing
+to the trajectory database:
+
+```console
+uv run godfield-bot runs evaluate-training-shadow \
+  models/df08842c-f5e8-4317-8721-0245310c92ac \
+  <run-id> [<run-id> ...]
+```
+
+Coverage and agreement are diagnostics, not win-rate evidence and not
+authorization for neural control. See
+[ADR 0052](docs/architecture/0052-official-training-schema-v10-shadow.md).
+
+The evidence-bounded native schema-v10 curriculum uses a strict
+displayed-identity observation boundary. Enable the passive Dream evidence
+sidecar while running the existing live heuristic to record only ロキ-67's
+true/displayed model IDs, the
 current phase, displayed image, and whether each displayed card is selectable:
 
 ```console

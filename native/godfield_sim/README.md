@@ -132,6 +132,17 @@ an empty selection. Disguises, mixed selections, automatic lifecycle dispatch,
 MP/combat, overflow, and scheduling remain outside this operation. Ordinary-only
 constructor and method behavior remain supported. See root ADR 0065.
 
+The later official v4 fixture `acquisition-v4-32d8eeeb.json` closes the missing
+single-Flame event-verification case: two explicit self-bound attack selections
+identify the same received instance/model, first with the raw used flag omitted
+and then with boolean true. Both independent native retention-and-explicit-gift
+pairs match every owned row, including reuse tail reordering. Neither cast
+consumes or replaces Flame; a separate recorded gift grows each inventory.
+This verifies the existing primitive without changing native 0.35.0 or promoting
+the full run: omitted defenses and other models remain unsupported. Universal
+gift timing, removal/overflow, other miracles, and acquisition training remain
+unverified. See root ADR 0071.
+
 The first real v3 acquisition capture adds explicit ordinary inventory pairs
 for Glaive Classic, Final Tusk, Power Halberd, Hexagon Doom, Direct Smash Axe,
 Angel Axe, Iron Gauntlet, Iron Armor, and Heart Dew. The read-only differential

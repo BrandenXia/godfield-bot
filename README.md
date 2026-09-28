@@ -1073,9 +1073,15 @@ Native 0.35.0 adds explicit retained-miracle replay support. Two inventory
 transitions from the older v1 run `f456703e-a514-44fc-b474-ba95a676b264` retain
 the same `<Flame>` instance/model, including reuse after its used flag is true.
 The replay matches those ordered states, but missing v1 consumption bodies mean
-this is not a complete event replay or training-label source. Full v2 miracle
-coverage, overflow/removal, and gift scheduling remain the next boundary.
-See [ADR 0065](docs/architecture/0065-retained-miracle-observation-replay.md).
+this is not a complete event replay or training-label source. The operator's
+v4 run `32d8eeeb-e23c-4196-a18e-be68ee1fc1e2` now provides explicit self-bound
+Flame selections for both first use and reuse of instance 4/model 215. Both
+native operation pairs match: keep the instance, mark it used, move it to the
+tail, then append the recorded gift. Two matched use events are not the same
+as its seven repeated true-flag observations. The full run still contains
+unsupported updates; removal, overflow, and general gift timing are not verified.
+See [ADR 0065](docs/architecture/0065-retained-miracle-observation-replay.md)
+and [ADR 0071](docs/architecture/0071-official-flame-first-use-and-reuse.md).
 
 For further bounded collection against the official Training computer, with the
 existing heuristic keeping control:

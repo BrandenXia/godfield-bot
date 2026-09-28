@@ -24,13 +24,13 @@ from godfield_bot.acquisition_v2 import AcquisitionSnapshotV2
 from godfield_bot.acquisition_v3 import AcquisitionSnapshotV3
 from godfield_bot.api_catalog import ApiCatalogSnapshot, read_api_catalog_snapshot
 
-REPLAY_PROJECTION_ID = "observed-inventory-projection-verified-ordinary-wire-aware-v3"
+REPLAY_PROJECTION_ID = "observed-inventory-projection-verified-ordinary-wire-aware-v4"
 REPLAY_CATALOG_SHA256 = "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249"
 NATIVE_REPLAY_RULESET_ID = "explicit-ordinary-and-retained-miracle-ordered-gift-replay-v2"
-# Only explicit single-item consumption witnessed in the two official fixtures:
-# v2 bc54a888 (23, 142), v3 60fe19b4 (the remaining nine models). Catalog
+# Only explicit single-item consumption witnessed in the official fixtures:
+# v2 bc54a888 (23, 142), v3 60fe19b4 and cb9da594 (the remaining models). Catalog
 # membership or an ordinary category alone is not sufficient for admission.
-ORDINARY_MODELS = (23, 26, 29, 32, 41, 44, 55, 123, 135, 142, 192)
+ORDINARY_MODELS = (16, 23, 26, 29, 32, 40, 41, 44, 55, 81, 123, 130, 135, 142, 166, 192, 195)
 RETAINED_MODELS = (215,)
 # Only the handlers reviewed for the existing fixture are admitted. Being in
 # the collector's reviewed-action list does NOT establish inventory neutrality.
@@ -46,6 +46,9 @@ INVENTORY_NEUTRAL_ACTIONS = frozenset(
         # Their combat/resource semantics are NOT simulated by inventory replay.
         "boostHP",
         "boostMP",
+        # The pinned reflect handler swaps pending combat roles, not inventory.
+        # This does NOT recover the owner of the following reflected defense.
+        "reflect",
         "die",
         "endGame",
     }

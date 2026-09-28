@@ -141,3 +141,12 @@ single-item ordinary uses, not unobserved combinations or every ordinary catalog
 model. Curse, trade, omitted selection arrays, overflow, and gift scheduling
 remain unsupported. These are lifecycle diagnostics, not a new trainable
 curriculum. See root ADR 0068.
+
+A second real v3 fixture witnesses six more ordinary model families, including
+Smile Flower's MP utility, for a total witnessed caller allowlist of 17 models.
+It also verifies a deferred ordinary gift: `consume()` produces eight owned
+items after a reflected attack; only the next explicit `gift()` restores nine.
+The kernel must not fuse these into an automatic redraw. Empty serialized
+placeholders are normalized outside C++; unresolved reflected defenses remain
+unreplayed. This is a recorded timing case, not a complete scheduler or a new
+training ruleset. See root ADR 0069.

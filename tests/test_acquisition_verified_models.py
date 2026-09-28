@@ -143,8 +143,24 @@ def test_each_new_ordinary_model_has_an_explicit_official_native_inventory_pair(
 
 
 def test_allowlist_is_exactly_witnessed_models_not_catalog_categories():
-    assert tuple(sorted((23, 142, *NEW_MODELS))) == ORDINARY_MODELS
-    assert REPLAY_PROJECTION_ID == "observed-inventory-projection-verified-ordinary-wire-aware-v3"
+    sources = (
+        Path("tests/fixtures/acquisition-v2-bc54a888.json"),
+        FIXTURE,
+        Path("tests/fixtures/acquisition-v3-cb9da594.json"),
+    )
+    witnessed = {
+        artifact["model_id"]
+        for source in sources
+        for record in json.loads(source.read_text())["evidence"]
+        for row in record["payload"].get("snapshots", [])
+        for operation in row["events"]
+        if operation["self_item_payload_bound"]
+        and operation["action"] in {"useAttackItems", "useDefenseItems"}
+        and len(operation["items"]) == 1
+        for artifact in operation["items"]
+    }
+    assert tuple(sorted(witnessed)) == ORDINARY_MODELS
+    assert REPLAY_PROJECTION_ID == "observed-inventory-projection-verified-ordinary-wire-aware-v4"
     # Flare Axe occurs as an opaque gift, but this trace never consumes it.
     first = snapshot(
         owned=[item(1, 110)],

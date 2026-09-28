@@ -1124,9 +1124,10 @@ matches all four inventories: the initial deal and three adjacent transitions,
 with two ordinary items consumed and 11 gifts appended. Original evidence and
 input fingerprints remain unchanged.
 
-The checker deliberately limits ordinary consumption to the 11 models with
-explicit captured single-item uses: 23, 26, 29, 32, 41, 44, 55, 123, 135, 142,
-and 192. Single-item retained-miracle comparison is still limited to model 215.
+The checker deliberately limits ordinary consumption to the 17 models with
+explicit captured single-item uses: 16, 23, 26, 29, 32, 40, 41, 44, 55, 81,
+123, 130, 135, 142, 166, 192, and 195. Single-item retained-miracle comparison
+is still limited to model 215.
 Other models may remain as opaque owned/gifted records, not automatically acquire supported
 lifecycle rules. Each transition uses a fresh native object seeded from its
 recorded previous inventory; a mismatch remains visible even if a later pair
@@ -1160,3 +1161,14 @@ individually witnessed items do not authorize unobserved combinations.
 The chosen path is verified-only acquisition: no synthetic gift schedule,
 overflow algorithm, training curriculum replacement, or live promotion.
 See [ADR 0068](docs/architecture/0068-verified-only-acquisition-and-ordinary-expansion.md).
+
+The next real v3 run, `cb9da594-c497-416f-86d6-444dc33e27c5`, verifies six more
+ordinary models, including Smile Flower's MP-utility consumption. A reflected
+attack also shows consumption and replacement gift arriving in different
+updates: C++ keeps eight owned items until the later explicit gift restores
+nine. This observed growth is not a miracle cast. The full audit matches the
+initial deal and nine adjacent transitions with zero mismatches, while two
+omitted selections and an unresolved reflected defense remain unsupported.
+Reflection is inventory-neutral only; the diagnostic does not recover erased
+defense bodies, infer a gift schedule, or generate training labels.
+See [ADR 0069](docs/architecture/0069-deferred-ordinary-gifts-and-mp-utility-replay.md).

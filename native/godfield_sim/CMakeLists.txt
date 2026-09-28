@@ -10,6 +10,7 @@ nanobind_add_module(
   src/bindings.cpp
   src/attack_defense_batch.cpp
   src/fixed_attack_batch.cpp
+  src/ordered_inventory.cpp
 )
 target_compile_features(_native PRIVATE cxx_std_20)
 

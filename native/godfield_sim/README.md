@@ -90,3 +90,27 @@ exposing any hand/action views or stepping. Runtime `hand_slots`, `action_count`
 `hand_sizes`, `forgive_action_index`, and `confirm_action_index` describe the
 layout. Legacy module constants and default batches remain nine-slot/21-action.
 See root ADR 0059 for migration and safety boundaries.
+
+Version 0.34.0 adds `OrderedInventoryReplay`, a separate diagnostic lifecycle
+building block, not a selectable curriculum. Its explicit ordinary consumption
+and ordered gift appends reproduce all four self inventories from the first
+verified v2 official capture. No existing environment or observation layout
+changes.
+
+Inputs are contiguous `int64` NumPy arrays. Each item is
+`[instance_id, model_id, fake_model_id, used]`; missing client-default fake/used
+values must be interpreted outside C++ after verifying capture ownership and
+provenance. Construct with `(initial_items, ordinary_consumable_model_ids,
+capacity=512)`. The allowlist must contain only catalog-verified ordinary
+consumables. `consume(expected_items)` validates the full selection before
+removing it and preserves survivor order. `gift(item)` appends without
+overwriting a currently owned ID. A consumed ID may be reused by a later gift.
+`snapshot()` returns an independent, read-only `(N, 4)` array. Size, explicit
+capacity, and successful consumption/gift counters are available for diagnostics.
+
+Used, disguised, or non-allowlisted consumption is rejected; opaque artifacts
+may be retained or gifted without simulating their abilities. The capacity is
+a resource bound, not an official maximum. Overflow removal, performed-miracle
+retention, trade/discard effects, gift timing, and random acquisition are not
+inferred. Evidence and generated trajectories are not admitted to training or
+promotion by this API. See root ADR 0064.

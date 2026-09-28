@@ -1,5 +1,6 @@
 #include "attack_defense_batch.h"
 #include "fixed_attack_batch.h"
+#include "ordered_inventory.h"
 
 #include <nanobind/nanobind.h>
 
@@ -326,6 +327,29 @@ NB_MODULE(_native, module) {
   module.attr("ILLNESS_FEVER") = std::uint8_t{2U};
   module.attr("ILLNESS_HELL") = std::uint8_t{3U};
   module.attr("ILLNESS_HEAVEN") = std::uint8_t{4U};
+
+  module.attr("ORDERED_INVENTORY_REPLAY_SCHEMA_VERSION") =
+      godfield_sim::kOrderedInventoryReplaySchemaVersion;
+  module.attr("ORDERED_INVENTORY_REPLAY_RULESET_ID") =
+      godfield_sim::kOrderedInventoryReplayRulesetId;
+  nb::class_<godfield_sim::OrderedInventoryReplay>(module,
+                                                   "OrderedInventoryReplay")
+      .def(nb::init<godfield_sim::InventoryInput, godfield_sim::ActionInput,
+                    std::size_t>(),
+           nb::arg("initial_items").noconvert(),
+           nb::arg("ordinary_consumable_model_ids").noconvert(),
+           nb::arg("capacity") = godfield_sim::kMaximumInventoryReplayItems)
+      .def("consume", &godfield_sim::OrderedInventoryReplay::consume,
+           nb::arg("expected_items").noconvert())
+      .def("gift", &godfield_sim::OrderedInventoryReplay::gift,
+           nb::arg("item").noconvert())
+      .def("snapshot", &godfield_sim::OrderedInventoryReplay::snapshot)
+      .def_prop_ro("size", &godfield_sim::OrderedInventoryReplay::size)
+      .def_prop_ro("capacity", &godfield_sim::OrderedInventoryReplay::capacity)
+      .def_prop_ro("consumed_item_count",
+                   &godfield_sim::OrderedInventoryReplay::consumed_item_count)
+      .def_prop_ro("gift_item_count",
+                   &godfield_sim::OrderedInventoryReplay::gift_item_count);
 
   nb::class_<FixedAttackBatch>(module, "FixedAttackBatch")
       .def(nb::init<std::size_t, godfield_sim::TokenInput,

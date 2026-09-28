@@ -3,9 +3,11 @@
 ## Status
 
 Accepted, 2026-09-28, for passive v2 capture and read-only auditing. V2 capture
-is synthetically verified; a new operator-run official game is still needed
-to verify its end-to-end semantic coverage. No remote match was started during
-this change. No native rules, checkpoint, promotion gate, live policy authority,
+is synthetically verified. The subsequent operator-run game
+`bc54a888-de09-4654-9b7a-80533d525c2a` also verifies end-to-end ordinary self
+attack/defense consumption; see [ADR 0064](0064-verified-ordinary-inventory-replay.md).
+The following records the original repair and verification. No remote match
+was started during this change. No native rules, checkpoint, promotion gate, live policy authority,
 or API Training guard changed.
 
 ## Results from the three v1 games

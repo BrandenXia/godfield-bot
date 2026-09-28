@@ -1057,8 +1057,16 @@ context. Opponent and unresolved bodies remain redacted. Raw omitted flags stay
 unknown; the pinned client's defaults are reported separately. V1 recordings
 and their checksums remain unchanged.
 
-For one v2 verification game against the official Training computer, with the
-existing heuristic keeping control (v2 official capture still needs validation):
+Run `bc54a888-de09-4654-9b7a-80533d525c2a` verifies v2 capture for ordinary self
+attack/defense consumption, including cross-update ownership. All four recorded
+inventories now match a separate native ordered replay: remove consumed items,
+then append explicit gifts even when they reuse an ID. This is a diagnostic
+building block, not a new training curriculum; miracles, gift scheduling, and
+overflow still need verified lifecycle fixtures. See
+[ADR 0064](docs/architecture/0064-verified-ordinary-inventory-replay.md).
+
+For further bounded collection against the official Training computer, with the
+existing heuristic keeping control:
 
 ```bash
 UV_CACHE_DIR=.uv-cache uv run --locked --offline --extra simulation --extra training \

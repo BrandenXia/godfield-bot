@@ -6,6 +6,8 @@ import numpy.typing as npt
 KERNEL_SCHEMA_VERSION: Final[int]
 OBSERVATION_SCHEMA_VERSION: Final[int]
 RULESET_ID: Final[str]
+ORDERED_INVENTORY_REPLAY_SCHEMA_VERSION: Final[int]
+ORDERED_INVENTORY_REPLAY_RULESET_ID: Final[str]
 ACTION_COUNT: Final[int]
 HAND_SLOTS: Final[int]
 ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION: Final[int]
@@ -163,6 +165,25 @@ CARD_KIND_SAME_DAMAGE_WEAPON: Final[int]
 FORGIVE_ACTION_INDEX: Final[int]
 CONFIRM_ACTION_INDEX: Final[int]
 GLOBAL_FEATURE_COUNT: Final[int]
+
+class OrderedInventoryReplay:
+    def __init__(
+        self,
+        initial_items: npt.NDArray[np.int64],
+        ordinary_consumable_model_ids: npt.NDArray[np.int64],
+        capacity: int = ...,
+    ) -> None: ...
+    def consume(self, expected_items: npt.NDArray[np.int64]) -> None: ...
+    def gift(self, item: npt.NDArray[np.int64]) -> None: ...
+    def snapshot(self) -> npt.NDArray[np.int64]: ...
+    @property
+    def size(self) -> int: ...
+    @property
+    def capacity(self) -> int: ...
+    @property
+    def consumed_item_count(self) -> int: ...
+    @property
+    def gift_item_count(self) -> int: ...
 
 class FixedAttackBatch:
     def __init__(

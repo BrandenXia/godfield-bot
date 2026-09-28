@@ -1045,3 +1045,34 @@ the official growth/overflow algorithm still needs contiguous event evidence.
 The current client also warrants revisiting the earlier browser-local Training
 assumption, but the API driver's Training rejection and all live controls remain
 unchanged. See [ADR 0061](docs/architecture/0061-inventory-observation-audit.md).
+
+The separate acquisition collector is now opt-in. It queues ordered self-item
+snapshots and reviewed, redacted event metadata; records overflow/rejection
+counters; and saves before acknowledging updates. It does not change policy
+authority or provide training labels. The hook and runner shutdown paths are
+synthetically tested; official end-to-end capture still needs validation.
+
+For a short collection against the official Training computer, with the
+existing heuristic keeping control:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --locked --offline --extra simulation --extra training \
+  godfield-bot play-training --headless --max-games 3 \
+  --max-seconds 0 --max-actions 1000 --no-progress-seconds 120 \
+  --acquisition-evidence-probe
+```
+
+The default pinned catalog is `data/snapshots/2026-09-21/api-catalog-en.json`
+and the queue capacity is 256. Inspect each campaign run ID:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --locked --offline --extra simulation --extra training \
+  godfield-bot runs acquisition-evidence RUN_ID --database runs/godfield.sqlite
+```
+
+This read-only report exposes missing source/server versions, hook and delivery
+failures, unknown flags, ownership observations, and reviewed event counts.
+Even a clean transport report is not evidence for adopting acquisition rules.
+Do not start a concurrent campaign on the same browser profile. Capture and
+review contiguous fixtures before changing C++ consumption/gift/overflow
+mechanics. See [ADR 0062](docs/architecture/0062-passive-acquisition-evidence-collector.md).

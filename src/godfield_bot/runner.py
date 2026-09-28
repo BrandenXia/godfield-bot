@@ -1,7 +1,7 @@
 import asyncio
 import hashlib
 import os
-from contextlib import suppress
+from contextlib import AsyncExitStack, suppress
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
@@ -12,6 +12,11 @@ from playwright.async_api import Page
 from pydantic import BaseModel, Field, JsonValue, model_validator
 
 from godfield_bot.account import start_account_session
+from godfield_bot.acquisition_probe import (
+    ACQUISITION_REVIEWED_CLIENT_SHA256,
+    AcquisitionRecorder,
+    install_acquisition_probe,
+)
 from godfield_bot.api_catalog import ApiCatalogSnapshot
 from godfield_bot.browser.controls import click_header_back, click_text_control
 from godfield_bot.browser.profile import open_account_context, prepare_private_directory
@@ -83,6 +88,9 @@ class TrainingRunConfig(BaseModel):
     bible_snapshot: Path | None = None
     dream_evidence_probe: bool = False
     dream_evidence_catalog: Path | None = None
+    acquisition_evidence_probe: bool = False
+    acquisition_evidence_catalog: Path | None = None
+    acquisition_queue_capacity: int = Field(default=256, ge=8, le=4096)
     neural_sampling_seed: int = Field(default=67, ge=0, le=2**63 - 1)
     max_in_match_actions: int = Field(default=0, ge=0, le=1000)
     verified_weapon_attacks: dict[str, WeaponAttackRule] = Field(default_factory=dict)
@@ -138,6 +146,12 @@ class TrainingRunConfig(BaseModel):
             raise ValueError("Training shadow cannot be combined with neural control")
         if self.dream_evidence_probe and self.dream_evidence_catalog is None:
             raise ValueError("Dream evidence probe requires a pinned API catalog")
+        if self.acquisition_evidence_probe and self.acquisition_evidence_catalog is None:
+            raise ValueError("acquisition evidence probe requires a pinned API catalog")
+        if self.acquisition_evidence_probe and (
+            self.expected_client_sha256 != ACQUISITION_REVIEWED_CLIENT_SHA256
+        ):
+            raise ValueError("acquisition event schema requires the reviewed official client hash")
         return self
 
 
@@ -520,6 +534,16 @@ async def run_training_observer(
             dream_catalog = read_api_catalog_snapshot(config.dream_evidence_catalog)
         except ApiCatalogError as error:
             raise RunnerError("Dream evidence catalog is unreadable or invalid") from error
+    acquisition_catalog = None
+    if config.acquisition_evidence_probe:
+        from godfield_bot.api_catalog import ApiCatalogError, read_api_catalog_snapshot
+
+        if config.acquisition_evidence_catalog is None:  # pragma: no cover - validated above
+            raise RunnerError("acquisition evidence probe requires a pinned API catalog")
+        try:
+            acquisition_catalog = read_api_catalog_snapshot(config.acquisition_evidence_catalog)
+        except ApiCatalogError as error:
+            raise RunnerError("acquisition evidence catalog is unreadable or invalid") from error
     store = RunStore(config.database)
     started = datetime.now(UTC)
     run: RunRecord | None = None
@@ -529,8 +553,18 @@ async def run_training_observer(
     gameplay_started = False
     outcome_reason = "wall_clock_limit"
     try:
-        async with open_account_context(settings, headed=config.headed) as context:
-            if dream_catalog is not None:
+        async with (
+            open_account_context(settings, headed=config.headed) as context,
+            AsyncExitStack() as evidence_exit,
+        ):
+            if acquisition_catalog is not None:
+                await install_acquisition_probe(
+                    context,
+                    identity=settings.identity,
+                    capacity=config.acquisition_queue_capacity,
+                    include_dream=dream_catalog is not None,
+                )
+            elif dream_catalog is not None:
                 await install_dream_evidence_probe(context, identity=settings.identity)
             client = await fingerprint_client(context)
             if client.sha256 != config.expected_client_sha256:
@@ -557,6 +591,17 @@ async def run_training_observer(
                         "dream_evidence_catalog_sha256": (
                             dream_catalog.content_sha256
                             if dream_catalog is not None
+                            else None
+                        ),
+                        "acquisition_evidence_probe": acquisition_catalog is not None,
+                        "acquisition_evidence_catalog_sha256": (
+                            acquisition_catalog.content_sha256
+                            if acquisition_catalog is not None
+                            else None
+                        ),
+                        "acquisition_queue_capacity": (
+                            config.acquisition_queue_capacity
+                            if acquisition_catalog is not None
                             else None
                         ),
                         "neural_weights_sha256": (
@@ -642,6 +687,17 @@ async def run_training_observer(
                 started_at=started,
             )
             page = context.pages[0] if context.pages else await context.new_page()
+            acquisition_recorder = None
+            if acquisition_catalog is not None:
+                acquisition_recorder = AcquisitionRecorder(
+                    store,
+                    run.run_id,
+                    client_sha256=client.sha256,
+                    catalog_sha256=acquisition_catalog.content_sha256,
+                )
+                # Exit before closing the browser, including terminal/error/interrupt
+                # paths. Probe failures are recorded; storage failures still propagate.
+                evidence_exit.push_async_callback(acquisition_recorder.finalize, page)
             await start_account_session(
                 page,
                 settings,
@@ -666,6 +722,8 @@ async def run_training_observer(
             )
             last_progress_at = loop.time()
             while deadline is None or loop.time() < deadline:
+                if acquisition_recorder is not None:
+                    await acquisition_recorder.poll(page)
                 now = loop.time()
                 if observation.kind is ScreenKind.UNKNOWN:
                     if unknown_screen_started_at is None:

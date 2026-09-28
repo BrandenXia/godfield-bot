@@ -776,6 +776,26 @@ def play_official_training_computers(
             ),
         ),
     ] = False,
+    acquisition_evidence_probe: Annotated[
+        bool,
+        typer.Option(
+            "--acquisition-evidence-probe",
+            help="Passively queue owned-item snapshots and redacted acquisition event metadata.",
+        ),
+    ] = False,
+    acquisition_evidence_catalog: Annotated[
+        Path,
+        typer.Option(
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            help="Pinned API catalog provenance for passive acquisition evidence only.",
+        ),
+    ] = Path("data", "snapshots", "2026-09-21", "api-catalog-en.json"),
+    acquisition_queue_capacity: Annotated[
+        int,
+        typer.Option(min=8, max=4096, help="Bounded acquisition snapshot queue per page document."),
+    ] = 256,
     max_actions: Annotated[
         int,
         typer.Option(min=1, max=1000, help="Hard browser-click budget for each game."),
@@ -839,7 +859,7 @@ def play_official_training_computers(
         ),
     ] = False,
 ) -> None:
-    """Continuously play God Field's official browser-local Training computer."""
+    """Continuously play God Field's official Training computer."""
 
     from godfield_bot.domain.reference import BibleSnapshot
     from godfield_bot.domain.run import RunStatus
@@ -888,6 +908,11 @@ def play_official_training_computers(
                         dream_evidence_catalog=(
                             dream_evidence_catalog if dream_evidence_probe else None
                         ),
+                        acquisition_evidence_probe=acquisition_evidence_probe,
+                        acquisition_evidence_catalog=(
+                            acquisition_evidence_catalog if acquisition_evidence_probe else None
+                        ),
+                        acquisition_queue_capacity=acquisition_queue_capacity,
                         policy=policy,
                         model_directory=neural_model or canary_model,
                         shadow_model_directory=shadow_model,
@@ -1097,6 +1122,34 @@ def runs_inventory_evidence(
         report = audit_inventory_run(database, run_id)
     except (OSError, ValueError, sqlite3.Error) as error:
         typer.echo(f"invalid inventory evidence: {error}", err=True)
+        raise typer.Exit(code=1) from None
+    typer.echo(json.dumps(report, ensure_ascii=False, indent=2))
+
+
+@runs_app.command("acquisition-evidence")
+def runs_acquisition_evidence(
+    run_id: Annotated[str, typer.Argument()],
+    database: Annotated[Path, typer.Option(exists=True, dir_okay=False, readable=True)] = Path(
+        "runs", "godfield.sqlite"
+    ),
+) -> None:
+    """Audit passive acquisition delivery, never adopt mechanics or training labels."""
+
+    import sqlite3
+
+    from pydantic import ValidationError
+
+    from godfield_bot.acquisition_evidence import audit_acquisition_run
+
+    try:
+        report = audit_acquisition_run(database, run_id)
+    except ValidationError:
+        # Pydantic's full error text can echo malformed input; don't print raw
+        # private data accidentally inserted into a corrupted evidence payload.
+        typer.echo("invalid acquisition evidence: schema or content digest mismatch", err=True)
+        raise typer.Exit(code=1) from None
+    except (OSError, ValueError, sqlite3.Error) as error:
+        typer.echo(f"invalid acquisition evidence: {error}", err=True)
         raise typer.Exit(code=1) from None
     typer.echo(json.dumps(report, ensure_ascii=False, indent=2))
 

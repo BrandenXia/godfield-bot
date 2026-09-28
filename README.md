@@ -903,3 +903,46 @@ passed every member on three independent 8,192-pair evaluations (245,760 games,
 zero incomplete). Its heuristic score was 57.22–57.71% and its parent score was
 50.80–50.98%. To continue from this baseline, create a **new** league with it
 as the base model, then pass that new roster to training and evaluation.
+
+For a more realistic common/rare card mix, use the separate
+`gift-weighted-dream-resource-hand` curriculum. It uses accepted Bible gift
+numerators within the supported 196-card pool, including initial role pools
+and redraws. It preserves schema 10, so existing Dream checkpoints can initialize
+training, but requires a **new weighted league**. Existing uniform-mode reports
+and league snapshots remain unchanged and cannot be mixed with weighted ones.
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --extra simulation --extra training \
+  godfield-bot models create-simulation-league \
+  models/63de1747-f43f-4ef1-ae99-a1cd72dd3ec1 \
+  --opponent-model models/dd5bde4f-c5d5-44f2-b1db-4b4f1d049f56 \
+  --ruleset gift-weighted-dream-resource-hand --heuristic-weight 2
+
+UV_CACHE_DIR=.uv-cache uv run --extra simulation --extra training \
+  godfield-bot models train-simulation \
+  models/63de1747-f43f-4ef1-ae99-a1cd72dd3ec1 \
+  --league models/leagues/<weighted-league-id>.json \
+  --ruleset gift-weighted-dream-resource-hand \
+  --batch-size 512 --rollout-steps 64 --updates 160 \
+  --ppo-epochs 2 --environment-minibatch-size 128 --teacher-updates 0 \
+  --learning-rate 0.0001 --entropy-weight 0.02 --seed 38067 --device cpu
+
+UV_CACHE_DIR=.uv-cache uv run --extra simulation --extra training \
+  godfield-bot models evaluate-simulation-league models/<weighted-candidate-id> \
+  --league models/leagues/<weighted-league-id>.json \
+  --games-per-seat 8192 --seed 39067 --device cpu
+```
+
+Native throughput can be checked with `simulation benchmark --ruleset
+gift-weighted-dream-resource-attack-defense`. Gift weighting is still conditional
+on supported cards, fixed initial role counts, and the mandatory weapon liveness
+rule. Nine-slot hands, missing official mechanics, and Dream disguise sampling
+are unchanged. Passing this local gate does not authorize live neural control.
+See [ADR 0058](docs/architecture/0058-gift-weighted-dream-curriculum.md).
+
+The weighted-mode local baseline is `f99e35f6-f677-4fa1-a835-4cd586ddb467`.
+It passed all six frozen opponents on three independent 8,192-pair evaluations
+(294,912 games, zero incomplete). Its curriculum heuristic score was
+57.56–58.03%, and its parent score was 50.65–50.73%. Continuing from it requires
+another new weighted league with this checkpoint as the base model. These
+results do not measure performance against the official bot.

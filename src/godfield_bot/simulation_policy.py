@@ -168,6 +168,8 @@ def build_curriculum_heuristic(
     *,
     ruleset: AttackDefenseRuleset = "fixed-role",
 ) -> CurriculumHeuristic:
+    if ruleset == "gift-weighted-dream-resource-hand":
+        ruleset = "dream-resource-hand"
     dream_ruleset = ruleset == "dream-resource-hand"
     dark_cloud_ruleset = ruleset in {
         "dark-cloud-resource-hand",

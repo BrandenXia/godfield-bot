@@ -1114,11 +1114,181 @@ AttackDefenseBatch::next_random(std::size_t environment) noexcept {
   return mix64(rng_states_[environment]);
 }
 
+void AttackDefenseBatch::configure_gift_weights(TokenInput token_ids,
+                                                ValueInput weights) {
+  if (!dream_curriculum_ || gift_weighted_ || has_stepped_) {
+    throw std::invalid_argument(
+        "gift weights require an unconfigured, unstepped Dream batch");
+  }
+  if (token_ids.size() != weights.size()) {
+    throw std::invalid_argument("gift token and weight lengths must match");
+  }
+  std::unordered_map<std::uint32_t, std::uint16_t> by_token;
+  for (std::size_t index = 0; index < token_ids.size(); ++index) {
+    if (weights(index) == 0U ||
+        !by_token.emplace(token_ids(index), weights(index)).second) {
+      throw std::invalid_argument(
+          "gift weights must be positive and tokens unique");
+    }
+  }
+  decltype(gift_catalog_cdfs_) cdfs;
+  decltype(gift_pools_) pools;
+  const auto add = [&](const std::vector<std::uint32_t> &tokens, GiftDraw draw,
+                       std::uint8_t role) {
+    std::vector<std::uint64_t> cdf;
+    std::uint64_t total = 0U;
+    for (const auto token : tokens) {
+      const auto found = by_token.find(token);
+      if (found == by_token.end()) {
+        throw std::invalid_argument(
+            "gift weights must cover the exact Dream catalog");
+      }
+      total += found->second;
+      cdf.push_back(total);
+      by_token.erase(found);
+    }
+    if (cdf.empty())
+      return;
+    cdfs.emplace(&tokens, std::move(cdf));
+    for (const auto pool : {std::uint8_t{0U}, role}) {
+      const auto previous =
+          pools[pool].empty() ? 0U : pools[pool].back().cumulative_weight;
+      pools[pool].push_back({draw, previous + total});
+    }
+  };
+  add(weapon_token_ids_, &AttackDefenseBatch::draw_weapon, kWeaponCardKind);
+  add(reflection_weapon_token_ids_, &AttackDefenseBatch::draw_reflection_weapon,
+      kWeaponCardKind);
+  add(dual_role_token_ids_, &AttackDefenseBatch::draw_dual_role,
+      kWeaponCardKind);
+  add(chance_weapon_token_ids_, &AttackDefenseBatch::draw_chance_weapon,
+      kWeaponCardKind);
+  add(chance_dual_role_token_ids_, &AttackDefenseBatch::draw_chance_dual_role,
+      kWeaponCardKind);
+  add(absorption_weapon_token_ids_, &AttackDefenseBatch::draw_absorption_weapon,
+      kWeaponCardKind);
+  add(chance_absorption_weapon_token_ids_,
+      &AttackDefenseBatch::draw_chance_absorption_weapon, kWeaponCardKind);
+  add(dynamic_mp_weapon_token_ids_, &AttackDefenseBatch::draw_dynamic_mp_weapon,
+      kWeaponCardKind);
+  add(same_damage_weapon_token_ids_,
+      &AttackDefenseBatch::draw_same_damage_weapon, kWeaponCardKind);
+  add(attack_twice_weapon_token_ids_,
+      &AttackDefenseBatch::draw_attack_twice_weapon, kWeaponCardKind);
+  add(random_target_weapon_token_ids_,
+      &AttackDefenseBatch::draw_random_target_weapon, kWeaponCardKind);
+  add(illness_weapon_token_ids_, &AttackDefenseBatch::draw_illness_weapon,
+      kWeaponCardKind);
+  add(miracle_block_weapon_token_ids_,
+      &AttackDefenseBatch::draw_miracle_block_weapon, kWeaponCardKind);
+  add(miracle_reflection_weapon_token_ids_,
+      &AttackDefenseBatch::draw_miracle_reflection_weapon, kWeaponCardKind);
+  add(fog_flash_weapon_token_ids_, &AttackDefenseBatch::draw_fog_flash_weapon,
+      kWeaponCardKind);
+  add(dark_cloud_weapon_token_ids_, &AttackDefenseBatch::draw_dark_cloud_weapon,
+      kWeaponCardKind);
+  add(dream_weapon_token_ids_, &AttackDefenseBatch::draw_dream_weapon,
+      kWeaponCardKind);
+  add(armor_token_ids_, &AttackDefenseBatch::draw_armor, kArmorCardKind);
+  add(reflection_armor_token_ids_, &AttackDefenseBatch::draw_reflection_armor,
+      kArmorCardKind);
+  add(fever_mask_token_ids_, &AttackDefenseBatch::draw_fever_mask,
+      kArmorCardKind);
+  add(miracle_block_token_ids_, &AttackDefenseBatch::draw_miracle_block_armor,
+      kArmorCardKind);
+  add(miracle_bounce_token_ids_, &AttackDefenseBatch::draw_miracle_bounce_armor,
+      kArmorCardKind);
+  add(miracle_bounce_miracle_token_ids_,
+      &AttackDefenseBatch::draw_miracle_bounce_miracle, kArmorCardKind);
+  add(miracle_reflection_armor_token_ids_,
+      &AttackDefenseBatch::draw_miracle_reflection_armor, kArmorCardKind);
+  add(booster_token_ids_, &AttackDefenseBatch::draw_booster,
+      kAttackBoosterCardKind);
+  add(additive_miracle_token_ids_, &AttackDefenseBatch::draw_additive_miracle,
+      kAttackBoosterCardKind);
+  add(miracle_block_booster_token_ids_,
+      &AttackDefenseBatch::draw_miracle_block_booster, kAttackBoosterCardKind);
+  add(miracle_bounce_booster_token_ids_,
+      &AttackDefenseBatch::draw_miracle_bounce_booster, kAttackBoosterCardKind);
+  add(hp_utility_token_ids_, &AttackDefenseBatch::draw_hp_utility,
+      kHpUtilityCardKind);
+  add(mp_utility_token_ids_, &AttackDefenseBatch::draw_mp_utility,
+      kHpUtilityCardKind);
+  add(hp_miracle_token_ids_, &AttackDefenseBatch::draw_hp_miracle,
+      kHpUtilityCardKind);
+  add(illness_cure_token_ids_, &AttackDefenseBatch::draw_illness_cure,
+      kHpUtilityCardKind);
+  add(heaven_herb_token_ids_, &AttackDefenseBatch::draw_heaven_herb,
+      kHpUtilityCardKind);
+  add(attack_miracle_token_ids_, &AttackDefenseBatch::draw_attack_miracle,
+      kAttackMiracleCardKind);
+  add(chance_miracle_token_ids_, &AttackDefenseBatch::draw_chance_miracle,
+      kChanceAttackMiracleCardKind);
+  add(fog_flash_attack_miracle_token_ids_,
+      &AttackDefenseBatch::draw_fog_flash_attack_miracle,
+      kChanceAttackMiracleCardKind);
+  add(effect_miracle_token_ids_, &AttackDefenseBatch::draw_effect_miracle,
+      kEffectAttackMiracleCardKind);
+  add(fog_miracle_token_ids_, &AttackDefenseBatch::draw_fog_miracle,
+      kEffectAttackMiracleCardKind);
+  add(dark_cloud_miracle_token_ids_,
+      &AttackDefenseBatch::draw_dark_cloud_miracle,
+      kEffectAttackMiracleCardKind);
+  add(dream_miracle_token_ids_, &AttackDefenseBatch::draw_dream_miracle,
+      kEffectAttackMiracleCardKind);
+  for (const auto role :
+       {kWeaponCardKind, kArmorCardKind, kAttackBoosterCardKind,
+        kHpUtilityCardKind, kAttackMiracleCardKind,
+        kChanceAttackMiracleCardKind, kEffectAttackMiracleCardKind}) {
+    if (pools[role].empty()) {
+      throw std::invalid_argument(
+          "gift pool is missing a required initial role");
+    }
+  }
+  if (!by_token.empty()) {
+    throw std::invalid_argument("gift weights include unsupported tokens");
+  }
+  gift_catalog_cdfs_ = std::move(cdfs);
+  gift_pools_ = std::move(pools);
+  gift_weighted_ = true;
+  for (std::size_t environment = 0; environment < batch_size_; ++environment) {
+    rng_states_[environment] =
+        mix64(base_seed_ +
+              static_cast<std::uint64_t>(environment) * kSplitMixIncrement);
+    episode_ids_[environment] = 0U;
+  }
+  reset();
+}
+
+std::size_t AttackDefenseBatch::sample_catalog_index(
+    std::size_t environment, const std::vector<std::uint32_t> &tokens) {
+  if (!gift_weighted_) {
+    return static_cast<std::size_t>(next_random(environment) % tokens.size());
+  }
+  const auto &cdf = gift_catalog_cdfs_.at(&tokens);
+  const auto ticket = next_random(environment) % cdf.back();
+  return static_cast<std::size_t>(
+      std::upper_bound(cdf.begin(), cdf.end(), ticket) - cdf.begin());
+}
+
+void AttackDefenseBatch::draw_weighted_gift(std::size_t environment,
+                                            std::size_t player,
+                                            std::size_t slot,
+                                            std::uint8_t initial_role) {
+  const auto &pool = gift_pools_.at(initial_role);
+  const auto ticket = next_random(environment) % pool.back().cumulative_weight;
+  const auto family =
+      std::upper_bound(pool.begin(), pool.end(), ticket,
+                       [](std::uint64_t value, const GiftFamily &entry) {
+                         return value < entry.cumulative_weight;
+                       });
+  (this->*family->draw)(environment, player, slot);
+}
+
 void AttackDefenseBatch::draw_weapon(std::size_t environment,
                                      std::size_t player, std::size_t slot) {
-  const auto catalog_index = static_cast<std::size_t>(
-      next_random(environment) %
-      static_cast<std::uint64_t>(weapon_token_ids_.size()));
+  const auto catalog_index =
+      sample_catalog_index(environment, weapon_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(weapon_token_ids_[catalog_index]);
@@ -1132,9 +1302,8 @@ void AttackDefenseBatch::draw_weapon(std::size_t environment,
 
 void AttackDefenseBatch::draw_armor(std::size_t environment, std::size_t player,
                                     std::size_t slot) {
-  const auto catalog_index = static_cast<std::size_t>(
-      next_random(environment) %
-      static_cast<std::uint64_t>(armor_token_ids_.size()));
+  const auto catalog_index =
+      sample_catalog_index(environment, armor_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(armor_token_ids_[catalog_index]);
@@ -1148,9 +1317,8 @@ void AttackDefenseBatch::draw_armor(std::size_t environment, std::size_t player,
 
 void AttackDefenseBatch::draw_booster(std::size_t environment,
                                       std::size_t player, std::size_t slot) {
-  const auto catalog_index = static_cast<std::size_t>(
-      next_random(environment) %
-      static_cast<std::uint64_t>(booster_token_ids_.size()));
+  const auto catalog_index =
+      sample_catalog_index(environment, booster_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(booster_token_ids_[catalog_index]);
@@ -1209,8 +1377,7 @@ void AttackDefenseBatch::draw_combo(std::size_t environment, std::size_t player,
 
 void AttackDefenseBatch::draw_hp_utility(std::size_t environment,
                                          std::size_t player, std::size_t slot) {
-  const auto index = static_cast<std::size_t>(next_random(environment) %
-                                              hp_utility_token_ids_.size());
+  const auto index = sample_catalog_index(environment, hp_utility_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(hp_utility_token_ids_[index]);
@@ -1225,8 +1392,7 @@ void AttackDefenseBatch::draw_hp_utility(std::size_t environment,
 
 void AttackDefenseBatch::draw_mp_utility(std::size_t environment,
                                          std::size_t player, std::size_t slot) {
-  const auto index = static_cast<std::size_t>(next_random(environment) %
-                                              mp_utility_token_ids_.size());
+  const auto index = sample_catalog_index(environment, mp_utility_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(mp_utility_token_ids_[index]);
@@ -1242,8 +1408,8 @@ void AttackDefenseBatch::draw_mp_utility(std::size_t environment,
 void AttackDefenseBatch::draw_attack_miracle(std::size_t environment,
                                              std::size_t player,
                                              std::size_t slot) {
-  const auto index = static_cast<std::size_t>(next_random(environment) %
-                                              attack_miracle_token_ids_.size());
+  const auto index =
+      sample_catalog_index(environment, attack_miracle_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(attack_miracle_token_ids_[index]);
@@ -1257,8 +1423,7 @@ void AttackDefenseBatch::draw_attack_miracle(std::size_t environment,
 
 void AttackDefenseBatch::draw_hp_miracle(std::size_t environment,
                                          std::size_t player, std::size_t slot) {
-  const auto index = static_cast<std::size_t>(next_random(environment) %
-                                              hp_miracle_token_ids_.size());
+  const auto index = sample_catalog_index(environment, hp_miracle_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(hp_miracle_token_ids_[index]);
@@ -1274,8 +1439,8 @@ void AttackDefenseBatch::draw_hp_miracle(std::size_t environment,
 void AttackDefenseBatch::draw_chance_miracle(std::size_t environment,
                                              std::size_t player,
                                              std::size_t slot) {
-  const auto index = static_cast<std::size_t>(next_random(environment) %
-                                              chance_miracle_token_ids_.size());
+  const auto index =
+      sample_catalog_index(environment, chance_miracle_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(chance_miracle_token_ids_[index]);
@@ -1290,8 +1455,8 @@ void AttackDefenseBatch::draw_chance_miracle(std::size_t environment,
 void AttackDefenseBatch::draw_effect_miracle(std::size_t environment,
                                              std::size_t player,
                                              std::size_t slot) {
-  const auto index = static_cast<std::size_t>(next_random(environment) %
-                                              effect_miracle_token_ids_.size());
+  const auto index =
+      sample_catalog_index(environment, effect_miracle_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(effect_miracle_token_ids_[index]);
@@ -1306,8 +1471,8 @@ void AttackDefenseBatch::draw_effect_miracle(std::size_t environment,
 void AttackDefenseBatch::draw_additive_miracle(std::size_t environment,
                                                std::size_t player,
                                                std::size_t slot) {
-  const auto index = static_cast<std::size_t>(
-      next_random(environment) % additive_miracle_token_ids_.size());
+  const auto index =
+      sample_catalog_index(environment, additive_miracle_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(additive_miracle_token_ids_[index]);
@@ -1322,8 +1487,8 @@ void AttackDefenseBatch::draw_additive_miracle(std::size_t environment,
 void AttackDefenseBatch::draw_reflection_armor(std::size_t environment,
                                                std::size_t player,
                                                std::size_t slot) {
-  const auto index = static_cast<std::size_t>(
-      next_random(environment) % reflection_armor_token_ids_.size());
+  const auto index =
+      sample_catalog_index(environment, reflection_armor_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(reflection_armor_token_ids_[index]);
@@ -1339,8 +1504,8 @@ void AttackDefenseBatch::draw_reflection_armor(std::size_t environment,
 void AttackDefenseBatch::draw_reflection_weapon(std::size_t environment,
                                                 std::size_t player,
                                                 std::size_t slot) {
-  const auto index = static_cast<std::size_t>(
-      next_random(environment) % reflection_weapon_token_ids_.size());
+  const auto index =
+      sample_catalog_index(environment, reflection_weapon_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(reflection_weapon_token_ids_[index]);
@@ -1355,8 +1520,7 @@ void AttackDefenseBatch::draw_reflection_weapon(std::size_t environment,
 
 void AttackDefenseBatch::draw_dual_role(std::size_t environment,
                                         std::size_t player, std::size_t slot) {
-  const auto index = static_cast<std::size_t>(next_random(environment) %
-                                              dual_role_token_ids_.size());
+  const auto index = sample_catalog_index(environment, dual_role_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(dual_role_token_ids_[index]);
@@ -1371,8 +1535,8 @@ void AttackDefenseBatch::draw_dual_role(std::size_t environment,
 void AttackDefenseBatch::draw_chance_weapon(std::size_t environment,
                                             std::size_t player,
                                             std::size_t slot) {
-  const auto index = static_cast<std::size_t>(next_random(environment) %
-                                              chance_weapon_token_ids_.size());
+  const auto index =
+      sample_catalog_index(environment, chance_weapon_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(chance_weapon_token_ids_[index]);
@@ -1387,8 +1551,8 @@ void AttackDefenseBatch::draw_chance_weapon(std::size_t environment,
 void AttackDefenseBatch::draw_chance_dual_role(std::size_t environment,
                                                std::size_t player,
                                                std::size_t slot) {
-  const auto index = static_cast<std::size_t>(
-      next_random(environment) % chance_dual_role_token_ids_.size());
+  const auto index =
+      sample_catalog_index(environment, chance_dual_role_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(chance_dual_role_token_ids_[index]);
@@ -1403,8 +1567,8 @@ void AttackDefenseBatch::draw_chance_dual_role(std::size_t environment,
 void AttackDefenseBatch::draw_absorption_weapon(std::size_t environment,
                                                 std::size_t player,
                                                 std::size_t slot) {
-  const auto index = static_cast<std::size_t>(
-      next_random(environment) % absorption_weapon_token_ids_.size());
+  const auto index =
+      sample_catalog_index(environment, absorption_weapon_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(absorption_weapon_token_ids_[index]);
@@ -1419,8 +1583,8 @@ void AttackDefenseBatch::draw_absorption_weapon(std::size_t environment,
 void AttackDefenseBatch::draw_chance_absorption_weapon(std::size_t environment,
                                                        std::size_t player,
                                                        std::size_t slot) {
-  const auto index = static_cast<std::size_t>(
-      next_random(environment) % chance_absorption_weapon_token_ids_.size());
+  const auto index =
+      sample_catalog_index(environment, chance_absorption_weapon_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(chance_absorption_weapon_token_ids_[index]);
@@ -1435,8 +1599,8 @@ void AttackDefenseBatch::draw_chance_absorption_weapon(std::size_t environment,
 void AttackDefenseBatch::draw_dynamic_mp_weapon(std::size_t environment,
                                                 std::size_t player,
                                                 std::size_t slot) {
-  const auto index = static_cast<std::size_t>(
-      next_random(environment) % dynamic_mp_weapon_token_ids_.size());
+  const auto index =
+      sample_catalog_index(environment, dynamic_mp_weapon_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(dynamic_mp_weapon_token_ids_[index]);
@@ -1451,8 +1615,8 @@ void AttackDefenseBatch::draw_dynamic_mp_weapon(std::size_t environment,
 void AttackDefenseBatch::draw_same_damage_weapon(std::size_t environment,
                                                  std::size_t player,
                                                  std::size_t slot) {
-  const auto index = static_cast<std::size_t>(
-      next_random(environment) % same_damage_weapon_token_ids_.size());
+  const auto index =
+      sample_catalog_index(environment, same_damage_weapon_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(same_damage_weapon_token_ids_[index]);
@@ -1467,8 +1631,8 @@ void AttackDefenseBatch::draw_same_damage_weapon(std::size_t environment,
 void AttackDefenseBatch::draw_attack_twice_weapon(std::size_t environment,
                                                   std::size_t player,
                                                   std::size_t slot) {
-  const auto index = static_cast<std::size_t>(
-      next_random(environment) % attack_twice_weapon_token_ids_.size());
+  const auto index =
+      sample_catalog_index(environment, attack_twice_weapon_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(attack_twice_weapon_token_ids_[index]);
@@ -1483,8 +1647,8 @@ void AttackDefenseBatch::draw_attack_twice_weapon(std::size_t environment,
 void AttackDefenseBatch::draw_random_target_weapon(std::size_t environment,
                                                    std::size_t player,
                                                    std::size_t slot) {
-  const auto index = static_cast<std::size_t>(
-      next_random(environment) % random_target_weapon_token_ids_.size());
+  const auto index =
+      sample_catalog_index(environment, random_target_weapon_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(random_target_weapon_token_ids_[index]);
@@ -1499,8 +1663,8 @@ void AttackDefenseBatch::draw_random_target_weapon(std::size_t environment,
 void AttackDefenseBatch::draw_illness_weapon(std::size_t environment,
                                              std::size_t player,
                                              std::size_t slot) {
-  const auto index = static_cast<std::size_t>(next_random(environment) %
-                                              illness_weapon_token_ids_.size());
+  const auto index =
+      sample_catalog_index(environment, illness_weapon_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(illness_weapon_token_ids_[index]);
@@ -1516,8 +1680,7 @@ void AttackDefenseBatch::draw_illness_weapon(std::size_t environment,
 void AttackDefenseBatch::draw_illness_cure(std::size_t environment,
                                            std::size_t player,
                                            std::size_t slot) {
-  const auto index = static_cast<std::size_t>(next_random(environment) %
-                                              illness_cure_token_ids_.size());
+  const auto index = sample_catalog_index(environment, illness_cure_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   const auto cost = illness_cure_costs_[index];
   hand_token_ids_by_player_[offset] =
@@ -1535,8 +1698,7 @@ void AttackDefenseBatch::draw_illness_cure(std::size_t environment,
 void AttackDefenseBatch::draw_heaven_herb(std::size_t environment,
                                           std::size_t player,
                                           std::size_t slot) {
-  const auto index = static_cast<std::size_t>(next_random(environment) %
-                                              heaven_herb_token_ids_.size());
+  const auto index = sample_catalog_index(environment, heaven_herb_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(heaven_herb_token_ids_[index]);
@@ -1551,8 +1713,7 @@ void AttackDefenseBatch::draw_heaven_herb(std::size_t environment,
 
 void AttackDefenseBatch::draw_fever_mask(std::size_t environment,
                                          std::size_t player, std::size_t slot) {
-  const auto index = static_cast<std::size_t>(next_random(environment) %
-                                              fever_mask_token_ids_.size());
+  const auto index = sample_catalog_index(environment, fever_mask_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(fever_mask_token_ids_[index]);
@@ -1567,8 +1728,8 @@ void AttackDefenseBatch::draw_fever_mask(std::size_t environment,
 void AttackDefenseBatch::draw_miracle_block_armor(std::size_t environment,
                                                   std::size_t player,
                                                   std::size_t slot) {
-  const auto index = static_cast<std::size_t>(next_random(environment) %
-                                              miracle_block_token_ids_.size());
+  const auto index =
+      sample_catalog_index(environment, miracle_block_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(miracle_block_token_ids_[index]);
@@ -1584,8 +1745,8 @@ void AttackDefenseBatch::draw_miracle_block_armor(std::size_t environment,
 void AttackDefenseBatch::draw_miracle_block_weapon(std::size_t environment,
                                                    std::size_t player,
                                                    std::size_t slot) {
-  const auto index = static_cast<std::size_t>(
-      next_random(environment) % miracle_block_weapon_token_ids_.size());
+  const auto index =
+      sample_catalog_index(environment, miracle_block_weapon_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(miracle_block_weapon_token_ids_[index]);
@@ -1601,8 +1762,8 @@ void AttackDefenseBatch::draw_miracle_block_weapon(std::size_t environment,
 void AttackDefenseBatch::draw_miracle_block_booster(std::size_t environment,
                                                     std::size_t player,
                                                     std::size_t slot) {
-  const auto index = static_cast<std::size_t>(
-      next_random(environment) % miracle_block_booster_token_ids_.size());
+  const auto index =
+      sample_catalog_index(environment, miracle_block_booster_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(miracle_block_booster_token_ids_[index]);
@@ -1618,8 +1779,8 @@ void AttackDefenseBatch::draw_miracle_block_booster(std::size_t environment,
 void AttackDefenseBatch::draw_miracle_bounce_armor(std::size_t environment,
                                                    std::size_t player,
                                                    std::size_t slot) {
-  const auto index = static_cast<std::size_t>(next_random(environment) %
-                                              miracle_bounce_token_ids_.size());
+  const auto index =
+      sample_catalog_index(environment, miracle_bounce_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(miracle_bounce_token_ids_[index]);
@@ -1635,8 +1796,8 @@ void AttackDefenseBatch::draw_miracle_bounce_armor(std::size_t environment,
 void AttackDefenseBatch::draw_miracle_bounce_booster(std::size_t environment,
                                                      std::size_t player,
                                                      std::size_t slot) {
-  const auto index = static_cast<std::size_t>(
-      next_random(environment) % miracle_bounce_booster_token_ids_.size());
+  const auto index =
+      sample_catalog_index(environment, miracle_bounce_booster_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(miracle_bounce_booster_token_ids_[index]);
@@ -1652,8 +1813,8 @@ void AttackDefenseBatch::draw_miracle_bounce_booster(std::size_t environment,
 void AttackDefenseBatch::draw_miracle_bounce_miracle(std::size_t environment,
                                                      std::size_t player,
                                                      std::size_t slot) {
-  const auto index = static_cast<std::size_t>(
-      next_random(environment) % miracle_bounce_miracle_token_ids_.size());
+  const auto index =
+      sample_catalog_index(environment, miracle_bounce_miracle_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(miracle_bounce_miracle_token_ids_[index]);
@@ -1669,8 +1830,8 @@ void AttackDefenseBatch::draw_miracle_bounce_miracle(std::size_t environment,
 void AttackDefenseBatch::draw_miracle_reflection_armor(std::size_t environment,
                                                        std::size_t player,
                                                        std::size_t slot) {
-  const auto index = static_cast<std::size_t>(
-      next_random(environment) % miracle_reflection_armor_token_ids_.size());
+  const auto index =
+      sample_catalog_index(environment, miracle_reflection_armor_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(miracle_reflection_armor_token_ids_[index]);
@@ -1686,8 +1847,8 @@ void AttackDefenseBatch::draw_miracle_reflection_armor(std::size_t environment,
 void AttackDefenseBatch::draw_miracle_reflection_weapon(std::size_t environment,
                                                         std::size_t player,
                                                         std::size_t slot) {
-  const auto index = static_cast<std::size_t>(
-      next_random(environment) % miracle_reflection_weapon_token_ids_.size());
+  const auto index =
+      sample_catalog_index(environment, miracle_reflection_weapon_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(miracle_reflection_weapon_token_ids_[index]);
@@ -1703,8 +1864,8 @@ void AttackDefenseBatch::draw_miracle_reflection_weapon(std::size_t environment,
 void AttackDefenseBatch::draw_fog_flash_weapon(std::size_t environment,
                                                std::size_t player,
                                                std::size_t slot) {
-  const auto index = static_cast<std::size_t>(
-      next_random(environment) % fog_flash_weapon_token_ids_.size());
+  const auto index =
+      sample_catalog_index(environment, fog_flash_weapon_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(fog_flash_weapon_token_ids_[index]);
@@ -1719,8 +1880,8 @@ void AttackDefenseBatch::draw_fog_flash_weapon(std::size_t environment,
 void AttackDefenseBatch::draw_fog_flash_attack_miracle(std::size_t environment,
                                                        std::size_t player,
                                                        std::size_t slot) {
-  const auto index = static_cast<std::size_t>(
-      next_random(environment) % fog_flash_attack_miracle_token_ids_.size());
+  const auto index =
+      sample_catalog_index(environment, fog_flash_attack_miracle_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(fog_flash_attack_miracle_token_ids_[index]);
@@ -1735,8 +1896,7 @@ void AttackDefenseBatch::draw_fog_flash_attack_miracle(std::size_t environment,
 void AttackDefenseBatch::draw_fog_miracle(std::size_t environment,
                                           std::size_t player,
                                           std::size_t slot) {
-  const auto index = static_cast<std::size_t>(next_random(environment) %
-                                              fog_miracle_token_ids_.size());
+  const auto index = sample_catalog_index(environment, fog_miracle_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(fog_miracle_token_ids_[index]);
@@ -1751,8 +1911,8 @@ void AttackDefenseBatch::draw_fog_miracle(std::size_t environment,
 void AttackDefenseBatch::draw_dark_cloud_weapon(std::size_t environment,
                                                 std::size_t player,
                                                 std::size_t slot) {
-  const auto index = static_cast<std::size_t>(
-      next_random(environment) % dark_cloud_weapon_token_ids_.size());
+  const auto index =
+      sample_catalog_index(environment, dark_cloud_weapon_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(dark_cloud_weapon_token_ids_[index]);
@@ -1767,8 +1927,8 @@ void AttackDefenseBatch::draw_dark_cloud_weapon(std::size_t environment,
 void AttackDefenseBatch::draw_dark_cloud_miracle(std::size_t environment,
                                                  std::size_t player,
                                                  std::size_t slot) {
-  const auto index = static_cast<std::size_t>(
-      next_random(environment) % dark_cloud_miracle_token_ids_.size());
+  const auto index =
+      sample_catalog_index(environment, dark_cloud_miracle_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(dark_cloud_miracle_token_ids_[index]);
@@ -1783,8 +1943,7 @@ void AttackDefenseBatch::draw_dark_cloud_miracle(std::size_t environment,
 void AttackDefenseBatch::draw_dream_weapon(std::size_t environment,
                                            std::size_t player,
                                            std::size_t slot) {
-  const auto index = static_cast<std::size_t>(next_random(environment) %
-                                              dream_weapon_token_ids_.size());
+  const auto index = sample_catalog_index(environment, dream_weapon_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(dream_weapon_token_ids_[index]);
@@ -1799,8 +1958,8 @@ void AttackDefenseBatch::draw_dream_weapon(std::size_t environment,
 void AttackDefenseBatch::draw_dream_miracle(std::size_t environment,
                                             std::size_t player,
                                             std::size_t slot) {
-  const auto index = static_cast<std::size_t>(next_random(environment) %
-                                              dream_miracle_token_ids_.size());
+  const auto index =
+      sample_catalog_index(environment, dream_miracle_token_ids_);
   const auto offset = hand_offset(environment, player, slot);
   hand_token_ids_by_player_[offset] =
       static_cast<std::int64_t>(dream_miracle_token_ids_[index]);
@@ -1849,6 +2008,10 @@ void AttackDefenseBatch::refresh_displayed_card(std::size_t environment,
 void AttackDefenseBatch::draw_weapon_family(std::size_t environment,
                                             std::size_t player,
                                             std::size_t slot) {
+  if (gift_weighted_) {
+    draw_weighted_gift(environment, player, slot, kWeaponCardKind);
+    return;
+  }
   if (random_target_weapon_curriculum_) {
     auto index = static_cast<std::size_t>(
         next_random(environment) %
@@ -2202,6 +2365,10 @@ void AttackDefenseBatch::draw_weapon_family(std::size_t environment,
 void AttackDefenseBatch::draw_armor_family(std::size_t environment,
                                            std::size_t player,
                                            std::size_t slot) {
+  if (gift_weighted_) {
+    draw_weighted_gift(environment, player, slot, kArmorCardKind);
+    return;
+  }
   auto index = static_cast<std::size_t>(
       next_random(environment) %
       (armor_token_ids_.size() + reflection_armor_token_ids_.size() +
@@ -2243,6 +2410,10 @@ void AttackDefenseBatch::draw_armor_family(std::size_t environment,
 
 void AttackDefenseBatch::draw_resource(std::size_t environment,
                                        std::size_t player, std::size_t slot) {
+  if (gift_weighted_) {
+    draw_weighted_gift(environment, player, slot);
+    return;
+  }
   const auto catalog_size =
       weapon_token_ids_.size() + booster_token_ids_.size() +
       armor_token_ids_.size() + hp_utility_token_ids_.size() +
@@ -2671,7 +2842,9 @@ void AttackDefenseBatch::reset_environment(std::size_t environment) {
       std::swap(card_kinds[remaining - 1U], card_kinds[swap_index]);
     }
     for (std::size_t slot = 0; slot < kHandSlots; ++slot) {
-      if (card_kinds[slot] == kWeaponCardKind) {
+      if (gift_weighted_) {
+        draw_weighted_gift(environment, player, slot, card_kinds[slot]);
+      } else if (card_kinds[slot] == kWeaponCardKind) {
         draw_weapon_family(environment, player, slot);
       } else if (card_kinds[slot] == kAttackBoosterCardKind) {
         const auto booster_index = static_cast<std::size_t>(
@@ -3064,6 +3237,7 @@ void AttackDefenseBatch::step(ActionInput actions) {
     }
   }
 
+  has_stepped_ = true;
   for (std::size_t environment = 0; environment < batch_size_; ++environment) {
     const auto action = static_cast<std::size_t>(actions(environment));
     const auto actor = static_cast<std::size_t>(active_players_[environment]);

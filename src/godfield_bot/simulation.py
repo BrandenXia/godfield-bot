@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -96,6 +97,7 @@ AttackDefenseRuleset = Literal[
     "fog-flash-resource-hand",
     "dark-cloud-resource-hand",
     "dream-resource-hand",
+    "gift-weighted-dream-resource-hand",
 ]
 
 
@@ -159,6 +161,7 @@ class SimulationMetadata(BaseModel):
         "elemental-fog-flash-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-dark-cloud-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-dream-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
+        "elemental-dream-resource-2-1-2-1-1-1-1-initial-gift-weighted-redraw-with-base-liveness",
     ] = "uniform-redraw-with-replacement"
     promotion_eligible: Literal[False] = False
 
@@ -233,6 +236,29 @@ def _sha256_json(value: object) -> str:
 
 def _catalog_column(catalog: list[dict[str, object]], key: str) -> list[object]:
     return [row[key] for row in catalog]
+
+
+def _with_gift_rates(
+    catalog: list[dict[str, object]], snapshot: BibleSnapshot
+) -> list[dict[str, object]]:
+    """Fail closed: never invent weights for missing or malformed Bible rates."""
+    rates: dict[str, tuple[int, int]] = {}
+    for category in snapshot.catalog.values():
+        for item in category.items:
+            rows = [line for line in item.detail if line.startswith("Gift Rate:")]
+            if len(rows) != 1:
+                continue
+            match = re.fullmatch(r"Gift Rate: ([0-9]+)/([0-9]+)", rows[0])
+            if match:
+                rates[item.asset] = (int(match[1]), int(match[2]))
+    weighted = []
+    for row in catalog:
+        slug = str(row["slug"])
+        rate = rates.get(slug)
+        if rate is None or not 0 < rate[0] <= rate[1] or rate[1] != 500:
+            raise ValueError(f"missing or invalid accepted gift rate for {slug}")
+        weighted.append({**row, "gift_weight": rate[0], "gift_denominator": rate[1]})
+    return weighted
 
 
 def _illness_cure_catalog(
@@ -653,6 +679,9 @@ def create_attack_defense_simulation(
 ) -> AttackDefenseSimulation:
     """Build a non-promotable neutral attack/defense curriculum."""
 
+    gift_weighted = ruleset == "gift-weighted-dream-resource-hand"
+    if gift_weighted:
+        ruleset = "dream-resource-hand"
     try:
         import numpy as np
         from godfield_sim import (
@@ -2544,7 +2573,9 @@ def create_attack_defense_simulation(
             initial_hp,
             ruleset == "mixed-hand",
         )
-    catalog = weapon_catalog + booster_catalog + armor_catalog
+    catalog: list[dict[str, object]] = [
+        dict(row) for row in weapon_catalog + booster_catalog + armor_catalog
+    ]
     sampling_distribution: Literal[
         "fixed-role-uniform-redraw-with-replacement",
         "mixed-role-uniform-redraw-with-attack-liveness",
@@ -2575,6 +2606,7 @@ def create_attack_defense_simulation(
         "elemental-fog-flash-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-dark-cloud-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-dream-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
+        "elemental-dream-resource-2-1-2-1-1-1-1-initial-gift-weighted-redraw-with-base-liveness",
     ]
     action_semantics: Literal["atomic-attack-defense-macro", "sequential-combo-selection"] = (
         "atomic-attack-defense-macro"
@@ -2872,6 +2904,16 @@ def create_attack_defense_simulation(
         ruleset_id = ATTACK_DEFENSE_RULESET_ID
         global_feature_count = 6
         sampling_distribution = "fixed-role-uniform-redraw-with-replacement"
+    if gift_weighted:
+        catalog = _with_gift_rates(catalog, snapshot)
+        batch.configure_gift_weights(
+            np.asarray([row["token_id"] for row in catalog], dtype=np.uint32),
+            np.asarray([row["gift_weight"] for row in catalog], dtype=np.uint16),
+        )
+        ruleset_id = "gift-weighted-" + ruleset_id
+        sampling_distribution = (
+            "elemental-dream-resource-2-1-2-1-1-1-1-initial-gift-weighted-redraw-with-base-liveness"
+        )
     return AttackDefenseSimulation(
         batch=batch,
         metadata=SimulationMetadata(

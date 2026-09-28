@@ -429,6 +429,10 @@ NB_MODULE(_native, module) {
       .def_prop_ro("dark_cloud_curriculum",
                    &AttackDefenseBatch::dark_cloud_curriculum)
       .def_prop_ro("dream_curriculum", &AttackDefenseBatch::dream_curriculum)
+      .def_prop_ro("gift_weighted", &AttackDefenseBatch::gift_weighted)
+      .def("configure_gift_weights",
+           &AttackDefenseBatch::configure_gift_weights, nb::arg("token_ids"),
+           nb::arg("weights"))
       .def_prop_ro("initial_mp", &AttackDefenseBatch::initial_mp)
       .def_prop_ro("global_feature_count",
                    &AttackDefenseBatch::global_feature_count)

@@ -1,8 +1,10 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <unordered_map>
 #include <vector>
 
 #include "batch_types.h"
@@ -378,6 +380,11 @@ public:
   [[nodiscard]] bool dream_curriculum() const noexcept {
     return dream_curriculum_;
   }
+  [[nodiscard]] bool gift_weighted() const noexcept { return gift_weighted_; }
+  // One-time configuration: requires exact positive weights for the Dream
+  // catalog. Rewinds the initial deal so the constructor's uniform deal does
+  // not affect it.
+  void configure_gift_weights(TokenInput token_ids, ValueInput weights);
   [[nodiscard]] std::uint16_t initial_mp() const noexcept {
     return initial_mp_;
   }
@@ -567,6 +574,17 @@ private:
                                         std::size_t player,
                                         std::size_t slot) const noexcept;
   [[nodiscard]] std::uint64_t next_random(std::size_t environment) noexcept;
+  [[nodiscard]] std::size_t
+  sample_catalog_index(std::size_t environment,
+                       const std::vector<std::uint32_t> &tokens);
+  using GiftDraw = void (AttackDefenseBatch::*)(std::size_t, std::size_t,
+                                                std::size_t);
+  struct GiftFamily {
+    GiftDraw draw;
+    std::uint64_t cumulative_weight;
+  };
+  void draw_weighted_gift(std::size_t environment, std::size_t player,
+                          std::size_t slot, std::uint8_t initial_role = 0U);
   void draw_weapon(std::size_t environment, std::size_t player,
                    std::size_t slot);
   void draw_armor(std::size_t environment, std::size_t player,
@@ -720,6 +738,12 @@ private:
   bool fog_flash_curriculum_;
   bool dark_cloud_curriculum_;
   bool dream_curriculum_;
+  bool gift_weighted_ = false;
+  bool has_stepped_ = false;
+  std::unordered_map<const std::vector<std::uint32_t> *,
+                     std::vector<std::uint64_t>>
+      gift_catalog_cdfs_;
+  std::array<std::vector<GiftFamily>, 10> gift_pools_;
   std::size_t global_feature_count_;
   std::uint16_t initial_mp_;
   std::vector<std::uint32_t> weapon_token_ids_;

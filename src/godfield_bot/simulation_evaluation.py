@@ -68,6 +68,7 @@ class SimulationEvaluationConfig(BaseModel):
         "fog-flash-resource-hand",
         "dark-cloud-resource-hand",
         "dream-resource-hand",
+        "gift-weighted-dream-resource-hand",
     ] = "fixed-role"
     games_per_seat: int = Field(default=512, ge=1, le=100_000)
     max_decisions_per_game: int = Field(default=512, ge=2, le=100_000)
@@ -231,6 +232,7 @@ def _evaluate_side(
         "fog-flash-resource-hand",
         "dark-cloud-resource-hand",
         "dream-resource-hand",
+        "gift-weighted-dream-resource-hand",
     ],
 ) -> _SideEvaluation:
     simulation = create_attack_defense_simulation(

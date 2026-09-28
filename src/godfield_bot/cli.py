@@ -1911,6 +1911,7 @@ def models_train_simulation(
             "fog-flash-resource-hand",
             "dark-cloud-resource-hand",
             "dream-resource-hand",
+            "gift-weighted-dream-resource-hand",
         ],
         typer.Option(help="Attack/defense hand-distribution curriculum."),
     ] = "fixed-role",
@@ -2083,6 +2084,7 @@ def models_evaluate_simulation(
             "fog-flash-resource-hand",
             "dark-cloud-resource-hand",
             "dream-resource-hand",
+            "gift-weighted-dream-resource-hand",
         ],
         typer.Option(help="Attack/defense hand-distribution curriculum."),
     ] = "fixed-role",
@@ -2390,6 +2392,7 @@ def simulation_benchmark(
             "fog-flash-resource-attack-defense",
             "dark-cloud-resource-attack-defense",
             "dream-resource-attack-defense",
+            "gift-weighted-dream-resource-attack-defense",
         ],
         typer.Option(help="Native curriculum ruleset to benchmark."),
     ] = "attack-defense",
@@ -2441,8 +2444,11 @@ def simulation_benchmark(
                 "fog-flash-resource-hand",
                 "dark-cloud-resource-hand",
                 "dream-resource-hand",
+                "gift-weighted-dream-resource-hand",
             ]
-            if ruleset == "dream-resource-attack-defense":
+            if ruleset == "gift-weighted-dream-resource-attack-defense":
+                attack_defense_ruleset = "gift-weighted-dream-resource-hand"
+            elif ruleset == "dream-resource-attack-defense":
                 attack_defense_ruleset = "dream-resource-hand"
             elif ruleset == "dark-cloud-resource-attack-defense":
                 attack_defense_ruleset = "dark-cloud-resource-hand"

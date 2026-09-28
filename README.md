@@ -1124,9 +1124,10 @@ matches all four inventories: the initial deal and three adjacent transitions,
 with two ordinary items consumed and 11 gifts appended. Original evidence and
 input fingerprints remain unchanged.
 
-The checker deliberately limits ordinary consumption to reviewed models 23 and
-142 and single-item retained-miracle comparison to model 215. Other models may
-remain as opaque owned/gifted records, not automatically acquire supported
+The checker deliberately limits ordinary consumption to the 11 models with
+explicit captured single-item uses: 23, 26, 29, 32, 41, 44, 55, 123, 135, 142,
+and 192. Single-item retained-miracle comparison is still limited to model 215.
+Other models may remain as opaque owned/gifted records, not automatically acquire supported
 lifecycle rules. Each transition uses a fresh native object seeded from its
 recorded previous inventory; a mismatch remains visible even if a later pair
 matches. V1 captures, unresolved owners, unreviewed effects, overflow, disguised
@@ -1146,3 +1147,16 @@ wire classifications change despite unchanged inventory. Opponent payloads do
 not enter this comparison. Restart collection with the same command above to
 use v3; do not start a concurrent campaign on the same browser profile.
 See [ADR 0067](docs/architecture/0067-event-item-wire-and-repeat-integrity.md).
+
+The first real v3 run, `60fe19b4-1ed3-42cf-9ce6-b63c52baa858`, completed against
+the official computer without operational failures. Its checksummed regression
+fixture verifies nine additional ordinary item lifecycles, including Heart Dew
+consumption. The native differential audit matches the initial deal and eight
+adjacent transitions, with zero mismatches; it leaves three updates unsupported
+(a curse effect and two genuinely omitted defense selections, one alongside a
+trade). Missing arrays are not rewritten as explicit empty arrays, and
+individually witnessed items do not authorize unobserved combinations.
+`boostHP`/`boostMP` are reviewed as inventory-neutral only, not simulated combat.
+The chosen path is verified-only acquisition: no synthetic gift schedule,
+overflow algorithm, training curriculum replacement, or live promotion.
+See [ADR 0068](docs/architecture/0068-verified-only-acquisition-and-ordinary-expansion.md).

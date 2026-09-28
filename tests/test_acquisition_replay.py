@@ -522,8 +522,8 @@ def test_catalog_provenance_mismatch_is_rejected():
         audit(saved)
 
 
-def fixture_database(tmp_path):
-    fixture = json.loads(FIXTURE.read_text())
+def fixture_database(tmp_path, fixture_path=FIXTURE):
+    fixture = json.loads(fixture_path.read_text())
     path = tmp_path / "runs.sqlite"
     with sqlite3.connect(path) as connection:
         connection.execute(
@@ -541,7 +541,9 @@ def fixture_database(tmp_path):
                 json.dumps(
                     {
                         "acquisition_evidence_probe": True,
-                        "acquisition_evidence_schema_version": 2,
+                        "acquisition_evidence_schema_version": fixture.get(
+                            "capture_schema_version", 2
+                        ),
                         "acquisition_evidence_catalog_sha256": REPLAY_CATALOG_SHA256,
                     }
                 ),

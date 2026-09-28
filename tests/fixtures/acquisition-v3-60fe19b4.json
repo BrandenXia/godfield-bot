@@ -1,0 +1,5323 @@
+{
+  "source_kind": "official-acquisition-v3-replay-fixture",
+  "run_id": "60fe19b4-1ed3-42cf-9ce6-b63c52baa858",
+  "mode": "training",
+  "client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+  "evidence": [
+    {
+      "sequence": 0,
+      "payload": {
+        "acquisition_rule_eligible": false,
+        "catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+        "client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+        "input_sha256": "12340f5b3b3b6d59b9c424c3c4103e5d067539f8e36bbb0b5c5df0d34e71ff29",
+        "observed_at": "2026-09-28T19:57:09.299064Z",
+        "promotion_eligible": false,
+        "schema_version": 3,
+        "snapshots": [
+          {
+            "attack_turn_player_id": 1,
+            "captured_at": "2026-09-28T19:57:03.673000Z",
+            "event_item_wire": [
+              {
+                "event_index": 0,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 1,
+                "item": {
+                  "fake_model_id_kind": "missing",
+                  "instance_id_kind": "positive_integer",
+                  "model_id_kind": "positive_integer",
+                  "raw_index": 0,
+                  "used_kind": "missing"
+                },
+                "item_kind": "object",
+                "item_model_id_kind": "missing",
+                "items": [],
+                "items_kind": "missing",
+                "overflow_item": null,
+                "overflow_item_kind": "missing"
+              },
+              {
+                "event_index": 2,
+                "item": {
+                  "fake_model_id_kind": "missing",
+                  "instance_id_kind": "positive_integer",
+                  "model_id_kind": "positive_integer",
+                  "raw_index": 0,
+                  "used_kind": "missing"
+                },
+                "item_kind": "object",
+                "item_model_id_kind": "missing",
+                "items": [],
+                "items_kind": "missing",
+                "overflow_item": null,
+                "overflow_item_kind": "missing"
+              },
+              {
+                "event_index": 3,
+                "item": {
+                  "fake_model_id_kind": "missing",
+                  "instance_id_kind": "positive_integer",
+                  "model_id_kind": "positive_integer",
+                  "raw_index": 0,
+                  "used_kind": "missing"
+                },
+                "item_kind": "object",
+                "item_model_id_kind": "missing",
+                "items": [],
+                "items_kind": "missing",
+                "overflow_item": null,
+                "overflow_item_kind": "missing"
+              },
+              {
+                "event_index": 4,
+                "item": {
+                  "fake_model_id_kind": "missing",
+                  "instance_id_kind": "positive_integer",
+                  "model_id_kind": "positive_integer",
+                  "raw_index": 0,
+                  "used_kind": "missing"
+                },
+                "item_kind": "object",
+                "item_model_id_kind": "missing",
+                "items": [],
+                "items_kind": "missing",
+                "overflow_item": null,
+                "overflow_item_kind": "missing"
+              },
+              {
+                "event_index": 5,
+                "item": {
+                  "fake_model_id_kind": "missing",
+                  "instance_id_kind": "positive_integer",
+                  "model_id_kind": "positive_integer",
+                  "raw_index": 0,
+                  "used_kind": "missing"
+                },
+                "item_kind": "object",
+                "item_model_id_kind": "missing",
+                "items": [],
+                "items_kind": "missing",
+                "overflow_item": null,
+                "overflow_item_kind": "missing"
+              },
+              {
+                "event_index": 6,
+                "item": {
+                  "fake_model_id_kind": "missing",
+                  "instance_id_kind": "positive_integer",
+                  "model_id_kind": "positive_integer",
+                  "raw_index": 0,
+                  "used_kind": "missing"
+                },
+                "item_kind": "object",
+                "item_model_id_kind": "missing",
+                "items": [],
+                "items_kind": "missing",
+                "overflow_item": null,
+                "overflow_item_kind": "missing"
+              },
+              {
+                "event_index": 7,
+                "item": {
+                  "fake_model_id_kind": "missing",
+                  "instance_id_kind": "positive_integer",
+                  "model_id_kind": "positive_integer",
+                  "raw_index": 0,
+                  "used_kind": "missing"
+                },
+                "item_kind": "object",
+                "item_model_id_kind": "missing",
+                "items": [],
+                "items_kind": "missing",
+                "overflow_item": null,
+                "overflow_item_kind": "missing"
+              },
+              {
+                "event_index": 8,
+                "item": {
+                  "fake_model_id_kind": "missing",
+                  "instance_id_kind": "positive_integer",
+                  "model_id_kind": "positive_integer",
+                  "raw_index": 0,
+                  "used_kind": "missing"
+                },
+                "item_kind": "object",
+                "item_model_id_kind": "missing",
+                "items": [],
+                "items_kind": "missing",
+                "overflow_item": null,
+                "overflow_item_kind": "missing"
+              },
+              {
+                "event_index": 9,
+                "item": {
+                  "fake_model_id_kind": "missing",
+                  "instance_id_kind": "positive_integer",
+                  "model_id_kind": "positive_integer",
+                  "raw_index": 0,
+                  "used_kind": "missing"
+                },
+                "item_kind": "object",
+                "item_model_id_kind": "missing",
+                "items": [],
+                "items_kind": "missing",
+                "overflow_item": null,
+                "overflow_item_kind": "missing"
+              },
+              {
+                "event_index": 10,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              }
+            ],
+            "event_owners": [
+              {
+                "basis": "unresolved",
+                "event_index": 0,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "explicit_gift_player",
+                "event_index": 1,
+                "item_owner_player_id": 1
+              },
+              {
+                "basis": "explicit_gift_player",
+                "event_index": 2,
+                "item_owner_player_id": 1
+              },
+              {
+                "basis": "explicit_gift_player",
+                "event_index": 3,
+                "item_owner_player_id": 1
+              },
+              {
+                "basis": "explicit_gift_player",
+                "event_index": 4,
+                "item_owner_player_id": 1
+              },
+              {
+                "basis": "explicit_gift_player",
+                "event_index": 5,
+                "item_owner_player_id": 1
+              },
+              {
+                "basis": "explicit_gift_player",
+                "event_index": 6,
+                "item_owner_player_id": 1
+              },
+              {
+                "basis": "explicit_gift_player",
+                "event_index": 7,
+                "item_owner_player_id": 1
+              },
+              {
+                "basis": "explicit_gift_player",
+                "event_index": 8,
+                "item_owner_player_id": 1
+              },
+              {
+                "basis": "explicit_gift_player",
+                "event_index": 9,
+                "item_owner_player_id": 1
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 10,
+                "item_owner_player_id": null
+              }
+            ],
+            "events": [
+              {
+                "action": "startGame",
+                "event_index": 0,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "gift",
+                "event_index": 1,
+                "item": {
+                  "fake_model_id": null,
+                  "instance_id": 1,
+                  "model_id": 13,
+                  "raw_index": 0,
+                  "used": null
+                },
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "gift",
+                "event_index": 2,
+                "item": {
+                  "fake_model_id": null,
+                  "instance_id": 2,
+                  "model_id": 226,
+                  "raw_index": 0,
+                  "used": null
+                },
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "gift",
+                "event_index": 3,
+                "item": {
+                  "fake_model_id": null,
+                  "instance_id": 3,
+                  "model_id": 26,
+                  "raw_index": 0,
+                  "used": null
+                },
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "gift",
+                "event_index": 4,
+                "item": {
+                  "fake_model_id": null,
+                  "instance_id": 4,
+                  "model_id": 123,
+                  "raw_index": 0,
+                  "used": null
+                },
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "gift",
+                "event_index": 5,
+                "item": {
+                  "fake_model_id": null,
+                  "instance_id": 5,
+                  "model_id": 4,
+                  "raw_index": 0,
+                  "used": null
+                },
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "gift",
+                "event_index": 6,
+                "item": {
+                  "fake_model_id": null,
+                  "instance_id": 6,
+                  "model_id": 32,
+                  "raw_index": 0,
+                  "used": null
+                },
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "gift",
+                "event_index": 7,
+                "item": {
+                  "fake_model_id": null,
+                  "instance_id": 7,
+                  "model_id": 75,
+                  "raw_index": 0,
+                  "used": null
+                },
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "gift",
+                "event_index": 8,
+                "item": {
+                  "fake_model_id": null,
+                  "instance_id": 8,
+                  "model_id": 222,
+                  "raw_index": 0,
+                  "used": null
+                },
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "gift",
+                "event_index": 9,
+                "item": {
+                  "fake_model_id": null,
+                  "instance_id": 9,
+                  "model_id": 29,
+                  "raw_index": 0,
+                  "used": null
+                },
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "advanceGF",
+                "event_index": 10,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              }
+            ],
+            "field_number": 1,
+            "is_over": null,
+            "phase_after": {
+              "field_number": 1,
+              "player_ids": [
+                1,
+                2
+              ],
+              "self_player_id": 1,
+              "source_sequence": 1,
+              "target_player_id": null,
+              "turn_player_id": 1,
+              "update_count": 1
+            },
+            "phase_before": null,
+            "phase_input_status": "initial",
+            "player_count": 2,
+            "redacted_item_event_count": 0,
+            "self_item_wire": [
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 0,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 1,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 2,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 3,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 4,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 5,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 6,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 7,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 8,
+                "used_kind": "missing"
+              }
+            ],
+            "self_items": [
+              {
+                "fake_model_id": null,
+                "instance_id": 1,
+                "model_id": 13,
+                "raw_index": 0,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 2,
+                "model_id": 226,
+                "raw_index": 1,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 3,
+                "model_id": 26,
+                "raw_index": 2,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 4,
+                "model_id": 123,
+                "raw_index": 3,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 5,
+                "model_id": 4,
+                "raw_index": 4,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 6,
+                "model_id": 32,
+                "raw_index": 5,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 7,
+                "model_id": 75,
+                "raw_index": 6,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 8,
+                "model_id": 222,
+                "raw_index": 7,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 9,
+                "model_id": 29,
+                "raw_index": 8,
+                "used": null
+              }
+            ],
+            "self_player_id": 1,
+            "source_sequence": 1,
+            "unreviewed_event_count": 0,
+            "unreviewed_event_indices": [],
+            "update_count": 1
+          }
+        ],
+        "source_kind": "official-acquisition-evidence-v3",
+        "status": {
+          "acknowledged_sequence": 0,
+          "dropped_snapshot_count": 0,
+          "hook_error_count": 0,
+          "hook_installed": true,
+          "listener_registrations": 1,
+          "pending_snapshot_count": 1,
+          "rejected_snapshot_count": 0,
+          "source_sequence": 1,
+          "stream_id": "f13b5784-9e17-4015-91e0-70168ae26f5b"
+        },
+        "training_eligible": false
+      }
+    },
+    {
+      "sequence": 8,
+      "payload": {
+        "acquisition_rule_eligible": false,
+        "catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+        "client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+        "input_sha256": "b2488213e4fa10b0ee8106f212157f23b99cdbda2b9da276b348a70a5e978534",
+        "observed_at": "2026-09-28T19:57:13.385115Z",
+        "promotion_eligible": false,
+        "schema_version": 3,
+        "snapshots": [],
+        "source_kind": "official-acquisition-evidence-v3",
+        "status": {
+          "acknowledged_sequence": 1,
+          "dropped_snapshot_count": 0,
+          "hook_error_count": 0,
+          "hook_installed": true,
+          "listener_registrations": 1,
+          "pending_snapshot_count": 0,
+          "rejected_snapshot_count": 0,
+          "source_sequence": 1,
+          "stream_id": "f13b5784-9e17-4015-91e0-70168ae26f5b"
+        },
+        "training_eligible": false
+      }
+    },
+    {
+      "sequence": 16,
+      "payload": {
+        "acquisition_rule_eligible": false,
+        "catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+        "client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+        "input_sha256": "80212157a3ce59e24494ea872fe44d9fbd3bab5bc276aa0e5ff67526f0eeb862",
+        "observed_at": "2026-09-28T19:57:17.475269Z",
+        "promotion_eligible": false,
+        "schema_version": 3,
+        "snapshots": [
+          {
+            "attack_turn_player_id": 2,
+            "captured_at": "2026-09-28T19:57:13.907000Z",
+            "event_item_wire": [
+              {
+                "event_index": 0,
+                "item": null,
+                "item_kind": "missing",
+                "item_model_id_kind": "missing",
+                "items": [
+                  {
+                    "fake_model_id_kind": "missing",
+                    "instance_id_kind": "positive_integer",
+                    "model_id_kind": "positive_integer",
+                    "raw_index": 0,
+                    "used_kind": "missing"
+                  }
+                ],
+                "items_kind": "array",
+                "overflow_item": null,
+                "overflow_item_kind": "missing"
+              },
+              {
+                "event_index": 1,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 2,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 3,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 4,
+                "item": {
+                  "fake_model_id_kind": "missing",
+                  "instance_id_kind": "positive_integer",
+                  "model_id_kind": "positive_integer",
+                  "raw_index": 0,
+                  "used_kind": "missing"
+                },
+                "item_kind": "object",
+                "item_model_id_kind": "missing",
+                "items": [],
+                "items_kind": "missing",
+                "overflow_item": null,
+                "overflow_item_kind": "missing"
+              },
+              {
+                "event_index": 5,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 6,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 7,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              }
+            ],
+            "event_owners": [
+              {
+                "basis": "turn_context",
+                "event_index": 0,
+                "item_owner_player_id": 1
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 1,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "target_context",
+                "event_index": 2,
+                "item_owner_player_id": 2
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 3,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "explicit_gift_player",
+                "event_index": 4,
+                "item_owner_player_id": 1
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 5,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "turn_context",
+                "event_index": 6,
+                "item_owner_player_id": 2
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 7,
+                "item_owner_player_id": null
+              }
+            ],
+            "events": [
+              {
+                "action": "useAttackItems",
+                "event_index": 0,
+                "item": null,
+                "item_model_id": null,
+                "items": [
+                  {
+                    "fake_model_id": null,
+                    "instance_id": 6,
+                    "model_id": 32,
+                    "raw_index": 0,
+                    "used": null
+                  }
+                ],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "setTargetPlayer",
+                "event_index": 1,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 2,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "useDefenseItems",
+                "event_index": 2,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "dealDamage",
+                "event_index": 3,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "gift",
+                "event_index": 4,
+                "item": {
+                  "fake_model_id": null,
+                  "instance_id": 6,
+                  "model_id": 192,
+                  "raw_index": 0,
+                  "used": null
+                },
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "advanceGF",
+                "event_index": 5,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 2,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "useAttackItems",
+                "event_index": 6,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "setTargetPlayer",
+                "event_index": 7,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              }
+            ],
+            "field_number": 2,
+            "is_over": null,
+            "phase_after": {
+              "field_number": 2,
+              "player_ids": [
+                1,
+                2
+              ],
+              "self_player_id": 1,
+              "source_sequence": 2,
+              "target_player_id": 1,
+              "turn_player_id": 2,
+              "update_count": 2
+            },
+            "phase_before": {
+              "field_number": 1,
+              "player_ids": [
+                1,
+                2
+              ],
+              "self_player_id": 1,
+              "source_sequence": 1,
+              "target_player_id": null,
+              "turn_player_id": 1,
+              "update_count": 1
+            },
+            "phase_input_status": "consecutive",
+            "player_count": 2,
+            "redacted_item_event_count": 1,
+            "self_item_wire": [
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 0,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 1,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 2,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 3,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 4,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 5,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 6,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 7,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 8,
+                "used_kind": "missing"
+              }
+            ],
+            "self_items": [
+              {
+                "fake_model_id": null,
+                "instance_id": 1,
+                "model_id": 13,
+                "raw_index": 0,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 2,
+                "model_id": 226,
+                "raw_index": 1,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 3,
+                "model_id": 26,
+                "raw_index": 2,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 4,
+                "model_id": 123,
+                "raw_index": 3,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 5,
+                "model_id": 4,
+                "raw_index": 4,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 7,
+                "model_id": 75,
+                "raw_index": 5,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 8,
+                "model_id": 222,
+                "raw_index": 6,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 9,
+                "model_id": 29,
+                "raw_index": 7,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 6,
+                "model_id": 192,
+                "raw_index": 8,
+                "used": null
+              }
+            ],
+            "self_player_id": 1,
+            "source_sequence": 2,
+            "unreviewed_event_count": 0,
+            "unreviewed_event_indices": [],
+            "update_count": 2
+          }
+        ],
+        "source_kind": "official-acquisition-evidence-v3",
+        "status": {
+          "acknowledged_sequence": 1,
+          "dropped_snapshot_count": 0,
+          "hook_error_count": 0,
+          "hook_installed": true,
+          "listener_registrations": 1,
+          "pending_snapshot_count": 1,
+          "rejected_snapshot_count": 0,
+          "source_sequence": 2,
+          "stream_id": "f13b5784-9e17-4015-91e0-70168ae26f5b"
+        },
+        "training_eligible": false
+      }
+    },
+    {
+      "sequence": 21,
+      "payload": {
+        "acquisition_rule_eligible": false,
+        "catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+        "client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+        "input_sha256": "7f45ef0163397ffe9476fcc3e95622eb87c52df7d5aec6c9f30b496991865763",
+        "observed_at": "2026-09-28T19:57:19.510748Z",
+        "promotion_eligible": false,
+        "schema_version": 3,
+        "snapshots": [],
+        "source_kind": "official-acquisition-evidence-v3",
+        "status": {
+          "acknowledged_sequence": 2,
+          "dropped_snapshot_count": 0,
+          "hook_error_count": 0,
+          "hook_installed": true,
+          "listener_registrations": 1,
+          "pending_snapshot_count": 0,
+          "rejected_snapshot_count": 0,
+          "source_sequence": 2,
+          "stream_id": "f13b5784-9e17-4015-91e0-70168ae26f5b"
+        },
+        "training_eligible": false
+      }
+    },
+    {
+      "sequence": 36,
+      "payload": {
+        "acquisition_rule_eligible": false,
+        "catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+        "client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+        "input_sha256": "9ae02fdf54a391f1d71bf9bf7d25c30ef1256e5dd960fc1131ab20cc32cbcc6d",
+        "observed_at": "2026-09-28T19:57:27.702608Z",
+        "promotion_eligible": false,
+        "schema_version": 3,
+        "snapshots": [
+          {
+            "attack_turn_player_id": 1,
+            "captured_at": "2026-09-28T19:57:23.857000Z",
+            "event_item_wire": [
+              {
+                "event_index": 0,
+                "item": null,
+                "item_kind": "missing",
+                "item_model_id_kind": "missing",
+                "items": [
+                  {
+                    "fake_model_id_kind": "missing",
+                    "instance_id_kind": "positive_integer",
+                    "model_id_kind": "positive_integer",
+                    "raw_index": 0,
+                    "used_kind": "missing"
+                  }
+                ],
+                "items_kind": "array",
+                "overflow_item": null,
+                "overflow_item_kind": "missing"
+              },
+              {
+                "event_index": 1,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 2,
+                "item": {
+                  "fake_model_id_kind": "missing",
+                  "instance_id_kind": "positive_integer",
+                  "model_id_kind": "positive_integer",
+                  "raw_index": 0,
+                  "used_kind": "missing"
+                },
+                "item_kind": "object",
+                "item_model_id_kind": "missing",
+                "items": [],
+                "items_kind": "missing",
+                "overflow_item": null,
+                "overflow_item_kind": "missing"
+              },
+              {
+                "event_index": 3,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              }
+            ],
+            "event_owners": [
+              {
+                "basis": "target_context",
+                "event_index": 0,
+                "item_owner_player_id": 1
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 1,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "explicit_gift_player",
+                "event_index": 2,
+                "item_owner_player_id": 1
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 3,
+                "item_owner_player_id": null
+              }
+            ],
+            "events": [
+              {
+                "action": "useDefenseItems",
+                "event_index": 0,
+                "item": null,
+                "item_model_id": null,
+                "items": [
+                  {
+                    "fake_model_id": null,
+                    "instance_id": 4,
+                    "model_id": 123,
+                    "raw_index": 0,
+                    "used": null
+                  }
+                ],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "dealDamage",
+                "event_index": 1,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "gift",
+                "event_index": 2,
+                "item": {
+                  "fake_model_id": null,
+                  "instance_id": 4,
+                  "model_id": 110,
+                  "raw_index": 0,
+                  "used": null
+                },
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "advanceGF",
+                "event_index": 3,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              }
+            ],
+            "field_number": 3,
+            "is_over": null,
+            "phase_after": {
+              "field_number": 3,
+              "player_ids": [
+                1,
+                2
+              ],
+              "self_player_id": 1,
+              "source_sequence": 3,
+              "target_player_id": null,
+              "turn_player_id": 1,
+              "update_count": 3
+            },
+            "phase_before": {
+              "field_number": 2,
+              "player_ids": [
+                1,
+                2
+              ],
+              "self_player_id": 1,
+              "source_sequence": 2,
+              "target_player_id": 1,
+              "turn_player_id": 2,
+              "update_count": 2
+            },
+            "phase_input_status": "consecutive",
+            "player_count": 2,
+            "redacted_item_event_count": 0,
+            "self_item_wire": [
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 0,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 1,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 2,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 3,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 4,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 5,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 6,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 7,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 8,
+                "used_kind": "missing"
+              }
+            ],
+            "self_items": [
+              {
+                "fake_model_id": null,
+                "instance_id": 1,
+                "model_id": 13,
+                "raw_index": 0,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 2,
+                "model_id": 226,
+                "raw_index": 1,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 3,
+                "model_id": 26,
+                "raw_index": 2,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 5,
+                "model_id": 4,
+                "raw_index": 3,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 7,
+                "model_id": 75,
+                "raw_index": 4,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 8,
+                "model_id": 222,
+                "raw_index": 5,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 9,
+                "model_id": 29,
+                "raw_index": 6,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 6,
+                "model_id": 192,
+                "raw_index": 7,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 4,
+                "model_id": 110,
+                "raw_index": 8,
+                "used": null
+              }
+            ],
+            "self_player_id": 1,
+            "source_sequence": 3,
+            "unreviewed_event_count": 0,
+            "unreviewed_event_indices": [],
+            "update_count": 3
+          }
+        ],
+        "source_kind": "official-acquisition-evidence-v3",
+        "status": {
+          "acknowledged_sequence": 2,
+          "dropped_snapshot_count": 0,
+          "hook_error_count": 0,
+          "hook_installed": true,
+          "listener_registrations": 1,
+          "pending_snapshot_count": 1,
+          "rejected_snapshot_count": 0,
+          "source_sequence": 3,
+          "stream_id": "f13b5784-9e17-4015-91e0-70168ae26f5b"
+        },
+        "training_eligible": false
+      }
+    },
+    {
+      "sequence": 44,
+      "payload": {
+        "acquisition_rule_eligible": false,
+        "catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+        "client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+        "input_sha256": "0e594e3c29bc555bccd60e46463ff18a66bd6449a9e510cdbbe01e76f2c95889",
+        "observed_at": "2026-09-28T19:57:31.779575Z",
+        "promotion_eligible": false,
+        "schema_version": 3,
+        "snapshots": [],
+        "source_kind": "official-acquisition-evidence-v3",
+        "status": {
+          "acknowledged_sequence": 3,
+          "dropped_snapshot_count": 0,
+          "hook_error_count": 0,
+          "hook_installed": true,
+          "listener_registrations": 1,
+          "pending_snapshot_count": 0,
+          "rejected_snapshot_count": 0,
+          "source_sequence": 3,
+          "stream_id": "f13b5784-9e17-4015-91e0-70168ae26f5b"
+        },
+        "training_eligible": false
+      }
+    },
+    {
+      "sequence": 52,
+      "payload": {
+        "acquisition_rule_eligible": false,
+        "catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+        "client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+        "input_sha256": "28e8e6236fbff770b89fafaca77fd3d7a55ce601da861ece3c0b4c35af2de499",
+        "observed_at": "2026-09-28T19:57:35.859929Z",
+        "promotion_eligible": false,
+        "schema_version": 3,
+        "snapshots": [
+          {
+            "attack_turn_player_id": 1,
+            "captured_at": "2026-09-28T19:57:32.048000Z",
+            "event_item_wire": [
+              {
+                "event_index": 0,
+                "item": null,
+                "item_kind": "missing",
+                "item_model_id_kind": "missing",
+                "items": [
+                  {
+                    "fake_model_id_kind": "missing",
+                    "instance_id_kind": "positive_integer",
+                    "model_id_kind": "positive_integer",
+                    "raw_index": 0,
+                    "used_kind": "missing"
+                  }
+                ],
+                "items_kind": "array",
+                "overflow_item": null,
+                "overflow_item_kind": "missing"
+              },
+              {
+                "event_index": 1,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 2,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 3,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 4,
+                "item": {
+                  "fake_model_id_kind": "missing",
+                  "instance_id_kind": "positive_integer",
+                  "model_id_kind": "positive_integer",
+                  "raw_index": 0,
+                  "used_kind": "missing"
+                },
+                "item_kind": "object",
+                "item_model_id_kind": "missing",
+                "items": [],
+                "items_kind": "missing",
+                "overflow_item": null,
+                "overflow_item_kind": "missing"
+              },
+              {
+                "event_index": 5,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 6,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 7,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 8,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              }
+            ],
+            "event_owners": [
+              {
+                "basis": "turn_context",
+                "event_index": 0,
+                "item_owner_player_id": 1
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 1,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "target_context",
+                "event_index": 2,
+                "item_owner_player_id": 2
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 3,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "explicit_gift_player",
+                "event_index": 4,
+                "item_owner_player_id": 1
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 5,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "turn_context",
+                "event_index": 6,
+                "item_owner_player_id": 2
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 7,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 8,
+                "item_owner_player_id": null
+              }
+            ],
+            "events": [
+              {
+                "action": "useAttackItems",
+                "event_index": 0,
+                "item": null,
+                "item_model_id": null,
+                "items": [
+                  {
+                    "fake_model_id": null,
+                    "instance_id": 9,
+                    "model_id": 29,
+                    "raw_index": 0,
+                    "used": null
+                  }
+                ],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "setTargetPlayer",
+                "event_index": 1,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 2,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "useDefenseItems",
+                "event_index": 2,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "dealDamage",
+                "event_index": 3,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "gift",
+                "event_index": 4,
+                "item": {
+                  "fake_model_id": null,
+                  "instance_id": 9,
+                  "model_id": 44,
+                  "raw_index": 0,
+                  "used": null
+                },
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "advanceGF",
+                "event_index": 5,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 2,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "useAttackItems",
+                "event_index": 6,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "boostHP",
+                "event_index": 7,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "advanceGF",
+                "event_index": 8,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              }
+            ],
+            "field_number": 5,
+            "is_over": null,
+            "phase_after": {
+              "field_number": 5,
+              "player_ids": [
+                1,
+                2
+              ],
+              "self_player_id": 1,
+              "source_sequence": 4,
+              "target_player_id": null,
+              "turn_player_id": 1,
+              "update_count": 4
+            },
+            "phase_before": {
+              "field_number": 3,
+              "player_ids": [
+                1,
+                2
+              ],
+              "self_player_id": 1,
+              "source_sequence": 3,
+              "target_player_id": null,
+              "turn_player_id": 1,
+              "update_count": 3
+            },
+            "phase_input_status": "consecutive",
+            "player_count": 2,
+            "redacted_item_event_count": 2,
+            "self_item_wire": [
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 0,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 1,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 2,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 3,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 4,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 5,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 6,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 7,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 8,
+                "used_kind": "missing"
+              }
+            ],
+            "self_items": [
+              {
+                "fake_model_id": null,
+                "instance_id": 1,
+                "model_id": 13,
+                "raw_index": 0,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 2,
+                "model_id": 226,
+                "raw_index": 1,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 3,
+                "model_id": 26,
+                "raw_index": 2,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 5,
+                "model_id": 4,
+                "raw_index": 3,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 7,
+                "model_id": 75,
+                "raw_index": 4,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 8,
+                "model_id": 222,
+                "raw_index": 5,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 6,
+                "model_id": 192,
+                "raw_index": 6,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 4,
+                "model_id": 110,
+                "raw_index": 7,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 9,
+                "model_id": 44,
+                "raw_index": 8,
+                "used": null
+              }
+            ],
+            "self_player_id": 1,
+            "source_sequence": 4,
+            "unreviewed_event_count": 0,
+            "unreviewed_event_indices": [],
+            "update_count": 4
+          }
+        ],
+        "source_kind": "official-acquisition-evidence-v3",
+        "status": {
+          "acknowledged_sequence": 3,
+          "dropped_snapshot_count": 0,
+          "hook_error_count": 0,
+          "hook_installed": true,
+          "listener_registrations": 1,
+          "pending_snapshot_count": 1,
+          "rejected_snapshot_count": 0,
+          "source_sequence": 4,
+          "stream_id": "f13b5784-9e17-4015-91e0-70168ae26f5b"
+        },
+        "training_eligible": false
+      }
+    },
+    {
+      "sequence": 57,
+      "payload": {
+        "acquisition_rule_eligible": false,
+        "catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+        "client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+        "input_sha256": "33b2475637fcfd1d9d522728c2673d5a5da80c50e4f5848639bbb8ab6616847d",
+        "observed_at": "2026-09-28T19:57:37.890123Z",
+        "promotion_eligible": false,
+        "schema_version": 3,
+        "snapshots": [],
+        "source_kind": "official-acquisition-evidence-v3",
+        "status": {
+          "acknowledged_sequence": 4,
+          "dropped_snapshot_count": 0,
+          "hook_error_count": 0,
+          "hook_installed": true,
+          "listener_registrations": 1,
+          "pending_snapshot_count": 0,
+          "rejected_snapshot_count": 0,
+          "source_sequence": 4,
+          "stream_id": "f13b5784-9e17-4015-91e0-70168ae26f5b"
+        },
+        "training_eligible": false
+      }
+    },
+    {
+      "sequence": 76,
+      "payload": {
+        "acquisition_rule_eligible": false,
+        "catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+        "client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+        "input_sha256": "ab45a31b6efb80c86f29769580c6b2e0a6388fd3a45a5f4ce75c6dad696f8e6f",
+        "observed_at": "2026-09-28T19:57:48.084821Z",
+        "promotion_eligible": false,
+        "schema_version": 3,
+        "snapshots": [
+          {
+            "attack_turn_player_id": 1,
+            "captured_at": "2026-09-28T19:57:46.652000Z",
+            "event_item_wire": [
+              {
+                "event_index": 0,
+                "item": null,
+                "item_kind": "missing",
+                "item_model_id_kind": "missing",
+                "items": [
+                  {
+                    "fake_model_id_kind": "missing",
+                    "instance_id_kind": "positive_integer",
+                    "model_id_kind": "positive_integer",
+                    "raw_index": 0,
+                    "used_kind": "missing"
+                  }
+                ],
+                "items_kind": "array",
+                "overflow_item": null,
+                "overflow_item_kind": "missing"
+              },
+              {
+                "event_index": 1,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 2,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 3,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 4,
+                "item": {
+                  "fake_model_id_kind": "missing",
+                  "instance_id_kind": "positive_integer",
+                  "model_id_kind": "positive_integer",
+                  "raw_index": 0,
+                  "used_kind": "missing"
+                },
+                "item_kind": "object",
+                "item_model_id_kind": "missing",
+                "items": [],
+                "items_kind": "missing",
+                "overflow_item": null,
+                "overflow_item_kind": "missing"
+              },
+              {
+                "event_index": 5,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 6,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 7,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 8,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              }
+            ],
+            "event_owners": [
+              {
+                "basis": "turn_context",
+                "event_index": 0,
+                "item_owner_player_id": 1
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 1,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "target_context",
+                "event_index": 2,
+                "item_owner_player_id": 2
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 3,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "explicit_gift_player",
+                "event_index": 4,
+                "item_owner_player_id": 1
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 5,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "turn_context",
+                "event_index": 6,
+                "item_owner_player_id": 2
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 7,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 8,
+                "item_owner_player_id": null
+              }
+            ],
+            "events": [
+              {
+                "action": "useAttackItems",
+                "event_index": 0,
+                "item": null,
+                "item_model_id": null,
+                "items": [
+                  {
+                    "fake_model_id": null,
+                    "instance_id": 9,
+                    "model_id": 44,
+                    "raw_index": 0,
+                    "used": null
+                  }
+                ],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "setTargetPlayer",
+                "event_index": 1,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 2,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "useDefenseItems",
+                "event_index": 2,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "dealDamage",
+                "event_index": 3,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "gift",
+                "event_index": 4,
+                "item": {
+                  "fake_model_id": null,
+                  "instance_id": 9,
+                  "model_id": 41,
+                  "raw_index": 0,
+                  "used": null
+                },
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "advanceGF",
+                "event_index": 5,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 2,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "useAttackItems",
+                "event_index": 6,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "boostMP",
+                "event_index": 7,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "advanceGF",
+                "event_index": 8,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              }
+            ],
+            "field_number": 7,
+            "is_over": null,
+            "phase_after": {
+              "field_number": 7,
+              "player_ids": [
+                1,
+                2
+              ],
+              "self_player_id": 1,
+              "source_sequence": 5,
+              "target_player_id": null,
+              "turn_player_id": 1,
+              "update_count": 5
+            },
+            "phase_before": {
+              "field_number": 5,
+              "player_ids": [
+                1,
+                2
+              ],
+              "self_player_id": 1,
+              "source_sequence": 4,
+              "target_player_id": null,
+              "turn_player_id": 1,
+              "update_count": 4
+            },
+            "phase_input_status": "consecutive",
+            "player_count": 2,
+            "redacted_item_event_count": 2,
+            "self_item_wire": [
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 0,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 1,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 2,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 3,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 4,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 5,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 6,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 7,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 8,
+                "used_kind": "missing"
+              }
+            ],
+            "self_items": [
+              {
+                "fake_model_id": null,
+                "instance_id": 1,
+                "model_id": 13,
+                "raw_index": 0,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 2,
+                "model_id": 226,
+                "raw_index": 1,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 3,
+                "model_id": 26,
+                "raw_index": 2,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 5,
+                "model_id": 4,
+                "raw_index": 3,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 7,
+                "model_id": 75,
+                "raw_index": 4,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 8,
+                "model_id": 222,
+                "raw_index": 5,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 6,
+                "model_id": 192,
+                "raw_index": 6,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 4,
+                "model_id": 110,
+                "raw_index": 7,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 9,
+                "model_id": 41,
+                "raw_index": 8,
+                "used": null
+              }
+            ],
+            "self_player_id": 1,
+            "source_sequence": 5,
+            "unreviewed_event_count": 0,
+            "unreviewed_event_indices": [],
+            "update_count": 5
+          }
+        ],
+        "source_kind": "official-acquisition-evidence-v3",
+        "status": {
+          "acknowledged_sequence": 4,
+          "dropped_snapshot_count": 0,
+          "hook_error_count": 0,
+          "hook_installed": true,
+          "listener_registrations": 1,
+          "pending_snapshot_count": 1,
+          "rejected_snapshot_count": 0,
+          "source_sequence": 5,
+          "stream_id": "f13b5784-9e17-4015-91e0-70168ae26f5b"
+        },
+        "training_eligible": false
+      }
+    },
+    {
+      "sequence": 81,
+      "payload": {
+        "acquisition_rule_eligible": false,
+        "catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+        "client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+        "input_sha256": "0082addca79fbd30994ed2fbf0b0e9e6b5031f9bd1297652a4eae0e71cf8858c",
+        "observed_at": "2026-09-28T19:57:50.115512Z",
+        "promotion_eligible": false,
+        "schema_version": 3,
+        "snapshots": [],
+        "source_kind": "official-acquisition-evidence-v3",
+        "status": {
+          "acknowledged_sequence": 5,
+          "dropped_snapshot_count": 0,
+          "hook_error_count": 0,
+          "hook_installed": true,
+          "listener_registrations": 1,
+          "pending_snapshot_count": 0,
+          "rejected_snapshot_count": 0,
+          "source_sequence": 5,
+          "stream_id": "f13b5784-9e17-4015-91e0-70168ae26f5b"
+        },
+        "training_eligible": false
+      }
+    },
+    {
+      "sequence": 104,
+      "payload": {
+        "acquisition_rule_eligible": false,
+        "catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+        "client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+        "input_sha256": "536b475624580b59e4533adf473dab0e0e3b36eea2f92af141e809d063a0a3cb",
+        "observed_at": "2026-09-28T19:58:02.333399Z",
+        "promotion_eligible": false,
+        "schema_version": 3,
+        "snapshots": [
+          {
+            "attack_turn_player_id": 2,
+            "captured_at": "2026-09-28T19:57:59.519000Z",
+            "event_item_wire": [
+              {
+                "event_index": 0,
+                "item": null,
+                "item_kind": "missing",
+                "item_model_id_kind": "missing",
+                "items": [
+                  {
+                    "fake_model_id_kind": "missing",
+                    "instance_id_kind": "positive_integer",
+                    "model_id_kind": "positive_integer",
+                    "raw_index": 0,
+                    "used_kind": "missing"
+                  }
+                ],
+                "items_kind": "array",
+                "overflow_item": null,
+                "overflow_item_kind": "missing"
+              },
+              {
+                "event_index": 1,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 2,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 3,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 4,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 5,
+                "item": {
+                  "fake_model_id_kind": "missing",
+                  "instance_id_kind": "positive_integer",
+                  "model_id_kind": "positive_integer",
+                  "raw_index": 0,
+                  "used_kind": "missing"
+                },
+                "item_kind": "object",
+                "item_model_id_kind": "missing",
+                "items": [],
+                "items_kind": "missing",
+                "overflow_item": null,
+                "overflow_item_kind": "missing"
+              },
+              {
+                "event_index": 6,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 7,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 8,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              }
+            ],
+            "event_owners": [
+              {
+                "basis": "turn_context",
+                "event_index": 0,
+                "item_owner_player_id": 1
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 1,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "target_context",
+                "event_index": 2,
+                "item_owner_player_id": 2
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 3,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 4,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "explicit_gift_player",
+                "event_index": 5,
+                "item_owner_player_id": 1
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 6,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "turn_context",
+                "event_index": 7,
+                "item_owner_player_id": 2
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 8,
+                "item_owner_player_id": null
+              }
+            ],
+            "events": [
+              {
+                "action": "useAttackItems",
+                "event_index": 0,
+                "item": null,
+                "item_model_id": null,
+                "items": [
+                  {
+                    "fake_model_id": null,
+                    "instance_id": 9,
+                    "model_id": 41,
+                    "raw_index": 0,
+                    "used": null
+                  }
+                ],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "setTargetPlayer",
+                "event_index": 1,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 2,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "useDefenseItems",
+                "event_index": 2,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "dealDamage",
+                "event_index": 3,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "addCurse",
+                "event_index": 4,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "gift",
+                "event_index": 5,
+                "item": {
+                  "fake_model_id": null,
+                  "instance_id": 9,
+                  "model_id": 18,
+                  "raw_index": 0,
+                  "used": null
+                },
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "advanceGF",
+                "event_index": 6,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 2,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "useAttackItems",
+                "event_index": 7,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "setTargetPlayer",
+                "event_index": 8,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              }
+            ],
+            "field_number": 8,
+            "is_over": null,
+            "phase_after": {
+              "field_number": 8,
+              "player_ids": [
+                1,
+                2
+              ],
+              "self_player_id": 1,
+              "source_sequence": 6,
+              "target_player_id": 1,
+              "turn_player_id": 2,
+              "update_count": 6
+            },
+            "phase_before": {
+              "field_number": 7,
+              "player_ids": [
+                1,
+                2
+              ],
+              "self_player_id": 1,
+              "source_sequence": 5,
+              "target_player_id": null,
+              "turn_player_id": 1,
+              "update_count": 5
+            },
+            "phase_input_status": "consecutive",
+            "player_count": 2,
+            "redacted_item_event_count": 2,
+            "self_item_wire": [
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 0,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 1,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 2,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 3,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 4,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 5,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 6,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 7,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 8,
+                "used_kind": "missing"
+              }
+            ],
+            "self_items": [
+              {
+                "fake_model_id": null,
+                "instance_id": 1,
+                "model_id": 13,
+                "raw_index": 0,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 2,
+                "model_id": 226,
+                "raw_index": 1,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 3,
+                "model_id": 26,
+                "raw_index": 2,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 5,
+                "model_id": 4,
+                "raw_index": 3,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 7,
+                "model_id": 75,
+                "raw_index": 4,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 8,
+                "model_id": 222,
+                "raw_index": 5,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 6,
+                "model_id": 192,
+                "raw_index": 6,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 4,
+                "model_id": 110,
+                "raw_index": 7,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 9,
+                "model_id": 18,
+                "raw_index": 8,
+                "used": null
+              }
+            ],
+            "self_player_id": 1,
+            "source_sequence": 6,
+            "unreviewed_event_count": 0,
+            "unreviewed_event_indices": [],
+            "update_count": 6
+          }
+        ],
+        "source_kind": "official-acquisition-evidence-v3",
+        "status": {
+          "acknowledged_sequence": 5,
+          "dropped_snapshot_count": 0,
+          "hook_error_count": 0,
+          "hook_installed": true,
+          "listener_registrations": 1,
+          "pending_snapshot_count": 1,
+          "rejected_snapshot_count": 0,
+          "source_sequence": 6,
+          "stream_id": "f13b5784-9e17-4015-91e0-70168ae26f5b"
+        },
+        "training_eligible": false
+      }
+    },
+    {
+      "sequence": 109,
+      "payload": {
+        "acquisition_rule_eligible": false,
+        "catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+        "client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+        "input_sha256": "4ff0567bb4a83d09ccf63c3dfaeb56ac852b44b77b8ec3022b29660effc7d425",
+        "observed_at": "2026-09-28T19:58:04.365719Z",
+        "promotion_eligible": false,
+        "schema_version": 3,
+        "snapshots": [],
+        "source_kind": "official-acquisition-evidence-v3",
+        "status": {
+          "acknowledged_sequence": 6,
+          "dropped_snapshot_count": 0,
+          "hook_error_count": 0,
+          "hook_installed": true,
+          "listener_registrations": 1,
+          "pending_snapshot_count": 0,
+          "rejected_snapshot_count": 0,
+          "source_sequence": 6,
+          "stream_id": "f13b5784-9e17-4015-91e0-70168ae26f5b"
+        },
+        "training_eligible": false
+      }
+    },
+    {
+      "sequence": 121,
+      "payload": {
+        "acquisition_rule_eligible": false,
+        "catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+        "client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+        "input_sha256": "cceb4ecb2d82705f07fbd45405fe92b58207b43a4e83d982fff77e2402c4cced",
+        "observed_at": "2026-09-28T19:58:10.499173Z",
+        "promotion_eligible": false,
+        "schema_version": 3,
+        "snapshots": [
+          {
+            "attack_turn_player_id": 1,
+            "captured_at": "2026-09-28T19:58:06.667000Z",
+            "event_item_wire": [
+              {
+                "event_index": 0,
+                "item": null,
+                "item_kind": "missing",
+                "item_model_id_kind": "missing",
+                "items": [],
+                "items_kind": "missing",
+                "overflow_item": null,
+                "overflow_item_kind": "missing"
+              },
+              {
+                "event_index": 1,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 2,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 3,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              }
+            ],
+            "event_owners": [
+              {
+                "basis": "target_context",
+                "event_index": 0,
+                "item_owner_player_id": 1
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 1,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 2,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 3,
+                "item_owner_player_id": null
+              }
+            ],
+            "events": [
+              {
+                "action": "useDefenseItems",
+                "event_index": 0,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "buy",
+                "event_index": 1,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "setBought",
+                "event_index": 2,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "advanceGF",
+                "event_index": 3,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              }
+            ],
+            "field_number": 9,
+            "is_over": null,
+            "phase_after": {
+              "field_number": 9,
+              "player_ids": [
+                1,
+                2
+              ],
+              "self_player_id": 1,
+              "source_sequence": 7,
+              "target_player_id": null,
+              "turn_player_id": 1,
+              "update_count": 7
+            },
+            "phase_before": {
+              "field_number": 8,
+              "player_ids": [
+                1,
+                2
+              ],
+              "self_player_id": 1,
+              "source_sequence": 6,
+              "target_player_id": 1,
+              "turn_player_id": 2,
+              "update_count": 6
+            },
+            "phase_input_status": "consecutive",
+            "player_count": 2,
+            "redacted_item_event_count": 2,
+            "self_item_wire": [
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 0,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 1,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 2,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 3,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 4,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 5,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 6,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 7,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 8,
+                "used_kind": "missing"
+              }
+            ],
+            "self_items": [
+              {
+                "fake_model_id": null,
+                "instance_id": 1,
+                "model_id": 13,
+                "raw_index": 0,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 2,
+                "model_id": 226,
+                "raw_index": 1,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 3,
+                "model_id": 26,
+                "raw_index": 2,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 5,
+                "model_id": 4,
+                "raw_index": 3,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 7,
+                "model_id": 75,
+                "raw_index": 4,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 8,
+                "model_id": 222,
+                "raw_index": 5,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 6,
+                "model_id": 192,
+                "raw_index": 6,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 9,
+                "model_id": 18,
+                "raw_index": 7,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 4,
+                "model_id": 110,
+                "raw_index": 8,
+                "used": null
+              }
+            ],
+            "self_player_id": 1,
+            "source_sequence": 7,
+            "unreviewed_event_count": 0,
+            "unreviewed_event_indices": [],
+            "update_count": 7
+          }
+        ],
+        "source_kind": "official-acquisition-evidence-v3",
+        "status": {
+          "acknowledged_sequence": 6,
+          "dropped_snapshot_count": 0,
+          "hook_error_count": 0,
+          "hook_installed": true,
+          "listener_registrations": 1,
+          "pending_snapshot_count": 1,
+          "rejected_snapshot_count": 0,
+          "source_sequence": 7,
+          "stream_id": "f13b5784-9e17-4015-91e0-70168ae26f5b"
+        },
+        "training_eligible": false
+      }
+    },
+    {
+      "sequence": 129,
+      "payload": {
+        "acquisition_rule_eligible": false,
+        "catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+        "client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+        "input_sha256": "eeecfffdfb59fc7d2400d9679700cf701d3c08075a7fe073ecababa96639d86c",
+        "observed_at": "2026-09-28T19:58:14.601509Z",
+        "promotion_eligible": false,
+        "schema_version": 3,
+        "snapshots": [],
+        "source_kind": "official-acquisition-evidence-v3",
+        "status": {
+          "acknowledged_sequence": 7,
+          "dropped_snapshot_count": 0,
+          "hook_error_count": 0,
+          "hook_installed": true,
+          "listener_registrations": 1,
+          "pending_snapshot_count": 0,
+          "rejected_snapshot_count": 0,
+          "source_sequence": 7,
+          "stream_id": "f13b5784-9e17-4015-91e0-70168ae26f5b"
+        },
+        "training_eligible": false
+      }
+    },
+    {
+      "sequence": 137,
+      "payload": {
+        "acquisition_rule_eligible": false,
+        "catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+        "client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+        "input_sha256": "6f7ce8865a905783cd257db03f53859dfc25ec82074a7b318336c80f959bca1e",
+        "observed_at": "2026-09-28T19:58:18.671089Z",
+        "promotion_eligible": false,
+        "schema_version": 3,
+        "snapshots": [
+          {
+            "attack_turn_player_id": 1,
+            "captured_at": "2026-09-28T19:58:14.850000Z",
+            "event_item_wire": [
+              {
+                "event_index": 0,
+                "item": null,
+                "item_kind": "missing",
+                "item_model_id_kind": "missing",
+                "items": [
+                  {
+                    "fake_model_id_kind": "missing",
+                    "instance_id_kind": "positive_integer",
+                    "model_id_kind": "positive_integer",
+                    "raw_index": 0,
+                    "used_kind": "missing"
+                  }
+                ],
+                "items_kind": "array",
+                "overflow_item": null,
+                "overflow_item_kind": "missing"
+              },
+              {
+                "event_index": 1,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 2,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 3,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 4,
+                "item": {
+                  "fake_model_id_kind": "missing",
+                  "instance_id_kind": "positive_integer",
+                  "model_id_kind": "positive_integer",
+                  "raw_index": 0,
+                  "used_kind": "missing"
+                },
+                "item_kind": "object",
+                "item_model_id_kind": "missing",
+                "items": [],
+                "items_kind": "missing",
+                "overflow_item": null,
+                "overflow_item_kind": "missing"
+              },
+              {
+                "event_index": 5,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 6,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 7,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 8,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              }
+            ],
+            "event_owners": [
+              {
+                "basis": "turn_context",
+                "event_index": 0,
+                "item_owner_player_id": 1
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 1,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "target_context",
+                "event_index": 2,
+                "item_owner_player_id": 2
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 3,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "explicit_gift_player",
+                "event_index": 4,
+                "item_owner_player_id": 1
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 5,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "turn_context",
+                "event_index": 6,
+                "item_owner_player_id": 2
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 7,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 8,
+                "item_owner_player_id": null
+              }
+            ],
+            "events": [
+              {
+                "action": "useAttackItems",
+                "event_index": 0,
+                "item": null,
+                "item_model_id": null,
+                "items": [
+                  {
+                    "fake_model_id": null,
+                    "instance_id": 3,
+                    "model_id": 26,
+                    "raw_index": 0,
+                    "used": null
+                  }
+                ],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "setTargetPlayer",
+                "event_index": 1,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 2,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "useDefenseItems",
+                "event_index": 2,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "dealDamage",
+                "event_index": 3,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "gift",
+                "event_index": 4,
+                "item": {
+                  "fake_model_id": null,
+                  "instance_id": 3,
+                  "model_id": 55,
+                  "raw_index": 0,
+                  "used": null
+                },
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "advanceGF",
+                "event_index": 5,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 2,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "useAttackItems",
+                "event_index": 6,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "boostHP",
+                "event_index": 7,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "advanceGF",
+                "event_index": 8,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              }
+            ],
+            "field_number": 11,
+            "is_over": null,
+            "phase_after": {
+              "field_number": 11,
+              "player_ids": [
+                1,
+                2
+              ],
+              "self_player_id": 1,
+              "source_sequence": 8,
+              "target_player_id": null,
+              "turn_player_id": 1,
+              "update_count": 8
+            },
+            "phase_before": {
+              "field_number": 9,
+              "player_ids": [
+                1,
+                2
+              ],
+              "self_player_id": 1,
+              "source_sequence": 7,
+              "target_player_id": null,
+              "turn_player_id": 1,
+              "update_count": 7
+            },
+            "phase_input_status": "consecutive",
+            "player_count": 2,
+            "redacted_item_event_count": 1,
+            "self_item_wire": [
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 0,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 1,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 2,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 3,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 4,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 5,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 6,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 7,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 8,
+                "used_kind": "missing"
+              }
+            ],
+            "self_items": [
+              {
+                "fake_model_id": null,
+                "instance_id": 1,
+                "model_id": 13,
+                "raw_index": 0,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 2,
+                "model_id": 226,
+                "raw_index": 1,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 5,
+                "model_id": 4,
+                "raw_index": 2,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 7,
+                "model_id": 75,
+                "raw_index": 3,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 8,
+                "model_id": 222,
+                "raw_index": 4,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 6,
+                "model_id": 192,
+                "raw_index": 5,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 9,
+                "model_id": 18,
+                "raw_index": 6,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 4,
+                "model_id": 110,
+                "raw_index": 7,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 3,
+                "model_id": 55,
+                "raw_index": 8,
+                "used": null
+              }
+            ],
+            "self_player_id": 1,
+            "source_sequence": 8,
+            "unreviewed_event_count": 0,
+            "unreviewed_event_indices": [],
+            "update_count": 8
+          }
+        ],
+        "source_kind": "official-acquisition-evidence-v3",
+        "status": {
+          "acknowledged_sequence": 7,
+          "dropped_snapshot_count": 0,
+          "hook_error_count": 0,
+          "hook_installed": true,
+          "listener_registrations": 1,
+          "pending_snapshot_count": 1,
+          "rejected_snapshot_count": 0,
+          "source_sequence": 8,
+          "stream_id": "f13b5784-9e17-4015-91e0-70168ae26f5b"
+        },
+        "training_eligible": false
+      }
+    },
+    {
+      "sequence": 142,
+      "payload": {
+        "acquisition_rule_eligible": false,
+        "catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+        "client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+        "input_sha256": "a64dc01f75b9c91f8c8f4d097901f7a6118a84457b6431cdc7e121036b61215b",
+        "observed_at": "2026-09-28T19:58:20.701794Z",
+        "promotion_eligible": false,
+        "schema_version": 3,
+        "snapshots": [],
+        "source_kind": "official-acquisition-evidence-v3",
+        "status": {
+          "acknowledged_sequence": 8,
+          "dropped_snapshot_count": 0,
+          "hook_error_count": 0,
+          "hook_installed": true,
+          "listener_registrations": 1,
+          "pending_snapshot_count": 0,
+          "rejected_snapshot_count": 0,
+          "source_sequence": 8,
+          "stream_id": "f13b5784-9e17-4015-91e0-70168ae26f5b"
+        },
+        "training_eligible": false
+      }
+    },
+    {
+      "sequence": 157,
+      "payload": {
+        "acquisition_rule_eligible": false,
+        "catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+        "client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+        "input_sha256": "45323cbffa68eb22e658ff95aef744dec15aa885a75edaafd87a482d5993ef60",
+        "observed_at": "2026-09-28T19:58:28.829870Z",
+        "promotion_eligible": false,
+        "schema_version": 3,
+        "snapshots": [
+          {
+            "attack_turn_player_id": 2,
+            "captured_at": "2026-09-28T19:58:25.080000Z",
+            "event_item_wire": [
+              {
+                "event_index": 0,
+                "item": null,
+                "item_kind": "missing",
+                "item_model_id_kind": "missing",
+                "items": [
+                  {
+                    "fake_model_id_kind": "missing",
+                    "instance_id_kind": "positive_integer",
+                    "model_id_kind": "positive_integer",
+                    "raw_index": 0,
+                    "used_kind": "missing"
+                  }
+                ],
+                "items_kind": "array",
+                "overflow_item": null,
+                "overflow_item_kind": "missing"
+              },
+              {
+                "event_index": 1,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 2,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 3,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 4,
+                "item": {
+                  "fake_model_id_kind": "missing",
+                  "instance_id_kind": "positive_integer",
+                  "model_id_kind": "positive_integer",
+                  "raw_index": 0,
+                  "used_kind": "missing"
+                },
+                "item_kind": "object",
+                "item_model_id_kind": "missing",
+                "items": [],
+                "items_kind": "missing",
+                "overflow_item": null,
+                "overflow_item_kind": "missing"
+              },
+              {
+                "event_index": 5,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 6,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 7,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              }
+            ],
+            "event_owners": [
+              {
+                "basis": "turn_context",
+                "event_index": 0,
+                "item_owner_player_id": 1
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 1,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "target_context",
+                "event_index": 2,
+                "item_owner_player_id": 2
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 3,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "explicit_gift_player",
+                "event_index": 4,
+                "item_owner_player_id": 1
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 5,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "turn_context",
+                "event_index": 6,
+                "item_owner_player_id": 2
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 7,
+                "item_owner_player_id": null
+              }
+            ],
+            "events": [
+              {
+                "action": "useAttackItems",
+                "event_index": 0,
+                "item": null,
+                "item_model_id": null,
+                "items": [
+                  {
+                    "fake_model_id": null,
+                    "instance_id": 3,
+                    "model_id": 55,
+                    "raw_index": 0,
+                    "used": null
+                  }
+                ],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "setTargetPlayer",
+                "event_index": 1,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 2,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "useDefenseItems",
+                "event_index": 2,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "dealDamage",
+                "event_index": 3,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "gift",
+                "event_index": 4,
+                "item": {
+                  "fake_model_id": null,
+                  "instance_id": 3,
+                  "model_id": 135,
+                  "raw_index": 0,
+                  "used": null
+                },
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "advanceGF",
+                "event_index": 5,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 2,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "useAttackItems",
+                "event_index": 6,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "setTargetPlayer",
+                "event_index": 7,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              }
+            ],
+            "field_number": 12,
+            "is_over": null,
+            "phase_after": {
+              "field_number": 12,
+              "player_ids": [
+                1,
+                2
+              ],
+              "self_player_id": 1,
+              "source_sequence": 9,
+              "target_player_id": 1,
+              "turn_player_id": 2,
+              "update_count": 9
+            },
+            "phase_before": {
+              "field_number": 11,
+              "player_ids": [
+                1,
+                2
+              ],
+              "self_player_id": 1,
+              "source_sequence": 8,
+              "target_player_id": null,
+              "turn_player_id": 1,
+              "update_count": 8
+            },
+            "phase_input_status": "consecutive",
+            "player_count": 2,
+            "redacted_item_event_count": 1,
+            "self_item_wire": [
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 0,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 1,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 2,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 3,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 4,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 5,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 6,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 7,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 8,
+                "used_kind": "missing"
+              }
+            ],
+            "self_items": [
+              {
+                "fake_model_id": null,
+                "instance_id": 1,
+                "model_id": 13,
+                "raw_index": 0,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 2,
+                "model_id": 226,
+                "raw_index": 1,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 5,
+                "model_id": 4,
+                "raw_index": 2,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 7,
+                "model_id": 75,
+                "raw_index": 3,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 8,
+                "model_id": 222,
+                "raw_index": 4,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 6,
+                "model_id": 192,
+                "raw_index": 5,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 9,
+                "model_id": 18,
+                "raw_index": 6,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 4,
+                "model_id": 110,
+                "raw_index": 7,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 3,
+                "model_id": 135,
+                "raw_index": 8,
+                "used": null
+              }
+            ],
+            "self_player_id": 1,
+            "source_sequence": 9,
+            "unreviewed_event_count": 0,
+            "unreviewed_event_indices": [],
+            "update_count": 9
+          }
+        ],
+        "source_kind": "official-acquisition-evidence-v3",
+        "status": {
+          "acknowledged_sequence": 8,
+          "dropped_snapshot_count": 0,
+          "hook_error_count": 0,
+          "hook_installed": true,
+          "listener_registrations": 1,
+          "pending_snapshot_count": 1,
+          "rejected_snapshot_count": 0,
+          "source_sequence": 9,
+          "stream_id": "f13b5784-9e17-4015-91e0-70168ae26f5b"
+        },
+        "training_eligible": false
+      }
+    },
+    {
+      "sequence": 162,
+      "payload": {
+        "acquisition_rule_eligible": false,
+        "catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+        "client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+        "input_sha256": "33838c401b01946597865c8a84013cecf7475b979686d3b1d7c192682fc0d9e1",
+        "observed_at": "2026-09-28T19:58:30.862414Z",
+        "promotion_eligible": false,
+        "schema_version": 3,
+        "snapshots": [],
+        "source_kind": "official-acquisition-evidence-v3",
+        "status": {
+          "acknowledged_sequence": 9,
+          "dropped_snapshot_count": 0,
+          "hook_error_count": 0,
+          "hook_installed": true,
+          "listener_registrations": 1,
+          "pending_snapshot_count": 0,
+          "rejected_snapshot_count": 0,
+          "source_sequence": 9,
+          "stream_id": "f13b5784-9e17-4015-91e0-70168ae26f5b"
+        },
+        "training_eligible": false
+      }
+    },
+    {
+      "sequence": 177,
+      "payload": {
+        "acquisition_rule_eligible": false,
+        "catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+        "client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+        "input_sha256": "7bf8b2f293c522e3df78bb107a06209261c722ef501179bb1617810724960089",
+        "observed_at": "2026-09-28T19:58:39.019361Z",
+        "promotion_eligible": false,
+        "schema_version": 3,
+        "snapshots": [
+          {
+            "attack_turn_player_id": 1,
+            "captured_at": "2026-09-28T19:58:35.431000Z",
+            "event_item_wire": [
+              {
+                "event_index": 0,
+                "item": null,
+                "item_kind": "missing",
+                "item_model_id_kind": "missing",
+                "items": [
+                  {
+                    "fake_model_id_kind": "missing",
+                    "instance_id_kind": "positive_integer",
+                    "model_id_kind": "positive_integer",
+                    "raw_index": 0,
+                    "used_kind": "missing"
+                  }
+                ],
+                "items_kind": "array",
+                "overflow_item": null,
+                "overflow_item_kind": "missing"
+              },
+              {
+                "event_index": 1,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 2,
+                "item": {
+                  "fake_model_id_kind": "missing",
+                  "instance_id_kind": "positive_integer",
+                  "model_id_kind": "positive_integer",
+                  "raw_index": 0,
+                  "used_kind": "missing"
+                },
+                "item_kind": "object",
+                "item_model_id_kind": "missing",
+                "items": [],
+                "items_kind": "missing",
+                "overflow_item": null,
+                "overflow_item_kind": "missing"
+              },
+              {
+                "event_index": 3,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              }
+            ],
+            "event_owners": [
+              {
+                "basis": "target_context",
+                "event_index": 0,
+                "item_owner_player_id": 1
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 1,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "explicit_gift_player",
+                "event_index": 2,
+                "item_owner_player_id": 1
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 3,
+                "item_owner_player_id": null
+              }
+            ],
+            "events": [
+              {
+                "action": "useDefenseItems",
+                "event_index": 0,
+                "item": null,
+                "item_model_id": null,
+                "items": [
+                  {
+                    "fake_model_id": null,
+                    "instance_id": 3,
+                    "model_id": 135,
+                    "raw_index": 0,
+                    "used": null
+                  }
+                ],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "dealDamage",
+                "event_index": 1,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "gift",
+                "event_index": 2,
+                "item": {
+                  "fake_model_id": null,
+                  "instance_id": 3,
+                  "model_id": 104,
+                  "raw_index": 0,
+                  "used": null
+                },
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "advanceGF",
+                "event_index": 3,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              }
+            ],
+            "field_number": 13,
+            "is_over": null,
+            "phase_after": {
+              "field_number": 13,
+              "player_ids": [
+                1,
+                2
+              ],
+              "self_player_id": 1,
+              "source_sequence": 10,
+              "target_player_id": null,
+              "turn_player_id": 1,
+              "update_count": 10
+            },
+            "phase_before": {
+              "field_number": 12,
+              "player_ids": [
+                1,
+                2
+              ],
+              "self_player_id": 1,
+              "source_sequence": 9,
+              "target_player_id": 1,
+              "turn_player_id": 2,
+              "update_count": 9
+            },
+            "phase_input_status": "consecutive",
+            "player_count": 2,
+            "redacted_item_event_count": 0,
+            "self_item_wire": [
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 0,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 1,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 2,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 3,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 4,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 5,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 6,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 7,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 8,
+                "used_kind": "missing"
+              }
+            ],
+            "self_items": [
+              {
+                "fake_model_id": null,
+                "instance_id": 1,
+                "model_id": 13,
+                "raw_index": 0,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 2,
+                "model_id": 226,
+                "raw_index": 1,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 5,
+                "model_id": 4,
+                "raw_index": 2,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 7,
+                "model_id": 75,
+                "raw_index": 3,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 8,
+                "model_id": 222,
+                "raw_index": 4,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 6,
+                "model_id": 192,
+                "raw_index": 5,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 9,
+                "model_id": 18,
+                "raw_index": 6,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 4,
+                "model_id": 110,
+                "raw_index": 7,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 3,
+                "model_id": 104,
+                "raw_index": 8,
+                "used": null
+              }
+            ],
+            "self_player_id": 1,
+            "source_sequence": 10,
+            "unreviewed_event_count": 0,
+            "unreviewed_event_indices": [],
+            "update_count": 10
+          }
+        ],
+        "source_kind": "official-acquisition-evidence-v3",
+        "status": {
+          "acknowledged_sequence": 9,
+          "dropped_snapshot_count": 0,
+          "hook_error_count": 0,
+          "hook_installed": true,
+          "listener_registrations": 1,
+          "pending_snapshot_count": 1,
+          "rejected_snapshot_count": 0,
+          "source_sequence": 10,
+          "stream_id": "f13b5784-9e17-4015-91e0-70168ae26f5b"
+        },
+        "training_eligible": false
+      }
+    },
+    {
+      "sequence": 185,
+      "payload": {
+        "acquisition_rule_eligible": false,
+        "catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+        "client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+        "input_sha256": "a7fef00f496d6015dee6a883f4dcf33b65bc4e05589b6285953ba248e6ec408b",
+        "observed_at": "2026-09-28T19:58:43.087579Z",
+        "promotion_eligible": false,
+        "schema_version": 3,
+        "snapshots": [],
+        "source_kind": "official-acquisition-evidence-v3",
+        "status": {
+          "acknowledged_sequence": 10,
+          "dropped_snapshot_count": 0,
+          "hook_error_count": 0,
+          "hook_installed": true,
+          "listener_registrations": 1,
+          "pending_snapshot_count": 0,
+          "rejected_snapshot_count": 0,
+          "source_sequence": 10,
+          "stream_id": "f13b5784-9e17-4015-91e0-70168ae26f5b"
+        },
+        "training_eligible": false
+      }
+    },
+    {
+      "sequence": 193,
+      "payload": {
+        "acquisition_rule_eligible": false,
+        "catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+        "client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+        "input_sha256": "a91c03e619641b20d520e4a4fd645f0013d5381411ad3168ea5b3898bd241064",
+        "observed_at": "2026-09-28T19:58:47.167385Z",
+        "promotion_eligible": false,
+        "schema_version": 3,
+        "snapshots": [
+          {
+            "attack_turn_player_id": 2,
+            "captured_at": "2026-09-28T19:58:43.328000Z",
+            "event_item_wire": [
+              {
+                "event_index": 0,
+                "item": null,
+                "item_kind": "missing",
+                "item_model_id_kind": "missing",
+                "items": [
+                  {
+                    "fake_model_id_kind": "missing",
+                    "instance_id_kind": "positive_integer",
+                    "model_id_kind": "positive_integer",
+                    "raw_index": 0,
+                    "used_kind": "missing"
+                  }
+                ],
+                "items_kind": "array",
+                "overflow_item": null,
+                "overflow_item_kind": "missing"
+              },
+              {
+                "event_index": 1,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 2,
+                "item": {
+                  "fake_model_id_kind": "missing",
+                  "instance_id_kind": "positive_integer",
+                  "model_id_kind": "positive_integer",
+                  "raw_index": 0,
+                  "used_kind": "missing"
+                },
+                "item_kind": "object",
+                "item_model_id_kind": "missing",
+                "items": [],
+                "items_kind": "missing",
+                "overflow_item": null,
+                "overflow_item_kind": "missing"
+              },
+              {
+                "event_index": 3,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 4,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 5,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              }
+            ],
+            "event_owners": [
+              {
+                "basis": "turn_context",
+                "event_index": 0,
+                "item_owner_player_id": 1
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 1,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "explicit_gift_player",
+                "event_index": 2,
+                "item_owner_player_id": 1
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 3,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "turn_context",
+                "event_index": 4,
+                "item_owner_player_id": 2
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 5,
+                "item_owner_player_id": null
+              }
+            ],
+            "events": [
+              {
+                "action": "useAttackItems",
+                "event_index": 0,
+                "item": null,
+                "item_model_id": null,
+                "items": [
+                  {
+                    "fake_model_id": null,
+                    "instance_id": 6,
+                    "model_id": 192,
+                    "raw_index": 0,
+                    "used": null
+                  }
+                ],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "boostHP",
+                "event_index": 1,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "gift",
+                "event_index": 2,
+                "item": {
+                  "fake_model_id": null,
+                  "instance_id": 6,
+                  "model_id": 19,
+                  "raw_index": 0,
+                  "used": null
+                },
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "advanceGF",
+                "event_index": 3,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 2,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "useAttackItems",
+                "event_index": 4,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "setTargetPlayer",
+                "event_index": 5,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              }
+            ],
+            "field_number": 14,
+            "is_over": null,
+            "phase_after": {
+              "field_number": 14,
+              "player_ids": [
+                1,
+                2
+              ],
+              "self_player_id": 1,
+              "source_sequence": 11,
+              "target_player_id": 1,
+              "turn_player_id": 2,
+              "update_count": 11
+            },
+            "phase_before": {
+              "field_number": 13,
+              "player_ids": [
+                1,
+                2
+              ],
+              "self_player_id": 1,
+              "source_sequence": 10,
+              "target_player_id": null,
+              "turn_player_id": 1,
+              "update_count": 10
+            },
+            "phase_input_status": "consecutive",
+            "player_count": 2,
+            "redacted_item_event_count": 1,
+            "self_item_wire": [
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 0,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 1,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 2,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 3,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 4,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 5,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 6,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 7,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 8,
+                "used_kind": "missing"
+              }
+            ],
+            "self_items": [
+              {
+                "fake_model_id": null,
+                "instance_id": 1,
+                "model_id": 13,
+                "raw_index": 0,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 2,
+                "model_id": 226,
+                "raw_index": 1,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 5,
+                "model_id": 4,
+                "raw_index": 2,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 7,
+                "model_id": 75,
+                "raw_index": 3,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 8,
+                "model_id": 222,
+                "raw_index": 4,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 9,
+                "model_id": 18,
+                "raw_index": 5,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 4,
+                "model_id": 110,
+                "raw_index": 6,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 3,
+                "model_id": 104,
+                "raw_index": 7,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 6,
+                "model_id": 19,
+                "raw_index": 8,
+                "used": null
+              }
+            ],
+            "self_player_id": 1,
+            "source_sequence": 11,
+            "unreviewed_event_count": 0,
+            "unreviewed_event_indices": [],
+            "update_count": 11
+          }
+        ],
+        "source_kind": "official-acquisition-evidence-v3",
+        "status": {
+          "acknowledged_sequence": 10,
+          "dropped_snapshot_count": 0,
+          "hook_error_count": 0,
+          "hook_installed": true,
+          "listener_registrations": 1,
+          "pending_snapshot_count": 1,
+          "rejected_snapshot_count": 0,
+          "source_sequence": 11,
+          "stream_id": "f13b5784-9e17-4015-91e0-70168ae26f5b"
+        },
+        "training_eligible": false
+      }
+    },
+    {
+      "sequence": 201,
+      "payload": {
+        "acquisition_rule_eligible": false,
+        "catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+        "client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+        "input_sha256": "0b09a2bd5f33f7ebad7f200b49eceda2ab2d84d020043a0c04346ba30334f562",
+        "observed_at": "2026-09-28T19:58:51.317476Z",
+        "promotion_eligible": false,
+        "schema_version": 3,
+        "snapshots": [
+          {
+            "attack_turn_player_id": 2,
+            "captured_at": "2026-09-28T19:58:47.890000Z",
+            "event_item_wire": [
+              {
+                "event_index": 0,
+                "item": null,
+                "item_kind": "missing",
+                "item_model_id_kind": "missing",
+                "items": [],
+                "items_kind": "missing",
+                "overflow_item": null,
+                "overflow_item_kind": "missing"
+              },
+              {
+                "event_index": 1,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 2,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 3,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              },
+              {
+                "event_index": 4,
+                "item": null,
+                "item_kind": "redacted",
+                "item_model_id_kind": "redacted",
+                "items": [],
+                "items_kind": "redacted",
+                "overflow_item": null,
+                "overflow_item_kind": "redacted"
+              }
+            ],
+            "event_owners": [
+              {
+                "basis": "target_context",
+                "event_index": 0,
+                "item_owner_player_id": 1
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 1,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 2,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 3,
+                "item_owner_player_id": null
+              },
+              {
+                "basis": "unresolved",
+                "event_index": 4,
+                "item_owner_player_id": null
+              }
+            ],
+            "events": [
+              {
+                "action": "useDefenseItems",
+                "event_index": 0,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "dealDamage",
+                "event_index": 1,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "dealDarkDamage",
+                "event_index": 2,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "die",
+                "event_index": 3,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "endGame",
+                "event_index": 4,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              }
+            ],
+            "field_number": 14,
+            "is_over": true,
+            "phase_after": {
+              "field_number": 14,
+              "player_ids": [
+                1,
+                2
+              ],
+              "self_player_id": 1,
+              "source_sequence": 12,
+              "target_player_id": null,
+              "turn_player_id": null,
+              "update_count": 12
+            },
+            "phase_before": {
+              "field_number": 14,
+              "player_ids": [
+                1,
+                2
+              ],
+              "self_player_id": 1,
+              "source_sequence": 11,
+              "target_player_id": 1,
+              "turn_player_id": 2,
+              "update_count": 11
+            },
+            "phase_input_status": "consecutive",
+            "player_count": 2,
+            "redacted_item_event_count": 0,
+            "self_item_wire": [
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 0,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 1,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 2,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 3,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 4,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 5,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 6,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 7,
+                "used_kind": "missing"
+              },
+              {
+                "fake_model_id_kind": "missing",
+                "instance_id_kind": "positive_integer",
+                "model_id_kind": "positive_integer",
+                "raw_index": 8,
+                "used_kind": "missing"
+              }
+            ],
+            "self_items": [
+              {
+                "fake_model_id": null,
+                "instance_id": 1,
+                "model_id": 13,
+                "raw_index": 0,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 2,
+                "model_id": 226,
+                "raw_index": 1,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 5,
+                "model_id": 4,
+                "raw_index": 2,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 7,
+                "model_id": 75,
+                "raw_index": 3,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 8,
+                "model_id": 222,
+                "raw_index": 4,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 9,
+                "model_id": 18,
+                "raw_index": 5,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 4,
+                "model_id": 110,
+                "raw_index": 6,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 3,
+                "model_id": 104,
+                "raw_index": 7,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 6,
+                "model_id": 19,
+                "raw_index": 8,
+                "used": null
+              }
+            ],
+            "self_player_id": 1,
+            "source_sequence": 12,
+            "unreviewed_event_count": 0,
+            "unreviewed_event_indices": [],
+            "update_count": 12
+          }
+        ],
+        "source_kind": "official-acquisition-evidence-v3",
+        "status": {
+          "acknowledged_sequence": 11,
+          "dropped_snapshot_count": 0,
+          "hook_error_count": 0,
+          "hook_installed": true,
+          "listener_registrations": 1,
+          "pending_snapshot_count": 1,
+          "rejected_snapshot_count": 0,
+          "source_sequence": 12,
+          "stream_id": "f13b5784-9e17-4015-91e0-70168ae26f5b"
+        },
+        "training_eligible": false
+      }
+    },
+    {
+      "sequence": 208,
+      "payload": {
+        "acquisition_rule_eligible": false,
+        "catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+        "client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+        "input_sha256": "8bd68cb579792056dbf06ec3f0e48fdb565c55f979c4d9a80979f2382dc60ed8",
+        "observed_at": "2026-09-28T19:58:51.332441Z",
+        "promotion_eligible": false,
+        "schema_version": 3,
+        "snapshots": [],
+        "source_kind": "official-acquisition-evidence-v3",
+        "status": {
+          "acknowledged_sequence": 12,
+          "dropped_snapshot_count": 0,
+          "hook_error_count": 0,
+          "hook_installed": true,
+          "listener_registrations": 1,
+          "pending_snapshot_count": 0,
+          "rejected_snapshot_count": 0,
+          "source_sequence": 12,
+          "stream_id": "f13b5784-9e17-4015-91e0-70168ae26f5b"
+        },
+        "training_eligible": false
+      }
+    },
+    {
+      "sequence": 209,
+      "payload": {
+        "ack_error_count": 0,
+        "acquisition_rule_eligible": false,
+        "detected_source_gap_count": 0,
+        "final_poll_succeeded": true,
+        "promotion_eligible": false,
+        "read_error_count": 0,
+        "saved_snapshot_count": 12,
+        "source_kind": "official-acquisition-collector-summary-v1",
+        "streams": [
+          {
+            "acknowledged_sequence": 12,
+            "dropped_snapshot_count": 0,
+            "hook_error_count": 0,
+            "hook_installed": true,
+            "listener_registrations": 1,
+            "pending_snapshot_count": 0,
+            "rejected_snapshot_count": 0,
+            "source_sequence": 12,
+            "stream_id": "f13b5784-9e17-4015-91e0-70168ae26f5b"
+          }
+        ],
+        "training_eligible": false
+      }
+    }
+  ],
+  "capture_schema_version": 3,
+  "input_sha256": "502ab0aca105ea5ea085bdfe229736ad8e9fa8692e9af7e7523eeef6de0421d1",
+  "training_eligible": false,
+  "promotion_eligible": false,
+  "acquisition_rule_eligible": false
+}

@@ -131,3 +131,13 @@ Miracle configuration cannot change after any successful operation, including
 an empty selection. Disguises, mixed selections, automatic lifecycle dispatch,
 MP/combat, overflow, and scheduling remain outside this operation. Ordinary-only
 constructor and method behavior remain supported. See root ADR 0065.
+
+The first real v3 acquisition capture adds explicit ordinary inventory pairs
+for Glaive Classic, Final Tusk, Power Halberd, Hexagon Doom, Direct Smash Axe,
+Angel Axe, Iron Gauntlet, Iron Armor, and Heart Dew. The read-only differential
+caller now supplies an 11-model witnessed allowlist to the same native API;
+no kernel or package identity changes. Its dispatcher accepts only witnessed
+single-item ordinary uses, not unobserved combinations or every ordinary catalog
+model. Curse, trade, omitted selection arrays, overflow, and gift scheduling
+remain unsupported. These are lifecycle diagnostics, not a new trainable
+curriculum. See root ADR 0068.

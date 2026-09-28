@@ -24,10 +24,13 @@ from godfield_bot.acquisition_v2 import AcquisitionSnapshotV2
 from godfield_bot.acquisition_v3 import AcquisitionSnapshotV3
 from godfield_bot.api_catalog import ApiCatalogSnapshot, read_api_catalog_snapshot
 
-REPLAY_PROJECTION_ID = "observed-inventory-projection-23-142-215-wire-aware-v2"
+REPLAY_PROJECTION_ID = "observed-inventory-projection-verified-ordinary-wire-aware-v3"
 REPLAY_CATALOG_SHA256 = "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249"
 NATIVE_REPLAY_RULESET_ID = "explicit-ordinary-and-retained-miracle-ordered-gift-replay-v2"
-ORDINARY_MODELS = (23, 142)
+# Only explicit single-item consumption witnessed in the two official fixtures:
+# v2 bc54a888 (23, 142), v3 60fe19b4 (the remaining nine models). Catalog
+# membership or an ordinary category alone is not sufficient for admission.
+ORDINARY_MODELS = (23, 26, 29, 32, 41, 44, 55, 123, 135, 142, 192)
 RETAINED_MODELS = (215,)
 # Only the handlers reviewed for the existing fixture are admitted. Being in
 # the collector's reviewed-action list does NOT establish inventory neutrality.
@@ -39,6 +42,10 @@ INVENTORY_NEUTRAL_ACTIONS = frozenset(
         "miss",
         "dealDamage",
         "dealDarkDamage",
+        # Reviewed pinned-client handlers update only numeric HP/MP displays.
+        # Their combat/resource semantics are NOT simulated by inventory replay.
+        "boostHP",
+        "boostMP",
         "die",
         "endGame",
     }
@@ -231,7 +238,7 @@ def _native_check(
                     raise _UnsupportedReplay("unsupported_disguised_selection")
                 if len(selected) == 1 and selected[0][1] in RETAINED_MODELS:
                     replay.perform_retained_miracle(np.asarray(selected[0], dtype=np.int64))
-                elif all(item[1] in ORDINARY_MODELS for item in selected):
+                elif len(selected) <= 1 and all(item[1] in ORDINARY_MODELS for item in selected):
                     replay.consume(np.asarray(selected, dtype=np.int64).reshape(-1, 4))
                 else:
                     raise _UnsupportedReplay("unsupported_selection_model_or_combination")

@@ -13,18 +13,22 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from godfield_bot.acquisition_probe import (
+    ACQUISITION_REVIEWED_CLIENT_SHA256,
     AcquisitionCollectorError,
     AcquisitionCollectorSummary,
     AcquisitionEvidenceBatch,
     AcquisitionProbeStatus,
     AcquisitionSnapshot,
 )
+from godfield_bot.acquisition_v2 import AcquisitionEvidenceBatchV2, AcquisitionSnapshotV2
+
+AcquisitionBatch = AcquisitionEvidenceBatch | AcquisitionEvidenceBatchV2
 
 
 class AcquisitionEvidenceAudit(BaseModel):
-    schema_version: Literal[1] = 1
-    source_kind: Literal["official-acquisition-transport-audit-v1"] = (
-        "official-acquisition-transport-audit-v1"
+    schema_version: Literal[2] = 2
+    source_kind: Literal["official-acquisition-transport-audit-v2"] = (
+        "official-acquisition-transport-audit-v2"
     )
     batch_count: int = Field(ge=0)
     stream_count: int = Field(ge=0)
@@ -47,6 +51,18 @@ class AcquisitionEvidenceAudit(BaseModel):
     unknown_used_flag_count: int = Field(ge=0)
     max_distinct_owned_instances: int = Field(ge=0)
     max_explicitly_unused_distinct_instances: int = Field(ge=0)
+    capture_schema_versions: tuple[int, ...]
+    pinned_client_interpretation_applied: bool
+    max_client_unused_distinct_instances: int = Field(ge=0)
+    client_empty_placeholder_observation_count: int = Field(ge=0)
+    malformed_wire_item_observation_count: int = Field(ge=0)
+    unverified_phase_context_count: int = Field(ge=0)
+    self_bound_attack_event_count: int = Field(ge=0)
+    self_bound_defense_event_count: int = Field(ge=0)
+    self_bound_attack_item_count: int = Field(ge=0)
+    self_bound_defense_item_count: int = Field(ge=0)
+    unresolved_item_owner_event_count: int = Field(ge=0)
+    self_overflow_item_event_count: int = Field(ge=0)
     reviewed_event_counts: dict[str, int]
     unreviewed_event_count: int = Field(ge=0)
     redacted_item_event_count: int = Field(ge=0)
@@ -62,7 +78,7 @@ class AcquisitionEvidenceAudit(BaseModel):
 
 
 def audit_acquisition_batches(
-    batches: tuple[AcquisitionEvidenceBatch, ...],
+    batches: tuple[AcquisitionBatch, ...],
     *,
     errors: tuple[AcquisitionCollectorError, ...] = (),
     summaries: tuple[AcquisitionCollectorSummary, ...] = (),
@@ -76,6 +92,9 @@ def audit_acquisition_batches(
     provenance = {(batch.client_sha256, batch.catalog_sha256) for batch in batches}
     if len(provenance) > 1:
         raise ValueError("acquisition batches mix client/catalog provenance")
+    client_interpretation = bool(provenance) and all(
+        client == ACQUISITION_REVIEWED_CLIENT_SHA256 for client, _ in provenance
+    )
     rows: dict[str, dict[int, AcquisitionSnapshot]] = {}
     statuses: dict[str, AcquisitionProbeStatus] = {}
     duplicates = 0
@@ -127,6 +146,8 @@ def audit_acquisition_batches(
     ack_errors = max((event.ack_error_count for event in collector_events), default=0)
     repeated = inconsistent = boundaries = gaps = adjacent = invalid = unknown_used = 0
     maximum = unused_maximum = unreviewed = redacted = 0
+    client_unused_max = placeholders = malformed_wire = unverified_phase = 0
+    bound_attacks = bound_defenses = attack_items = defense_items = unresolved_owners = overflow = 0
     event_counts: Counter[str] = Counter()
     start_seen = zero_seen = terminal_seen = False
     for stream_rows in rows.values():
@@ -134,19 +155,58 @@ def audit_acquisition_batches(
         previous_valid = False
         versions: dict[int, dict[str, object]] = {}
         for row in stream_rows.values():
-            identities = [item.instance_id for item in row.self_items]
+            owned = list(row.self_items)
+            if isinstance(row, AcquisitionSnapshotV2):
+                owned = []
+                for item, wire in zip(row.self_items, row.self_item_wire, strict=True):
+                    if wire.client_empty_placeholder and item.used is not True:
+                        placeholders += 1
+                    else:
+                        owned.append(item)
+                    malformed_wire += any(
+                        kind == "other"
+                        for kind in (
+                            wire.instance_id_kind,
+                            wire.model_id_kind,
+                            wire.fake_model_id_kind,
+                            wire.used_kind,
+                        )
+                    )
+                before = row.phase_before
+                if before is not None:
+                    anchor = stream_rows.get(before.source_sequence)
+                    if anchor is None:
+                        unverified_phase += 1
+                    elif (
+                        not isinstance(anchor, AcquisitionSnapshotV2)
+                        or anchor.phase_after != before
+                    ):
+                        raise ValueError("phase input differs from its recorded source anchor")
+            identities = [item.instance_id for item in owned]
             valid_ids = None not in identities and len(set(identities)) == len(identities)
             invalid += not valid_ids
             unknown_used += sum(item.used is None for item in row.self_items)
             if valid_ids:
                 maximum = max(maximum, len(identities))
-                unused_maximum = max(
-                    unused_maximum, sum(item.used is False for item in row.self_items)
-                )
+                unused_maximum = max(unused_maximum, sum(item.used is False for item in owned))
+                if client_interpretation:
+                    # A.kY maps every non-boolean `used` value to false. Preserve
+                    # the raw unknown count; this is a separate client interpretation.
+                    client_unused_max = max(
+                        client_unused_max, sum(item.used is not True for item in owned)
+                    )
             zero_seen |= row.update_count == 0
             terminal_seen |= row.is_over is True
             # Ignore capture sequence/time when comparing repeated server versions.
-            frame = row.model_dump(exclude={"source_sequence", "captured_at"})
+            frame = row.model_dump(
+                exclude={
+                    "source_sequence",
+                    "captured_at",
+                    "phase_before",
+                    "phase_after",
+                    "phase_input_status",
+                }
+            )
             if previous is not None and (
                 row.self_player_id != previous.self_player_id
                 or row.field_number < previous.field_number
@@ -176,6 +236,23 @@ def audit_acquisition_batches(
                 start_seen |= any(event.action == "startGame" for event in row.events)
                 unreviewed += row.unreviewed_event_count
                 redacted += row.redacted_item_event_count
+                for index, event in enumerate(row.events):
+                    owner = (
+                        row.event_owners[index].item_owner_player_id
+                        if isinstance(row, AcquisitionSnapshotV2)
+                        else event.player_id
+                    )
+                    unresolved_owners += (
+                        event.action in {"useAttackItems", "useDefenseItems"} and owner is None
+                    )
+                    if event.self_item_payload_bound:
+                        bound_attacks += event.action == "useAttackItems"
+                        bound_defenses += event.action == "useDefenseItems"
+                        attack_items += len(event.items) if event.action == "useAttackItems" else 0
+                        defense_items += (
+                            len(event.items) if event.action == "useDefenseItems" else 0
+                        )
+                        overflow += event.action == "gift" and event.overflow_item is not None
             previous = row
             previous_valid = valid_ids and consistent
     final_poll = summaries[-1].final_poll_succeeded if summaries else None
@@ -194,7 +271,10 @@ def audit_acquisition_batches(
         "stream_game_boundaries": boundaries > 0,
         "server_version_gaps": gaps > 0,
         "invalid_item_identities": invalid > 0,
-        "unknown_used_flags": unknown_used > 0,
+        "unknown_used_flags": unknown_used > 0 and not client_interpretation,
+        "unresolved_item_ownership": unresolved_owners > 0,
+        "malformed_wire_items": malformed_wire > 0,
+        "unverified_phase_context": unverified_phase > 0,
         "unreviewed_events": unreviewed > 0,
         "missing_collector_summary": not summaries,
         "final_poll_failed": final_poll is False,
@@ -224,6 +304,18 @@ def audit_acquisition_batches(
         unknown_used_flag_count=unknown_used,
         max_distinct_owned_instances=maximum,
         max_explicitly_unused_distinct_instances=unused_maximum,
+        capture_schema_versions=tuple(sorted({batch.schema_version for batch in batches})),
+        pinned_client_interpretation_applied=client_interpretation,
+        max_client_unused_distinct_instances=client_unused_max,
+        client_empty_placeholder_observation_count=placeholders,
+        malformed_wire_item_observation_count=malformed_wire,
+        unverified_phase_context_count=unverified_phase,
+        self_bound_attack_event_count=bound_attacks,
+        self_bound_defense_event_count=bound_defenses,
+        self_bound_attack_item_count=attack_items,
+        self_bound_defense_item_count=defense_items,
+        unresolved_item_owner_event_count=unresolved_owners,
+        self_overflow_item_event_count=overflow,
         reviewed_event_counts=dict(sorted(event_counts.items())),
         unreviewed_event_count=unreviewed,
         redacted_item_event_count=redacted,
@@ -249,13 +341,20 @@ def audit_acquisition_run(database: Path, run_id: str) -> dict[str, object]:
             "WHERE run_id = ? AND kind = 'evidence' ORDER BY sequence",
             (run_id,),
         ).fetchall()
-    batches, errors, summaries, evidence = [], [], [], []
+    batches: list[AcquisitionBatch] = []
+    errors: list[AcquisitionCollectorError] = []
+    summaries: list[AcquisitionCollectorSummary] = []
+    evidence: list[dict[str, object]] = []
     config = json.loads(run["config_json"])
     for row in payloads:
         payload = json.loads(row["payload_json"])
         source = payload.get("source_kind") if isinstance(payload, dict) else None
-        if source == "official-acquisition-evidence-v1":
-            batch = AcquisitionEvidenceBatch.model_validate_json(row["payload_json"])
+        if source in {"official-acquisition-evidence-v1", "official-acquisition-evidence-v2"}:
+            batch: AcquisitionBatch = (
+                AcquisitionEvidenceBatchV2.model_validate_json(row["payload_json"])
+                if source == "official-acquisition-evidence-v2"
+                else AcquisitionEvidenceBatch.model_validate_json(row["payload_json"])
+            )
             if (
                 batch.client_sha256 != run["client_sha256"]
                 or run["mode"] != "training"
@@ -278,15 +377,30 @@ def audit_acquisition_run(database: Path, run_id: str) -> dict[str, object]:
         "client_sha256": run["client_sha256"],
         "evidence": evidence,
     }
+    report = audit_acquisition_batches(
+        tuple(batches), errors=tuple(errors), summaries=tuple(summaries)
+    ).model_dump(mode="json")
+    declared_schema = (
+        config.get("acquisition_evidence_schema_version") if isinstance(config, dict) else None
+    )
+    if type(declared_schema) is not int or declared_schema not in {1, 2}:
+        declared_schema = None
+    schema_match = (
+        set(batch.schema_version for batch in batches) == {declared_schema}
+        if declared_schema is not None
+        else None
+    )
+    if schema_match is False:
+        report["collection_issues"].append("capture_schema_mismatch")
     return {
         "run_id": run_id,
         "mode": run["mode"],
         "client_sha256": run["client_sha256"],
         "catalog_sha256": batches[0].catalog_sha256 if batches else None,
+        "declared_capture_schema_version": declared_schema,
+        "capture_schema_matches_run_config": schema_match,
         "input_sha256": hashlib.sha256(
             json.dumps(fingerprint, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest(),
-        **audit_acquisition_batches(
-            tuple(batches), errors=tuple(errors), summaries=tuple(summaries)
-        ).model_dump(mode="json"),
+        **report,
     }

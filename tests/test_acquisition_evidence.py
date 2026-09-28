@@ -27,6 +27,10 @@ from godfield_bot.acquisition_probe import (
     acquisition_probe_init_script,
     install_acquisition_probe,
 )
+from godfield_bot.acquisition_v2 import (
+    AcquisitionEvidenceBatchV2,
+    AcquisitionProbeReadV2,
+)
 from godfield_bot.cli import app
 from godfield_bot.config import AppSettings
 from godfield_bot.domain.game import GameState, PlayerState
@@ -151,11 +155,11 @@ process.stdout.write(JSON.stringify(result));
 """
 
 
-def node(exercise, *, before=False, include_dream=False, **kwargs):
+def node(exercise, *, before=False, include_dream=False, schema_version=1, **kwargs):
     executable = shutil.which("node")
     if executable is None:
         pytest.skip("Node is required for synthetic passive-hook verification")
-    init = acquisition_probe_init_script("ロキ-67", capacity=8)
+    init = acquisition_probe_init_script("ロキ-67", capacity=8, schema_version=schema_version)
     if include_dream:
 
         class Context:
@@ -206,7 +210,10 @@ def raw_room(*, events=None, **changes):
 
 
 @pytest.mark.parametrize("before", [False, True])
-def test_actual_script_saves_ordered_queue_and_only_acknowledges_read_prefix(before):
+@pytest.mark.parametrize("schema_version", [1, 2])
+def test_actual_script_saves_ordered_queue_and_only_acknowledges_read_prefix(
+    before, schema_version
+):
     result = node(
         """
       register({}, () => {});
@@ -218,6 +225,7 @@ def test_actual_script_saves_ordered_queue_and_only_acknowledges_read_prefix(bef
       return {first, second, wrong, accepted, remaining: read()};
     """,
         before=before,
+        schema_version=schema_version,
         room=raw_room(),
     )
     assert result["first"] == result["second"]
@@ -225,7 +233,8 @@ def test_actual_script_saves_ordered_queue_and_only_acknowledges_read_prefix(bef
     assert result["first"]["status"]["dropped_snapshot_count"] == 2
     assert not result["wrong"] and result["accepted"]
     assert [r["source_sequence"] for r in result["remaining"]["snapshots"]] == [11]
-    AcquisitionProbeRead.model_validate_json(json.dumps(result["remaining"]))
+    parser = AcquisitionProbeRead if schema_version == 1 else AcquisitionProbeReadV2
+    parser.model_validate_json(json.dumps(result["remaining"]))
 
 
 def test_actual_script_redacts_opponent_unknown_and_unbound_payloads():
@@ -374,7 +383,7 @@ class FakePage:
                 raise PlaywrightError("READ_SECRET")
             return (
                 self.read.model_dump(mode="json")
-                if isinstance(self.read, AcquisitionProbeRead)
+                if isinstance(self.read, (AcquisitionProbeRead, AcquisitionProbeReadV2))
                 else self.read
             )
         assert script == ACQUISITION_ACK_SCRIPT
@@ -382,8 +391,8 @@ class FakePage:
         if self.fail_ack:
             raise PlaywrightError("ACK_SECRET")
         if self.ack_result:
-            self.read = AcquisitionProbeRead(
-                schema_version=1,
+            self.read = type(self.read)(
+                schema_version=self.read.schema_version,
                 status=self.read.status.model_copy(
                     update={
                         "pending_snapshot_count": 0,
@@ -810,3 +819,293 @@ def test_runner_installs_before_session_and_flushes_before_context_closes(
             assert report["snapshot_count"] == 1
     else:
         assert trace == ["opened", "fingerprint", "session", "closed"]
+
+
+def v2_read(rooms):
+    raw = node(
+        """
+      register({}, () => {});
+      input.rooms.forEach((room) => emit(room));
+      return read();
+    """,
+        rooms=rooms,
+        schema_version=2,
+    )
+    return AcquisitionProbeReadV2.model_validate_json(json.dumps(raw))
+
+
+def v2_batch(read):
+    return AcquisitionEvidenceBatchV2(
+        observed_at=datetime.now(UTC),
+        client_sha256=CLIENT,
+        catalog_sha256=CATALOG,
+        input_sha256=acquisition_batch_digest(CLIENT, CATALOG, read.status, read.snapshots),
+        status=read.status,
+        snapshots=read.snapshots,
+    )
+
+
+def test_v2_captures_actorless_own_actions_but_never_opponent_models():
+    first = raw_room(events=[{"action": "startGame"}, {"action": "advanceGF", "playerId": 1}])
+    second = raw_room(
+        updateCount=1,
+        attackTurnPlayerId=2,
+        events=[
+            {"action": "useAttackItems", "items": [{"id": 1, "modelId": 10}]},
+            {"action": "setTargetPlayer", "playerId": 2},
+            {"action": "useDefenseItems", "items": [{"id": 1, "modelId": 777}]},
+            {"action": "dealDamage"},
+            {"action": "gift", "playerId": 1, "item": {"id": 1, "modelId": 12}},
+            {"action": "advanceGF", "playerId": 2},
+            {"action": "useAttackItems", "items": [{"id": 1, "modelId": 777}]},
+            {"action": "setTargetPlayer", "playerId": 1},
+            {"action": "useDefenseItems", "items": [{"id": 1, "modelId": 12}]},
+        ],
+    )
+    read = v2_read([first, second])
+    row = read.snapshots[1]
+    assert row.phase_input_status == "consecutive"
+    assert row.events[0].player_id is None and row.events[0].self_item_payload_bound
+    assert row.event_owners[0].item_owner_player_id == 1
+    assert row.events[2].items == row.events[6].items == ()
+    assert row.events[8].self_item_payload_bound
+    assert "777" not in read.model_dump_json()
+    audit = audit_acquisition_batches((v2_batch(read),))
+    assert audit.self_bound_attack_item_count == audit.self_bound_defense_item_count == 1
+    assert audit.unresolved_item_owner_event_count == 0
+    assert not audit.training_eligible and not audit.acquisition_rule_eligible
+
+
+@pytest.mark.parametrize(
+    "barrier",
+    [
+        "bounce",
+        "reflect",
+        "counterAttack",
+        "nextAttack",
+        "attackByGuardian",
+        "attackDyingly",
+        "boostHP",
+        "unknown",
+    ],
+)
+def test_v2_default_denies_ownership_after_ambiguous_phase_events(barrier):
+    read = v2_read(
+        [
+            raw_room(
+                events=[
+                    {"action": "advanceGF", "playerId": 1},
+                    {"action": barrier},
+                    {
+                        "action": "useAttackItems",
+                        "playerId": 1,
+                        "items": [{"id": 1, "modelId": 888}],
+                    },
+                ]
+            )
+        ]
+    )
+    row = read.snapshots[0]
+    assert not row.events[-1].self_item_payload_bound
+    assert row.event_owners[-1].basis == "unresolved"
+    assert "888" not in read.model_dump_json()
+
+
+@pytest.mark.parametrize("change", [{"updateCount": 2}, {"gf": 0}, {"updateCount": -1}])
+def test_v2_never_carries_phase_context_across_source_server_or_game_gaps(change):
+    first = raw_room(events=[{"action": "advanceGF", "playerId": 1}])
+    second = raw_room(
+        updateCount=1,
+        events=[
+            {
+                "action": "useAttackItems",
+                "items": [
+                    {"id": 1, "modelId": 888},
+                ],
+            }
+        ],
+    )
+    second["game"].update(change)
+    read = v2_read([first, second])
+    assert "888" not in read.model_dump_json()
+    if change.get("updateCount") == -1:
+        assert read.status.rejected_snapshot_count == 1
+    else:
+        assert read.snapshots[-1].phase_before is None
+        assert read.snapshots[-1].phase_input_status == "gap_or_boundary"
+
+
+def test_v2_wire_classification_retains_omissions_and_recognizes_only_safe_placeholders():
+    room = raw_room()
+    room["game"]["players"][0]["items"] = [
+        {"id": 1, "modelId": 10},
+        {"id": 0, "modelId": 0},
+        {"id": 2, "modelId": 11, "used": True},
+        {"id": 3, "modelId": 12, "used": None},
+    ]
+    read = v2_read([room])
+    row = read.snapshots[0]
+    assert row.self_items[0].used is None and row.self_item_wire[0].used_kind == "missing"
+    assert row.self_item_wire[1].client_empty_placeholder
+    assert row.self_item_wire[3].used_kind == "null"
+    audit = audit_acquisition_batches((v2_batch(read),))
+    assert audit.client_empty_placeholder_observation_count == 1
+    assert audit.invalid_item_identity_snapshot_count == 0
+    assert audit.max_distinct_owned_instances == 3
+    assert audit.max_client_unused_distinct_instances == 2
+    assert audit.unknown_used_flag_count == 3
+    assert "unknown_used_flags" not in audit.collection_issues
+
+
+def test_v2_does_not_reinterpret_malformed_ids_as_empty_slots():
+    room = raw_room()
+    room["game"]["players"][0]["items"] = [{"id": "not-an-integer", "modelId": 0}]
+    audit = audit_acquisition_batches((v2_batch(v2_read([room])),))
+    assert audit.client_empty_placeholder_observation_count == 0
+    assert audit.invalid_item_identity_snapshot_count == 1
+    assert audit.malformed_wire_item_observation_count == 1
+
+
+def test_v2_repeated_versions_reuse_the_same_input_context_without_recounting_events():
+    first = raw_room(events=[{"action": "advanceGF", "playerId": 1}])
+    second = raw_room(
+        updateCount=1,
+        events=[
+            {
+                "action": "useAttackItems",
+                "items": [
+                    {"id": 1, "modelId": 10},
+                ],
+            },
+            {"action": "advanceGF", "playerId": 2},
+        ],
+    )
+    read = v2_read([first, second, second])
+    assert read.snapshots[-1].phase_input_status == "repeat"
+    assert read.snapshots[1].phase_before == read.snapshots[2].phase_before
+    audit = audit_acquisition_batches((v2_batch(read),))
+    assert audit.repeated_server_version_count == 1
+    assert audit.inconsistent_server_version_count == 0
+    assert audit.self_bound_attack_item_count == 1
+
+
+def test_v2_validates_actor_proof_and_preserves_capture_on_storage_retry(tmp_path):
+    read = v2_read(
+        [
+            raw_room(
+                events=[
+                    {"action": "advanceGF", "playerId": 1},
+                    {"action": "useAttackItems", "items": [{"id": 1, "modelId": 10}]},
+                ]
+            )
+        ]
+    )
+    bad = read.model_dump(mode="json")
+    bad["snapshots"][0]["event_owners"][1]["item_owner_player_id"] = 2
+    with pytest.raises(ValidationError, match="ownership differs"):
+        AcquisitionProbeReadV2.model_validate_json(json.dumps(bad))
+    store, run = make_store(tmp_path)
+    page = FakePage(read)
+    page.fail_ack = True
+    writer = recorder(store, run)
+    assert not asyncio.run(writer.poll(page))
+    page.fail_ack = False
+    asyncio.run(writer.finalize(page))
+    audit = audit_acquisition_run(store.path, run.run_id)
+    assert audit["capture_schema_versions"] == [2]
+    assert audit["self_bound_attack_item_count"] == 1
+    assert audit["duplicate_source_snapshot_count"] == 0
+    assert audit["final_poll_succeeded"] is True
+
+
+@pytest.mark.parametrize(
+    "prefix",
+    [
+        [],
+        [
+            {"action": "advanceGF", "playerId": 1},
+            {"action": "setTargetPlayer", "playerId": 2},
+        ],
+    ],
+)
+def test_v2_self_targets_and_unseeded_targets_never_expose_opponent_items(prefix):
+    read = v2_read(
+        [
+            raw_room(
+                events=[
+                    *prefix,
+                    {"action": "setTargetPlayer", "playerId": 1},
+                    {"action": "useDefenseItems", "items": [{"id": 1, "modelId": 777}]},
+                ]
+            )
+        ]
+    )
+    assert "777" not in read.model_dump_json()
+    assert read.snapshots[0].event_owners[-1].basis == "unresolved"
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "initial_compact_items",
+        "unclassified_empty_item",
+        "retained_used_item",
+        "eighteen_owned_ids",
+    ],
+)
+def test_recorded_v1_cases_remain_byte_shape_compatible_and_keep_their_digests(case):
+    fixture = json.loads(Path("tests/fixtures/acquisition-v1-wire-cases.json").read_text())
+    selected = next(row for row in fixture["cases"] if row["case"] == case)
+    batch = AcquisitionEvidenceBatch.model_validate_json(json.dumps(selected["batch"]))
+    assert batch.model_dump(mode="json") == selected["batch"]
+    assert (
+        acquisition_batch_digest(CLIENT, batch.catalog_sha256, batch.status, batch.snapshots)
+        == selected["batch"]["input_sha256"]
+    )
+    audit = audit_acquisition_batches((batch,))
+    assert audit.capture_schema_versions == (1,)
+    assert audit.pinned_client_interpretation_applied
+    assert not audit.training_eligible and not audit.acquisition_rule_eligible
+    if case == "initial_compact_items":
+        assert audit.unknown_used_flag_count == 9
+        assert audit.max_client_unused_distinct_instances == 9
+    elif case == "unclassified_empty_item":
+        assert audit.invalid_item_identity_snapshot_count == 1
+        assert audit.client_empty_placeholder_observation_count == 0
+    elif case == "retained_used_item":
+        assert any(item.used is True for row in batch.snapshots for item in row.self_items)
+    else:
+        assert audit.max_client_unused_distinct_instances == 18
+
+
+def test_v2_interpretation_rejects_an_unreviewed_client():
+    read = v2_read([raw_room()])
+    payload = v2_batch(read).model_dump(mode="json")
+    payload["client_sha256"] = "c" * 64
+    with pytest.raises(ValidationError, match="reviewed client hash"):
+        AcquisitionEvidenceBatchV2.model_validate_json(json.dumps(payload))
+
+
+def test_v2_audit_verifies_persisted_prior_phase_anchors():
+    first = raw_room(events=[{"action": "advanceGF", "playerId": 1}])
+    second = raw_room(
+        updateCount=1,
+        events=[
+            {
+                "action": "useAttackItems",
+                "items": [
+                    {"id": 1, "modelId": 10},
+                ],
+            }
+        ],
+    )
+    original = v2_read([first, second])
+    forged = original.model_dump(mode="json")
+    row = forged["snapshots"][1]
+    row["phase_before"]["turn_player_id"] = row["phase_after"]["turn_player_id"] = 2
+    row["event_owners"][0]["item_owner_player_id"] = 2
+    row["events"][0]["self_item_payload_bound"] = False
+    row["events"][0]["items"] = []
+    read = AcquisitionProbeReadV2.model_validate_json(json.dumps(forged))
+    with pytest.raises(ValueError, match="recorded source anchor"):
+        audit_acquisition_batches((v2_batch(read),))

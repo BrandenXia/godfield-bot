@@ -242,15 +242,20 @@ def acquisition_batch_digest(
     ).hexdigest()
 
 
-def acquisition_probe_init_script(identity: str, *, capacity: int = 256) -> str:
+def acquisition_probe_init_script(
+    identity: str, *, capacity: int = 256, schema_version: Literal[1, 2] = 1
+) -> str:
     if not 8 <= capacity <= 4096:
         raise ValueError("acquisition queue capacity must be between 8 and 4096")
+    if type(schema_version) is not int or schema_version not in {1, 2}:
+        raise ValueError("unsupported acquisition capture schema")
     config = json.dumps(
         {
             "identity": identity,
             "capacity": capacity,
             "event_actions": sorted(REVIEWED_EVENT_ACTIONS),
             "self_item_actions": sorted(SELF_ITEM_ACTIONS),
+            "schema_version": schema_version,
         },
         ensure_ascii=False,
     )
@@ -261,7 +266,7 @@ def acquisition_probe_init_script(identity: str, *, capacity: int = 256) -> str:
 async def install_acquisition_probe(
     context: BrowserContext, *, identity: str, capacity: int = 256, include_dream: bool = False
 ) -> None:
-    script = acquisition_probe_init_script(identity, capacity=capacity)
+    script = acquisition_probe_init_script(identity, capacity=capacity, schema_version=2)
     if include_dream:
         # Separate Playwright init scripts have no promised execution order.
         script = _dream_probe_init_script(identity) + "\n" + script
@@ -270,10 +275,10 @@ async def install_acquisition_probe(
 
 ACQUISITION_READ_SCRIPT = """
 () => {
-  const state = window.__godfieldAcquisitionEvidenceV1;
+  const state = window.__godfieldAcquisitionEvidenceV2 || window.__godfieldAcquisitionEvidenceV1;
   if (!state) return null;
   return {
-    schema_version: 1,
+    schema_version: state.schemaVersion || 1,
     status: {
       stream_id: state.streamId, source_sequence: state.sequence,
       acknowledged_sequence: state.acknowledged, pending_snapshot_count: state.queue.length,
@@ -288,7 +293,7 @@ ACQUISITION_READ_SCRIPT = """
 
 ACQUISITION_ACK_SCRIPT = """
 (ack) => {
-  const state = window.__godfieldAcquisitionEvidenceV1;
+  const state = window.__godfieldAcquisitionEvidenceV2 || window.__godfieldAcquisitionEvidenceV1;
   if (!state || state.streamId !== ack.stream_id ||
       !Number.isSafeInteger(ack.sequence) || ack.sequence < state.acknowledged ||
       ack.sequence > state.sequence) return false;
@@ -357,10 +362,22 @@ class AcquisitionRecorder:
         )
 
     async def poll(self, page: Page) -> bool:
+        from godfield_bot.acquisition_v2 import AcquisitionEvidenceBatchV2, AcquisitionProbeReadV2
+
         try:
             async with asyncio.timeout(ACQUISITION_IO_TIMEOUT_SECONDS):
                 raw = await page.evaluate(ACQUISITION_READ_SCRIPT)
-            evidence = AcquisitionProbeRead.model_validate_json(json.dumps(raw))
+            evidence: AcquisitionProbeRead | AcquisitionProbeReadV2
+            if (
+                not isinstance(raw, dict)
+                or type(raw.get("schema_version")) is not int
+                or raw["schema_version"] not in {1, 2}
+            ):
+                raise ValueError("unsupported acquisition capture schema")
+            if raw["schema_version"] == 2:
+                evidence = AcquisitionProbeReadV2.model_validate_json(json.dumps(raw))
+            else:
+                evidence = AcquisitionProbeRead.model_validate_json(json.dumps(raw))
         except (PlaywrightError, ValueError, TypeError, TimeoutError) as error:
             self._record_error("read", type(error).__name__)
             return False
@@ -371,14 +388,27 @@ class AcquisitionRecorder:
             self.client_sha256, self.catalog_sha256, evidence.status, snapshots
         )
         if self.last_digest.get(stream) != digest:
-            batch = AcquisitionEvidenceBatch(
-                observed_at=datetime.now(UTC),
-                client_sha256=self.client_sha256,
-                catalog_sha256=self.catalog_sha256,
-                input_sha256=digest,
-                status=evidence.status,
-                snapshots=snapshots,
-            )
+            batch: AcquisitionEvidenceBatch | AcquisitionEvidenceBatchV2
+            if isinstance(evidence, AcquisitionProbeReadV2):
+                batch = AcquisitionEvidenceBatchV2(
+                    observed_at=datetime.now(UTC),
+                    client_sha256=self.client_sha256,
+                    catalog_sha256=self.catalog_sha256,
+                    input_sha256=digest,
+                    status=evidence.status,
+                    snapshots=tuple(
+                        row for row in evidence.snapshots if row.source_sequence > last
+                    ),
+                )
+            else:
+                batch = AcquisitionEvidenceBatch(
+                    observed_at=datetime.now(UTC),
+                    client_sha256=self.client_sha256,
+                    catalog_sha256=self.catalog_sha256,
+                    input_sha256=digest,
+                    status=evidence.status,
+                    snapshots=snapshots,
+                )
             # Storage failures propagate: acknowledgement must never precede a
             # durable commit, and a broken trajectory store is not a probe fault.
             self.store.append_event(self.run_id, EventKind.EVIDENCE, batch)

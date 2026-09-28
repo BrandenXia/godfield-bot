@@ -594,6 +594,9 @@ async def run_training_observer(
                             else None
                         ),
                         "acquisition_evidence_probe": acquisition_catalog is not None,
+                        "acquisition_evidence_schema_version": (
+                            2 if acquisition_catalog is not None else None
+                        ),
                         "acquisition_evidence_catalog_sha256": (
                             acquisition_catalog.content_sha256
                             if acquisition_catalog is not None

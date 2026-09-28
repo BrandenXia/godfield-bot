@@ -1,0 +1,976 @@
+{
+  "source_kind": "official-acquisition-v1-compatibility-fixtures",
+  "training_eligible": false,
+  "promotion_eligible": false,
+  "acquisition_rule_eligible": false,
+  "cases": [
+    {
+      "case": "initial_compact_items",
+      "source_run_id": "a2dc9b5c-451b-4b6f-b866-e5b269f273f3",
+      "source_event_sequence": 0,
+      "batch": {
+        "acquisition_rule_eligible": false,
+        "catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+        "client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+        "input_sha256": "4256d1f99f2bc8006623c1d19e17a180eb2ada96311eaf96210ccc67e7b8e0bf",
+        "observed_at": "2026-09-28T07:47:34.438673Z",
+        "promotion_eligible": false,
+        "schema_version": 1,
+        "snapshots": [
+          {
+            "attack_turn_player_id": 2,
+            "captured_at": "2026-09-28T07:47:28.865000Z",
+            "events": [
+              {
+                "action": "startGame",
+                "event_index": 0,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "gift",
+                "event_index": 1,
+                "item": {
+                  "fake_model_id": null,
+                  "instance_id": 1,
+                  "model_id": 78,
+                  "raw_index": 0,
+                  "used": null
+                },
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 2,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "gift",
+                "event_index": 2,
+                "item": {
+                  "fake_model_id": null,
+                  "instance_id": 2,
+                  "model_id": 228,
+                  "raw_index": 0,
+                  "used": null
+                },
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 2,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "gift",
+                "event_index": 3,
+                "item": {
+                  "fake_model_id": null,
+                  "instance_id": 3,
+                  "model_id": 149,
+                  "raw_index": 0,
+                  "used": null
+                },
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 2,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "gift",
+                "event_index": 4,
+                "item": {
+                  "fake_model_id": null,
+                  "instance_id": 4,
+                  "model_id": 20,
+                  "raw_index": 0,
+                  "used": null
+                },
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 2,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "gift",
+                "event_index": 5,
+                "item": {
+                  "fake_model_id": null,
+                  "instance_id": 5,
+                  "model_id": 13,
+                  "raw_index": 0,
+                  "used": null
+                },
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 2,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "gift",
+                "event_index": 6,
+                "item": {
+                  "fake_model_id": null,
+                  "instance_id": 6,
+                  "model_id": 159,
+                  "raw_index": 0,
+                  "used": null
+                },
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 2,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "gift",
+                "event_index": 7,
+                "item": {
+                  "fake_model_id": null,
+                  "instance_id": 7,
+                  "model_id": 195,
+                  "raw_index": 0,
+                  "used": null
+                },
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 2,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "gift",
+                "event_index": 8,
+                "item": {
+                  "fake_model_id": null,
+                  "instance_id": 8,
+                  "model_id": 135,
+                  "raw_index": 0,
+                  "used": null
+                },
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 2,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "gift",
+                "event_index": 9,
+                "item": {
+                  "fake_model_id": null,
+                  "instance_id": 9,
+                  "model_id": 54,
+                  "raw_index": 0,
+                  "used": null
+                },
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 2,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "advanceGF",
+                "event_index": 10,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "useAttackItems",
+                "event_index": 11,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "miss",
+                "event_index": 12,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 2,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "advanceGF",
+                "event_index": 13,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 2,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              }
+            ],
+            "field_number": 2,
+            "is_over": null,
+            "player_count": 2,
+            "redacted_item_event_count": 1,
+            "self_items": [
+              {
+                "fake_model_id": null,
+                "instance_id": 1,
+                "model_id": 78,
+                "raw_index": 0,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 2,
+                "model_id": 228,
+                "raw_index": 1,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 3,
+                "model_id": 149,
+                "raw_index": 2,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 4,
+                "model_id": 20,
+                "raw_index": 3,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 5,
+                "model_id": 13,
+                "raw_index": 4,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 6,
+                "model_id": 159,
+                "raw_index": 5,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 7,
+                "model_id": 195,
+                "raw_index": 6,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 8,
+                "model_id": 135,
+                "raw_index": 7,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 9,
+                "model_id": 54,
+                "raw_index": 8,
+                "used": null
+              }
+            ],
+            "self_player_id": 2,
+            "source_sequence": 1,
+            "unreviewed_event_count": 0,
+            "update_count": 1
+          }
+        ],
+        "source_kind": "official-acquisition-evidence-v1",
+        "status": {
+          "acknowledged_sequence": 0,
+          "dropped_snapshot_count": 0,
+          "hook_error_count": 0,
+          "hook_installed": true,
+          "listener_registrations": 1,
+          "pending_snapshot_count": 1,
+          "rejected_snapshot_count": 0,
+          "source_sequence": 1,
+          "stream_id": "195cd85e-9375-4515-8e41-5ca682bd41d3"
+        },
+        "training_eligible": false
+      }
+    },
+    {
+      "case": "unclassified_empty_item",
+      "source_run_id": "a2dc9b5c-451b-4b6f-b866-e5b269f273f3",
+      "source_event_sequence": 280,
+      "batch": {
+        "acquisition_rule_eligible": false,
+        "catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+        "client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+        "input_sha256": "75ae84c6098268bbe781b4f3f2fdcef1c82ef954ae4a44d06a06509742e59eb6",
+        "observed_at": "2026-09-28T07:49:55.304310Z",
+        "promotion_eligible": false,
+        "schema_version": 1,
+        "snapshots": [
+          {
+            "attack_turn_player_id": 2,
+            "captured_at": "2026-09-28T07:49:53.643000Z",
+            "events": [
+              {
+                "action": "useAttackItems",
+                "event_index": 0,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "setTargetPlayer",
+                "event_index": 1,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "useDefenseItems",
+                "event_index": 2,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "dealDamage",
+                "event_index": 3,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "addCurse",
+                "event_index": 4,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "counterAttack",
+                "event_index": 5,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "nextAttack",
+                "event_index": 6,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "hit",
+                "event_index": 7,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 2,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              }
+            ],
+            "field_number": 20,
+            "is_over": null,
+            "player_count": 2,
+            "redacted_item_event_count": 2,
+            "self_items": [
+              {
+                "fake_model_id": null,
+                "instance_id": 2,
+                "model_id": 228,
+                "raw_index": 0,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 6,
+                "model_id": 159,
+                "raw_index": 1,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 9,
+                "model_id": 183,
+                "raw_index": 2,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 4,
+                "model_id": 139,
+                "raw_index": 3,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 1,
+                "model_id": 3,
+                "raw_index": 4,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 5,
+                "model_id": 164,
+                "raw_index": 5,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 7,
+                "model_id": 3,
+                "raw_index": 6,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": null,
+                "model_id": null,
+                "raw_index": 7,
+                "used": null
+              }
+            ],
+            "self_player_id": 2,
+            "source_sequence": 16,
+            "unreviewed_event_count": 0,
+            "update_count": 16
+          }
+        ],
+        "source_kind": "official-acquisition-evidence-v1",
+        "status": {
+          "acknowledged_sequence": 15,
+          "dropped_snapshot_count": 0,
+          "hook_error_count": 0,
+          "hook_installed": true,
+          "listener_registrations": 1,
+          "pending_snapshot_count": 1,
+          "rejected_snapshot_count": 0,
+          "source_sequence": 16,
+          "stream_id": "195cd85e-9375-4515-8e41-5ca682bd41d3"
+        },
+        "training_eligible": false
+      }
+    },
+    {
+      "case": "retained_used_item",
+      "source_run_id": "f456703e-a514-44fc-b474-ba95a676b264",
+      "source_event_sequence": 151,
+      "batch": {
+        "acquisition_rule_eligible": false,
+        "catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+        "client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+        "input_sha256": "ed91ce4a05bc1cee137e2836a4dc489029394540a8713ee52fb74b06602b5677",
+        "observed_at": "2026-09-28T07:52:34.746763Z",
+        "promotion_eligible": false,
+        "schema_version": 1,
+        "snapshots": [
+          {
+            "attack_turn_player_id": 1,
+            "captured_at": "2026-09-28T07:52:30.930000Z",
+            "events": [
+              {
+                "action": "useAttackItems",
+                "event_index": 0,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "setTargetPlayer",
+                "event_index": 1,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 2,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "useDefenseItems",
+                "event_index": 2,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "safe",
+                "event_index": 3,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "gift",
+                "event_index": 4,
+                "item": {
+                  "fake_model_id": null,
+                  "instance_id": 10,
+                  "model_id": 3,
+                  "raw_index": 0,
+                  "used": null
+                },
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "advanceGF",
+                "event_index": 5,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 2,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "useAttackItems",
+                "event_index": 6,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "miss",
+                "event_index": 7,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "advanceGF",
+                "event_index": 8,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              }
+            ],
+            "field_number": 13,
+            "is_over": null,
+            "player_count": 2,
+            "redacted_item_event_count": 3,
+            "self_items": [
+              {
+                "fake_model_id": null,
+                "instance_id": 2,
+                "model_id": 4,
+                "raw_index": 0,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 3,
+                "model_id": 170,
+                "raw_index": 1,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 4,
+                "model_id": 146,
+                "raw_index": 2,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 5,
+                "model_id": 195,
+                "raw_index": 3,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 6,
+                "model_id": 170,
+                "raw_index": 4,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 1,
+                "model_id": 65,
+                "raw_index": 5,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 9,
+                "model_id": 196,
+                "raw_index": 6,
+                "used": null
+              },
+              {
+                "fake_model_id": 158,
+                "instance_id": 7,
+                "model_id": 145,
+                "raw_index": 7,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 8,
+                "model_id": 215,
+                "raw_index": 8,
+                "used": true
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 10,
+                "model_id": 3,
+                "raw_index": 9,
+                "used": null
+              }
+            ],
+            "self_player_id": 1,
+            "source_sequence": 10,
+            "unreviewed_event_count": 0,
+            "update_count": 10
+          }
+        ],
+        "source_kind": "official-acquisition-evidence-v1",
+        "status": {
+          "acknowledged_sequence": 9,
+          "dropped_snapshot_count": 0,
+          "hook_error_count": 0,
+          "hook_installed": true,
+          "listener_registrations": 2,
+          "pending_snapshot_count": 1,
+          "rejected_snapshot_count": 0,
+          "source_sequence": 10,
+          "stream_id": "f8fe237d-5e59-48ef-97da-ee7763dccd1d"
+        },
+        "training_eligible": false
+      }
+    },
+    {
+      "case": "eighteen_owned_ids",
+      "source_run_id": "fde22aaa-ebb5-4896-95b3-baed993a9ea6",
+      "source_event_sequence": 758,
+      "batch": {
+        "acquisition_rule_eligible": false,
+        "catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+        "client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+        "input_sha256": "3423b8d77184540ca2316a2396f18f6711240b4d6bd19e96535f172bcc1a36ab",
+        "observed_at": "2026-09-28T07:59:54.270063Z",
+        "promotion_eligible": false,
+        "schema_version": 1,
+        "snapshots": [
+          {
+            "attack_turn_player_id": 2,
+            "captured_at": "2026-09-28T07:59:50.504000Z",
+            "events": [
+              {
+                "action": "useAttackItems",
+                "event_index": 0,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "pray",
+                "event_index": 1,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "gift",
+                "event_index": 2,
+                "item": {
+                  "fake_model_id": null,
+                  "instance_id": 18,
+                  "model_id": 115,
+                  "raw_index": 0,
+                  "used": null
+                },
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": true,
+                "target_player_id": null
+              },
+              {
+                "action": "advanceGF",
+                "event_index": 3,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 2,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "useAttackItems",
+                "event_index": 4,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": null,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              },
+              {
+                "action": "setTargetPlayer",
+                "event_index": 5,
+                "item": null,
+                "item_model_id": null,
+                "items": [],
+                "overflow_item": null,
+                "player_id": 1,
+                "self_item_payload_bound": false,
+                "target_player_id": null
+              }
+            ],
+            "field_number": 64,
+            "is_over": null,
+            "player_count": 2,
+            "redacted_item_event_count": 1,
+            "self_items": [
+              {
+                "fake_model_id": null,
+                "instance_id": 2,
+                "model_id": 138,
+                "raw_index": 0,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 3,
+                "model_id": 141,
+                "raw_index": 1,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 6,
+                "model_id": 128,
+                "raw_index": 2,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 5,
+                "model_id": 153,
+                "raw_index": 3,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 7,
+                "model_id": 3,
+                "raw_index": 4,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 8,
+                "model_id": 115,
+                "raw_index": 5,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 1,
+                "model_id": 5,
+                "raw_index": 6,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 10,
+                "model_id": 4,
+                "raw_index": 7,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 9,
+                "model_id": 5,
+                "raw_index": 8,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 4,
+                "model_id": 185,
+                "raw_index": 9,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 12,
+                "model_id": 203,
+                "raw_index": 10,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 11,
+                "model_id": 168,
+                "raw_index": 11,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 13,
+                "model_id": 5,
+                "raw_index": 12,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 15,
+                "model_id": 169,
+                "raw_index": 13,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 14,
+                "model_id": 187,
+                "raw_index": 14,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 16,
+                "model_id": 130,
+                "raw_index": 15,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 17,
+                "model_id": 5,
+                "raw_index": 16,
+                "used": null
+              },
+              {
+                "fake_model_id": null,
+                "instance_id": 18,
+                "model_id": 115,
+                "raw_index": 17,
+                "used": null
+              }
+            ],
+            "self_player_id": 1,
+            "source_sequence": 43,
+            "unreviewed_event_count": 0,
+            "update_count": 43
+          }
+        ],
+        "source_kind": "official-acquisition-evidence-v1",
+        "status": {
+          "acknowledged_sequence": 42,
+          "dropped_snapshot_count": 0,
+          "hook_error_count": 0,
+          "hook_installed": true,
+          "listener_registrations": 2,
+          "pending_snapshot_count": 1,
+          "rejected_snapshot_count": 0,
+          "source_sequence": 43,
+          "stream_id": "31130d0f-c4db-4850-83e8-5fc174d75a8f"
+        },
+        "training_eligible": false
+      }
+    }
+  ]
+}

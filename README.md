@@ -1046,18 +1046,23 @@ The current client also warrants revisiting the earlier browser-local Training
 assumption, but the API driver's Training rejection and all live controls remain
 unchanged. See [ADR 0061](docs/architecture/0061-inventory-observation-audit.md).
 
-The separate acquisition collector is now opt-in. It queues ordered self-item
+The separate acquisition collector is opt-in. It queues ordered self-item
 snapshots and reviewed, redacted event metadata; records overflow/rejection
 counters; and saves before acknowledging updates. It does not change policy
-authority or provide training labels. The hook and runner shutdown paths are
-synthetically tested; official end-to-end capture still needs validation.
+authority or provide training labels. Three operator-run v1 recordings verified
+transport, but exposed a coverage bug: attack/defense events normally lack an
+explicit player ID, so their item bodies were redacted. New captures use v2,
+which binds self consumption through conservatively verified, ordered phase
+context. Opponent and unresolved bodies remain redacted. Raw omitted flags stay
+unknown; the pinned client's defaults are reported separately. V1 recordings
+and their checksums remain unchanged.
 
-For a short collection against the official Training computer, with the
-existing heuristic keeping control:
+For one v2 verification game against the official Training computer, with the
+existing heuristic keeping control (v2 official capture still needs validation):
 
 ```bash
 UV_CACHE_DIR=.uv-cache uv run --locked --offline --extra simulation --extra training \
-  godfield-bot play-training --headless --max-games 3 \
+  godfield-bot play-training --headless --max-games 1 \
   --max-seconds 0 --max-actions 1000 --no-progress-seconds 120 \
   --acquisition-evidence-probe
 ```
@@ -1071,8 +1076,11 @@ UV_CACHE_DIR=.uv-cache uv run --locked --offline --extra simulation --extra trai
 ```
 
 This read-only report exposes missing source/server versions, hook and delivery
-failures, unknown flags, ownership observations, and reviewed event counts.
+failures, raw unknown flags, separately interpreted client-unused counts,
+ownership coverage, and reviewed event counts. Its audit schema version is 2;
+`capture_schema_versions` identifies whether the actual evidence is v1 or v2.
 Even a clean transport report is not evidence for adopting acquisition rules.
 Do not start a concurrent campaign on the same browser profile. Capture and
 review contiguous fixtures before changing C++ consumption/gift/overflow
-mechanics. See [ADR 0062](docs/architecture/0062-passive-acquisition-evidence-collector.md).
+mechanics. See [ADR 0062](docs/architecture/0062-passive-acquisition-evidence-collector.md)
+and [ADR 0063](docs/architecture/0063-acquisition-phase-ownership-and-wire-defaults.md).

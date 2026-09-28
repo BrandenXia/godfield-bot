@@ -3,6 +3,10 @@
 ## Status
 
 Accepted, 2026-09-28, for opt-in collection and offline transport auditing.
+The v1 transport has since been validated on three operator-run games. Its
+explicit-player-only binding omitted consumption payloads; new captures use
+the v2 interpretation in [ADR 0063](0063-acquisition-phase-ownership-and-wire-defaults.md).
+The following records the original v1 contract and verification.
 Synthetic tests verify the hook and delivery contract. End-to-end capture on
 the official service still needs an operator-run collection campaign. No remote
 match was started while implementing this change. No native acquisition rule,

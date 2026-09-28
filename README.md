@@ -1052,8 +1052,11 @@ counters; and saves before acknowledging updates. It does not change policy
 authority or provide training labels. Three operator-run v1 recordings verified
 transport, but exposed a coverage bug: attack/defense events normally lack an
 explicit player ID, so their item bodies were redacted. V2 binds self consumption
-through conservatively verified, ordered phase context. New captures use v3,
-which preserves those rules and adds self-only event item wire classifications.
+through conservatively verified, ordered phase context. V3 adds self-only event
+item wire classifications. New captures use v4, which also preserves the seeded
+two-player attacker/defender swap at reflection, verified against the pinned
+client. Unseeded/multiplayer reflections and other redirect effects remain
+unresolved; historical v1/v2/v3 records and checksums are not rewritten.
 Opponent and unresolved bodies remain redacted. Raw omitted flags stay
 unknown; the pinned client's defaults are reported separately. V1 recordings
 and their checksums remain unchanged.
@@ -1084,6 +1087,34 @@ UV_CACHE_DIR=.uv-cache uv run --locked --offline --extra simulation --extra trai
   --acquisition-evidence-probe
 ```
 
+For opt-in targeted miracle collection, use a reviewed fixed-attack miracle slug
+such as `flame`. This separate collection-only policy prioritizes an affordable,
+already-legal miracle selection at most twice per game. It preserves normal
+target/confirmation, defense, and selected healing/utility controls, then falls
+back to the unchanged heuristic; that fallback can still choose miracles.
+Repeated unchanged-state polls do not spend another priority selection. The
+budget measures decisions, **not** accepted casts or proven reuse. No items are
+injected, and a random deal may never contain the chosen miracle.
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --locked --offline --extra simulation --extra training \
+  godfield-bot play-training --headless --max-games 3 \
+  --max-seconds 900 --max-actions 1000 --no-progress-seconds 90 \
+  --max-setup-retries 0 --max-gameplay-retries 0 \
+  --acquisition-evidence-probe --acquisition-miracle-focus flame
+```
+
+Focused collection requires finite positive game/time limits and the acquisition
+probe. It cannot be combined with neural, shadow, or canary control. Runs carry
+policy ID `official-training-acquisition-miracle-v1`, explicit collection-only
+metadata, and false training/promotion eligibility. Both replay exporters skip
+them, and dataset readers reject this policy; their win rates are not strength
+evaluation. Omitting the focus option preserves normal play. See
+[ADR 0070](docs/architecture/0070-targeted-miracle-collection-and-reflection-capture.md).
+The wall-clock cap ends an unfinished game and stops the campaign with
+`aborted:wall_clock_limit`; it is a budget stop, not a freeze. Do not run another
+campaign on the same profile while collecting.
+
 The default pinned catalog is `data/snapshots/2026-09-21/api-catalog-en.json`
 and the queue capacity is 256. Inspect each campaign run ID:
 
@@ -1095,7 +1126,7 @@ UV_CACHE_DIR=.uv-cache uv run --locked --offline --extra simulation --extra trai
 This read-only report exposes missing source/server versions, hook and delivery
 failures, raw unknown flags, separately interpreted client-unused counts,
 ownership coverage, and reviewed event counts. Its audit schema version is 2;
-`capture_schema_versions` identifies whether the actual evidence is v1, v2, or v3.
+`capture_schema_versions` identifies whether the actual evidence is v1, v2, v3, or v4.
 It also reports raw true-flag observations, inventory-growth pairs, and
 client-interpreted used activations. Growth/activation comparisons never cross
 source/server gaps, invalid identities, or changed player membership counts;

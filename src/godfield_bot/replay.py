@@ -6,6 +6,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
+from godfield_bot.acquisition_policy import ACQUISITION_POLICY_ID
 from godfield_bot.domain.action import (
     ActionExecutionResult,
     ActionTransition,
@@ -56,9 +57,7 @@ def _parse_events(
                     (event.sequence, ActionExecutionResult.model_validate(event.payload))
                 )
             elif event.kind is EventKind.TRANSITION:
-                transitions.append(
-                    (event.sequence, ActionTransition.model_validate(event.payload))
-                )
+                transitions.append((event.sequence, ActionTransition.model_validate(event.payload)))
         except ValidationError:
             if event.kind is EventKind.TRANSITION:
                 skipped["invalid_transition"] += 1
@@ -100,10 +99,7 @@ def _legal_before(
     digest: str,
 ) -> tuple[int, LegalActionSet] | None:
     for event_sequence, legal_actions in reversed(legal_sets):
-        if (
-            lower_bound < event_sequence < sequence
-            and legal_actions.state_digest == digest
-        ):
+        if lower_bound < event_sequence < sequence and legal_actions.state_digest == digest:
             return event_sequence, legal_actions
     return None
 
@@ -142,6 +138,9 @@ def _samples_for_run(
     events: tuple[RunEvent, ...],
 ) -> tuple[list[ReplaySample], Counter[str], int]:
     states, legal_sets, decisions, executions, transitions, skipped = _parse_events(events)
+    if run.policy_id == ACQUISITION_POLICY_ID or run.config.get("collection_only") is True:
+        skipped["collection_only_run"] += 1
+        return [], skipped, len(transitions)
     if run.status in {RunStatus.RUNNING, RunStatus.FAILED}:
         skipped[f"run_status_{run.status.value}"] += len(transitions)
         return [], skipped, len(transitions)
@@ -221,11 +220,7 @@ def _samples_for_run(
             skipped["state_digest_mismatch"] += 1
             continue
         chosen = next(
-            (
-                action
-                for action in legal_actions.actions
-                if action.action_id == action_id
-            ),
+            (action for action in legal_actions.actions if action.action_id == action_id),
             None,
         )
         if chosen is None:
@@ -301,11 +296,13 @@ def load_replay_jsonl(source: Path) -> tuple[ReplaySample, ...]:
                     raise ReplayDatasetError(
                         f"replay line {line_number} violates the dataset contract"
                     ) from error
+                if sample.policy_id == ACQUISITION_POLICY_ID:
+                    raise ReplayDatasetError(
+                        "collection-only policy cannot enter a training dataset"
+                    )
                 if (
-                    game_state_digest(sample.before_state)
-                    != sample.transition.before_state_digest
-                    or game_state_digest(sample.after_state)
-                    != sample.transition.after_state_digest
+                    game_state_digest(sample.before_state) != sample.transition.before_state_digest
+                    or game_state_digest(sample.after_state) != sample.transition.after_state_digest
                 ):
                     raise ReplayDatasetError(
                         f"replay line {line_number} has mismatched state digests"

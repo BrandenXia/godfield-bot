@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import ClassVar, Literal
 
 from pydantic import Field, field_validator, model_validator
 
@@ -71,6 +71,9 @@ class AcquisitionEventOwner(_StrictEvidence):
 
 
 class AcquisitionSnapshotV2(AcquisitionSnapshot):
+    # Interpretation is versioned by snapshot type, never supplied by JSON.
+    # V2/v3 retain their original default-deny reflection behavior and digests.
+    reflection_duel_context: ClassVar[bool] = False
     self_item_wire: tuple[AcquisitionItemWire, ...] = Field(max_length=512)
     event_owners: tuple[AcquisitionEventOwner, ...] = Field(max_length=512)
     unreviewed_event_indices: tuple[int, ...] = Field(max_length=512)
@@ -144,6 +147,14 @@ class AcquisitionSnapshotV2(AcquisitionSnapshot):
                 turn, target = actor, None
             elif event.action == "setTargetPlayer":
                 target = actor if turn is not None and actor != turn else None
+            elif event.action == "reflect" and self.reflection_duel_context:
+                # Pinned reflect -> cZ flips roles, then aT targets the original
+                # attacker. Only admit the reviewed, fully seeded duel case.
+                turn, target = (
+                    (target, turn)
+                    if len(after.player_ids) == 2 and turn is not None and target is not None
+                    else (None, None)
+                )
             expected_owner, basis = None, "unresolved"
             if event.action == "gift" and actor is not None:
                 expected_owner, basis = actor, "explicit_gift_player"
@@ -158,7 +169,10 @@ class AcquisitionSnapshotV2(AcquisitionSnapshot):
             )
             if event.self_item_payload_bound != bound:
                 raise ValueError("event item binding differs from the resolved self owner")
-            if event.action not in PHASE_PRESERVING_ACTIONS | {"advanceGF", "setTargetPlayer"}:
+            if event.action not in PHASE_PRESERVING_ACTIONS | {
+                "advanceGF",
+                "setTargetPlayer",
+            } and not (self.reflection_duel_context and event.action == "reflect"):
                 # Default deny: even reviewed effects clear context unless their
                 # phase preservation has been explicitly checked above.
                 turn = target = None

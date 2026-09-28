@@ -12,6 +12,11 @@ from playwright.async_api import Page
 from pydantic import BaseModel, Field, JsonValue, model_validator
 
 from godfield_bot.account import start_account_session
+from godfield_bot.acquisition_policy import (
+    ACQUISITION_MAX_PRIORITIZED_SELECTIONS,
+    ACQUISITION_POLICY_ID,
+    AcquisitionMiraclePolicy,
+)
 from godfield_bot.acquisition_probe import (
     ACQUISITION_CAPTURE_SCHEMA_VERSION,
     ACQUISITION_REVIEWED_CLIENT_SHA256,
@@ -63,6 +68,7 @@ log = structlog.get_logger()
 class RunnerPolicyName(StrEnum):
     SAFE_OBSERVER = "safe-observer-v0"
     HEURISTIC_V0 = "heuristic-v0"
+    OFFICIAL_TRAINING_ACQUISITION = ACQUISITION_POLICY_ID
     OFFICIAL_TRAINING_NEURAL = "official-training-neural-v1"
     OFFICIAL_TRAINING_CANARY = "official-training-neural-canary-v1"
 
@@ -90,6 +96,7 @@ class TrainingRunConfig(BaseModel):
     dream_evidence_probe: bool = False
     dream_evidence_catalog: Path | None = None
     acquisition_evidence_probe: bool = False
+    acquisition_miracle_focus: str | None = None
     acquisition_evidence_catalog: Path | None = None
     acquisition_queue_capacity: int = Field(default=256, ge=8, le=4096)
     neural_sampling_seed: int = Field(default=67, ge=0, le=2**63 - 1)
@@ -108,6 +115,7 @@ class TrainingRunConfig(BaseModel):
             raise ValueError("max seconds must be 0 or at least 10")
         executable_policies = {
             RunnerPolicyName.HEURISTIC_V0,
+            RunnerPolicyName.OFFICIAL_TRAINING_ACQUISITION,
             RunnerPolicyName.OFFICIAL_TRAINING_NEURAL,
             RunnerPolicyName.OFFICIAL_TRAINING_CANARY,
         }
@@ -153,6 +161,27 @@ class TrainingRunConfig(BaseModel):
             self.expected_client_sha256 != ACQUISITION_REVIEWED_CLIENT_SHA256
         ):
             raise ValueError("acquisition event schema requires the reviewed official client hash")
+        collection = self.policy is RunnerPolicyName.OFFICIAL_TRAINING_ACQUISITION
+        if collection != (self.acquisition_miracle_focus is not None):
+            raise ValueError("miracle focus requires the collection-only acquisition policy")
+        if collection:
+            if not self.acquisition_evidence_probe:
+                raise ValueError("miracle collection requires --acquisition-evidence-probe")
+            if self.acquisition_miracle_focus not in self.verified_miracle_attacks:
+                raise ValueError("miracle collection requires a reviewed fixed-attack miracle slug")
+            if self.max_seconds <= 0:
+                raise ValueError("miracle collection requires a finite positive --max-seconds")
+            if any(
+                value is not None
+                for value in (
+                    self.model_directory,
+                    self.shadow_model_directory,
+                    self.canary_readiness_report,
+                )
+            ):
+                raise ValueError(
+                    "miracle collection cannot be combined with neural, shadow, or canary models"
+                )
         return self
 
 
@@ -164,6 +193,12 @@ class TrainingCampaignConfig(BaseModel):
     restart_delay_seconds: float = Field(default=2.0, ge=0.0, le=60.0)
     max_setup_retries: int = Field(default=3, ge=0, le=100)
     max_gameplay_retries: int = Field(default=3, ge=0, le=100)
+
+    @model_validator(mode="after")
+    def collection_has_finite_game_budget(self) -> "TrainingCampaignConfig":
+        if self.game.acquisition_miracle_focus is not None and self.max_games == 0:
+            raise ValueError("miracle collection requires a finite positive --max-games")
+        return self
 
 
 class TrainingCampaignSummary(BaseModel):
@@ -436,6 +471,7 @@ def _policy_from_name(
     bible_snapshot: Path | None = None,
     canary_readiness_report: Path | None = None,
     neural_sampling_seed: int = 67,
+    acquisition_miracle_focus: str | None = None,
 ) -> Policy:
     if name is RunnerPolicyName.SAFE_OBSERVER:
         return SafeObserverPolicy()
@@ -446,6 +482,17 @@ def _policy_from_name(
             verified_miracle_attacks,
             plain_hp_utilities,
             plain_mp_utilities,
+        )
+    if name is RunnerPolicyName.OFFICIAL_TRAINING_ACQUISITION:
+        if acquisition_miracle_focus is None:
+            raise RunnerError("miracle collection requires a focus slug")
+        return AcquisitionMiraclePolicy(
+            verified_weapon_attacks,
+            plain_armor_defenses,
+            verified_miracle_attacks,
+            plain_hp_utilities,
+            plain_mp_utilities,
+            focus=acquisition_miracle_focus,
         )
     if name is RunnerPolicyName.OFFICIAL_TRAINING_NEURAL:
         if model_directory is None or bible_snapshot is None:
@@ -510,6 +557,7 @@ async def run_training_observer(
         bible_snapshot=config.bible_snapshot,
         canary_readiness_report=config.canary_readiness_report,
         neural_sampling_seed=config.neural_sampling_seed,
+        acquisition_miracle_focus=config.acquisition_miracle_focus,
     )
     shadow_policy = None
     if config.shadow_model_directory is not None:
@@ -595,6 +643,19 @@ async def run_training_observer(
                             else None
                         ),
                         "acquisition_evidence_probe": acquisition_catalog is not None,
+                        "acquisition_miracle_focus": config.acquisition_miracle_focus,
+                        "acquisition_max_prioritized_selections": (
+                            ACQUISITION_MAX_PRIORITIZED_SELECTIONS
+                            if config.acquisition_miracle_focus is not None
+                            else None
+                        ),
+                        "collection_only": config.acquisition_miracle_focus is not None,
+                        "training_eligible": (
+                            False if config.acquisition_miracle_focus is not None else None
+                        ),
+                        "promotion_eligible": (
+                            False if config.acquisition_miracle_focus is not None else None
+                        ),
                         "acquisition_evidence_schema_version": (
                             ACQUISITION_CAPTURE_SCHEMA_VERSION
                             if acquisition_catalog is not None

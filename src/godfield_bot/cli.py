@@ -792,6 +792,15 @@ def play_official_training_computers(
             help="Pinned API catalog provenance for passive acquisition evidence only.",
         ),
     ] = Path("data", "snapshots", "2026-09-21", "api-catalog-en.json"),
+    acquisition_miracle_focus: Annotated[
+        str | None,
+        typer.Option(
+            help=(
+                "Collection only: prioritize a reviewed miracle slug (e.g. flame) twice per game. "
+                "Requires acquisition probe and finite positive game/time budgets; excludes models."
+            )
+        ),
+    ] = None,
     acquisition_queue_capacity: Annotated[
         int,
         typer.Option(min=8, max=4096, help="Bounded acquisition snapshot queue per page document."),
@@ -865,6 +874,17 @@ def play_official_training_computers(
     from godfield_bot.domain.run import RunStatus
 
     try:
+        if acquisition_miracle_focus is not None and (
+            neural_model is not None
+            or shadow_model is not None
+            or canary_model is not None
+            or canary_readiness_report is not None
+            or confirm_neural_control
+            or confirm_canary_intervention
+        ):
+            raise RunnerError(
+                "miracle collection cannot be combined with neural, shadow, or canary control"
+            )
         if neural_model is not None and not confirm_neural_control:
             raise RunnerError("neural Training control requires --confirm-neural-control")
         if neural_model is None and confirm_neural_control:
@@ -884,7 +904,9 @@ def play_official_training_computers(
                 "--canary-model cannot be combined with --neural-model or --shadow-model"
             )
         bible = BibleSnapshot.model_validate_json(snapshot.read_text(encoding="utf-8"))
-        if neural_model is not None:
+        if acquisition_miracle_focus is not None:
+            policy = RunnerPolicyName.OFFICIAL_TRAINING_ACQUISITION
+        elif neural_model is not None:
             policy = RunnerPolicyName.OFFICIAL_TRAINING_NEURAL
         elif canary_model is not None:
             policy = RunnerPolicyName.OFFICIAL_TRAINING_CANARY
@@ -909,6 +931,7 @@ def play_official_training_computers(
                             dream_evidence_catalog if dream_evidence_probe else None
                         ),
                         acquisition_evidence_probe=acquisition_evidence_probe,
+                        acquisition_miracle_focus=acquisition_miracle_focus,
                         acquisition_evidence_catalog=(
                             acquisition_evidence_catalog if acquisition_evidence_probe else None
                         ),

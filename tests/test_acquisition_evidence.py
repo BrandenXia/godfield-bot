@@ -14,6 +14,7 @@ from typer.main import get_command
 from typer.testing import CliRunner
 
 from godfield_bot.acquisition_evidence import audit_acquisition_batches, audit_acquisition_run
+from godfield_bot.acquisition_policy import ACQUISITION_POLICY_ID
 from godfield_bot.acquisition_probe import (
     ACQUISITION_ACK_SCRIPT,
     ACQUISITION_READ_SCRIPT,
@@ -32,6 +33,7 @@ from godfield_bot.acquisition_v2 import (
     AcquisitionProbeReadV2,
 )
 from godfield_bot.acquisition_v3 import AcquisitionProbeReadV3
+from godfield_bot.acquisition_v4 import AcquisitionProbeReadV4
 from godfield_bot.cli import app
 from godfield_bot.config import AppSettings
 from godfield_bot.domain.game import GameState, PlayerState
@@ -211,7 +213,7 @@ def raw_room(*, events=None, **changes):
 
 
 @pytest.mark.parametrize("before", [False, True])
-@pytest.mark.parametrize("schema_version", [1, 2, 3])
+@pytest.mark.parametrize("schema_version", [1, 2, 3, 4])
 def test_actual_script_saves_ordered_queue_and_only_acknowledges_read_prefix(
     before, schema_version
 ):
@@ -234,9 +236,12 @@ def test_actual_script_saves_ordered_queue_and_only_acknowledges_read_prefix(
     assert result["first"]["status"]["dropped_snapshot_count"] == 2
     assert not result["wrong"] and result["accepted"]
     assert [r["source_sequence"] for r in result["remaining"]["snapshots"]] == [11]
-    parser = {1: AcquisitionProbeRead, 2: AcquisitionProbeReadV2, 3: AcquisitionProbeReadV3}[
-        schema_version
-    ]
+    parser = {
+        1: AcquisitionProbeRead,
+        2: AcquisitionProbeReadV2,
+        3: AcquisitionProbeReadV3,
+        4: AcquisitionProbeReadV4,
+    }[schema_version]
     parser.model_validate_json(json.dumps(result["remaining"]))
 
 
@@ -388,7 +393,12 @@ class FakePage:
                 self.read.model_dump(mode="json")
                 if isinstance(
                     self.read,
-                    (AcquisitionProbeRead, AcquisitionProbeReadV2, AcquisitionProbeReadV3),
+                    (
+                        AcquisitionProbeRead,
+                        AcquisitionProbeReadV2,
+                        AcquisitionProbeReadV3,
+                        AcquisitionProbeReadV4,
+                    ),
                 )
                 else self.read
             )
@@ -805,20 +815,21 @@ def test_cli_collection_command_preserves_heuristic_control(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "probe,scenario",
+    "probe,scenario,focus",
     [
-        (False, "menu"),
-        (True, "menu"),
-        (True, "setup_error"),
-        (True, "interrupt"),
-        (True, "telemetry_error_terminal"),
+        (False, "menu", False),
+        (True, "menu", False),
+        (True, "setup_error", False),
+        (True, "interrupt", False),
+        (True, "telemetry_error_terminal", False),
+        (True, "telemetry_error_terminal", True),
     ],
 )
 def test_runner_installs_before_session_and_flushes_before_context_closes(
-    tmp_path, monkeypatch, probe, scenario
+    tmp_path, monkeypatch, probe, scenario, focus
 ):
     trace = []
-    page = FakePage(v3_read([raw_room()]) if probe else probe_read(snapshot()), trace=trace)
+    page = FakePage(v4_read([raw_room()]) if probe else probe_read(snapshot()), trace=trace)
     page.fail_read = scenario == "telemetry_error_terminal"
 
     class Context:
@@ -826,7 +837,7 @@ def test_runner_installs_before_session_and_flushes_before_context_closes(
             self.pages = [page]
 
         async def add_init_script(self, *, script):
-            assert '"schema_version": 3' in script
+            assert '"schema_version": 4' in script
             assert "__godfieldAcquisitionEvidenceV" in script
             trace.append("installed")
 
@@ -891,6 +902,12 @@ def test_runner_installs_before_session_and_flushes_before_context_closes(
         expected_client_sha256=CLIENT,
         acquisition_evidence_probe=probe,
         acquisition_evidence_catalog=CATALOG_PATH if probe else None,
+        policy=ACQUISITION_POLICY_ID if focus else "safe-observer-v0",
+        acquisition_miracle_focus="flame" if focus else None,
+        max_in_match_actions=100 if focus else 0,
+        verified_weapon_attacks={"bronze-club": ("ATK1", 1.0)} if focus else {},
+        plain_armor_defenses={"iron-shield": 4} if focus else {},
+        verified_miracle_attacks={"flame": (10, 5, "fire")} if focus else {},
     )
     if scenario == "interrupt":
         with pytest.raises(asyncio.CancelledError):
@@ -907,15 +924,22 @@ def test_runner_installs_before_session_and_flushes_before_context_closes(
             "telemetry_error_terminal": RunStatus.COMPLETED,
         }
         assert run.status == expected[scenario]
+        if focus:
+            assert run.policy_id == ACQUISITION_POLICY_ID
+            assert run.config["collection_only"] is True
+            assert run.config["training_eligible"] is False
+            assert run.config["promotion_eligible"] is False
+            assert run.config["acquisition_miracle_focus"] == "flame"
+            assert run.config["acquisition_max_prioritized_selections"] == 2
     if probe:
         assert trace.index("installed") < trace.index("session")
         report = audit_acquisition_run(database, run_id)
         assert report["collector_summary_count"] == 1
-        assert report["declared_capture_schema_version"] == 3
+        assert report["declared_capture_schema_version"] == 4
         if scenario == "telemetry_error_terminal":
             assert report["read_error_count"] == 2 and report["snapshot_count"] == 0
         else:
-            assert report["capture_schema_versions"] == [3]
+            assert report["capture_schema_versions"] == [4]
             assert report["capture_schema_matches_run_config"]
             assert trace.index("ack") < trace.index("closed")
             assert report["snapshot_count"] == 1
@@ -930,6 +954,15 @@ def v3_read(rooms):
         schema_version=3,
     )
     return AcquisitionProbeReadV3.model_validate_json(json.dumps(raw))
+
+
+def v4_read(rooms):
+    raw = node(
+        "register({}, () => {}); input.rooms.forEach((room) => emit(room)); return read();",
+        rooms=rooms,
+        schema_version=4,
+    )
+    return AcquisitionProbeReadV4.model_validate_json(json.dumps(raw))
 
 
 def v2_read(rooms):

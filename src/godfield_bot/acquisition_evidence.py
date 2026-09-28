@@ -24,9 +24,13 @@ from godfield_bot.acquisition_probe import (
 )
 from godfield_bot.acquisition_v2 import AcquisitionEvidenceBatchV2, AcquisitionSnapshotV2
 from godfield_bot.acquisition_v3 import AcquisitionEvidenceBatchV3, AcquisitionSnapshotV3
+from godfield_bot.acquisition_v4 import AcquisitionEvidenceBatchV4
 
 AcquisitionBatch = (
-    AcquisitionEvidenceBatch | AcquisitionEvidenceBatchV2 | AcquisitionEvidenceBatchV3
+    AcquisitionEvidenceBatch
+    | AcquisitionEvidenceBatchV2
+    | AcquisitionEvidenceBatchV3
+    | AcquisitionEvidenceBatchV4
 )
 
 
@@ -428,9 +432,12 @@ def load_acquisition_run(database: Path, run_id: str) -> LoadedAcquisitionRun:
             "official-acquisition-evidence-v1",
             "official-acquisition-evidence-v2",
             "official-acquisition-evidence-v3",
+            "official-acquisition-evidence-v4",
         }:
             batch: AcquisitionBatch
-            if source == "official-acquisition-evidence-v3":
+            if source == "official-acquisition-evidence-v4":
+                batch = AcquisitionEvidenceBatchV4.model_validate_json(row["payload_json"])
+            elif source == "official-acquisition-evidence-v3":
                 batch = AcquisitionEvidenceBatchV3.model_validate_json(row["payload_json"])
             elif source == "official-acquisition-evidence-v2":
                 batch = AcquisitionEvidenceBatchV2.model_validate_json(row["payload_json"])
@@ -461,7 +468,7 @@ def load_acquisition_run(database: Path, run_id: str) -> LoadedAcquisitionRun:
     declared_schema = (
         config.get("acquisition_evidence_schema_version") if isinstance(config, dict) else None
     )
-    if type(declared_schema) is not int or declared_schema not in {1, 2, 3}:
+    if type(declared_schema) is not int or declared_schema not in {1, 2, 3, 4}:
         declared_schema = None
     return LoadedAcquisitionRun(
         run_id=run_id,

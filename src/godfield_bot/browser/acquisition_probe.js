@@ -1,7 +1,8 @@
 // Passive, bounded transport. This script sends no requests or game commands.
 (() => {
   const config = __GODFIELD_ACQUISITION_CONFIG__;
-  const v2 = config.schema_version >= 2, v3 = config.schema_version === 3;
+  const v2 = config.schema_version >= 2, v3 = config.schema_version >= 3;
+  const v4 = config.schema_version === 4;
   const key = '__godfieldAcquisitionEvidenceV' + config.schema_version;
   if (window[key]) return;
   const state = {
@@ -118,6 +119,11 @@
             // a defender without a known attacker or treat a self-target as one.
             if (raw.action === 'setTargetPlayer')
               target = turn !== null && member !== turn ? member : null;
+            if (v4 && raw.action === 'reflect') {
+              if (playerIds.length === 2 && turn !== null && target !== null)
+                [turn, target] = [target, turn];
+              else turn = target = null;
+            }
             owner = null;
             if (raw.action === 'gift' && member !== null) {
               owner = member; basis = 'explicit_gift_player';
@@ -143,7 +149,8 @@
           });
           if (v3) eventItemsWire.push(eventWire(raw, index, bound));
           if (v2 && !boundActions.has(raw.action) &&
-              raw.action !== 'advanceGF' && raw.action !== 'setTargetPlayer') turn = target = null;
+              raw.action !== 'advanceGF' && raw.action !== 'setTargetPlayer' &&
+              !(v4 && raw.action === 'reflect')) turn = target = null;
         });
         return {events, owners, unknownIndices, eventItemsWire, unreviewed, redacted, turn, target};
       };

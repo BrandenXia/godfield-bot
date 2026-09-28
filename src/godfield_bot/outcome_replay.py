@@ -6,6 +6,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
+from godfield_bot.acquisition_policy import ACQUISITION_POLICY_ID
 from godfield_bot.domain.action import ActionTransition
 from godfield_bot.domain.game import GameState
 from godfield_bot.domain.outcome import MatchOutcome, SparseTerminalReward
@@ -39,9 +40,7 @@ def _terminal_evidence(
             if event.kind is EventKind.MATCH_END:
                 outcomes.append((event.sequence, MatchOutcome.model_validate(event.payload)))
             elif event.kind is EventKind.REWARD:
-                rewards.append(
-                    (event.sequence, SparseTerminalReward.model_validate(event.payload))
-                )
+                rewards.append((event.sequence, SparseTerminalReward.model_validate(event.payload)))
         except ValidationError:
             invalid = True
     if invalid or len(outcomes) != 1 or len(rewards) != 1:
@@ -105,6 +104,9 @@ def collect_outcome_replay(
     skipped: Counter[str] = Counter()
     completed_runs_seen = 0
     for run in runs:
+        if run.policy_id == ACQUISITION_POLICY_ID or run.config.get("collection_only") is True:
+            skipped["collection_only_run"] += 1
+            continue
         if model_id is not None and run.model_id != model_id:
             skipped["model_id_mismatch"] += 1
             continue
@@ -161,6 +163,10 @@ def collect_outcome_replay(
 
 
 def _validate_episode(episode: OutcomeReplayEpisode, line_number: int) -> None:
+    if episode.policy_id == ACQUISITION_POLICY_ID or any(
+        step.policy_id == ACQUISITION_POLICY_ID for step in episode.steps
+    ):
+        raise OutcomeReplayDatasetError("collection-only policy cannot enter a training dataset")
     if game_state_digest(episode.terminal_state) != episode.outcome.terminal_state_digest:
         raise OutcomeReplayDatasetError(
             f"outcome replay line {line_number} has a mismatched terminal state digest"

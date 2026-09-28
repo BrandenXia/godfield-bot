@@ -168,7 +168,8 @@ def build_curriculum_heuristic(
     *,
     ruleset: AttackDefenseRuleset = "fixed-role",
 ) -> CurriculumHeuristic:
-    if ruleset == "gift-weighted-dream-resource-hand":
+    wide_hand = ruleset == "wide-hand-gift-weighted-dream-resource-hand"
+    if wide_hand or ruleset == "gift-weighted-dream-resource-hand":
         ruleset = "dream-resource-hand"
     dream_ruleset = ruleset == "dream-resource-hand"
     dark_cloud_ruleset = ruleset in {
@@ -823,7 +824,7 @@ def build_curriculum_heuristic(
         flash_attack_tokens=frozenset(flash_attack_tokens),
         dark_cloud_attack_tokens=frozenset(dark_cloud_attack_tokens),
         dream_attack_tokens=frozenset(dream_attack_tokens),
-        policy_id=policy_id,
+        policy_id="evidenced-wide-hand-dream-resource-combo-v1" if wide_hand else policy_id,
     )
 
 
@@ -835,6 +836,9 @@ def curriculum_heuristic_actions(
     """Choose max attack or conservative armor with deterministic slot ties."""
 
     batch = simulation.batch
+    forgive_action = batch.action_mask.shape[1] - 2
+    confirm_action = batch.action_mask.shape[1] - 1
+    hand_actions = range(1, batch.hand_token_ids.shape[1] + 1)
     actions = np.empty(rows.size, dtype=np.int64)
     for output_index, environment in enumerate(rows):
         hand = batch.hand_token_ids[environment]
@@ -844,13 +848,13 @@ def curriculum_heuristic_actions(
                 boosters = policy.boosters or {}
                 candidates = [
                     (boosters[int(hand[action - 1])], action)
-                    for action in range(1, 10)
+                    for action in hand_actions
                     if legal[action] and int(hand[action - 1]) in boosters
                 ]
                 actions[output_index] = (
                     max(candidates, key=lambda item: (item[0], -item[1]))[1]
                     if candidates
-                    else CONFIRM_ACTION_INDEX
+                    else confirm_action
                 )
                 continue
             if batch.resource_curriculum:
@@ -871,7 +875,7 @@ def curriculum_heuristic_actions(
                         ),
                         action,
                     )
-                    for action in range(1, 10)
+                    for action in hand_actions
                     if legal[action] and int(hand[action - 1]) in attacks
                 ]
                 opponent_hp = round(float(batch.player_features[environment, 1, 0]) * 100)
@@ -913,7 +917,7 @@ def curriculum_heuristic_actions(
                 if illness_cures:
                     cure_candidates = [
                         (illness_cures[int(hand[action - 1])], action)
-                        for action in range(1, 10)
+                        for action in hand_actions
                         if legal[action] and int(hand[action - 1]) in illness_cures
                     ]
                     if removable_curse and cure_candidates:
@@ -929,7 +933,7 @@ def curriculum_heuristic_actions(
                 if illness_stage in {0, 3} and mp <= 80:
                     herb_candidates = [
                         (heaven_herbs[int(hand[action - 1])], action)
-                        for action in range(1, 10)
+                        for action in hand_actions
                         if legal[action] and int(hand[action - 1]) in heaven_herbs
                     ]
                     if herb_candidates:
@@ -942,7 +946,7 @@ def curriculum_heuristic_actions(
                 hp_utilities = policy.hp_utilities or {}
                 healing = [
                     (hp_utilities[int(hand[action - 1])][0], action)
-                    for action in range(1, 10)
+                    for action in hand_actions
                     if legal[action] and int(hand[action - 1]) in hp_utilities
                 ]
                 if self_hp <= 25 and healing:
@@ -976,7 +980,7 @@ def curriculum_heuristic_actions(
                 mp_utilities = policy.mp_utilities or {}
                 restoration = [
                     (mp_utilities[int(hand[action - 1])], action)
-                    for action in range(1, 10)
+                    for action in hand_actions
                     if legal[action] and int(hand[action - 1]) in mp_utilities
                 ]
                 best_restoration = max((utility for utility, _action in restoration), default=0)
@@ -1034,7 +1038,7 @@ def curriculum_heuristic_actions(
                     continue
             candidates = [
                 (policy.attacks[int(hand[action - 1])], action)
-                for action in range(1, 10)
+                for action in hand_actions
                 if legal[action] and int(hand[action - 1]) in policy.attacks
             ]
             if not candidates:
@@ -1047,12 +1051,12 @@ def curriculum_heuristic_actions(
         if batch.combo:
             selected_defense = int(batch.selected_values[environment])
             if selected_defense >= pending_attack and selected_defense > 0:
-                actions[output_index] = CONFIRM_ACTION_INDEX
+                actions[output_index] = confirm_action
                 continue
             reflection_defenses = policy.reflection_defenses
             reflection_actions = [
                 action
-                for action in range(1, 10)
+                for action in hand_actions
                 if legal[action] and int(hand[action - 1]) in reflection_defenses
             ]
             candidates = [
@@ -1065,7 +1069,7 @@ def curriculum_heuristic_actions(
                     ),
                     action,
                 )
-                for action in range(1, 10)
+                for action in hand_actions
                 if legal[action] and int(hand[action - 1]) in policy.defenses
             ]
             self_hp = round(float(batch.player_features[environment, 0, 0]) * 100)
@@ -1098,10 +1102,10 @@ def curriculum_heuristic_actions(
                 actions[output_index] = min(reflection_actions)
             elif candidates:
                 actions[output_index] = max(candidates, key=lambda item: (item[0], -item[1]))[1]
-            elif selected_defense > 0 or legal[CONFIRM_ACTION_INDEX]:
-                actions[output_index] = CONFIRM_ACTION_INDEX
-            elif legal[FORGIVE_ACTION_INDEX]:
-                actions[output_index] = FORGIVE_ACTION_INDEX
+            elif selected_defense > 0 or legal[confirm_action]:
+                actions[output_index] = confirm_action
+            elif legal[forgive_action]:
+                actions[output_index] = forgive_action
             else:
                 raise SimulationPolicyError(
                     "combo heuristic found no legal defense, confirm, or pass"
@@ -1117,12 +1121,12 @@ def curriculum_heuristic_actions(
                 ),
                 action,
             )
-            for action in range(1, 10)
+            for action in hand_actions
             if legal[action] and int(hand[action - 1]) in policy.defenses
         ]
         if not candidates:
-            if legal[FORGIVE_ACTION_INDEX]:
-                actions[output_index] = FORGIVE_ACTION_INDEX
+            if legal[forgive_action]:
+                actions[output_index] = forgive_action
                 continue
             raise SimulationPolicyError("heuristic found no known legal defense or pass")
         sufficient = [item for item in candidates if item[0] >= pending_attack]

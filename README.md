@@ -946,3 +946,37 @@ It passed all six frozen opponents on three independent 8,192-pair evaluations
 57.56–58.03%, and its parent score was 50.65–50.73%. Continuing from it requires
 another new weighted league with this checkpoint as the base model. These
 results do not measure performance against the official bot.
+
+For capacity-stress training with larger hands, explicitly migrate a schema-10
+checkpoint and create a new league. Existing nine-slot checkpoints are retained.
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --extra simulation --extra training \
+  godfield-bot models migrate-hand-capacity \
+  models/f99e35f6-f677-4fa1-a835-4cd586ddb467
+
+UV_CACHE_DIR=.uv-cache uv run --extra simulation --extra training \
+  godfield-bot models create-simulation-league models/<migrated-model-id> \
+  --ruleset wide-hand-gift-weighted-dream-resource-hand --heuristic-weight 2
+
+UV_CACHE_DIR=.uv-cache uv run --extra simulation --extra training \
+  godfield-bot models train-simulation models/<migrated-model-id> \
+  --league models/leagues/<wide-league-id>.json \
+  --ruleset wide-hand-gift-weighted-dream-resource-hand \
+  --batch-size 512 --rollout-steps 64 --updates 160 \
+  --ppo-epochs 2 --environment-minibatch-size 128 --teacher-updates 0 \
+  --learning-rate 0.0001 --entropy-weight 0.02 --seed 40067 --device cpu
+
+UV_CACHE_DIR=.uv-cache uv run --extra simulation --extra training \
+  godfield-bot models evaluate-simulation-league models/<wide-candidate-id> \
+  --league models/leagues/<wide-league-id>.json \
+  --games-per-seat 8192 --seed 41067 --device cpu
+```
+
+Schema 11 has 18 padded slots and 30 actions. Each local episode starts with
+9–18 occupied cards; the occupied count stays fixed until reset. This teaches
+larger-hand selection but does **not** implement the official gift/discard or
+hand-growth lifecycle. Migration preserves shared card-scoring weights and
+nine-card outputs after action remapping, but inherits no evaluation or live
+readiness. Official neural bridges still reject schema 11.
+See [ADR 0059](docs/architecture/0059-padded-hand-capacity-curriculum.md).

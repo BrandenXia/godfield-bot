@@ -81,3 +81,12 @@ rather than speculating about their displayed semantics. Dreaming Hat, Jupiter
 Ring, Dream guardians, Dark Cloud counterattacks, and multiplayer Fog targeting
 remain excluded. See ADR 0002 and ADRs 0029 through 0051 in the root project
 for the interface and safety boundary.
+
+The separate `wide-hand-gift-weighted-dream-resource-hand` capacity-stress mode
+uses 18 padded slots, 30 actions, and schema 11. Its 9–18-card occupied initial
+hands keep their size until reset; this is not the official gift/discard cycle.
+Call `configure_hand_capacity()` once after gift-weight configuration and before
+exposing any hand/action views or stepping. Runtime `hand_slots`, `action_count`,
+`hand_sizes`, `forgive_action_index`, and `confirm_action_index` describe the
+layout. Legacy module constants and default batches remain nine-slot/21-action.
+See root ADR 0059 for migration and safety boundaries.

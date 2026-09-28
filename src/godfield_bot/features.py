@@ -45,6 +45,7 @@ CURSE_GLOBAL_FEATURE_COUNT = ILLNESS_GLOBAL_FEATURE_COUNT + 4
 DARK_CLOUD_FEATURE_SCHEMA_VERSION = 9
 DARK_CLOUD_GLOBAL_FEATURE_COUNT = CURSE_GLOBAL_FEATURE_COUNT + 2
 DREAM_FEATURE_SCHEMA_VERSION = 10
+WIDE_HAND_FEATURE_SCHEMA_VERSION = 11
 DREAM_GLOBAL_FEATURE_COUNT = DARK_CLOUD_GLOBAL_FEATURE_COUNT + 2
 PLAYER_FEATURE_COUNT = 4
 ATTACK_DISPLAY_PATTERN = re.compile(r"^ATK(\d+)$")
@@ -117,7 +118,7 @@ class ArtifactVocabulary(BaseModel):
 
 
 class StateFeatures(BaseModel):
-    schema_version: Literal[4, 5, 6, 7, 8, 9, 10] = 4
+    schema_version: Literal[4, 5, 6, 7, 8, 9, 10, 11] = 4
     global_features: tuple[float, ...]
     player_features: tuple[tuple[float, ...], ...]
     player_mask: tuple[bool, ...]
@@ -143,21 +144,24 @@ class StateFeatureEncoder:
         global_feature_counts = {
             FEATURE_SCHEMA_VERSION: GLOBAL_FEATURE_COUNT,
             RESOURCE_FEATURE_SCHEMA_VERSION: GLOBAL_FEATURE_COUNT,
-            STOCHASTIC_RESOURCE_FEATURE_SCHEMA_VERSION: (
-                STOCHASTIC_RESOURCE_GLOBAL_FEATURE_COUNT
-            ),
+            STOCHASTIC_RESOURCE_FEATURE_SCHEMA_VERSION: (STOCHASTIC_RESOURCE_GLOBAL_FEATURE_COUNT),
             ILLNESS_FEATURE_SCHEMA_VERSION: ILLNESS_GLOBAL_FEATURE_COUNT,
             CURSE_FEATURE_SCHEMA_VERSION: CURSE_GLOBAL_FEATURE_COUNT,
             DARK_CLOUD_FEATURE_SCHEMA_VERSION: DARK_CLOUD_GLOBAL_FEATURE_COUNT,
             DREAM_FEATURE_SCHEMA_VERSION: DREAM_GLOBAL_FEATURE_COUNT,
+            WIDE_HAND_FEATURE_SCHEMA_VERSION: DREAM_GLOBAL_FEATURE_COUNT,
         }
         if feature_schema_version not in global_feature_counts:
-            raise ValueError("browser features require feature schema v4 through v10")
+            raise ValueError("browser features require feature schema v4 through v11")
+        if feature_schema_version == WIDE_HAND_FEATURE_SCHEMA_VERSION and (
+            max_hand_slots != 18 or max_players != 9
+        ):
+            raise ValueError("schema v11 requires 18 hand slots and nine target slots")
         self.vocabulary = vocabulary
         self.max_players = max_players
         self.max_hand_slots = max_hand_slots
         self.feature_schema_version = cast(
-            Literal[4, 5, 6, 7, 8, 9, 10],
+            Literal[4, 5, 6, 7, 8, 9, 10, 11],
             feature_schema_version,
         )
         self.global_feature_count = global_feature_counts[feature_schema_version]
@@ -311,9 +315,10 @@ class StateFeatureEncoder:
             )
         if len(state.players) > self.max_players:
             raise FeatureEncodingError("player count exceeds model capacity")
-        if self.feature_schema_version >= ILLNESS_FEATURE_SCHEMA_VERSION and len(
-            state.players
-        ) != 2:
+        if (
+            self.feature_schema_version >= ILLNESS_FEATURE_SCHEMA_VERSION
+            and len(state.players) != 2
+        ):
             raise FeatureEncodingError("schema-v7+ browser features require exactly two players")
         if len(state.hand) > self.max_hand_slots and any(
             action.kind is ActionKind.SELECT_ARTIFACT

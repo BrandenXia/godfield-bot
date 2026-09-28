@@ -1038,9 +1038,6 @@ AttackDefenseBatch::AttackDefenseBatch(
 
   terminated_ = std::make_unique<bool[]>(batch_size_);
   player_mask_ = std::make_unique<bool[]>(batch_size_ * kPlayerCount);
-  hand_mask_ = std::make_unique<bool[]>(batch_size_ * kHandSlots);
-  action_mask_ = std::make_unique<bool[]>(batch_size_ * kActionCount);
-  selected_hand_mask_ = std::make_unique<bool[]>(batch_size_ * kHandSlots);
   pending_reflected_ = std::make_unique<bool[]>(batch_size_);
   pending_bounced_ = std::make_unique<bool[]>(batch_size_);
   rng_states_.resize(batch_size_);
@@ -1052,21 +1049,8 @@ AttackDefenseBatch::AttackDefenseBatch(
   flash_flags_.assign(batch_size_ * kPlayerCount, 0U);
   dark_cloud_flags_.assign(batch_size_ * kPlayerCount, 0U);
   dream_flags_.assign(batch_size_ * kPlayerCount, 0U);
-  hand_values_.resize(batch_size_ * kPlayerCount * kHandSlots);
-  hand_costs_.assign(batch_size_ * kPlayerCount * kHandSlots, 0U);
-  hand_hit_rates_.assign(batch_size_ * kPlayerCount * kHandSlots, 100U);
-  hand_effects_.assign(batch_size_ * kPlayerCount * kHandSlots,
-                       kNoAttackEffect);
-  hand_token_ids_by_player_.resize(batch_size_ * kPlayerCount * kHandSlots);
-  hand_card_kinds_by_player_.resize(batch_size_ * kPlayerCount * kHandSlots);
-  hand_elements_by_player_.resize(batch_size_ * kPlayerCount * kHandSlots);
-  displayed_hand_token_ids_by_player_.resize(batch_size_ * kPlayerCount *
-                                             kHandSlots);
-  displayed_hand_values_.resize(batch_size_ * kPlayerCount * kHandSlots);
-  displayed_hand_card_kinds_by_player_.resize(batch_size_ * kPlayerCount *
-                                              kHandSlots);
-  displayed_hand_elements_by_player_.resize(batch_size_ * kPlayerCount *
-                                            kHandSlots);
+  allocate_hand_buffers(hand_slots_, action_count_);
+  hand_sizes_.resize(batch_size_ * kPlayerCount);
   active_players_.resize(batch_size_);
   phases_.resize(batch_size_);
   pending_attackers_.resize(batch_size_);
@@ -1089,10 +1073,6 @@ AttackDefenseBatch::AttackDefenseBatch(
   terminal_returns_.resize(batch_size_ * kPlayerCount);
   global_features_.resize(batch_size_ * global_feature_count_);
   player_features_.resize(batch_size_ * kPlayerCount * kPlayerFeatureCount);
-  visible_hand_token_ids_.resize(batch_size_ * kHandSlots);
-  visible_actual_hand_token_ids_.resize(batch_size_ * kHandSlots);
-  visible_hand_card_kinds_.resize(batch_size_ * kHandSlots);
-  visible_hand_elements_.resize(batch_size_ * kHandSlots);
 
   for (std::size_t environment = 0; environment < batch_size_; ++environment) {
     rng_states_[environment] =
@@ -1102,10 +1082,88 @@ AttackDefenseBatch::AttackDefenseBatch(
   reset();
 }
 
+void AttackDefenseBatch::allocate_hand_buffers(std::size_t slots,
+                                               std::size_t actions) {
+  const auto players = batch_size_ * kPlayerCount * slots;
+  const auto visible = batch_size_ * slots;
+  std::vector<std::uint16_t> next_hand_values_(players, 0);
+  std::vector<std::uint16_t> next_hand_costs_(players, 0);
+  std::vector<std::uint16_t> next_hand_hit_rates_(players, 100);
+  std::vector<std::uint8_t> next_hand_effects_(players, kNoAttackEffect);
+  std::vector<std::int64_t> next_hand_token_ids_by_player_(players, 0);
+  std::vector<std::uint8_t> next_hand_card_kinds_by_player_(players, 0);
+  std::vector<std::uint8_t> next_hand_elements_by_player_(players, 0);
+  std::vector<std::int64_t> next_displayed_hand_token_ids_by_player_(players,
+                                                                     0);
+  std::vector<std::uint16_t> next_displayed_hand_values_(players, 0);
+  std::vector<std::uint8_t> next_displayed_hand_card_kinds_by_player_(players,
+                                                                      0);
+  std::vector<std::uint8_t> next_displayed_hand_elements_by_player_(players, 0);
+  std::vector<std::int64_t> next_visible_hand_token_ids_(visible, 0);
+  std::vector<std::int64_t> next_visible_actual_hand_token_ids_(visible, 0);
+  std::vector<std::uint8_t> next_visible_hand_card_kinds_(visible, 0);
+  std::vector<std::uint8_t> next_visible_hand_elements_(visible, 0);
+  auto next_hand_mask_ = std::make_unique<bool[]>(visible);
+  auto next_action_mask_ = std::make_unique<bool[]>(batch_size_ * actions);
+  auto next_selected_hand_mask_ = std::make_unique<bool[]>(visible);
+  hand_values_.swap(next_hand_values_);
+  hand_costs_.swap(next_hand_costs_);
+  hand_hit_rates_.swap(next_hand_hit_rates_);
+  hand_effects_.swap(next_hand_effects_);
+  hand_token_ids_by_player_.swap(next_hand_token_ids_by_player_);
+  hand_card_kinds_by_player_.swap(next_hand_card_kinds_by_player_);
+  hand_elements_by_player_.swap(next_hand_elements_by_player_);
+  displayed_hand_token_ids_by_player_.swap(
+      next_displayed_hand_token_ids_by_player_);
+  displayed_hand_values_.swap(next_displayed_hand_values_);
+  displayed_hand_card_kinds_by_player_.swap(
+      next_displayed_hand_card_kinds_by_player_);
+  displayed_hand_elements_by_player_.swap(
+      next_displayed_hand_elements_by_player_);
+  visible_hand_token_ids_.swap(next_visible_hand_token_ids_);
+  visible_actual_hand_token_ids_.swap(next_visible_actual_hand_token_ids_);
+  visible_hand_card_kinds_.swap(next_visible_hand_card_kinds_);
+  visible_hand_elements_.swap(next_visible_hand_elements_);
+  hand_mask_.swap(next_hand_mask_);
+  action_mask_.swap(next_action_mask_);
+  selected_hand_mask_.swap(next_selected_hand_mask_);
+  hand_slots_ = slots;
+  action_count_ = actions;
+}
+
+void AttackDefenseBatch::configure_hand_capacity(
+    std::size_t minimum_initial_hand, std::size_t maximum_initial_hand) {
+  if (!gift_weighted_ || has_stepped_ || hand_capacity_configured_ ||
+      hand_views_exposed_) {
+    throw std::invalid_argument(
+        "hand capacity requires an unstepped gift-weighted batch with no "
+        "exposed hand views");
+  }
+  if (minimum_initial_hand < kHandSlots || maximum_initial_hand > 18U ||
+      minimum_initial_hand > maximum_initial_hand) {
+    throw std::invalid_argument("initial hand range must be within 9..18");
+  }
+  allocate_hand_buffers(18U, 30U);
+  minimum_initial_hand_ = minimum_initial_hand;
+  maximum_initial_hand_ = maximum_initial_hand;
+  hand_capacity_configured_ = true;
+  rewind_initial_deal();
+}
+
+void AttackDefenseBatch::rewind_initial_deal() {
+  for (std::size_t environment = 0; environment < batch_size_; ++environment) {
+    rng_states_[environment] =
+        mix64(base_seed_ +
+              static_cast<std::uint64_t>(environment) * kSplitMixIncrement);
+    episode_ids_[environment] = 0U;
+  }
+  reset();
+}
+
 std::size_t AttackDefenseBatch::hand_offset(std::size_t environment,
                                             std::size_t player,
                                             std::size_t slot) const noexcept {
-  return (environment * kPlayerCount + player) * kHandSlots + slot;
+  return (environment * kPlayerCount + player) * hand_slots_ + slot;
 }
 
 std::uint64_t
@@ -1251,13 +1309,7 @@ void AttackDefenseBatch::configure_gift_weights(TokenInput token_ids,
   gift_catalog_cdfs_ = std::move(cdfs);
   gift_pools_ = std::move(pools);
   gift_weighted_ = true;
-  for (std::size_t environment = 0; environment < batch_size_; ++environment) {
-    rng_states_[environment] =
-        mix64(base_seed_ +
-              static_cast<std::uint64_t>(environment) * kSplitMixIncrement);
-    episode_ids_[environment] = 0U;
-  }
-  reset();
+  rewind_initial_deal();
 }
 
 std::size_t AttackDefenseBatch::sample_catalog_index(
@@ -2709,7 +2761,7 @@ std::uint16_t AttackDefenseBatch::defense_value_for_card(
 
 bool AttackDefenseBatch::has_weapon(std::size_t environment,
                                     std::size_t player) const noexcept {
-  for (std::size_t slot = 0; slot < kHandSlots; ++slot) {
+  for (std::size_t slot = 0; slot < hand_slots_; ++slot) {
     if (is_weapon_kind(hand_card_kinds_by_player_[hand_offset(environment,
                                                               player, slot)])) {
       return true;
@@ -2785,12 +2837,30 @@ void AttackDefenseBatch::reset_environment(std::size_t environment) {
   clear_selection(environment);
 
   for (std::size_t player = 0; player < kPlayerCount; ++player) {
+    const auto size =
+        minimum_initial_hand_ == maximum_initial_hand_
+            ? minimum_initial_hand_
+            : minimum_initial_hand_ +
+                  next_random(environment) %
+                      (maximum_initial_hand_ - minimum_initial_hand_ + 1U);
+    hand_sizes_[environment * kPlayerCount + player] =
+        static_cast<std::uint8_t>(size);
+    for (std::size_t slot = size; slot < hand_slots_; ++slot) {
+      const auto offset = hand_offset(environment, player, slot);
+      hand_token_ids_by_player_[offset] = 0;
+      hand_card_kinds_by_player_[offset] = 0U;
+      hand_values_[offset] = 0U;
+      hand_costs_[offset] = 0U;
+      hand_effects_[offset] = kNoAttackEffect;
+      hand_elements_by_player_[offset] = 0U;
+      refresh_displayed_card(environment, player, slot);
+    }
     if (!mixed_hands_) {
       for (std::size_t slot = 0; slot < kWeaponSlots; ++slot) {
         draw_weapon(environment, player, slot);
         refresh_displayed_card(environment, player, slot);
       }
-      for (std::size_t slot = kWeaponSlots; slot < kHandSlots; ++slot) {
+      for (std::size_t slot = kWeaponSlots; slot < hand_slots_; ++slot) {
         draw_armor(environment, player, slot);
         refresh_displayed_card(environment, player, slot);
       }
@@ -2931,6 +3001,10 @@ void AttackDefenseBatch::reset_environment(std::size_t environment) {
       }
       refresh_displayed_card(environment, player, slot);
     }
+    for (std::size_t slot = kHandSlots; slot < size; ++slot) {
+      draw_weighted_gift(environment, player, slot);
+      refresh_displayed_card(environment, player, slot);
+    }
   }
   refresh_environment_views(environment);
 }
@@ -2953,8 +3027,8 @@ std::size_t AttackDefenseBatch::reset_done() {
 }
 
 void AttackDefenseBatch::clear_selection(std::size_t environment) noexcept {
-  std::fill_n(selected_hand_mask_.get() + environment * kHandSlots, kHandSlots,
-              false);
+  std::fill_n(selected_hand_mask_.get() + environment * hand_slots_,
+              hand_slots_, false);
   selected_counts_[environment] = 0U;
   selected_values_[environment] = 0U;
   selected_displayed_values_[environment] = 0U;
@@ -2970,8 +3044,8 @@ void AttackDefenseBatch::clear_selection(std::size_t environment) noexcept {
 
 void AttackDefenseBatch::consume_selection(std::size_t environment,
                                            std::size_t player) {
-  for (std::size_t slot = 0; slot < kHandSlots; ++slot) {
-    if (!selected_hand_mask_[environment * kHandSlots + slot]) {
+  for (std::size_t slot = 0; slot < hand_slots_; ++slot) {
+    if (!selected_hand_mask_[environment * hand_slots_ + slot]) {
       continue;
     }
     const auto card_offset = hand_offset(environment, player, slot);
@@ -3225,12 +3299,12 @@ void AttackDefenseBatch::step(ActionInput actions) {
                                " is terminal; call reset_done before step");
     }
     const auto action = actions(environment);
-    if (action < 0 || action >= static_cast<std::int64_t>(kActionCount)) {
+    if (action < 0 || action >= static_cast<std::int64_t>(action_count_)) {
       throw std::invalid_argument(
           "environment " + std::to_string(environment) +
           " selected an action outside the action head");
     }
-    if (!action_mask_[environment * kActionCount +
+    if (!action_mask_[environment * action_count_ +
                       static_cast<std::size_t>(action)]) {
       throw std::invalid_argument("environment " + std::to_string(environment) +
                                   " selected a masked action");
@@ -3244,7 +3318,7 @@ void AttackDefenseBatch::step(ActionInput actions) {
     const auto phase = static_cast<TurnPhase>(phases_[environment]);
     if (combo_) {
       if (phase == TurnPhase::Attack) {
-        if (action == kConfirmActionIndex) {
+        if (action == confirm_action_index()) {
           if (resource_curriculum_) {
             auto &actor_mp = magic_points_[environment * kPlayerCount + actor];
             actor_mp = static_cast<std::uint16_t>(actor_mp -
@@ -3326,7 +3400,7 @@ void AttackDefenseBatch::step(ActionInput actions) {
             flash_flags_[cure_offset] = 0U;
             dark_cloud_flags_[cure_offset] = 0U;
             dream_flags_[cure_offset] = 0U;
-            for (std::size_t hand_slot = 0; hand_slot < kHandSlots;
+            for (std::size_t hand_slot = 0; hand_slot < hand_slots_;
                  ++hand_slot) {
               refresh_displayed_card(environment, actor, hand_slot);
             }
@@ -3368,7 +3442,7 @@ void AttackDefenseBatch::step(ActionInput actions) {
             refresh_environment_views(environment);
             continue;
           }
-          selected_hand_mask_[environment * kHandSlots + slot] = true;
+          selected_hand_mask_[environment * hand_slots_ + slot] = true;
           if (selected_counts_[environment] == 0U) {
             const auto dynamic_mp_weapon = kind == kDynamicMpWeaponCardKind;
             const auto actor_mp =
@@ -3407,9 +3481,9 @@ void AttackDefenseBatch::step(ActionInput actions) {
           }
           ++selected_counts_[environment];
         }
-      } else if (action == kForgiveActionIndex) {
+      } else if (action == forgive_action_index()) {
         resolve_defense(environment, actor, 0U);
-      } else if (action == kConfirmActionIndex) {
+      } else if (action == confirm_action_index()) {
         const auto defense = selected_values_[environment];
         const auto selected_kind = selected_base_kinds_[environment];
         const auto selected_effect = selected_effects_[environment];
@@ -3436,7 +3510,7 @@ void AttackDefenseBatch::step(ActionInput actions) {
         const auto slot = action - 1U;
         const auto card_offset = hand_offset(environment, actor, slot);
         const auto kind = hand_card_kinds_by_player_[card_offset];
-        selected_hand_mask_[environment * kHandSlots + slot] = true;
+        selected_hand_mask_[environment * hand_slots_ + slot] = true;
         const auto defense_value =
             (kind == kMiracleBlockArmorCardKind ||
              kind == kMiracleBlockWeaponCardKind ||
@@ -3488,7 +3562,7 @@ void AttackDefenseBatch::step(ActionInput actions) {
       phases_[environment] = static_cast<std::uint8_t>(TurnPhase::Defense);
     } else {
       std::uint16_t defense = 0U;
-      if (action != kForgiveActionIndex) {
+      if (action != forgive_action_index()) {
         const auto slot = action - 1U;
         const auto card_offset = hand_offset(environment, actor, slot);
         defense = hand_values_[card_offset];
@@ -3617,10 +3691,10 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
     player_mask_[environment * kPlayerCount + row] = true;
   }
 
-  const auto visible_hand_offset = environment * kHandSlots;
-  for (std::size_t slot = 0; slot < kHandSlots; ++slot) {
+  const auto visible_hand_offset = environment * hand_slots_;
+  for (std::size_t slot = 0; slot < hand_slots_; ++slot) {
     const auto selected =
-        combo_ && selected_hand_mask_[environment * kHandSlots + slot];
+        combo_ && selected_hand_mask_[environment * hand_slots_ + slot];
     const auto source = hand_offset(environment, perspective, slot);
     const auto token =
         selected ? 0 : displayed_hand_token_ids_by_player_[source];
@@ -3634,16 +3708,16 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
         selected ? 0U : displayed_hand_elements_by_player_[source];
   }
 
-  const auto action_offset = environment * kActionCount;
-  std::fill_n(action_mask_.get() + action_offset, kActionCount, false);
+  const auto action_offset = environment * action_count_;
+  std::fill_n(action_mask_.get() + action_offset, action_count_, false);
   if (terminated_[environment]) {
     return;
   }
   if (combo_) {
     if (phase == TurnPhase::Attack) {
       const auto has_base = selected_counts_[environment] > 0U;
-      for (std::size_t slot = 0; slot < kHandSlots; ++slot) {
-        if (selected_hand_mask_[environment * kHandSlots + slot]) {
+      for (std::size_t slot = 0; slot < hand_slots_; ++slot) {
+        if (selected_hand_mask_[environment * hand_slots_ + slot]) {
           continue;
         }
         const auto kind = displayed_hand_card_kinds_by_player_[hand_offset(
@@ -3709,7 +3783,7 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
             legal_illness_cure ||
             (heaven_herb_curriculum_ && kind == kHeavenHerbCardKind);
       }
-      action_mask_[action_offset + kConfirmActionIndex] = has_base;
+      action_mask_[action_offset + confirm_action_index()] = has_base;
       return;
     }
     const auto has_defense = selected_counts_[environment] > 0U;
@@ -3729,10 +3803,10 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
     const auto selected_bounce =
         pending_miracle &&
         is_miracle_bounce_kind(selected_base_kinds_[environment]);
-    action_mask_[action_offset + kForgiveActionIndex] = !has_defense;
-    action_mask_[action_offset + kConfirmActionIndex] = has_defense;
-    for (std::size_t slot = 0; slot < kHandSlots; ++slot) {
-      if (selected_hand_mask_[environment * kHandSlots + slot]) {
+    action_mask_[action_offset + forgive_action_index()] = !has_defense;
+    action_mask_[action_offset + confirm_action_index()] = has_defense;
+    for (std::size_t slot = 0; slot < hand_slots_; ++slot) {
+      if (selected_hand_mask_[environment * hand_slots_ + slot]) {
         continue;
       }
       const auto card_offset = hand_offset(environment, perspective, slot);
@@ -3792,15 +3866,15 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
     return;
   }
   if (static_cast<TurnPhase>(phases_[environment]) == TurnPhase::Attack) {
-    for (std::size_t slot = 0; slot < kHandSlots; ++slot) {
+    for (std::size_t slot = 0; slot < hand_slots_; ++slot) {
       action_mask_[action_offset + slot + 1U] =
           hand_card_kinds_by_player_[hand_offset(environment, perspective,
                                                  slot)] == kWeaponCardKind;
     }
     return;
   }
-  action_mask_[action_offset + kForgiveActionIndex] = true;
-  for (std::size_t slot = 0; slot < kHandSlots; ++slot) {
+  action_mask_[action_offset + forgive_action_index()] = true;
+  for (std::size_t slot = 0; slot < hand_slots_; ++slot) {
     const auto card_offset = hand_offset(environment, perspective, slot);
     action_mask_[action_offset + slot + 1U] =
         hand_card_kinds_by_player_[card_offset] == kArmorCardKind &&
@@ -3848,28 +3922,38 @@ Bool2D AttackDefenseBatch::player_mask_view() const {
 }
 
 Int64_2D AttackDefenseBatch::hand_token_ids_view() const {
-  return Int64_2D(visible_hand_token_ids_.data(), {batch_size_, kHandSlots});
+  hand_views_exposed_ = true;
+  return Int64_2D(visible_hand_token_ids_.data(), {batch_size_, hand_slots_});
+}
+
+UInt8_2D AttackDefenseBatch::hand_sizes_view() const {
+  return UInt8_2D(hand_sizes_.data(), {batch_size_, kPlayerCount});
 }
 
 Int64_2D AttackDefenseBatch::actual_hand_token_ids_view() const {
+  hand_views_exposed_ = true;
   return Int64_2D(visible_actual_hand_token_ids_.data(),
-                  {batch_size_, kHandSlots});
+                  {batch_size_, hand_slots_});
 }
 
 Bool2D AttackDefenseBatch::hand_mask_view() const {
-  return Bool2D(hand_mask_.get(), {batch_size_, kHandSlots});
+  hand_views_exposed_ = true;
+  return Bool2D(hand_mask_.get(), {batch_size_, hand_slots_});
 }
 
 UInt8_2D AttackDefenseBatch::hand_card_kinds_view() const {
-  return UInt8_2D(visible_hand_card_kinds_.data(), {batch_size_, kHandSlots});
+  hand_views_exposed_ = true;
+  return UInt8_2D(visible_hand_card_kinds_.data(), {batch_size_, hand_slots_});
 }
 
 UInt8_2D AttackDefenseBatch::hand_elements_view() const {
-  return UInt8_2D(visible_hand_elements_.data(), {batch_size_, kHandSlots});
+  hand_views_exposed_ = true;
+  return UInt8_2D(visible_hand_elements_.data(), {batch_size_, hand_slots_});
 }
 
 Bool2D AttackDefenseBatch::action_mask_view() const {
-  return Bool2D(action_mask_.get(), {batch_size_, kActionCount});
+  hand_views_exposed_ = true;
+  return Bool2D(action_mask_.get(), {batch_size_, action_count_});
 }
 
 UInt8_1D AttackDefenseBatch::active_players_view() const {
@@ -3905,7 +3989,8 @@ Bool1D AttackDefenseBatch::pending_bounced_view() const {
 }
 
 Bool2D AttackDefenseBatch::selected_hand_mask_view() const {
-  return Bool2D(selected_hand_mask_.get(), {batch_size_, kHandSlots});
+  hand_views_exposed_ = true;
+  return Bool2D(selected_hand_mask_.get(), {batch_size_, hand_slots_});
 }
 
 UInt8_1D AttackDefenseBatch::selected_counts_view() const {

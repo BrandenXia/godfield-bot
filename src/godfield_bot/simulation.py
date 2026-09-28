@@ -16,6 +16,7 @@ from godfield_bot.features import (
     CURSE_GLOBAL_FEATURE_COUNT,
     DARK_CLOUD_GLOBAL_FEATURE_COUNT,
     DREAM_GLOBAL_FEATURE_COUNT,
+    WIDE_HAND_FEATURE_SCHEMA_VERSION,
     ArtifactVocabulary,
 )
 from godfield_bot.reference import (
@@ -98,6 +99,7 @@ AttackDefenseRuleset = Literal[
     "dark-cloud-resource-hand",
     "dream-resource-hand",
     "gift-weighted-dream-resource-hand",
+    "wide-hand-gift-weighted-dream-resource-hand",
 ]
 
 
@@ -162,6 +164,7 @@ class SimulationMetadata(BaseModel):
         "elemental-dark-cloud-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-dream-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-dream-resource-2-1-2-1-1-1-1-initial-gift-weighted-redraw-with-base-liveness",
+        "elemental-dream-resource-gift-weighted-9-to-18-initial-capacity-18-redraw-with-base-liveness",
     ] = "uniform-redraw-with-replacement"
     promotion_eligible: Literal[False] = False
 
@@ -679,7 +682,8 @@ def create_attack_defense_simulation(
 ) -> AttackDefenseSimulation:
     """Build a non-promotable neutral attack/defense curriculum."""
 
-    gift_weighted = ruleset == "gift-weighted-dream-resource-hand"
+    wide_hand = ruleset == "wide-hand-gift-weighted-dream-resource-hand"
+    gift_weighted = wide_hand or ruleset == "gift-weighted-dream-resource-hand"
     if gift_weighted:
         ruleset = "dream-resource-hand"
     try:
@@ -688,7 +692,6 @@ def create_attack_defense_simulation(
             ABSORPTION_WEAPON_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
             ABSORPTION_WEAPON_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
             ABSORPTION_WEAPON_RESOURCE_ATTACK_DEFENSE_RULESET_ID,
-            ACTION_COUNT,
             ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
             ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
             ATTACK_DEFENSE_RULESET_ID,
@@ -726,7 +729,6 @@ def create_attack_defense_simulation(
             FOG_FLASH_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
             FOG_FLASH_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
             FOG_FLASH_RESOURCE_ATTACK_DEFENSE_RULESET_ID,
-            HAND_SLOTS,
             HEAVEN_HERB_RESOURCE_ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION,
             HEAVEN_HERB_RESOURCE_ATTACK_DEFENSE_OBSERVATION_SCHEMA_VERSION,
             HEAVEN_HERB_RESOURCE_ATTACK_DEFENSE_RULESET_ID,
@@ -2607,6 +2609,7 @@ def create_attack_defense_simulation(
         "elemental-dark-cloud-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-dream-resource-2-1-2-1-1-1-1-initial-uniform-redraw-with-base-liveness",
         "elemental-dream-resource-2-1-2-1-1-1-1-initial-gift-weighted-redraw-with-base-liveness",
+        "elemental-dream-resource-gift-weighted-9-to-18-initial-capacity-18-redraw-with-base-liveness",
     ]
     action_semantics: Literal["atomic-attack-defense-macro", "sequential-combo-selection"] = (
         "atomic-attack-defense-macro"
@@ -2914,6 +2917,14 @@ def create_attack_defense_simulation(
         sampling_distribution = (
             "elemental-dream-resource-2-1-2-1-1-1-1-initial-gift-weighted-redraw-with-base-liveness"
         )
+    if wide_hand:
+        batch.configure_hand_capacity()
+        observation_schema_version = WIDE_HAND_FEATURE_SCHEMA_VERSION
+        ruleset_id = "wide-hand-" + ruleset_id
+        sampling_distribution = (
+            "elemental-dream-resource-gift-weighted-9-to-18-initial-capacity-18-"
+            "redraw-with-base-liveness"
+        )
     return AttackDefenseSimulation(
         batch=batch,
         metadata=SimulationMetadata(
@@ -2924,8 +2935,8 @@ def create_attack_defense_simulation(
             vocabulary_sha256=hashlib.sha256(vocabulary.model_dump_json().encode()).hexdigest(),
             rule_catalog_sha256=_sha256_json(catalog),
             rule_catalog_size=len(catalog),
-            action_count=ACTION_COUNT,
-            hand_slots=HAND_SLOTS,
+            action_count=batch.action_count,
+            hand_slots=batch.hand_slots,
             global_feature_count=global_feature_count,
             action_semantics=action_semantics,
             sampling_distribution=sampling_distribution,

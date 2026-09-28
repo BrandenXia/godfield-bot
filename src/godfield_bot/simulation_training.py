@@ -80,6 +80,7 @@ class SimulationTrainingConfig(BaseModel):
         "dark-cloud-resource-hand",
         "dream-resource-hand",
         "gift-weighted-dream-resource-hand",
+        "wide-hand-gift-weighted-dream-resource-hand",
     ] = "fixed-role"
     batch_size: int = Field(default=256, ge=1, le=1_000_000)
     rollout_steps: int = Field(default=32, ge=2, le=4096)
@@ -871,6 +872,7 @@ def train_simulation_candidate(
     league_win_totals = [0] * len(league_action_totals)
     league_draw_totals = [0] * len(league_action_totals)
     teacher_metrics: list[TeacherTrainingMetrics] = []
+    extra_slot_action_count = 0
     teacher_completed_episodes = 0
     teacher_transitions = 0
     if config.teacher_updates:
@@ -924,6 +926,23 @@ def train_simulation_candidate(
         metrics = train_ppo_rollout(model, optimizer, self_play_rollout, config)
         completed_episodes += self_play_rollout.completed_episodes
         ppo_transitions += self_play_rollout.steps * self_play_rollout.batch_size
+        extra_slot_action_fraction = float(
+            (
+                (self_play_rollout.actions >= 10)
+                & (self_play_rollout.actions <= simulation.metadata.hand_slots)
+            )
+            .float()
+            .mean()
+            .item()
+        )
+        extra_slot_action_count += int(
+            (
+                (self_play_rollout.actions >= 10)
+                & (self_play_rollout.actions <= simulation.metadata.hand_slots)
+            )
+            .sum()
+            .item()
+        )
         defense_decisions = self_play_rollout.global_features[:, :, 4] > 0.5
         defense_count = int(defense_decisions.sum().item())
         armor_selection_rate = (
@@ -931,7 +950,7 @@ def train_simulation_candidate(
                 (
                     defense_decisions
                     & (self_play_rollout.actions >= 1)
-                    & (self_play_rollout.actions <= 9)
+                    & (self_play_rollout.actions <= simulation.metadata.hand_slots)
                 )
                 .float()
                 .sum()
@@ -983,6 +1002,7 @@ def train_simulation_candidate(
             ),
             league_opponents=league_metrics,
             armor_selection_rate=armor_selection_rate,
+            extra_slot_action_fraction=extra_slot_action_fraction,
             mean_absolute_advantage=mean_absolute_advantage,
             **metrics.model_dump(),
         )
@@ -1013,6 +1033,8 @@ def train_simulation_candidate(
             "teacher_accuracy_initial": teacher_metrics[0].accuracy if teacher_metrics else 0.0,
             "teacher_accuracy_final": teacher_metrics[-1].accuracy if teacher_metrics else 0.0,
             "ppo_transitions": float(ppo_transitions),
+            "extra_slot_action_count": float(extra_slot_action_count),
+            "extra_slot_action_fraction": extra_slot_action_count / ppo_transitions,
             "heuristic_opponent_fraction": (
                 sum(
                     member.weight

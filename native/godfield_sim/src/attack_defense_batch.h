@@ -385,6 +385,19 @@ public:
   // catalog. Rewinds the initial deal so the constructor's uniform deal does
   // not affect it.
   void configure_gift_weights(TokenInput token_ids, ValueInput weights);
+  void configure_hand_capacity(std::size_t minimum_initial_hand = 9U,
+                               std::size_t maximum_initial_hand = 18U);
+  [[nodiscard]] std::size_t hand_slots() const noexcept { return hand_slots_; }
+  [[nodiscard]] std::size_t action_count() const noexcept {
+    return action_count_;
+  }
+  [[nodiscard]] std::size_t forgive_action_index() const noexcept {
+    return action_count_ - 2U;
+  }
+  [[nodiscard]] std::size_t confirm_action_index() const noexcept {
+    return action_count_ - 1U;
+  }
+  [[nodiscard]] UInt8_2D hand_sizes_view() const;
   [[nodiscard]] std::uint16_t initial_mp() const noexcept {
     return initial_mp_;
   }
@@ -569,6 +582,8 @@ protected:
 
 private:
   static constexpr std::size_t kMaximumBatchSize = 1'000'000;
+  void allocate_hand_buffers(std::size_t slots, std::size_t actions);
+  void rewind_initial_deal();
 
   [[nodiscard]] std::size_t hand_offset(std::size_t environment,
                                         std::size_t player,
@@ -740,6 +755,13 @@ private:
   bool dream_curriculum_;
   bool gift_weighted_ = false;
   bool has_stepped_ = false;
+  std::size_t hand_slots_ = kHandSlots;
+  std::size_t action_count_ = kActionCount;
+  std::size_t minimum_initial_hand_ = kHandSlots;
+  std::size_t maximum_initial_hand_ = kHandSlots;
+  bool hand_capacity_configured_ = false;
+  mutable bool hand_views_exposed_ = false;
+  std::vector<std::uint8_t> hand_sizes_;
   std::unordered_map<const std::vector<std::uint32_t> *,
                      std::vector<std::uint64_t>>
       gift_catalog_cdfs_;

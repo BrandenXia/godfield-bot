@@ -433,6 +433,18 @@ NB_MODULE(_native, module) {
       .def("configure_gift_weights",
            &AttackDefenseBatch::configure_gift_weights, nb::arg("token_ids"),
            nb::arg("weights"))
+      .def("configure_hand_capacity",
+           &AttackDefenseBatch::configure_hand_capacity,
+           nb::arg("minimum_initial_hand") = 9U,
+           nb::arg("maximum_initial_hand") = 18U)
+      .def_prop_ro("hand_slots", &AttackDefenseBatch::hand_slots)
+      .def_prop_ro("action_count", &AttackDefenseBatch::action_count)
+      .def_prop_ro("forgive_action_index",
+                   &AttackDefenseBatch::forgive_action_index)
+      .def_prop_ro("confirm_action_index",
+                   &AttackDefenseBatch::confirm_action_index)
+      .def_prop_ro("hand_sizes", &AttackDefenseBatch::hand_sizes_view,
+                   nb::rv_policy::reference_internal)
       .def_prop_ro("initial_mp", &AttackDefenseBatch::initial_mp)
       .def_prop_ro("global_feature_count",
                    &AttackDefenseBatch::global_feature_count)

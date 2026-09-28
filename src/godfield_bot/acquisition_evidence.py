@@ -23,8 +23,11 @@ from godfield_bot.acquisition_probe import (
     AcquisitionSnapshot,
 )
 from godfield_bot.acquisition_v2 import AcquisitionEvidenceBatchV2, AcquisitionSnapshotV2
+from godfield_bot.acquisition_v3 import AcquisitionEvidenceBatchV3, AcquisitionSnapshotV3
 
-AcquisitionBatch = AcquisitionEvidenceBatch | AcquisitionEvidenceBatchV2
+AcquisitionBatch = (
+    AcquisitionEvidenceBatch | AcquisitionEvidenceBatchV2 | AcquisitionEvidenceBatchV3
+)
 
 
 class AcquisitionEvidenceAudit(BaseModel):
@@ -68,6 +71,10 @@ class AcquisitionEvidenceAudit(BaseModel):
     self_bound_defense_item_count: int = Field(ge=0)
     unresolved_item_owner_event_count: int = Field(ge=0)
     self_overflow_item_event_count: int = Field(ge=0)
+    self_event_wire_metadata_count: int = Field(ge=0)
+    legacy_self_bound_event_without_wire_count: int = Field(ge=0)
+    malformed_self_event_wire_count: int = Field(ge=0)
+    ambiguous_self_selection_event_count: int = Field(ge=0)
     reviewed_event_counts: dict[str, int]
     unreviewed_event_count: int = Field(ge=0)
     redacted_item_event_count: int = Field(ge=0)
@@ -154,6 +161,7 @@ def audit_acquisition_batches(
     client_unused_max = placeholders = malformed_wire = unverified_phase = 0
     raw_used_true = growth_pairs = used_activations = 0
     bound_attacks = bound_defenses = attack_items = defense_items = unresolved_owners = overflow = 0
+    event_wire_count = legacy_event_wire = malformed_event_wire = ambiguous_selections = 0
     event_counts: Counter[str] = Counter()
     start_seen = zero_seen = terminal_seen = False
     for stream_rows in rows.values():
@@ -276,6 +284,16 @@ def audit_acquisition_batches(
                         event.action in {"useAttackItems", "useDefenseItems"} and owner is None
                     )
                     if event.self_item_payload_bound:
+                        if isinstance(row, AcquisitionSnapshotV3):
+                            event_wire = row.event_item_wire[index]
+                            event_wire_count += 1
+                            malformed_event_wire += event_wire.malformed
+                            ambiguous_selections += (
+                                event.action in {"useAttackItems", "useDefenseItems"}
+                                and event_wire.items_kind != "array"
+                            )
+                        else:
+                            legacy_event_wire += 1
                         bound_attacks += event.action == "useAttackItems"
                         bound_defenses += event.action == "useDefenseItems"
                         attack_items += len(event.items) if event.action == "useAttackItems" else 0
@@ -305,6 +323,8 @@ def audit_acquisition_batches(
         "unknown_used_flags": unknown_used > 0 and not client_interpretation,
         "unresolved_item_ownership": unresolved_owners > 0,
         "malformed_wire_items": malformed_wire > 0,
+        "malformed_self_event_wire": malformed_event_wire > 0,
+        "ambiguous_self_selections": ambiguous_selections > 0,
         "unverified_phase_context": unverified_phase > 0,
         "unreviewed_events": unreviewed > 0,
         "missing_collector_summary": not summaries,
@@ -350,6 +370,10 @@ def audit_acquisition_batches(
         self_bound_defense_item_count=defense_items,
         unresolved_item_owner_event_count=unresolved_owners,
         self_overflow_item_event_count=overflow,
+        self_event_wire_metadata_count=event_wire_count,
+        legacy_self_bound_event_without_wire_count=legacy_event_wire,
+        malformed_self_event_wire_count=malformed_event_wire,
+        ambiguous_self_selection_event_count=ambiguous_selections,
         reviewed_event_counts=dict(sorted(event_counts.items())),
         unreviewed_event_count=unreviewed,
         redacted_item_event_count=redacted,
@@ -400,12 +424,18 @@ def load_acquisition_run(database: Path, run_id: str) -> LoadedAcquisitionRun:
     for row in payloads:
         payload = json.loads(row["payload_json"])
         source = payload.get("source_kind") if isinstance(payload, dict) else None
-        if source in {"official-acquisition-evidence-v1", "official-acquisition-evidence-v2"}:
-            batch: AcquisitionBatch = (
-                AcquisitionEvidenceBatchV2.model_validate_json(row["payload_json"])
-                if source == "official-acquisition-evidence-v2"
-                else AcquisitionEvidenceBatch.model_validate_json(row["payload_json"])
-            )
+        if source in {
+            "official-acquisition-evidence-v1",
+            "official-acquisition-evidence-v2",
+            "official-acquisition-evidence-v3",
+        }:
+            batch: AcquisitionBatch
+            if source == "official-acquisition-evidence-v3":
+                batch = AcquisitionEvidenceBatchV3.model_validate_json(row["payload_json"])
+            elif source == "official-acquisition-evidence-v2":
+                batch = AcquisitionEvidenceBatchV2.model_validate_json(row["payload_json"])
+            else:
+                batch = AcquisitionEvidenceBatch.model_validate_json(row["payload_json"])
             if (
                 batch.client_sha256 != run["client_sha256"]
                 or run["mode"] != "training"
@@ -431,7 +461,7 @@ def load_acquisition_run(database: Path, run_id: str) -> LoadedAcquisitionRun:
     declared_schema = (
         config.get("acquisition_evidence_schema_version") if isinstance(config, dict) else None
     )
-    if type(declared_schema) is not int or declared_schema not in {1, 2}:
+    if type(declared_schema) is not int or declared_schema not in {1, 2, 3}:
         declared_schema = None
     return LoadedAcquisitionRun(
         run_id=run_id,

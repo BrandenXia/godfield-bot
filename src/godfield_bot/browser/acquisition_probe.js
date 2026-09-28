@@ -1,8 +1,8 @@
 // Passive, bounded transport. This script sends no requests or game commands.
 (() => {
   const config = __GODFIELD_ACQUISITION_CONFIG__;
-  const v2 = config.schema_version === 2;
-  const key = v2 ? '__godfieldAcquisitionEvidenceV2' : '__godfieldAcquisitionEvidenceV1';
+  const v2 = config.schema_version >= 2, v3 = config.schema_version === 3;
+  const key = '__godfieldAcquisitionEvidenceV' + config.schema_version;
   if (window[key]) return;
   const state = {
     streamId: window.crypto.randomUUID(), sequence: 0, acknowledged: 0,
@@ -40,6 +40,24 @@
     used_kind: !Object.hasOwn(raw, 'used') ? 'missing' : raw.used === null ? 'null' :
       typeof raw.used === 'boolean' ? 'boolean' : 'other',
   });
+  const objectItem = (raw) => raw !== null && typeof raw === 'object' && !Array.isArray(raw);
+  const containerKind = (raw, field, kind) => !Object.hasOwn(raw, field) ? 'missing' :
+    raw[field] === null ? 'null' :
+      (kind === 'array' ? Array.isArray(raw[field]) : objectItem(raw[field])) ? kind : 'other';
+  const eventWire = (raw, index, bound) => {
+    if (!bound) return {event_index: index, item_kind: 'redacted', items_kind: 'redacted',
+      overflow_item_kind: 'redacted', item_model_id_kind: 'redacted',
+      item: null, items: [], overflow_item: null};
+    return {
+      event_index: index, item_kind: containerKind(raw, 'item', 'object'),
+      items_kind: containerKind(raw, 'items', 'array'),
+      overflow_item_kind: containerKind(raw, 'overflowItem', 'object'),
+      item_model_id_kind: wireInteger(raw, 'itemModelId'),
+      item: objectItem(raw.item) ? wireItem(raw.item, 0) : null,
+      items: Array.isArray(raw.items) ? raw.items.map(wireItem) : [],
+      overflow_item: objectItem(raw.overflowItem) ? wireItem(raw.overflowItem, 0) : null,
+    };
+  };
   const capture = (document) => {
     try {
       const room = document && typeof document.data === 'function' ? document.data() : null;
@@ -53,7 +71,7 @@
       const gf = nonnegative(game.gf), update = nonnegative(game.updateCount);
       if (selfId === null || gf === null || update === null || game.players.length > 256)
         throw new Error('invalid version or self');
-      const events = [], rawEvents = game.events;
+      const rawEvents = game.events;
       if (!Array.isArray(rawEvents) || rawEvents.length > 512) throw new Error('invalid events');
       const selfItems = items(self.items);
       let playerIds = [], selfWire = [], phaseBefore = null, phaseInput = 'initial', phaseStamp;
@@ -80,50 +98,68 @@
           } else phaseInput = 'gap_or_boundary';
         }
       }
-      let turn = phaseBefore ? phaseBefore.turn_player_id : null;
-      let target = phaseBefore ? phaseBefore.target_player_id : null;
-      const owners = [], unknownIndices = [];
-      let unreviewed = 0, redacted = 0;
-      rawEvents.forEach((raw, index) => {
-        if (!raw || typeof raw !== 'object' || !knownActions.has(raw.action)) {
-          unreviewed += 1;
-          if (v2) { unknownIndices.push(index); turn = target = null; }
-          return;
-        }
-        const actor = positive(raw.playerId);
-        let owner = actor, basis = 'unresolved';
-        if (v2) {
-          const member = playerIds.includes(actor) ? actor : null;
-          if (raw.action === 'advanceGF') { turn = member; target = null; }
-          // The client keeps the opposite role on self-targets. Do not infer
-          // a defender without a known attacker or treat a self-target as one.
-          if (raw.action === 'setTargetPlayer')
-            target = turn !== null && member !== turn ? member : null;
-          owner = null;
-          if (raw.action === 'gift' && member !== null) {
-            owner = member; basis = 'explicit_gift_player';
-          } else if (raw.action === 'useAttackItems' && turn !== null) {
-            owner = turn; basis = 'turn_context';
-          } else if (raw.action === 'useDefenseItems' && target !== null) {
-            owner = target; basis = 'target_context';
+      const projectEvents = (before) => {
+        let turn = before ? before.turn_player_id : null;
+        let target = before ? before.target_player_id : null;
+        const events = [], owners = [], unknownIndices = [], eventItemsWire = [];
+        let unreviewed = 0, redacted = 0;
+        rawEvents.forEach((raw, index) => {
+          if (!raw || typeof raw !== 'object' || !knownActions.has(raw.action)) {
+            unreviewed += 1;
+            if (v2) { unknownIndices.push(index); turn = target = null; }
+            return;
           }
-          owners.push({event_index: index, item_owner_player_id: owner, basis});
-        }
-        const bound = owner === selfId && boundActions.has(raw.action);
-        const hasItems = raw.item != null || raw.items != null || raw.overflowItem != null ||
-          raw.itemModelId != null;
-        if (hasItems && !bound) redacted += 1;
-        events.push({
-          event_index: index, action: raw.action, player_id: actor,
-          target_player_id: positive(raw.targetPlayerId), self_item_payload_bound: bound,
-          item: bound && raw.item != null ? item(raw.item, 0) : null,
-          items: bound && raw.items != null ? items(raw.items) : [],
-          overflow_item: bound && raw.overflowItem != null ? item(raw.overflowItem, 0) : null,
-          item_model_id: bound ? positive(raw.itemModelId) : null,
+          const actor = positive(raw.playerId);
+          let owner = actor, basis = 'unresolved';
+          if (v2) {
+            const member = playerIds.includes(actor) ? actor : null;
+            if (raw.action === 'advanceGF') { turn = member; target = null; }
+            // The client keeps the opposite role on self-targets. Do not infer
+            // a defender without a known attacker or treat a self-target as one.
+            if (raw.action === 'setTargetPlayer')
+              target = turn !== null && member !== turn ? member : null;
+            owner = null;
+            if (raw.action === 'gift' && member !== null) {
+              owner = member; basis = 'explicit_gift_player';
+            } else if (raw.action === 'useAttackItems' && turn !== null) {
+              owner = turn; basis = 'turn_context';
+            } else if (raw.action === 'useDefenseItems' && target !== null) {
+              owner = target; basis = 'target_context';
+            }
+            owners.push({event_index: index, item_owner_player_id: owner, basis});
+          }
+          const bound = owner === selfId && boundActions.has(raw.action);
+          const hasItems = raw.item != null || raw.items != null || raw.overflowItem != null ||
+            raw.itemModelId != null;
+          if (hasItems && !bound) redacted += 1;
+          events.push({
+            event_index: index, action: raw.action, player_id: actor,
+            target_player_id: positive(raw.targetPlayerId), self_item_payload_bound: bound,
+            item: bound && (v3 ? objectItem(raw.item) : raw.item != null) ? item(raw.item, 0) : null,
+            items: bound && (v3 ? Array.isArray(raw.items) : raw.items != null) ? items(raw.items) : [],
+            overflow_item: bound && (v3 ? objectItem(raw.overflowItem) : raw.overflowItem != null) ?
+              item(raw.overflowItem, 0) : null,
+            item_model_id: bound ? positive(raw.itemModelId) : null,
+          });
+          if (v3) eventItemsWire.push(eventWire(raw, index, bound));
+          if (v2 && !boundActions.has(raw.action) &&
+              raw.action !== 'advanceGF' && raw.action !== 'setTargetPlayer') turn = target = null;
         });
-        if (v2 && !boundActions.has(raw.action) &&
-            raw.action !== 'advanceGF' && raw.action !== 'setTargetPlayer') turn = target = null;
-      });
+        return {events, owners, unknownIndices, eventItemsWire, unreviewed, redacted, turn, target};
+      };
+      let projected = projectEvents(phaseBefore);
+      // Only sanitized self payloads and redacted metadata enter this stamp.
+      // A changed self event in a repeated server version must invalidate the
+      // carried owner context even when the final inventory is unchanged.
+      const payloadStamp = (value) => JSON.stringify({events: value.events, owners: value.owners,
+        wire: value.eventItemsWire, unknown: value.unknownIndices,
+        unreviewed: value.unreviewed, redacted: value.redacted});
+      if (v3 && phaseInput === 'repeat' && previousPhase.payloadStamp !== payloadStamp(projected)) {
+        phaseInput = 'inconsistent_repeat'; phaseBefore = null;
+        projected = projectEvents(null);
+      }
+      const {events, owners, unknownIndices, eventItemsWire, unreviewed, redacted, turn, target} =
+        projected;
       const snapshot = {
         source_sequence: state.sequence, captured_at: new Date().toISOString(),
         field_number: gf, update_count: update, self_player_id: selfId,
@@ -141,13 +177,15 @@
             self_player_id: selfId, player_ids: playerIds, turn_player_id: turn, target_player_id: target},
         });
       }
+      if (v3) snapshot.event_item_wire = eventItemsWire;
       if (JSON.stringify(snapshot).length > 262144) throw new Error('snapshot budget');
       if (state.queue.length >= config.capacity) {
         state.queue.shift();
         state.dropped += 1;
       }
       state.queue.push(snapshot);
-      if (v2) previousPhase = {before: phaseBefore, after: snapshot.phase_after, stamp: phaseStamp};
+      if (v2) previousPhase = {before: phaseBefore, after: snapshot.phase_after, stamp: phaseStamp,
+        payloadStamp: v3 ? payloadStamp(projected) : null};
     } catch (_) {
       state.rejected += 1;
       previousPhase = null;

@@ -21,9 +21,10 @@ from godfield_bot.acquisition_evidence import (
 )
 from godfield_bot.acquisition_probe import AcquisitionItem, AcquisitionSnapshot
 from godfield_bot.acquisition_v2 import AcquisitionSnapshotV2
+from godfield_bot.acquisition_v3 import AcquisitionSnapshotV3
 from godfield_bot.api_catalog import ApiCatalogSnapshot, read_api_catalog_snapshot
 
-REPLAY_PROJECTION_ID = "observed-inventory-projection-23-142-215-v1"
+REPLAY_PROJECTION_ID = "observed-inventory-projection-23-142-215-wire-aware-v2"
 REPLAY_CATALOG_SHA256 = "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249"
 NATIVE_REPLAY_RULESET_ID = "explicit-ordinary-and-retained-miracle-ordered-gift-replay-v2"
 ORDINARY_MODELS = (23, 142)
@@ -81,9 +82,9 @@ class InventoryReplayResult(BaseModel):
 
 
 class AcquisitionReplayAudit(BaseModel):
-    schema_version: Literal[1] = 1
-    source_kind: Literal["official-acquisition-native-projection-audit-v1"] = (
-        "official-acquisition-native-projection-audit-v1"
+    schema_version: Literal[2] = 2
+    source_kind: Literal["official-acquisition-native-projection-audit-v2"] = (
+        "official-acquisition-native-projection-audit-v2"
     )
     replay_projection_id: str = REPLAY_PROJECTION_ID
     native_replay_schema_version: Literal[2] = 2
@@ -108,7 +109,10 @@ class AcquisitionReplayAudit(BaseModel):
     matched_retained_miracle_use_count: int = Field(ge=0)
     reason_counts: dict[str, int]
     results: tuple[InventoryReplayResult, ...]
-    event_item_wire_metadata_complete: Literal[False] = False
+    event_item_wire_metadata_complete: bool
+    event_item_wire_scope: Literal["verified-self-gift-attack-defense-events"] = (
+        "verified-self-gift-attack-defense-events"
+    )
     combat_replay_verified: Literal[False] = False
     gift_schedule_verified: Literal[False] = False
     overflow_rule_verified: Literal[False] = False
@@ -182,6 +186,11 @@ def _native_check(
         np.asarray(ORDINARY_MODELS, dtype=np.int64),
     )
     replay.configure_retained_miracles(np.asarray(RETAINED_MODELS, dtype=np.int64))
+    event_wires = (
+        {wire.event_index: wire for wire in row.event_item_wire}
+        if isinstance(row, AcquisitionSnapshotV3)
+        else {}
+    )
     for event, owner in zip(row.events, row.event_owners, strict=True):
         if event.action == "startGame":
             if previous is not None or event.event_index != 0:
@@ -197,6 +206,12 @@ def _native_check(
             continue  # Opponent item bodies remain redacted; never simulate them.
         if not event.self_item_payload_bound:
             raise _UnsupportedReplay("missing_self_item_binding", event.event_index)
+        if event.event_index in event_wires:
+            wire = event_wires[event.event_index]
+            if wire.malformed:
+                raise _UnsupportedReplay("malformed_self_event_wire", event.event_index)
+            if event.action in {"useAttackItems", "useDefenseItems"} and wire.items_kind != "array":
+                raise _UnsupportedReplay("ambiguous_self_selection_array", event.event_index)
         if event.overflow_item is not None:
             raise _UnsupportedReplay("unsupported_overflow", event.event_index)
         if (
@@ -399,6 +414,15 @@ def audit_acquisition_replay_batches(
             previous_consistent = consistent
     matched = [result for result in results if result.status == "matched"]
     return AcquisitionReplayAudit(
+        event_item_wire_metadata_complete=bool(results)
+        and transport.unresolved_item_owner_event_count == 0
+        and transport.unverified_phase_context_count == 0
+        and transport.unreviewed_event_count == 0
+        and all(
+            isinstance(row, AcquisitionSnapshotV3)
+            for rows in streams.values()
+            for row in rows.values()
+        ),
         complete_projection_replay=bool(results)
         and all(result.status in {"matched", "repeat"} for result in results)
         and not (

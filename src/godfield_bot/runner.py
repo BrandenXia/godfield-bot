@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field, JsonValue, model_validator
 
 from godfield_bot.account import start_account_session
 from godfield_bot.acquisition_probe import (
+    ACQUISITION_CAPTURE_SCHEMA_VERSION,
     ACQUISITION_REVIEWED_CLIENT_SHA256,
     AcquisitionRecorder,
     install_acquisition_probe,
@@ -595,7 +596,9 @@ async def run_training_observer(
                         ),
                         "acquisition_evidence_probe": acquisition_catalog is not None,
                         "acquisition_evidence_schema_version": (
-                            2 if acquisition_catalog is not None else None
+                            ACQUISITION_CAPTURE_SCHEMA_VERSION
+                            if acquisition_catalog is not None
+                            else None
                         ),
                         "acquisition_evidence_catalog_sha256": (
                             acquisition_catalog.content_sha256

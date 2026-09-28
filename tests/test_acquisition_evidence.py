@@ -31,6 +31,7 @@ from godfield_bot.acquisition_v2 import (
     AcquisitionEvidenceBatchV2,
     AcquisitionProbeReadV2,
 )
+from godfield_bot.acquisition_v3 import AcquisitionProbeReadV3
 from godfield_bot.cli import app
 from godfield_bot.config import AppSettings
 from godfield_bot.domain.game import GameState, PlayerState
@@ -210,7 +211,7 @@ def raw_room(*, events=None, **changes):
 
 
 @pytest.mark.parametrize("before", [False, True])
-@pytest.mark.parametrize("schema_version", [1, 2])
+@pytest.mark.parametrize("schema_version", [1, 2, 3])
 def test_actual_script_saves_ordered_queue_and_only_acknowledges_read_prefix(
     before, schema_version
 ):
@@ -233,7 +234,9 @@ def test_actual_script_saves_ordered_queue_and_only_acknowledges_read_prefix(
     assert result["first"]["status"]["dropped_snapshot_count"] == 2
     assert not result["wrong"] and result["accepted"]
     assert [r["source_sequence"] for r in result["remaining"]["snapshots"]] == [11]
-    parser = AcquisitionProbeRead if schema_version == 1 else AcquisitionProbeReadV2
+    parser = {1: AcquisitionProbeRead, 2: AcquisitionProbeReadV2, 3: AcquisitionProbeReadV3}[
+        schema_version
+    ]
     parser.model_validate_json(json.dumps(result["remaining"]))
 
 
@@ -383,7 +386,10 @@ class FakePage:
                 raise PlaywrightError("READ_SECRET")
             return (
                 self.read.model_dump(mode="json")
-                if isinstance(self.read, (AcquisitionProbeRead, AcquisitionProbeReadV2))
+                if isinstance(
+                    self.read,
+                    (AcquisitionProbeRead, AcquisitionProbeReadV2, AcquisitionProbeReadV3),
+                )
                 else self.read
             )
         assert script == ACQUISITION_ACK_SCRIPT
@@ -812,7 +818,7 @@ def test_runner_installs_before_session_and_flushes_before_context_closes(
     tmp_path, monkeypatch, probe, scenario
 ):
     trace = []
-    page = FakePage(probe_read(snapshot()), trace=trace)
+    page = FakePage(v3_read([raw_room()]) if probe else probe_read(snapshot()), trace=trace)
     page.fail_read = scenario == "telemetry_error_terminal"
 
     class Context:
@@ -820,7 +826,8 @@ def test_runner_installs_before_session_and_flushes_before_context_closes(
             self.pages = [page]
 
         async def add_init_script(self, *, script):
-            assert "__godfieldAcquisitionEvidenceV1" in script
+            assert '"schema_version": 3' in script
+            assert "__godfieldAcquisitionEvidenceV" in script
             trace.append("installed")
 
     @asynccontextmanager
@@ -904,13 +911,25 @@ def test_runner_installs_before_session_and_flushes_before_context_closes(
         assert trace.index("installed") < trace.index("session")
         report = audit_acquisition_run(database, run_id)
         assert report["collector_summary_count"] == 1
+        assert report["declared_capture_schema_version"] == 3
         if scenario == "telemetry_error_terminal":
             assert report["read_error_count"] == 2 and report["snapshot_count"] == 0
         else:
+            assert report["capture_schema_versions"] == [3]
+            assert report["capture_schema_matches_run_config"]
             assert trace.index("ack") < trace.index("closed")
             assert report["snapshot_count"] == 1
     else:
         assert trace == ["opened", "fingerprint", "session", "closed"]
+
+
+def v3_read(rooms):
+    raw = node(
+        "register({}, () => {}); input.rooms.forEach((room) => emit(room)); return read();",
+        rooms=rooms,
+        schema_version=3,
+    )
+    return AcquisitionProbeReadV3.model_validate_json(json.dumps(raw))
 
 
 def v2_read(rooms):

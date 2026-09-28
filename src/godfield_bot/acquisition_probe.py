@@ -80,6 +80,7 @@ REVIEWED_EVENT_ACTIONS = frozenset(
 SELF_ITEM_ACTIONS = frozenset({"gift", "useAttackItems", "useDefenseItems"})
 MAX_SAFE_INTEGER = (1 << 53) - 1
 ACQUISITION_IO_TIMEOUT_SECONDS = 5.0
+ACQUISITION_CAPTURE_SCHEMA_VERSION: Literal[3] = 3
 
 
 class _StrictEvidence(BaseModel):
@@ -243,11 +244,11 @@ def acquisition_batch_digest(
 
 
 def acquisition_probe_init_script(
-    identity: str, *, capacity: int = 256, schema_version: Literal[1, 2] = 1
+    identity: str, *, capacity: int = 256, schema_version: Literal[1, 2, 3] = 1
 ) -> str:
     if not 8 <= capacity <= 4096:
         raise ValueError("acquisition queue capacity must be between 8 and 4096")
-    if type(schema_version) is not int or schema_version not in {1, 2}:
+    if type(schema_version) is not int or schema_version not in {1, 2, 3}:
         raise ValueError("unsupported acquisition capture schema")
     config = json.dumps(
         {
@@ -266,7 +267,9 @@ def acquisition_probe_init_script(
 async def install_acquisition_probe(
     context: BrowserContext, *, identity: str, capacity: int = 256, include_dream: bool = False
 ) -> None:
-    script = acquisition_probe_init_script(identity, capacity=capacity, schema_version=2)
+    script = acquisition_probe_init_script(
+        identity, capacity=capacity, schema_version=ACQUISITION_CAPTURE_SCHEMA_VERSION
+    )
     if include_dream:
         # Separate Playwright init scripts have no promised execution order.
         script = _dream_probe_init_script(identity) + "\n" + script
@@ -275,7 +278,8 @@ async def install_acquisition_probe(
 
 ACQUISITION_READ_SCRIPT = """
 () => {
-  const state = window.__godfieldAcquisitionEvidenceV2 || window.__godfieldAcquisitionEvidenceV1;
+  const state = window.__godfieldAcquisitionEvidenceV3 ||
+    window.__godfieldAcquisitionEvidenceV2 || window.__godfieldAcquisitionEvidenceV1;
   if (!state) return null;
   return {
     schema_version: state.schemaVersion || 1,
@@ -293,7 +297,8 @@ ACQUISITION_READ_SCRIPT = """
 
 ACQUISITION_ACK_SCRIPT = """
 (ack) => {
-  const state = window.__godfieldAcquisitionEvidenceV2 || window.__godfieldAcquisitionEvidenceV1;
+  const state = window.__godfieldAcquisitionEvidenceV3 ||
+    window.__godfieldAcquisitionEvidenceV2 || window.__godfieldAcquisitionEvidenceV1;
   if (!state || state.streamId !== ack.stream_id ||
       !Number.isSafeInteger(ack.sequence) || ack.sequence < state.acknowledged ||
       ack.sequence > state.sequence) return false;
@@ -363,18 +368,21 @@ class AcquisitionRecorder:
 
     async def poll(self, page: Page) -> bool:
         from godfield_bot.acquisition_v2 import AcquisitionEvidenceBatchV2, AcquisitionProbeReadV2
+        from godfield_bot.acquisition_v3 import AcquisitionEvidenceBatchV3, AcquisitionProbeReadV3
 
         try:
             async with asyncio.timeout(ACQUISITION_IO_TIMEOUT_SECONDS):
                 raw = await page.evaluate(ACQUISITION_READ_SCRIPT)
-            evidence: AcquisitionProbeRead | AcquisitionProbeReadV2
+            evidence: AcquisitionProbeRead | AcquisitionProbeReadV2 | AcquisitionProbeReadV3
             if (
                 not isinstance(raw, dict)
                 or type(raw.get("schema_version")) is not int
-                or raw["schema_version"] not in {1, 2}
+                or raw["schema_version"] not in {1, 2, 3}
             ):
                 raise ValueError("unsupported acquisition capture schema")
-            if raw["schema_version"] == 2:
+            if raw["schema_version"] == 3:
+                evidence = AcquisitionProbeReadV3.model_validate_json(json.dumps(raw))
+            elif raw["schema_version"] == 2:
                 evidence = AcquisitionProbeReadV2.model_validate_json(json.dumps(raw))
             else:
                 evidence = AcquisitionProbeRead.model_validate_json(json.dumps(raw))
@@ -388,8 +396,21 @@ class AcquisitionRecorder:
             self.client_sha256, self.catalog_sha256, evidence.status, snapshots
         )
         if self.last_digest.get(stream) != digest:
-            batch: AcquisitionEvidenceBatch | AcquisitionEvidenceBatchV2
-            if isinstance(evidence, AcquisitionProbeReadV2):
+            batch: (
+                AcquisitionEvidenceBatch | AcquisitionEvidenceBatchV2 | AcquisitionEvidenceBatchV3
+            )
+            if isinstance(evidence, AcquisitionProbeReadV3):
+                batch = AcquisitionEvidenceBatchV3(
+                    observed_at=datetime.now(UTC),
+                    client_sha256=self.client_sha256,
+                    catalog_sha256=self.catalog_sha256,
+                    input_sha256=digest,
+                    status=evidence.status,
+                    snapshots=tuple(
+                        row for row in evidence.snapshots if row.source_sequence > last
+                    ),
+                )
+            elif isinstance(evidence, AcquisitionProbeReadV2):
                 batch = AcquisitionEvidenceBatchV2(
                     observed_at=datetime.now(UTC),
                     client_sha256=self.client_sha256,

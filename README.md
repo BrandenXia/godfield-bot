@@ -1051,9 +1051,10 @@ snapshots and reviewed, redacted event metadata; records overflow/rejection
 counters; and saves before acknowledging updates. It does not change policy
 authority or provide training labels. Three operator-run v1 recordings verified
 transport, but exposed a coverage bug: attack/defense events normally lack an
-explicit player ID, so their item bodies were redacted. New captures use v2,
-which binds self consumption through conservatively verified, ordered phase
-context. Opponent and unresolved bodies remain redacted. Raw omitted flags stay
+explicit player ID, so their item bodies were redacted. V2 binds self consumption
+through conservatively verified, ordered phase context. New captures use v3,
+which preserves those rules and adds self-only event item wire classifications.
+Opponent and unresolved bodies remain redacted. Raw omitted flags stay
 unknown; the pinned client's defaults are reported separately. V1 recordings
 and their checksums remain unchanged.
 
@@ -1094,12 +1095,15 @@ UV_CACHE_DIR=.uv-cache uv run --locked --offline --extra simulation --extra trai
 This read-only report exposes missing source/server versions, hook and delivery
 failures, raw unknown flags, separately interpreted client-unused counts,
 ownership coverage, and reviewed event counts. Its audit schema version is 2;
-`capture_schema_versions` identifies whether the actual evidence is v1 or v2.
+`capture_schema_versions` identifies whether the actual evidence is v1, v2, or v3.
 It also reports raw true-flag observations, inventory-growth pairs, and
 client-interpreted used activations. Growth/activation comparisons never cross
 source/server gaps, invalid identities, or changed player membership counts;
 replacement gifts and changed model identities cannot count as retained
 activations. These are observations, not cast counts or causal rule labels.
+V3 additionally reports self-event wire coverage, malformed event fields, and
+ambiguous missing/null selection arrays. An explicitly empty array remains
+distinct from an omitted selection; v1/v2 data is not retrofitted with sidecars.
 Even a clean transport report is not evidence for adopting acquisition rules.
 Do not start a concurrent campaign on the same browser profile. Capture and
 review contiguous fixtures before changing C++ consumption/gift/overflow
@@ -1127,8 +1131,18 @@ lifecycle rules. Each transition uses a fresh native object seeded from its
 recorded previous inventory; a mismatch remains visible even if a later pair
 matches. V1 captures, unresolved owners, unreviewed effects, overflow, disguised
 selections, and unsupported combinations are not inferred or counted as matches.
-`complete_projection_replay` is not a promotion pass: combat, gift timing,
-overflow, and complete raw event-item wire metadata remain unverified, and all
-training/promotion/acquisition-rule eligibility flags stay false. Exit code zero
+`complete_projection_replay` is not a promotion pass: combat, gift timing, and
+overflow remain unverified, and all training/promotion/acquisition-rule
+eligibility flags stay false. The replay report now has schema 2 and separately
+reports `event_item_wire_metadata_complete`: v3 supplies classifications
+for every reviewed self-bound event, and this flag also requires resolved
+ownership and verified phase coverage. It rejects malformed event fields and
+missing/null use arrays; the flag measures metadata coverage, not mechanics
+fidelity. Historical v2 replay still works with that flag false. Exit code zero
 means the diagnostic report was produced, not that the run passed a gate.
 See [ADR 0066](docs/architecture/0066-native-acquisition-differential-audit.md).
+V3 also invalidates repeated-update owner context when self event payloads or
+wire classifications change despite unchanged inventory. Opponent payloads do
+not enter this comparison. Restart collection with the same command above to
+use v3; do not start a concurrent campaign on the same browser profile.
+See [ADR 0067](docs/architecture/0067-event-item-wire-and-repeat-integrity.md).

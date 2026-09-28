@@ -1105,3 +1105,30 @@ Do not start a concurrent campaign on the same browser profile. Capture and
 review contiguous fixtures before changing C++ consumption/gift/overflow
 mechanics. See [ADR 0062](docs/architecture/0062-passive-acquisition-evidence-collector.md)
 and [ADR 0063](docs/architecture/0063-acquisition-phase-ownership-and-wire-defaults.md).
+
+To compare the captured self-inventory projection against the native C++ replay:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --locked --offline --extra simulation --extra training \
+  godfield-bot runs acquisition-replay RUN_ID --database runs/godfield.sqlite
+```
+
+This read-only command automatically checks ordered item rows, consumption, and
+explicit gifts, including reused IDs. It reports matches, mismatches, unsupported
+updates, gaps, and repeated versions. Run `bc54a888-de09-4654-9b7a-80533d525c2a`
+matches all four inventories: the initial deal and three adjacent transitions,
+with two ordinary items consumed and 11 gifts appended. Original evidence and
+input fingerprints remain unchanged.
+
+The checker deliberately limits ordinary consumption to reviewed models 23 and
+142 and single-item retained-miracle comparison to model 215. Other models may
+remain as opaque owned/gifted records, not automatically acquire supported
+lifecycle rules. Each transition uses a fresh native object seeded from its
+recorded previous inventory; a mismatch remains visible even if a later pair
+matches. V1 captures, unresolved owners, unreviewed effects, overflow, disguised
+selections, and unsupported combinations are not inferred or counted as matches.
+`complete_projection_replay` is not a promotion pass: combat, gift timing,
+overflow, and complete raw event-item wire metadata remain unverified, and all
+training/promotion/acquisition-rule eligibility flags stay false. Exit code zero
+means the diagnostic report was produced, not that the run passed a gate.
+See [ADR 0066](docs/architecture/0066-native-acquisition-differential-audit.md).

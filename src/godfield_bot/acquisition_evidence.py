@@ -7,6 +7,7 @@ import json
 import sqlite3
 from collections import Counter
 from contextlib import closing
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
@@ -361,9 +362,26 @@ def audit_acquisition_batches(
     )
 
 
-def audit_acquisition_run(database: Path, run_id: str) -> dict[str, object]:
+@dataclass(frozen=True)
+class LoadedAcquisitionRun:
+    """One read-only SQLite snapshot, shared by transport and native diagnostics."""
+
+    run_id: str
+    mode: str
+    client_sha256: str
+    declared_capture_schema_version: int | None
+    input_sha256: str
+    batches: tuple[AcquisitionBatch, ...]
+    errors: tuple[AcquisitionCollectorError, ...]
+    summaries: tuple[AcquisitionCollectorSummary, ...]
+
+
+def load_acquisition_run(database: Path, run_id: str) -> LoadedAcquisitionRun:
     with closing(sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True)) as connection:
         connection.row_factory = sqlite3.Row
+        # Keep run metadata and evidence in one read transaction even if an
+        # operator is collecting more evidence concurrently. No writer is opened.
+        connection.execute("BEGIN")
         run = connection.execute(
             "SELECT mode, client_sha256, config_json FROM runs WHERE run_id = ?", (run_id,)
         ).fetchone()
@@ -410,30 +428,48 @@ def audit_acquisition_run(database: Path, run_id: str) -> dict[str, object]:
         "client_sha256": run["client_sha256"],
         "evidence": evidence,
     }
-    report = audit_acquisition_batches(
-        tuple(batches), errors=tuple(errors), summaries=tuple(summaries)
-    ).model_dump(mode="json")
     declared_schema = (
         config.get("acquisition_evidence_schema_version") if isinstance(config, dict) else None
     )
     if type(declared_schema) is not int or declared_schema not in {1, 2}:
         declared_schema = None
+    return LoadedAcquisitionRun(
+        run_id=run_id,
+        mode=run["mode"],
+        client_sha256=run["client_sha256"],
+        declared_capture_schema_version=declared_schema,
+        input_sha256=hashlib.sha256(
+            json.dumps(fingerprint, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest(),
+        batches=tuple(batches),
+        errors=tuple(errors),
+        summaries=tuple(summaries),
+    )
+
+
+def audit_loaded_acquisition_run(loaded: LoadedAcquisitionRun) -> dict[str, object]:
+    report = audit_acquisition_batches(
+        loaded.batches, errors=loaded.errors, summaries=loaded.summaries
+    ).model_dump(mode="json")
+    declared_schema = loaded.declared_capture_schema_version
     schema_match = (
-        set(batch.schema_version for batch in batches) == {declared_schema}
+        set(batch.schema_version for batch in loaded.batches) == {declared_schema}
         if declared_schema is not None
         else None
     )
     if schema_match is False:
         report["collection_issues"].append("capture_schema_mismatch")
     return {
-        "run_id": run_id,
-        "mode": run["mode"],
-        "client_sha256": run["client_sha256"],
-        "catalog_sha256": batches[0].catalog_sha256 if batches else None,
+        "run_id": loaded.run_id,
+        "mode": loaded.mode,
+        "client_sha256": loaded.client_sha256,
+        "catalog_sha256": loaded.batches[0].catalog_sha256 if loaded.batches else None,
         "declared_capture_schema_version": declared_schema,
         "capture_schema_matches_run_config": schema_match,
-        "input_sha256": hashlib.sha256(
-            json.dumps(fingerprint, sort_keys=True, separators=(",", ":")).encode()
-        ).hexdigest(),
+        "input_sha256": loaded.input_sha256,
         **report,
     }
+
+
+def audit_acquisition_run(database: Path, run_id: str) -> dict[str, object]:
+    return audit_loaded_acquisition_run(load_acquisition_run(database, run_id))

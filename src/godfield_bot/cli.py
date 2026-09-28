@@ -1154,6 +1154,44 @@ def runs_acquisition_evidence(
     typer.echo(json.dumps(report, ensure_ascii=False, indent=2))
 
 
+@runs_app.command("acquisition-replay")
+def runs_acquisition_replay(
+    run_id: Annotated[str, typer.Argument()],
+    database: Annotated[Path, typer.Option(exists=True, dir_okay=False, readable=True)] = Path(
+        "runs", "godfield.sqlite"
+    ),
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False, readable=True)] = Path(
+        "data", "snapshots", "2026-09-21", "api-catalog-en.json"
+    ),
+) -> None:
+    """Check recorded inventory projections against C++; never authorize training."""
+
+    import sqlite3
+
+    from pydantic import ValidationError
+
+    from godfield_bot.acquisition_replay import (
+        AcquisitionReplayUnavailableError,
+        audit_acquisition_replay_run,
+    )
+    from godfield_bot.api_catalog import ApiCatalogError
+
+    try:
+        report = audit_acquisition_replay_run(database, run_id, catalog_path=catalog)
+    except ValidationError:
+        typer.echo("invalid acquisition replay: schema or content digest mismatch", err=True)
+        raise typer.Exit(code=1) from None
+    except (AcquisitionReplayUnavailableError, ApiCatalogError, OSError, ValueError, sqlite3.Error):
+        # Never echo untrusted raw payloads, exception messages, or local secrets.
+        typer.echo(
+            "acquisition replay unavailable: check the run, pinned catalog, "
+            "and installed simulation extra",
+            err=True,
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(json.dumps(report, ensure_ascii=False, indent=2))
+
+
 @runs_app.command("training-shadow")
 def runs_training_shadow(
     run_ids: Annotated[list[str], typer.Argument(help="One or more Training run IDs.")],

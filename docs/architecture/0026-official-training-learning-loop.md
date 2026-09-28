@@ -6,6 +6,12 @@
 
 ## Context
 
+2026-09-28 evidence caveat: the absolute browser-local characterization below
+needs revalidation. The current client routes Training through common Cloud
+Functions and Firestore code, while pygodfield's bot driver still rejects that
+mode. This does not establish working API support or change any admission rule.
+See [ADR 0061](0061-inventory-observation-audit.md) for the read-only findings.
+
 The official Training computer is browser-local, so its games cannot be reached
 through pygodfield. The browser campaign already records accepted actions and
 sparse terminal outcomes, but `heuristic-v0` controlled every game and the

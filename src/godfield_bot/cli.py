@@ -1080,6 +1080,27 @@ def runs_dream_evidence(
     typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
+@runs_app.command("inventory-evidence")
+def runs_inventory_evidence(
+    run_id: Annotated[str, typer.Argument()],
+    database: Annotated[Path, typer.Option(exists=True, dir_okay=False, readable=True)] = Path(
+        "runs", "godfield.sqlite"
+    ),
+) -> None:
+    """Audit existing item-instance observations; never infer acquisition rules."""
+
+    import sqlite3
+
+    from godfield_bot.inventory_evidence import audit_inventory_run
+
+    try:
+        report = audit_inventory_run(database, run_id)
+    except (OSError, ValueError, sqlite3.Error) as error:
+        typer.echo(f"invalid inventory evidence: {error}", err=True)
+        raise typer.Exit(code=1) from None
+    typer.echo(json.dumps(report, ensure_ascii=False, indent=2))
+
+
 @runs_app.command("training-shadow")
 def runs_training_shadow(
     run_ids: Annotated[list[str], typer.Argument(help="One or more Training run IDs.")],

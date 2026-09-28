@@ -18,7 +18,7 @@ captured the current 296-model API catalog, including five trade models, in
 ## Working principles
 
 - Use the exact-pinned pygodfield client for private live-game transport and
-  the dedicated browser profile for identity bootstrap, browser-local Training,
+  the dedicated browser profile for identity bootstrap, official Training,
   and visible-client contract checks.
 - Keep authentication state, screenshots containing private information,
   model checkpoints, and run databases out of Git.
@@ -1030,3 +1030,18 @@ verified **local schema-11 training baseline**, not a live-ready model. The
 earlier failed candidate and report remain unchanged. Official acquisition and
 hand-growth rules are still not simulated; these local results do not establish
 strength against the official bot. Full provenance is recorded in ADR 0060.
+
+Before implementing acquisition rules, audit existing raw item-instance evidence:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run godfield-bot runs inventory-evidence \
+  70db32df-5949-43f8-97a9-3fe7df5d5662 --database runs/godfield.sqlite
+```
+
+This read-only report distinguishes raw ownership observations from rendered
+slots, used flags, and version gaps. It does not infer gifts or produce training
+labels. The stored run contains 17 distinct IDs and 16 known unused items;
+the official growth/overflow algorithm still needs contiguous event evidence.
+The current client also warrants revisiting the earlier browser-local Training
+assumption, but the API driver's Training rejection and all live controls remain
+unchanged. See [ADR 0061](docs/architecture/0061-inventory-observation-audit.md).

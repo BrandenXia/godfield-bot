@@ -848,3 +848,58 @@ containing model, simulator, configuration, pairing, and confidence evidence. A 
 report is curriculum evidence only: its `promotion_eligible` field is always
 false and it does not change any model manifest or authorize live play. See
 [ADR 0005](docs/architecture/0005-paired-curriculum-evaluation.md).
+
+For local training against several historical policies, freeze a league once.
+These commands reproduce the first league experiment:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --extra simulation --extra training \
+  godfield-bot models create-simulation-league \
+  models/dd5bde4f-c5d5-44f2-b1db-4b4f1d049f56 \
+  --opponent-model models/3dfe4a94-4bc3-4d90-9691-853a7b543cd4 \
+  --opponent-model models/088ef7a5-c8bf-46e2-8469-4d2390719839 \
+  --opponent-model models/df08842c-f5e8-4317-8721-0245310c92ac \
+  --heuristic-weight 2
+```
+
+The result prints `league_path`. Use that exact file for both training and
+evaluation:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --extra simulation --extra training \
+  godfield-bot --json-logs models train-simulation \
+  models/dd5bde4f-c5d5-44f2-b1db-4b4f1d049f56 \
+  --league models/leagues/<league-id>.json --ruleset dream-resource-hand \
+  --batch-size 512 --rollout-steps 64 --updates 160 \
+  --ppo-epochs 2 --environment-minibatch-size 128 --teacher-updates 0 \
+  --learning-rate 0.0001 --entropy-weight 0.02 --seed 36067 --device cpu
+
+UV_CACHE_DIR=.uv-cache uv run --extra simulation --extra training \
+  godfield-bot models evaluate-simulation-league models/<candidate-id> \
+  --league models/leagues/<league-id>.json \
+  --games-per-seat 8192 --seed 37067 --device cpu
+```
+
+League mode replaces `--heuristic-opponent-fraction`: every game has one learner
+seat and one frozen opponent, sampled by roster weights for the entire episode.
+Each model has weight 1; the heuristic's weight is configurable when creating
+the roster. Frozen models use deterministic argmax actions with their own
+recurrent memory. The learner's starting seats alternate by environment and
+swap when each episode completes. Opponent identities, checkpoint hashes,
+simulator fingerprints, sampling weights, and actual per-opponent action/game
+counts are retained in the candidate manifest and structured logs.
+
+`models evaluate-simulation-league` requires the paired lower confidence bound
+to strictly exceed 50% against **every** member, including the heuristic, with
+no incomplete games. It uses equal evaluation budgets for all opponents,
+regardless of training weights. Changed weights, missing parents, different
+simulator contracts, or substituting a different training roster are rejected.
+Reports go to `models/league-evaluations/` and remain local curriculum evidence.
+Passing cannot establish strength under official rules absent from the C++
+simulator. See [ADR 0057](docs/architecture/0057-local-frozen-opponent-league.md).
+
+The resulting local baseline is `63de1747-f43f-4ef1-ae99-a1cd72dd3ec1`. It
+passed every member on three independent 8,192-pair evaluations (245,760 games,
+zero incomplete). Its heuristic score was 57.22–57.71% and its parent score was
+50.80–50.98%. To continue from this baseline, create a **new** league with it
+as the base model, then pass that new roster to training and evaluation.

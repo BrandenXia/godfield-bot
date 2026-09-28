@@ -326,6 +326,7 @@ def _summarize_matchup(
     candidate_as_seat_zero: _SideEvaluation,
     candidate_as_seat_one: _SideEvaluation,
     config: SimulationEvaluationConfig,
+    require_superiority: bool = False,
 ) -> SimulationMatchupEvaluation:
     sides = (candidate_as_seat_zero, candidate_as_seat_one)
     completed_games = sum(int(side.completed.sum()) for side in sides)
@@ -359,7 +360,7 @@ def _summarize_matchup(
         config.confidence_z,
     )
     gate_kind: Literal["paired-superiority", "paired-noninferiority"]
-    if opponent_kind == "model":
+    if opponent_kind == "model" or require_superiority:
         gate_kind = "paired-superiority"
         required_paired_score = config.minimum_score
         confidence_passed = paired_lower_bound > required_paired_score

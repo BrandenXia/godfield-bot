@@ -28,6 +28,12 @@ from godfield_bot.simulation import (
     create_attack_defense_simulation,
     simulation_feature_tensors,
 )
+from godfield_bot.simulation_league import (
+    LEAGUE_ALGORITHM,
+    FrozenSimulationLeague,
+    SimulationLeagueSnapshot,
+    load_simulation_league,
+)
 from godfield_bot.simulation_policy import (
     CurriculumHeuristic,
     build_curriculum_heuristic,
@@ -170,6 +176,12 @@ class SelfPlayRollout:
     advantages: Tensor
     returns: Tensor
     completed_episodes: int
+    opponents: Tensor | None = None
+    learner_seats: Tensor | None = None
+    opponent_action_counts: tuple[int, ...] = ()
+    opponent_completed_games: tuple[int, ...] = ()
+    opponent_learner_wins: tuple[int, ...] = ()
+    opponent_draws: tuple[int, ...] = ()
 
     @property
     def steps(self) -> int:
@@ -396,6 +408,7 @@ def collect_self_play_rollout(
     device: torch.device,
     heuristic: CurriculumHeuristic | None = None,
     heuristic_opponent_fraction: float = 0.0,
+    league: FrozenSimulationLeague | None = None,
 ) -> SelfPlayRollout:
     """Collect one bounded rollout with independent recurrent memory per seat."""
 
@@ -417,10 +430,32 @@ def collect_self_play_rollout(
     reward_rows: list[Tensor] = []
     terminated_rows: list[Tensor] = []
     completed_episodes = 0
+    opponent_rows_history: list[Tensor] = []
+    learner_seat_history: list[Tensor] = []
+    league_member_count = len(league.snapshot.members) if league is not None else 0
+    opponent_action_counts = [0] * league_member_count
+    opponent_completed_games = [0] * league_member_count
+    opponent_learner_wins = [0] * league_member_count
+    opponent_draws = [0] * league_member_count
+    opponent_states = torch.zeros(
+        (batch.batch_size, model.hidden_size), dtype=torch.float32, device=device
+    )
+    league_weights = torch.tensor(
+        [member.weight for member in league.snapshot.members] if league is not None else [],
+        dtype=torch.float32,
+        device=device,
+    )
+    opponents = (
+        torch.multinomial(league_weights, batch.batch_size, replacement=True)
+        if league is not None
+        else None
+    )
 
     if not 0.0 <= heuristic_opponent_fraction <= 1.0:
         raise SimulationTrainingError("heuristic opponent fraction must be between zero and one")
-    heuristic_environment_count = round(batch.batch_size * heuristic_opponent_fraction)
+    heuristic_environment_count = (
+        round(batch.batch_size * heuristic_opponent_fraction) if league is None else 0
+    )
     if heuristic_environment_count and heuristic is None:
         raise SimulationTrainingError("heuristic opponent fraction requires a heuristic policy")
     heuristic_environments = torch.zeros(batch.batch_size, dtype=torch.bool, device=device)
@@ -435,6 +470,12 @@ def collect_self_play_rollout(
             previous_terminated = terminated_rows[-1]
             if bool(previous_terminated.any()):
                 seat_states[previous_terminated] = 0.0
+                if league is not None and opponents is not None:
+                    opponent_states[previous_terminated] = 0.0
+                    opponents[previous_terminated] = torch.multinomial(
+                        league_weights, int(previous_terminated.sum().item()), replacement=True
+                    )
+                    learner_seats[previous_terminated] = 1 - learner_seats[previous_terminated]
                 batch.reset_done()
 
         observation = simulation_feature_tensors(simulation, device=str(device))
@@ -450,9 +491,37 @@ def collect_self_play_rollout(
             )
             distribution = torch.distributions.Categorical(logits=logits)
             actions = distribution.sample()  # type: ignore[no-untyped-call]
-            policy_trainable = ~(heuristic_environments & (actors != learner_seats))
+            policy_trainable = (
+                actors == learner_seats
+                if league is not None
+                else ~(heuristic_environments & (actors != learner_seats))
+            )
             heuristic_rows = (~policy_trainable).nonzero(as_tuple=False).squeeze(1)
-            if heuristic_rows.numel() > 0 and heuristic is not None:
+            if league is not None and opponents is not None:
+                for member_index, frozen_model in enumerate(league.models):
+                    rows = (
+                        ((~policy_trainable) & (opponents == member_index))
+                        .nonzero(as_tuple=False)
+                        .squeeze(1)
+                    )
+                    opponent_action_counts[member_index] += int(rows.numel())
+                    if rows.numel() == 0:
+                        continue
+                    if frozen_model is None:
+                        chosen = curriculum_heuristic_actions(
+                            simulation,
+                            np.ascontiguousarray(rows.cpu().numpy(), dtype=np.int64),
+                            league.heuristic,
+                        )
+                        actions[rows] = torch.from_numpy(chosen).to(device=device)
+                    else:
+                        frozen_logits, _, next_opponent_states = frozen_model(
+                            *(tensor.index_select(0, rows) for tensor in observation),
+                            recurrent_state=opponent_states.index_select(0, rows),
+                        )
+                        actions[rows] = frozen_logits.argmax(dim=1)
+                        opponent_states[rows] = next_opponent_states
+            elif heuristic_rows.numel() > 0 and heuristic is not None:
                 heuristic_rows_array = np.ascontiguousarray(
                     heuristic_rows.cpu().numpy(),
                     dtype=np.int64,
@@ -470,13 +539,16 @@ def collect_self_play_rollout(
             next_active_states,
         )
 
-        for rows, tensor in zip(observation_rows, observation, strict=True):
-            rows.append(tensor.detach().clone())
+        for observation_values, tensor in zip(observation_rows, observation, strict=True):
+            observation_values.append(tensor.detach().clone())
         actor_rows.append(actors)
         action_rows.append(actions)
         policy_trainable_rows.append(policy_trainable)
         log_probability_rows.append(log_probabilities)
         value_rows.append(values)
+        if opponents is not None:
+            opponent_rows_history.append(opponents.detach().clone())
+            learner_seat_history.append(learner_seats.detach().clone())
 
         batch.step(np.ascontiguousarray(actions.cpu().numpy(), dtype=np.int64))
         terminated = torch.from_numpy(np.array(batch.terminated, copy=True)).to(device=device)
@@ -488,6 +560,19 @@ def collect_self_play_rollout(
         reward_rows.append(rewards)
         terminated_rows.append(terminated)
         completed_episodes += int(terminated.sum().item())
+        if opponents is not None:
+            learner_returns = torch.from_numpy(
+                seat_returns[np.arange(batch.batch_size), learner_seats.cpu().numpy()]
+            ).to(device=device)
+            for member_index in range(league_member_count):
+                completed = terminated & (opponents == member_index)
+                opponent_completed_games[member_index] += int(completed.sum().item())
+                opponent_learner_wins[member_index] += int(
+                    (completed & (learner_returns > 0)).sum().item()
+                )
+                opponent_draws[member_index] += int(
+                    (completed & (learner_returns == 0)).sum().item()
+                )
 
     final_terminated = terminated_rows[-1]
     final_actors = torch.from_numpy(np.array(batch.active_players, copy=True)).to(
@@ -543,6 +628,12 @@ def collect_self_play_rollout(
         advantages=advantages,
         returns=returns,
         completed_episodes=completed_episodes,
+        opponents=torch.stack(opponent_rows_history) if opponent_rows_history else None,
+        learner_seats=torch.stack(learner_seat_history) if learner_seat_history else None,
+        opponent_action_counts=tuple(opponent_action_counts),
+        opponent_completed_games=tuple(opponent_completed_games),
+        opponent_learner_wins=tuple(opponent_learner_wins),
+        opponent_draws=tuple(opponent_draws),
     )
 
 
@@ -619,8 +710,7 @@ def train_ppo_rollout(
             target_advantages = advantages[:, environments].reshape(-1)
             target_returns = rollout.returns[:, environments].reshape(-1)
             policy_trainable = rollout.policy_trainable[:, environments].reshape(-1)
-            if not bool(policy_trainable.any()):
-                raise SimulationTrainingError("PPO minibatch contains no learner decisions")
+            has_learner_decisions = bool(policy_trainable.any())
 
             log_ratio = new_log_probabilities - old_log_probabilities
             ratio = log_ratio.exp()
@@ -631,8 +721,13 @@ def train_ppo_rollout(
                 1.0 - config.clip_range,
                 1.0 + config.clip_range,
             )
-            policy_loss = torch.maximum(unclipped_policy_loss, clipped_policy_loss).mean()
-            entropy = entropies[policy_trainable].mean()
+            policy_loss = (
+                torch.maximum(unclipped_policy_loss, clipped_policy_loss).mean()
+                if has_learner_decisions
+                else new_log_probabilities[policy_trainable].sum()
+            )
+            learner_entropies = entropies[policy_trainable]
+            entropy = learner_entropies.mean() if has_learner_decisions else learner_entropies.sum()
             clipped_values = old_values + (new_values - old_values).clamp(
                 -config.clip_range,
                 config.clip_range,
@@ -660,8 +755,16 @@ def train_ppo_rollout(
 
             with torch.no_grad():
                 learner_log_ratio = log_ratio[policy_trainable]
-                approximate_kl = ((learner_ratio - 1.0) - learner_log_ratio).mean()
-                clip_fraction = ((learner_ratio - 1.0).abs() > config.clip_range).float().mean()
+                approximate_kl = (
+                    ((learner_ratio - 1.0) - learner_log_ratio).mean()
+                    if has_learner_decisions
+                    else learner_ratio.sum()
+                )
+                clip_fraction = (
+                    ((learner_ratio - 1.0).abs() > config.clip_range).float().mean()
+                    if has_learner_decisions
+                    else learner_ratio.sum()
+                )
             sample_count = rollout.steps * minibatch_size
             measured_samples += sample_count
             values_to_add = {
@@ -691,6 +794,7 @@ def _source_digest(
     parent: ModelManifest,
     simulation: AttackDefenseSimulation,
     config: SimulationTrainingConfig,
+    league: SimulationLeagueSnapshot | None = None,
 ) -> str:
     value = {
         "schema_version": 1,
@@ -700,6 +804,10 @@ def _source_digest(
         "simulation": simulation.metadata.model_dump(mode="json"),
         "config": config.model_dump(mode="json"),
     }
+    if league is not None:
+        value["source_kind"] = "native-frozen-league-ppo"
+        value["league"] = league.model_dump(mode="json")
+        value["league_sha256"] = league.sha256
     encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
     return hashlib.sha256(encoded).hexdigest()
 
@@ -710,6 +818,7 @@ def train_simulation_candidate(
     model_root: Path,
     snapshot_path: Path,
     config: SimulationTrainingConfig,
+    league_path: Path | None = None,
 ) -> ModelManifest:
     """Train and persist a non-promotable shared-policy native self-play candidate."""
 
@@ -743,6 +852,23 @@ def train_simulation_candidate(
     model.to(device)
     log = structlog.get_logger()
     heuristic = build_curriculum_heuristic(snapshot, vocabulary, ruleset=config.ruleset)
+    league = (
+        load_simulation_league(
+            league_path,
+            reference=parent,
+            simulation=simulation.metadata,
+            heuristic=heuristic,
+            ruleset=config.ruleset,
+            required_parent_id=parent.model_id,
+            device=str(device),
+        )
+        if league_path is not None
+        else None
+    )
+    league_action_totals = [0] * (len(league.snapshot.members) if league is not None else 0)
+    league_completed_totals = [0] * len(league_action_totals)
+    league_win_totals = [0] * len(league_action_totals)
+    league_draw_totals = [0] * len(league_action_totals)
     teacher_metrics: list[TeacherTrainingMetrics] = []
     teacher_completed_episodes = 0
     teacher_transitions = 0
@@ -792,6 +918,7 @@ def train_simulation_candidate(
             device=device,
             heuristic=heuristic,
             heuristic_opponent_fraction=config.heuristic_opponent_fraction,
+            league=league,
         )
         metrics = train_ppo_rollout(model, optimizer, self_play_rollout, config)
         completed_episodes += self_play_rollout.completed_episodes
@@ -818,15 +945,42 @@ def train_simulation_candidate(
         absolute_advantage_sum += mean_absolute_advantage
         for name, value in metrics.model_dump().items():
             metric_sums[name] += value
+        league_metrics = []
+        if league is not None:
+            for index, member in enumerate(league.snapshot.members):
+                league_action_totals[index] += self_play_rollout.opponent_action_counts[index]
+                league_completed_totals[index] += self_play_rollout.opponent_completed_games[index]
+                league_win_totals[index] += self_play_rollout.opponent_learner_wins[index]
+                league_draw_totals[index] += self_play_rollout.opponent_draws[index]
+                league_metrics.append(
+                    {
+                        "opponent_id": member.opponent_id,
+                        "actions": league_action_totals[index],
+                        "completed_games": league_completed_totals[index],
+                        "learner_wins": league_win_totals[index],
+                        "draws": league_draw_totals[index],
+                    }
+                )
         log.info(
             "simulation_training_update",
             update=update,
             updates=config.updates,
             transitions=ppo_transitions,
             completed_episodes=completed_episodes,
-            heuristic_opponent_action_fraction=float(
+            frozen_opponent_action_fraction=float(
                 (~self_play_rollout.policy_trainable).float().mean().item()
             ),
+            heuristic_opponent_action_fraction=(
+                sum(
+                    self_play_rollout.opponent_action_counts[index]
+                    for index, member in enumerate(league.snapshot.members)
+                    if member.kind == "heuristic"
+                )
+                / (self_play_rollout.steps * self_play_rollout.batch_size)
+                if league is not None
+                else float((~self_play_rollout.policy_trainable).float().mean().item())
+            ),
+            league_opponents=league_metrics,
             armor_selection_rate=armor_selection_rate,
             mean_absolute_advantage=mean_absolute_advantage,
             **metrics.model_dump(),
@@ -837,6 +991,7 @@ def train_simulation_candidate(
         parent=parent,
         simulation=simulation,
         config=config,
+        league=league.snapshot if league is not None else None,
     )
     return save_candidate(
         model_root,
@@ -844,7 +999,7 @@ def train_simulation_candidate(
         vocabulary,
         parent=parent,
         seed=config.seed,
-        training_algorithm=ALGORITHM,
+        training_algorithm=LEAGUE_ALGORITHM if league is not None else ALGORITHM,
         training_dataset_sha256=source_sha256,
         training_run_ids=(),
         metrics={
@@ -857,7 +1012,16 @@ def train_simulation_candidate(
             "teacher_accuracy_initial": teacher_metrics[0].accuracy if teacher_metrics else 0.0,
             "teacher_accuracy_final": teacher_metrics[-1].accuracy if teacher_metrics else 0.0,
             "ppo_transitions": float(ppo_transitions),
-            "heuristic_opponent_fraction": config.heuristic_opponent_fraction,
+            "heuristic_opponent_fraction": (
+                sum(
+                    member.weight
+                    for member in league.snapshot.members
+                    if member.kind == "heuristic"
+                )
+                / sum(member.weight for member in league.snapshot.members)
+                if league is not None
+                else config.heuristic_opponent_fraction
+            ),
             "training_completed_episodes": float(completed_episodes),
             "training_updates": float(config.updates),
             "training_ppo_epochs": float(config.ppo_epochs),
@@ -865,11 +1029,33 @@ def train_simulation_candidate(
             "mean_forgive_rate": 1.0 - armor_selection_rate_sum / config.updates,
             "mean_absolute_advantage": absolute_advantage_sum / config.updates,
             **{f"mean_{name}": value / config.updates for name, value in metric_sums.items()},
+            **{
+                f"league_{index}_{name}": float(value)
+                for index in range(len(league_action_totals))
+                for name, value in (
+                    ("actions", league_action_totals[index]),
+                    ("completed_games", league_completed_totals[index]),
+                    ("learner_wins", league_win_totals[index]),
+                    ("draws", league_draw_totals[index]),
+                )
+            },
         },
         training_context={
-            "source_kind": "native-heuristic-warmstart-on-policy-self-play",
+            "source_kind": (
+                "native-frozen-league-ppo"
+                if league is not None
+                else "native-heuristic-warmstart-on-policy-self-play"
+            ),
             "heuristic_policy_id": heuristic.policy_id,
             "simulation": simulation.metadata.model_dump(mode="json"),
             "config": config.model_dump(mode="json"),
+            **(
+                {
+                    "league": league.snapshot.model_dump(mode="json"),
+                    "league_sha256": league.snapshot.sha256,
+                }
+                if league is not None
+                else {}
+            ),
         },
     )

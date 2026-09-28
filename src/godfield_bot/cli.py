@@ -51,6 +51,7 @@ from godfield_bot.runner import (
     run_training_campaign,
     run_training_observer,
 )
+from godfield_bot.simulation import AttackDefenseRuleset
 
 app = typer.Typer(no_args_is_help=True, help="Control and train the ロキ-67 God Field bot.")
 data_app = typer.Typer(no_args_is_help=True, help="Refresh versioned public game data.")
@@ -794,9 +795,7 @@ def play_official_training_computers(
             exists=True,
             file_okay=False,
             readable=True,
-            help=(
-                "Schema-v10 candidate scored passively while heuristic-v0 keeps control."
-            ),
+            help=("Schema-v10 candidate scored passively while heuristic-v0 keeps control."),
         ),
     ] = None,
     canary_model: Annotated[
@@ -805,9 +804,7 @@ def play_official_training_computers(
             exists=True,
             file_okay=False,
             readable=True,
-            help=(
-                "Schema-v10 candidate allowed one guarded disagreement per Training game."
-            ),
+            help=("Schema-v10 candidate allowed one guarded disagreement per Training game."),
         ),
     ] = None,
     canary_readiness_report: Annotated[
@@ -855,20 +852,14 @@ def play_official_training_computers(
         if neural_model is not None and shadow_model is not None:
             raise RunnerError("--shadow-model cannot be combined with --neural-model")
         if canary_model is not None and not confirm_canary_intervention:
-            raise RunnerError(
-                "Training canary requires --confirm-canary-intervention"
-            )
+            raise RunnerError("Training canary requires --confirm-canary-intervention")
         if canary_model is None and confirm_canary_intervention:
-            raise RunnerError(
-                "--confirm-canary-intervention requires --canary-model"
-            )
+            raise RunnerError("--confirm-canary-intervention requires --canary-model")
         if canary_model is None and canary_readiness_report is not None:
             raise RunnerError("--canary-readiness-report requires --canary-model")
         if canary_model is not None and canary_readiness_report is None:
             raise RunnerError("--canary-model requires --canary-readiness-report")
-        if canary_model is not None and (
-            neural_model is not None or shadow_model is not None
-        ):
+        if canary_model is not None and (neural_model is not None or shadow_model is not None):
             raise RunnerError(
                 "--canary-model cannot be combined with --neural-model or --shadow-model"
             )
@@ -1749,6 +1740,132 @@ def models_train_outcomes(
     typer.echo(manifest.model_dump_json(indent=2))
 
 
+@models_app.command("create-simulation-league")
+def models_create_simulation_league(
+    base_model: Annotated[Path, typer.Argument(exists=True, file_okay=False, readable=True)],
+    opponent_model: Annotated[
+        list[Path] | None,
+        typer.Option(
+            "--opponent-model",
+            exists=True,
+            file_okay=False,
+            readable=True,
+            help="Additional frozen checkpoint; repeat for each accepted ancestor or champion.",
+        ),
+    ] = None,
+    snapshot: Annotated[Path, typer.Option(exists=True, dir_okay=False, readable=True)] = Path(
+        "data", "snapshots", "2026-09-20", "bible.json"
+    ),
+    league_directory: Annotated[Path, typer.Option()] = Path("models", "leagues"),
+    ruleset: Annotated[AttackDefenseRuleset, typer.Option()] = "dream-resource-hand",
+    heuristic_weight: Annotated[
+        float,
+        typer.Option(
+            min=1e-8, max=1_000_000, help="Heuristic sampling weight; each model has weight 1."
+        ),
+    ] = 1.0,
+) -> None:
+    """Freeze the parent, additional checkpoints, and versioned heuristic into a league."""
+
+    try:
+        from godfield_bot.simulation import SimulationUnavailableError
+        from godfield_bot.simulation_league import create_simulation_league
+        from godfield_bot.simulation_policy import SimulationPolicyError
+
+        path, league = create_simulation_league(
+            base_model_directory=base_model,
+            opponent_model_directories=tuple(opponent_model or ()),
+            snapshot_path=snapshot,
+            league_directory=league_directory,
+            ruleset=ruleset,
+            heuristic_weight=heuristic_weight,
+        )
+    except (
+        ImportError,
+        OSError,
+        ValueError,
+        SimulationUnavailableError,
+        SimulationPolicyError,
+    ) as e:
+        structlog.get_logger().error("simulation_league_failed", reason=str(e).splitlines()[0])
+        raise typer.Exit(code=1) from None
+    typer.echo(
+        json.dumps(
+            {
+                "league_path": str(path),
+                "league_sha256": league.sha256,
+                "league": league.model_dump(mode="json"),
+            },
+            indent=2,
+        )
+    )
+
+
+@models_app.command("evaluate-simulation-league")
+def models_evaluate_simulation_league(
+    candidate_model: Annotated[Path, typer.Argument(exists=True, file_okay=False, readable=True)],
+    league: Annotated[
+        Path, typer.Option(exists=True, dir_okay=False, readable=True, help="Frozen league JSON.")
+    ],
+    snapshot: Annotated[Path, typer.Option(exists=True, dir_okay=False, readable=True)] = Path(
+        "data", "snapshots", "2026-09-20", "bible.json"
+    ),
+    evaluation_directory: Annotated[Path, typer.Option()] = Path("models", "league-evaluations"),
+    games_per_seat: Annotated[int, typer.Option(min=2, max=100_000)] = 2048,
+    max_decisions_per_game: Annotated[int, typer.Option(min=2, max=100_000)] = 512,
+    minimum_score: Annotated[
+        float, typer.Option(min=0.5, max=1.0, help="Paired lower bound every member must exceed.")
+    ] = 0.5,
+    confidence_z: Annotated[float, typer.Option(min=1e-8, max=10.0)] = 1.96,
+    seed: Annotated[int, typer.Option(min=0, max=18_446_744_073_709_551_615)] = 67,
+    device: Annotated[Literal["cpu", "mps", "cuda"], typer.Option()] = "cpu",
+) -> None:
+    """Require superiority against every league member; write a local evidence report."""
+
+    try:
+        from godfield_bot.simulation import SimulationUnavailableError
+        from godfield_bot.simulation_evaluation import SimulationEvaluationError
+        from godfield_bot.simulation_league import SimulationLeagueSnapshot
+        from godfield_bot.simulation_league_evaluation import (
+            SimulationLeagueEvaluationConfig,
+            evaluate_simulation_league_candidate,
+        )
+        from godfield_bot.simulation_policy import SimulationPolicyError
+
+        roster = SimulationLeagueSnapshot.model_validate_json(league.read_text(encoding="utf-8"))
+        result = evaluate_simulation_league_candidate(
+            candidate_model_directory=candidate_model,
+            league_path=league,
+            snapshot_path=snapshot,
+            evaluation_directory=evaluation_directory,
+            config=SimulationLeagueEvaluationConfig(
+                ruleset=roster.ruleset,
+                games_per_seat=games_per_seat,
+                max_decisions_per_game=max_decisions_per_game,
+                minimum_score=minimum_score,
+                confidence_z=confidence_z,
+                seed=seed,
+                device=device,
+            ),
+        )
+    except KeyboardInterrupt:
+        typer.echo("League evaluation interrupted; no report was written", err=True)
+        raise typer.Exit(code=130) from None
+    except (
+        ImportError,
+        OSError,
+        ValueError,
+        SimulationUnavailableError,
+        SimulationEvaluationError,
+        SimulationPolicyError,
+    ) as e:
+        structlog.get_logger().error(
+            "simulation_league_evaluation_failed", reason=str(e).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(result.model_dump_json(indent=2))
+
+
 @models_app.command("train-simulation")
 def models_train_simulation(
     base_model: Annotated[
@@ -1837,6 +1954,15 @@ def models_train_simulation(
             help="Share of PPO games assigning one seat to the frozen heuristic.",
         ),
     ] = 0.5,
+    league: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            help="Frozen league JSON; replaces the heuristic/self-play opponent mix.",
+        ),
+    ] = None,
     learning_rate: Annotated[
         float,
         typer.Option(min=1e-8, max=1.0),
@@ -1870,6 +1996,7 @@ def models_train_simulation(
             base_model_directory=base_model,
             model_root=root_directory,
             snapshot_path=snapshot,
+            league_path=league,
             config=SimulationTrainingConfig(
                 ruleset=ruleset,
                 batch_size=batch_size,

@@ -39,6 +39,7 @@ class SimulationLeagueEvaluationConfig(BaseModel):
     confidence_z: float = Field(default=1.96, gt=0, le=10)
     seed: int = Field(default=67, ge=0, le=18_446_744_073_709_551_615)
     device: Literal["cpu", "mps", "cuda"] = "cpu"
+    compact_inference: bool = False
 
 
 class SimulationLeagueEvaluationReport(BaseModel):
@@ -118,6 +119,7 @@ def evaluate_simulation_league_candidate(
                 max_decisions=config.max_decisions_per_game,
                 device=device,
                 ruleset=config.ruleset,
+                compact_inference=config.compact_inference,
             )
             for seat in range(2)
         ]

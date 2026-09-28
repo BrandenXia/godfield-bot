@@ -184,6 +184,7 @@ class SelfPlayRollout:
     opponent_completed_games: tuple[int, ...] = ()
     opponent_learner_wins: tuple[int, ...] = ()
     opponent_draws: tuple[int, ...] = ()
+    episode_decisions: Tensor | None = None
 
     @property
     def steps(self) -> int:
@@ -433,6 +434,8 @@ def collect_self_play_rollout(
     terminated_rows: list[Tensor] = []
     completed_episodes = 0
     opponent_rows_history: list[Tensor] = []
+    episode_decisions = torch.zeros(batch.batch_size, dtype=torch.long, device=device)
+    episode_decision_rows: list[Tensor] = []
     learner_seat_history: list[Tensor] = []
     league_member_count = len(league.snapshot.members) if league is not None else 0
     opponent_action_counts = [0] * league_member_count
@@ -472,6 +475,7 @@ def collect_self_play_rollout(
             previous_terminated = terminated_rows[-1]
             if bool(previous_terminated.any()):
                 seat_states[previous_terminated] = 0.0
+                episode_decisions[previous_terminated] = 0
                 if league is not None and opponents is not None:
                     opponent_states[previous_terminated] = 0.0
                     opponents[previous_terminated] = torch.multinomial(
@@ -544,6 +548,8 @@ def collect_self_play_rollout(
         for observation_values, tensor in zip(observation_rows, observation, strict=True):
             observation_values.append(tensor.detach().clone())
         actor_rows.append(actors)
+        episode_decisions += 1
+        episode_decision_rows.append(episode_decisions.clone())
         action_rows.append(actions)
         policy_trainable_rows.append(policy_trainable)
         log_probability_rows.append(log_probabilities)
@@ -636,6 +642,7 @@ def collect_self_play_rollout(
         opponent_completed_games=tuple(opponent_completed_games),
         opponent_learner_wins=tuple(opponent_learner_wins),
         opponent_draws=tuple(opponent_draws),
+        episode_decisions=torch.stack(episode_decision_rows),
     )
 
 
@@ -873,6 +880,10 @@ def train_simulation_candidate(
     league_draw_totals = [0] * len(league_action_totals)
     teacher_metrics: list[TeacherTrainingMetrics] = []
     extra_slot_action_count = 0
+    learner_decision_count = 0
+    late_learner_decision_count = 0
+    longest_training_episode = 0
+    boundary_unfinished_count = 0
     teacher_completed_episodes = 0
     teacher_transitions = 0
     if config.teacher_updates:
@@ -926,6 +937,17 @@ def train_simulation_candidate(
         metrics = train_ppo_rollout(model, optimizer, self_play_rollout, config)
         completed_episodes += self_play_rollout.completed_episodes
         ppo_transitions += self_play_rollout.steps * self_play_rollout.batch_size
+        learner_decision_count += int(self_play_rollout.policy_trainable.sum().item())
+        if self_play_rollout.episode_decisions is not None:
+            late_learner_decision_count += int(
+                ((self_play_rollout.episode_decisions > 64) & self_play_rollout.policy_trainable)
+                .sum()
+                .item()
+            )
+            longest_training_episode = max(
+                longest_training_episode, int(self_play_rollout.episode_decisions.max().item())
+            )
+        boundary_unfinished_count += int((~self_play_rollout.terminated[-1]).sum().item())
         extra_slot_action_fraction = float(
             (
                 (self_play_rollout.actions >= 10)
@@ -1003,6 +1025,11 @@ def train_simulation_candidate(
             league_opponents=league_metrics,
             armor_selection_rate=armor_selection_rate,
             extra_slot_action_fraction=extra_slot_action_fraction,
+            longest_training_episode=longest_training_episode,
+            late_learner_decision_fraction=late_learner_decision_count / learner_decision_count,
+            boundary_unfinished_fraction=float(
+                (~self_play_rollout.terminated[-1]).float().mean().item()
+            ),
             mean_absolute_advantage=mean_absolute_advantage,
             **metrics.model_dump(),
         )
@@ -1035,6 +1062,13 @@ def train_simulation_candidate(
             "ppo_transitions": float(ppo_transitions),
             "extra_slot_action_count": float(extra_slot_action_count),
             "extra_slot_action_fraction": extra_slot_action_count / ppo_transitions,
+            "learner_decision_count": float(learner_decision_count),
+            "late_learner_decision_count": float(late_learner_decision_count),
+            "late_learner_decision_fraction": late_learner_decision_count / learner_decision_count,
+            "longest_training_episode": float(longest_training_episode),
+            "boundary_unfinished_fraction": (
+                boundary_unfinished_count / (config.batch_size * config.updates)
+            ),
             "heuristic_opponent_fraction": (
                 sum(
                     member.weight

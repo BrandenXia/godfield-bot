@@ -980,3 +980,53 @@ hand-growth lifecycle. Migration preserves shared card-scoring weights and
 nine-card outputs after action remapping, but inherits no evaluation or live
 readiness. Official neural bridges still reject schema 11.
 See [ADR 0059](docs/architecture/0059-padded-hand-capacity-curriculum.md).
+
+For longer-game exposure and a broader frozen roster, the next local recipe
+uses 512-step rollouts with smaller recurrent minibatches:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --extra simulation --extra training \
+  godfield-bot models train-simulation \
+  models/07759a38-203e-45cf-ba7a-c87e2d1dbf18 \
+  --league models/leagues/da29243f-5bf8-41f1-acdc-162c12c38e8f.json \
+  --ruleset wide-hand-gift-weighted-dream-resource-hand \
+  --batch-size 256 --rollout-steps 512 --updates 80 \
+  --environment-minibatch-size 32 --ppo-epochs 2 --teacher-updates 0 \
+  --learning-rate 0.0001 --entropy-weight 0.02 --seed 42067 --device cpu
+```
+
+The parent above is an experimental candidate, **not** an accepted or live-ready
+baseline. This roster contains the heuristic and seven frozen checkpoints.
+Longer rollouts expose later positions; they do not relax the 512-decision gate.
+Candidate metrics show the actual fraction of learner decisions beyond 64.
+
+Local failure traces can be reproduced without replaying the whole batch:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --extra simulation --extra training \
+  godfield-bot simulation trace-game \
+  models/07759a38-203e-45cf-ba7a-c87e2d1dbf18 \
+  --seed 41068 --environment 3442 --candidate-seat 0 --max-decisions 2048
+```
+
+This writes a private, action-by-action diagnostic trace, not a gate report.
+It can also take `--opponent-model models/<id>` instead of the heuristic.
+Evaluation reports now include duration quantiles, the longest completed game,
+and bounded `(candidate_seat, environment_index)` incomplete examples. A larger
+diagnostic budget never changes the original failed evaluation.
+See [ADR 0060](docs/architecture/0060-long-rollout-league-and-tail-diagnostics.md).
+
+`models evaluate-simulation` and `models evaluate-simulation-league` also accept
+`--compact-inference` to skip neural inference on already-completed first games.
+The mode is recorded in each evaluation's hashed configuration; it changes no
+score or completion thresholds. The original inference path remains the
+default, and an apparent pass should be confirmed with that path.
+
+The longer-rollout result, `e2555901-6f73-4ff3-9923-aae171b46c76`, now passes
+the eight-opponent league on three fresh seeds through both inference paths.
+The default-path gates complete all 393,216 first-game evaluations within
+512 decisions, with every opponent's paired lower bound above 50%. It is the
+verified **local schema-11 training baseline**, not a live-ready model. The
+earlier failed candidate and report remain unchanged. Official acquisition and
+hand-growth rules are still not simulated; these local results do not establish
+strength against the official bot. Full provenance is recorded in ADR 0060.

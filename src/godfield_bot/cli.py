@@ -1859,6 +1859,9 @@ def models_evaluate_simulation_league(
     confidence_z: Annotated[float, typer.Option(min=1e-8, max=10.0)] = 1.96,
     seed: Annotated[int, typer.Option(min=0, max=18_446_744_073_709_551_615)] = 67,
     device: Annotated[Literal["cpu", "mps", "cuda"], typer.Option()] = "cpu",
+    compact_inference: Annotated[
+        bool, typer.Option(help="Skip neural inference on already-completed first games.")
+    ] = False,
 ) -> None:
     """Require superiority against every league member; write a local evidence report."""
 
@@ -1886,6 +1889,7 @@ def models_evaluate_simulation_league(
                 confidence_z=confidence_z,
                 seed=seed,
                 device=device,
+                compact_inference=compact_inference,
             ),
         )
     except KeyboardInterrupt:
@@ -2163,6 +2167,9 @@ def models_evaluate_simulation(
         Literal["cpu", "mps", "cuda"],
         typer.Option(help="PyTorch evaluation device; native simulation remains on CPU."),
     ] = "cpu",
+    compact_inference: Annotated[
+        bool, typer.Option(help="Skip neural inference on already-completed first games.")
+    ] = False,
 ) -> None:
     """Run a paired, non-promoting curriculum gate for one candidate."""
 
@@ -2188,6 +2195,7 @@ def models_evaluate_simulation(
                 confidence_z=confidence_z,
                 seed=seed,
                 device=device,
+                compact_inference=compact_inference,
             ),
         )
     except KeyboardInterrupt:
@@ -2385,6 +2393,61 @@ def models_evaluate_live_shadow(
         )
         raise typer.Exit(code=1) from None
     typer.echo(result.model_dump_json(indent=2))
+
+
+@simulation_app.command("trace-game")
+def simulation_trace_game(
+    model: Annotated[Path, typer.Argument(exists=True, file_okay=False, readable=True)],
+    snapshot: Annotated[Path, typer.Option(exists=True, dir_okay=False, readable=True)] = Path(
+        "data", "snapshots", "2026-09-20", "bible.json"
+    ),
+    ruleset: Annotated[AttackDefenseRuleset, typer.Option()] = (
+        "wide-hand-gift-weighted-dream-resource-hand"
+    ),
+    seed: Annotated[int, typer.Option(min=0, max=18_446_744_073_709_551_615)] = 67,
+    environment: Annotated[int, typer.Option(min=0, max=999_999)] = 0,
+    candidate_seat: Annotated[int, typer.Option(min=0, max=1)] = 0,
+    max_decisions: Annotated[int, typer.Option(min=2, max=4096)] = 512,
+    trace_directory: Annotated[Path, typer.Option()] = Path("runs", "simulation-traces"),
+    opponent_model: Annotated[
+        Path | None, typer.Option(exists=True, file_okay=False, readable=True)
+    ] = None,
+) -> None:
+    """Trace one local first-deal index; diagnostics never count as gate passes."""
+
+    try:
+        from godfield_bot.simulation_diagnostics import SimulationTraceConfig, trace_simulation_game
+
+        path, trace = trace_simulation_game(
+            candidate_model_directory=model,
+            snapshot_path=snapshot,
+            trace_directory=trace_directory,
+            opponent_model_directory=opponent_model,
+            config=SimulationTraceConfig(
+                ruleset=ruleset,
+                seed=seed,
+                environment=environment,
+                candidate_seat=candidate_seat,
+                max_decisions=max_decisions,
+            ),
+        )
+    except (ImportError, OSError, ValueError, RuntimeError) as error:
+        structlog.get_logger().error("simulation_trace_failed", reason=str(error).splitlines()[0])
+        raise typer.Exit(code=1) from None
+    typer.echo(
+        json.dumps(
+            {
+                "trace_path": str(path),
+                "trace_id": trace.trace_id,
+                "completed": trace.completed,
+                "decisions": len(trace.decisions),
+                "candidate_outcome": trace.candidate_outcome,
+                "source_kind": trace.source_kind,
+                "promotion_eligible": False,
+            },
+            indent=2,
+        )
+    )
 
 
 @simulation_app.command("benchmark")

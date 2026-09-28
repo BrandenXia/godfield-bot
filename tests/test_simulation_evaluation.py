@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+import torch
 
 from godfield_bot.domain.reference import BibleSnapshot
 from godfield_bot.features import (
@@ -15,11 +16,14 @@ from godfield_bot.model_registry import initialize_model, load_model, save_candi
 from godfield_bot.simulation_evaluation import (
     SimulationEvaluationConfig,
     SimulationEvaluationReport,
+    _evaluate_side,
+    _SideEvaluation,
+    _summarize_matchup,
     evaluate_simulation_candidate,
     paired_score_statistics,
     wilson_lower_bound,
 )
-from godfield_bot.simulation_policy import HEURISTIC_POLICY_ID
+from godfield_bot.simulation_policy import HEURISTIC_POLICY_ID, build_curriculum_heuristic
 
 pytest.importorskip("godfield_sim")
 
@@ -125,6 +129,72 @@ def test_paired_score_statistics_use_seed_pairs_as_samples() -> None:
 
 def test_single_pair_is_inconclusive() -> None:
     assert paired_score_statistics(np.array([1.0]), 1.96) == (1.0, 0.0, 0.0)
+
+
+def test_decision_tail_diagnostics_exclude_unfinished_games_and_preserve_strict_gate() -> None:
+    a = _SideEvaluation(
+        outcomes=np.ones(20, dtype=np.int8),
+        completed=np.array([True] * 10 + [False] * 10),
+        decisions=np.array([10] * 10 + [512] * 10),
+        kernel_transitions=10240,
+    )
+    b = _SideEvaluation(
+        outcomes=np.ones(20, dtype=np.int8),
+        completed=np.ones(20, dtype=np.bool_),
+        decisions=np.array([20] * 19 + [400]),
+        kernel_transitions=8000,
+    )
+    matchup = _summarize_matchup(
+        opponent_kind="model",
+        opponent_id="test",
+        candidate_as_seat_zero=a,
+        candidate_as_seat_one=b,
+        config=SimulationEvaluationConfig(games_per_seat=20),
+    )
+    assert matchup.paired_score_lower_bound == 1
+    assert not matchup.passed  # Winning scores never forgive incomplete games.
+    assert matchup.max_decisions_per_completed_game == 400
+    assert matchup.p95_decisions_per_completed_game == 20
+    assert matchup.p99_decisions_per_completed_game > 20
+    assert matchup.incomplete_deal_examples == tuple((0, i) for i in range(10, 18))
+    legacy = matchup.model_dump()
+    for name in (
+        "max_decisions_per_completed_game",
+        "p95_decisions_per_completed_game",
+        "p99_decisions_per_completed_game",
+        "incomplete_deal_examples",
+    ):
+        legacy.pop(name)
+    assert type(matchup).model_validate(legacy).max_decisions_per_completed_game == 0
+
+
+@pytest.mark.parametrize("candidate_seat", [0, 1])
+@pytest.mark.parametrize("neural_opponent", [False, True])
+def test_compact_inference_matches_first_game_outcomes_and_lengths(
+    tmp_path, candidate_seat, neural_opponent
+) -> None:
+    directory, _ = unchanged_candidate(tmp_path)
+    _, candidate = load_model(directory)
+    bible = BibleSnapshot.model_validate_json(SNAPSHOT.read_text())
+    heuristic = build_curriculum_heuristic(bible, ArtifactVocabulary.from_snapshot(bible))
+    kwargs = dict(
+        candidate=candidate,
+        opponent=candidate if neural_opponent else None,
+        heuristic=None if neural_opponent else heuristic,
+        snapshot_path=SNAPSHOT,
+        games=32,
+        seed=817,
+        candidate_seat=candidate_seat,
+        max_decisions=512,
+        device=torch.device("cpu"),
+        ruleset="fixed-role",
+    )
+    normal = _evaluate_side(**kwargs)
+    compact = _evaluate_side(**kwargs, compact_inference=True)
+    np.testing.assert_array_equal(compact.outcomes, normal.outcomes)
+    np.testing.assert_array_equal(compact.completed, normal.completed)
+    np.testing.assert_array_equal(compact.decisions, normal.decisions)
+    assert compact.kernel_transitions == normal.kernel_transitions
 
 
 def test_paired_evaluation_persists_a_non_promoting_report(tmp_path) -> None:

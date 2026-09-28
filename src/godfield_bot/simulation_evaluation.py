@@ -78,6 +78,7 @@ class SimulationEvaluationConfig(BaseModel):
     confidence_z: float = Field(default=1.96, gt=0, le=10)
     seed: int = Field(default=67, ge=0, le=18_446_744_073_709_551_615)
     device: Literal["cpu", "mps", "cuda"] = "cpu"
+    compact_inference: bool = False
 
 
 class SimulationMatchupEvaluation(BaseModel):
@@ -97,6 +98,11 @@ class SimulationMatchupEvaluation(BaseModel):
     paired_score_lower_bound: float = Field(ge=0, le=1)
     required_paired_score: float = Field(ge=0, le=1)
     mean_decisions_per_completed_game: float = Field(ge=0)
+    # Defaults keep earlier persisted reports readable; zero means unrecorded.
+    p95_decisions_per_completed_game: float = Field(default=0, ge=0)
+    p99_decisions_per_completed_game: float = Field(default=0, ge=0)
+    max_decisions_per_completed_game: int = Field(default=0, ge=0)
+    incomplete_deal_examples: tuple[tuple[int, int], ...] = ()
     candidate_won_both_pairs: int = Field(ge=0)
     candidate_split_pairs: int = Field(ge=0)
     candidate_lost_both_pairs: int = Field(ge=0)
@@ -236,6 +242,7 @@ def _evaluate_side(
         "gift-weighted-dream-resource-hand",
         "wide-hand-gift-weighted-dream-resource-hand",
     ],
+    compact_inference: bool = False,
 ) -> _SideEvaluation:
     simulation = create_attack_defense_simulation(
         snapshot_path,
@@ -274,9 +281,14 @@ def _evaluate_side(
 
         observation = simulation_feature_tensors(simulation, device=str(device))
         actors = np.array(batch.active_players, copy=True)
-        candidate_rows = np.flatnonzero(actors == candidate_seat)
-        opponent_rows = np.flatnonzero(actors != candidate_seat)
+        relevant = ~completed if compact_inference else np.ones(games, dtype=np.bool_)
+        candidate_rows = np.flatnonzero((actors == candidate_seat) & relevant)
+        opponent_rows = np.flatnonzero((actors != candidate_seat) & relevant)
         actions = np.full(games, -1, dtype=np.int64)
+        if compact_inference:
+            # Native stepping is still full-batch. Completed rows take cheap,
+            # legal filler actions; independent RNGs cannot affect first games.
+            actions[completed] = batch.action_mask[completed].argmax(axis=1)
         actions[candidate_rows] = _model_actions(
             candidate,
             candidate_states,
@@ -396,6 +408,20 @@ def _summarize_matchup(
         paired_score_lower_bound=paired_lower_bound,
         required_paired_score=required_paired_score,
         mean_decisions_per_completed_game=mean_decisions,
+        p95_decisions_per_completed_game=(
+            float(np.percentile(completed_decisions, 95)) if completed_decisions.size else 0.0
+        ),
+        p99_decisions_per_completed_game=(
+            float(np.percentile(completed_decisions, 99)) if completed_decisions.size else 0.0
+        ),
+        max_decisions_per_completed_game=(
+            int(completed_decisions.max()) if completed_decisions.size else 0
+        ),
+        incomplete_deal_examples=tuple(
+            (seat, int(environment))
+            for seat, side in enumerate(sides)
+            for environment in np.flatnonzero(~side.completed)[:8]
+        ),
         candidate_won_both_pairs=won_both,
         candidate_split_pairs=split,
         candidate_lost_both_pairs=lost_both,
@@ -505,6 +531,7 @@ def evaluate_simulation_candidate(
             max_decisions=config.max_decisions_per_game,
             device=device,
             ruleset=config.ruleset,
+            compact_inference=config.compact_inference,
         ),
         _evaluate_side(
             candidate=candidate,
@@ -517,6 +544,7 @@ def evaluate_simulation_candidate(
             max_decisions=config.max_decisions_per_game,
             device=device,
             ruleset=config.ruleset,
+            compact_inference=config.compact_inference,
         ),
     )
     heuristic_sides = (
@@ -531,6 +559,7 @@ def evaluate_simulation_candidate(
             max_decisions=config.max_decisions_per_game,
             device=device,
             ruleset=config.ruleset,
+            compact_inference=config.compact_inference,
         ),
         _evaluate_side(
             candidate=candidate,
@@ -543,6 +572,7 @@ def evaluate_simulation_candidate(
             max_decisions=config.max_decisions_per_game,
             device=device,
             ruleset=config.ruleset,
+            compact_inference=config.compact_inference,
         ),
     )
     matchups = (

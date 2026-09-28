@@ -232,6 +232,33 @@ def test_rollout_masks_frozen_heuristic_actions_from_policy_training() -> None:
     assert rollout.action_mask.gather(2, rollout.actions.unsqueeze(-1)).all()
 
 
+def test_episode_decision_ages_reset_only_on_actual_terminals() -> None:
+    snapshot = BibleSnapshot.model_validate_json(SNAPSHOT.read_text())
+    vocabulary = ArtifactVocabulary.from_snapshot(snapshot)
+    model = RecurrentPolicyValueNet(
+        vocabulary_size=len(vocabulary.tokens),
+        action_count=21,
+        global_feature_count=6,
+    )
+    rollout = collect_self_play_rollout(
+        model,
+        create_attack_defense_simulation(SNAPSHOT, batch_size=8, seed=76),
+        rollout_steps=128,
+        gamma=0.99,
+        gae_lambda=0.95,
+        device=torch.device("cpu"),
+    )
+    assert rollout.episode_decisions is not None
+    ages = rollout.episode_decisions
+    assert ages.shape == rollout.actions.shape
+    assert torch.all(ages[0] == 1)
+    assert rollout.terminated.any()
+    torch.testing.assert_close(
+        ages[1:],
+        torch.where(rollout.terminated[:-1], 1, ages[:-1] + 1),
+    )
+
+
 def test_legacy_pooled_checkpoint_loads_but_cannot_continue_simulator_training(
     tmp_path: Path,
 ) -> None:
@@ -294,6 +321,11 @@ def test_native_self_play_writes_fingerprinted_non_promotable_candidate(tmp_path
     assert candidate.metrics["training_transitions"] == 64
     assert candidate.metrics["teacher_transitions"] == 32
     assert candidate.metrics["ppo_transitions"] == 32
+    assert 0 < candidate.metrics["learner_decision_count"] <= 32
+    assert candidate.metrics["late_learner_decision_count"] == 0
+    assert candidate.metrics["late_learner_decision_fraction"] == 0
+    assert candidate.metrics["longest_training_episode"] == 4
+    assert 0 <= candidate.metrics["boundary_unfinished_fraction"] <= 1
     assert candidate.metrics["teacher_updates"] == 1
     assert candidate.metrics["training_updates"] == 1
     assert (

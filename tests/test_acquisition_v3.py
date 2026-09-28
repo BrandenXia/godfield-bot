@@ -23,7 +23,7 @@ from godfield_bot.acquisition_probe import (
 )
 from godfield_bot.acquisition_replay import REPLAY_CATALOG_SHA256, audit_acquisition_replay_run
 from godfield_bot.acquisition_v3 import AcquisitionEvidenceBatchV3, AcquisitionProbeReadV3
-from godfield_bot.acquisition_v4 import AcquisitionProbeReadV4
+from godfield_bot.acquisition_v5 import AcquisitionProbeReadV5
 from godfield_bot.cli import app
 from godfield_bot.domain.run import RunMode, RunSpec
 from godfield_bot.run_store import RunStore, RunStoreError
@@ -91,16 +91,16 @@ def store(tmp_path):
     return storage, run, recorder
 
 
-def test_active_install_uses_v4_and_combined_dream_capture_remains_passive():
+def test_active_install_uses_v5_and_combined_dream_capture_remains_passive():
     class Context:
         async def add_init_script(self, *, script):
             self.script = script
 
     context = Context()
     asyncio.run(install_acquisition_probe(context, identity="ロキ-67"))
-    assert ACQUISITION_CAPTURE_SCHEMA_VERSION == 4
-    assert '"schema_version": 4' in context.script
-    captured = AcquisitionProbeReadV4.model_validate_json(
+    assert ACQUISITION_CAPTURE_SCHEMA_VERSION == 5
+    assert '"schema_version": 5' in context.script
+    captured = AcquisitionProbeReadV5.model_validate_json(
         json.dumps(
             node(
                 "register({}, () => {}); emit(input.room); return read();",
@@ -109,7 +109,7 @@ def test_active_install_uses_v4_and_combined_dream_capture_remains_passive():
             )
         )
     )
-    assert captured.schema_version == 4
+    assert captured.schema_version == 5
     assert captured.status.hook_installed
 
 
@@ -592,7 +592,7 @@ def test_v3_unresolved_owner_prevents_complete_self_event_metadata_claim(tmp_pat
     assert not report["complete_projection_replay"]
 
 
-@pytest.mark.parametrize("version", [True, 0, 5, "3"])
+@pytest.mark.parametrize("version", [True, 0, 6, "3"])
 def test_capture_version_is_an_exact_supported_integer(version):
     with pytest.raises(ValueError, match="unsupported acquisition capture schema"):
         acquisition_probe_init_script("ロキ-67", schema_version=version)

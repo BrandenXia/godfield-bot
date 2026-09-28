@@ -22,22 +22,28 @@ from godfield_bot.acquisition_probe import (
     AcquisitionProbeStatus,
     AcquisitionSnapshot,
 )
-from godfield_bot.acquisition_v2 import AcquisitionEvidenceBatchV2, AcquisitionSnapshotV2
+from godfield_bot.acquisition_v2 import (
+    TARGET_REMOVAL_ACTIONS,
+    AcquisitionEvidenceBatchV2,
+    AcquisitionSnapshotV2,
+)
 from godfield_bot.acquisition_v3 import AcquisitionEvidenceBatchV3, AcquisitionSnapshotV3
 from godfield_bot.acquisition_v4 import AcquisitionEvidenceBatchV4
+from godfield_bot.acquisition_v5 import AcquisitionEvidenceBatchV5, AcquisitionSnapshotV5
 
 AcquisitionBatch = (
     AcquisitionEvidenceBatch
     | AcquisitionEvidenceBatchV2
     | AcquisitionEvidenceBatchV3
     | AcquisitionEvidenceBatchV4
+    | AcquisitionEvidenceBatchV5
 )
 
 
 class AcquisitionEvidenceAudit(BaseModel):
-    schema_version: Literal[2] = 2
-    source_kind: Literal["official-acquisition-transport-audit-v2"] = (
-        "official-acquisition-transport-audit-v2"
+    schema_version: Literal[3] = 3
+    source_kind: Literal["official-acquisition-transport-audit-v3"] = (
+        "official-acquisition-transport-audit-v3"
     )
     batch_count: int = Field(ge=0)
     stream_count: int = Field(ge=0)
@@ -79,6 +85,10 @@ class AcquisitionEvidenceAudit(BaseModel):
     legacy_self_bound_event_without_wire_count: int = Field(ge=0)
     malformed_self_event_wire_count: int = Field(ge=0)
     ambiguous_self_selection_event_count: int = Field(ge=0)
+    self_bound_removal_event_count: int = Field(ge=0)
+    self_bound_removal_item_count: int = Field(ge=0)
+    unresolved_removal_owner_event_count: int = Field(ge=0)
+    ambiguous_self_removal_event_count: int = Field(ge=0)
     reviewed_event_counts: dict[str, int]
     unreviewed_event_count: int = Field(ge=0)
     redacted_item_event_count: int = Field(ge=0)
@@ -166,6 +176,7 @@ def audit_acquisition_batches(
     raw_used_true = growth_pairs = used_activations = 0
     bound_attacks = bound_defenses = attack_items = defense_items = unresolved_owners = overflow = 0
     event_wire_count = legacy_event_wire = malformed_event_wire = ambiguous_selections = 0
+    bound_removals = removal_items = unresolved_removals = ambiguous_removals = 0
     event_counts: Counter[str] = Counter()
     start_seen = zero_seen = terminal_seen = False
     for stream_rows in rows.values():
@@ -287,6 +298,11 @@ def audit_acquisition_batches(
                     unresolved_owners += (
                         event.action in {"useAttackItems", "useDefenseItems"} and owner is None
                     )
+                    # Historical explicit player IDs are not proof of the
+                    # removal recipient. No old redacted payload is recovered.
+                    unresolved_removals += event.action in TARGET_REMOVAL_ACTIONS and (
+                        not isinstance(row, AcquisitionSnapshotV5) or owner is None
+                    )
                     if event.self_item_payload_bound:
                         if isinstance(row, AcquisitionSnapshotV3):
                             event_wire = row.event_item_wire[index]
@@ -294,6 +310,10 @@ def audit_acquisition_batches(
                             malformed_event_wire += event_wire.malformed
                             ambiguous_selections += (
                                 event.action in {"useAttackItems", "useDefenseItems"}
+                                and event_wire.items_kind != "array"
+                            )
+                            ambiguous_removals += (
+                                event.action in TARGET_REMOVAL_ACTIONS
                                 and event_wire.items_kind != "array"
                             )
                         else:
@@ -305,6 +325,10 @@ def audit_acquisition_batches(
                             len(event.items) if event.action == "useDefenseItems" else 0
                         )
                         overflow += event.action == "gift" and event.overflow_item is not None
+                        bound_removals += event.action in TARGET_REMOVAL_ACTIONS
+                        removal_items += (
+                            len(event.items) if event.action in TARGET_REMOVAL_ACTIONS else 0
+                        )
             previous = row
             previous_valid = valid_ids and consistent
             previous_owned = tuple(owned)
@@ -329,6 +353,8 @@ def audit_acquisition_batches(
         "malformed_wire_items": malformed_wire > 0,
         "malformed_self_event_wire": malformed_event_wire > 0,
         "ambiguous_self_selections": ambiguous_selections > 0,
+        "unresolved_removal_ownership": unresolved_removals > 0,
+        "ambiguous_self_removals": ambiguous_removals > 0,
         "unverified_phase_context": unverified_phase > 0,
         "unreviewed_events": unreviewed > 0,
         "missing_collector_summary": not summaries,
@@ -378,6 +404,10 @@ def audit_acquisition_batches(
         legacy_self_bound_event_without_wire_count=legacy_event_wire,
         malformed_self_event_wire_count=malformed_event_wire,
         ambiguous_self_selection_event_count=ambiguous_selections,
+        self_bound_removal_event_count=bound_removals,
+        self_bound_removal_item_count=removal_items,
+        unresolved_removal_owner_event_count=unresolved_removals,
+        ambiguous_self_removal_event_count=ambiguous_removals,
         reviewed_event_counts=dict(sorted(event_counts.items())),
         unreviewed_event_count=unreviewed,
         redacted_item_event_count=redacted,
@@ -433,9 +463,12 @@ def load_acquisition_run(database: Path, run_id: str) -> LoadedAcquisitionRun:
             "official-acquisition-evidence-v2",
             "official-acquisition-evidence-v3",
             "official-acquisition-evidence-v4",
+            "official-acquisition-evidence-v5",
         }:
             batch: AcquisitionBatch
-            if source == "official-acquisition-evidence-v4":
+            if source == "official-acquisition-evidence-v5":
+                batch = AcquisitionEvidenceBatchV5.model_validate_json(row["payload_json"])
+            elif source == "official-acquisition-evidence-v4":
                 batch = AcquisitionEvidenceBatchV4.model_validate_json(row["payload_json"])
             elif source == "official-acquisition-evidence-v3":
                 batch = AcquisitionEvidenceBatchV3.model_validate_json(row["payload_json"])
@@ -468,7 +501,7 @@ def load_acquisition_run(database: Path, run_id: str) -> LoadedAcquisitionRun:
     declared_schema = (
         config.get("acquisition_evidence_schema_version") if isinstance(config, dict) else None
     )
-    if type(declared_schema) is not int or declared_schema not in {1, 2, 3, 4}:
+    if type(declared_schema) is not int or declared_schema not in {1, 2, 3, 4, 5}:
         declared_schema = None
     return LoadedAcquisitionRun(
         run_id=run_id,

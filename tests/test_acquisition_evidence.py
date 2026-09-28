@@ -34,6 +34,7 @@ from godfield_bot.acquisition_v2 import (
 )
 from godfield_bot.acquisition_v3 import AcquisitionProbeReadV3
 from godfield_bot.acquisition_v4 import AcquisitionProbeReadV4
+from godfield_bot.acquisition_v5 import AcquisitionProbeReadV5
 from godfield_bot.cli import app
 from godfield_bot.config import AppSettings
 from godfield_bot.domain.game import GameState, PlayerState
@@ -213,7 +214,7 @@ def raw_room(*, events=None, **changes):
 
 
 @pytest.mark.parametrize("before", [False, True])
-@pytest.mark.parametrize("schema_version", [1, 2, 3, 4])
+@pytest.mark.parametrize("schema_version", [1, 2, 3, 4, 5])
 def test_actual_script_saves_ordered_queue_and_only_acknowledges_read_prefix(
     before, schema_version
 ):
@@ -241,6 +242,7 @@ def test_actual_script_saves_ordered_queue_and_only_acknowledges_read_prefix(
         2: AcquisitionProbeReadV2,
         3: AcquisitionProbeReadV3,
         4: AcquisitionProbeReadV4,
+        5: AcquisitionProbeReadV5,
     }[schema_version]
     parser.model_validate_json(json.dumps(result["remaining"]))
 
@@ -398,6 +400,7 @@ class FakePage:
                         AcquisitionProbeReadV2,
                         AcquisitionProbeReadV3,
                         AcquisitionProbeReadV4,
+                        AcquisitionProbeReadV5,
                     ),
                 )
                 else self.read
@@ -829,7 +832,7 @@ def test_runner_installs_before_session_and_flushes_before_context_closes(
     tmp_path, monkeypatch, probe, scenario, focus
 ):
     trace = []
-    page = FakePage(v4_read([raw_room()]) if probe else probe_read(snapshot()), trace=trace)
+    page = FakePage(v5_read([raw_room()]) if probe else probe_read(snapshot()), trace=trace)
     page.fail_read = scenario == "telemetry_error_terminal"
 
     class Context:
@@ -837,7 +840,7 @@ def test_runner_installs_before_session_and_flushes_before_context_closes(
             self.pages = [page]
 
         async def add_init_script(self, *, script):
-            assert '"schema_version": 4' in script
+            assert '"schema_version": 5' in script
             assert "__godfieldAcquisitionEvidenceV" in script
             trace.append("installed")
 
@@ -935,11 +938,11 @@ def test_runner_installs_before_session_and_flushes_before_context_closes(
         assert trace.index("installed") < trace.index("session")
         report = audit_acquisition_run(database, run_id)
         assert report["collector_summary_count"] == 1
-        assert report["declared_capture_schema_version"] == 4
+        assert report["declared_capture_schema_version"] == 5
         if scenario == "telemetry_error_terminal":
             assert report["read_error_count"] == 2 and report["snapshot_count"] == 0
         else:
-            assert report["capture_schema_versions"] == [4]
+            assert report["capture_schema_versions"] == [5]
             assert report["capture_schema_matches_run_config"]
             assert trace.index("ack") < trace.index("closed")
             assert report["snapshot_count"] == 1
@@ -954,6 +957,15 @@ def v3_read(rooms):
         schema_version=3,
     )
     return AcquisitionProbeReadV3.model_validate_json(json.dumps(raw))
+
+
+def v5_read(rooms):
+    raw = node(
+        "register({}, () => {}); for (const room of input.rooms) emit(room); return read();",
+        rooms=rooms,
+        schema_version=5,
+    )
+    return AcquisitionProbeReadV5.model_validate_json(json.dumps(raw))
 
 
 def v4_read(rooms):

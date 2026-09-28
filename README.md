@@ -1053,10 +1053,13 @@ authority or provide training labels. Three operator-run v1 recordings verified
 transport, but exposed a coverage bug: attack/defense events normally lack an
 explicit player ID, so their item bodies were redacted. V2 binds self consumption
 through conservatively verified, ordered phase context. V3 adds self-only event
-item wire classifications. New captures use v4, which also preserves the seeded
-two-player attacker/defender swap at reflection, verified against the pinned
-client. Unseeded/multiplayer reflections and other redirect effects remain
-unresolved; historical v1/v2/v3 records and checksums are not rewritten.
+item wire classifications. V4 preserves the seeded two-player attacker/defender
+swap at reflection, verified against the pinned client. New captures use v5,
+which also saves self `removeItems`/`removeUsedMiracles` payloads when that same
+fully seeded duel context proves the recipient. Removal effects clear the
+carried context; explicit event player IDs alone cannot bind them. Unseeded,
+self-targeted, multiplayer, and other redirect effects remain unresolved;
+historical v1/v2/v3/v4 records and checksums are not rewritten.
 Opponent and unresolved bodies remain redacted. Raw omitted flags stay
 unknown; the pinned client's defaults are reported separately. V1 recordings
 and their checksums remain unchanged.
@@ -1082,6 +1085,10 @@ as its seven repeated true-flag observations. The full run still contains
 unsupported updates; removal, overflow, and general gift timing are not verified.
 See [ADR 0065](docs/architecture/0065-retained-miracle-observation-replay.md)
 and [ADR 0071](docs/architecture/0071-official-flame-first-use-and-reuse.md).
+The read-only audit of all ten saved acquisition runs found no explicit removal
+or overflow event. Capture v5 prepares future removal evidence, but those effects
+remain unsupported in the native replay and C++ training rules are unchanged.
+See [ADR 0072](docs/architecture/0072-self-targeted-removal-evidence.md).
 
 For further bounded collection against the official Training computer, with the
 existing heuristic keeping control:
@@ -1131,8 +1138,8 @@ UV_CACHE_DIR=.uv-cache uv run --locked --offline --extra simulation --extra trai
 
 This read-only report exposes missing source/server versions, hook and delivery
 failures, raw unknown flags, separately interpreted client-unused counts,
-ownership coverage, and reviewed event counts. Its audit schema version is 2;
-`capture_schema_versions` identifies whether the actual evidence is v1, v2, v3, or v4.
+ownership coverage, and reviewed event counts. Its audit schema version is 3;
+`capture_schema_versions` identifies whether the actual evidence is v1–v5.
 It also reports raw true-flag observations, inventory-growth pairs, and
 client-interpreted used activations. Growth/activation comparisons never cross
 source/server gaps, invalid identities, or changed player membership counts;
@@ -1141,6 +1148,9 @@ activations. These are observations, not cast counts or causal rule labels.
 V3 additionally reports self-event wire coverage, malformed event fields, and
 ambiguous missing/null selection arrays. An explicitly empty array remains
 distinct from an omitted selection; v1/v2 data is not retrofitted with sidecars.
+Audit v3 additionally distinguishes self-bound removal events/items, unresolved
+removal recipients, and ambiguous removal arrays. These are payload observations,
+not successfully simulated removals. The native replay report remains schema 2.
 Even a clean transport report is not evidence for adopting acquisition rules.
 Do not start a concurrent campaign on the same browser profile. Capture and
 review contiguous fixtures before changing C++ consumption/gift/overflow

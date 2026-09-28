@@ -2,7 +2,7 @@
 (() => {
   const config = __GODFIELD_ACQUISITION_CONFIG__;
   const v2 = config.schema_version >= 2, v3 = config.schema_version >= 3;
-  const v4 = config.schema_version === 4;
+  const v4 = config.schema_version >= 4, v5 = config.schema_version === 5;
   const key = '__godfieldAcquisitionEvidenceV' + config.schema_version;
   if (window[key]) return;
   const state = {
@@ -16,6 +16,7 @@
   const nonnegative = (value) => Number.isSafeInteger(value) && value >= 0 ? value : null;
   const knownActions = new Set(config.event_actions);
   const boundActions = new Set(config.self_item_actions);
+  const targetRemovalActions = new Set(['removeItems', 'removeUsedMiracles']);
   const item = (raw, index) => {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('invalid item');
     return {
@@ -131,10 +132,14 @@
               owner = turn; basis = 'turn_context';
             } else if (raw.action === 'useDefenseItems' && target !== null) {
               owner = target; basis = 'target_context';
+            } else if (v5 && targetRemovalActions.has(raw.action) && playerIds.length === 2 &&
+                       turn !== null && target !== null) {
+              owner = target; basis = 'target_context';
             }
             owners.push({event_index: index, item_owner_player_id: owner, basis});
           }
-          const bound = owner === selfId && boundActions.has(raw.action);
+          const bound = owner === selfId && (boundActions.has(raw.action) ||
+            (v5 && targetRemovalActions.has(raw.action)));
           const hasItems = raw.item != null || raw.items != null || raw.overflowItem != null ||
             raw.itemModelId != null;
           if (hasItems && !bound) redacted += 1;

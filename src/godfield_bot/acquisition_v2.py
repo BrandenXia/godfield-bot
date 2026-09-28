@@ -18,6 +18,7 @@ from godfield_bot.acquisition_probe import (
 
 WireIntegerKind = Literal["positive_integer", "zero", "missing", "null", "other"]
 PHASE_PRESERVING_ACTIONS = frozenset({"gift", "useAttackItems", "useDefenseItems"})
+TARGET_REMOVAL_ACTIONS = frozenset({"removeItems", "removeUsedMiracles"})
 
 
 class AcquisitionItemWire(_StrictEvidence):
@@ -72,8 +73,10 @@ class AcquisitionEventOwner(_StrictEvidence):
 
 class AcquisitionSnapshotV2(AcquisitionSnapshot):
     # Interpretation is versioned by snapshot type, never supplied by JSON.
-    # V2/v3 retain their original default-deny reflection behavior and digests.
+    # Historical versions retain their original rules and digests. V4 introduces
+    # reflection; V5 introduces target removal, without changing older schemas.
     reflection_duel_context: ClassVar[bool] = False
+    target_removal_duel_context: ClassVar[bool] = False
     self_item_wire: tuple[AcquisitionItemWire, ...] = Field(max_length=512)
     event_owners: tuple[AcquisitionEventOwner, ...] = Field(max_length=512)
     unreviewed_event_indices: tuple[int, ...] = Field(max_length=512)
@@ -162,10 +165,22 @@ class AcquisitionSnapshotV2(AcquisitionSnapshot):
                 expected_owner, basis = turn, "turn_context"
             elif event.action == "useDefenseItems" and target is not None:
                 expected_owner, basis = target, "target_context"
+            elif (
+                self.target_removal_duel_context
+                and event.action in TARGET_REMOVAL_ACTIONS
+                and len(after.player_ids) == 2
+                and turn is not None
+                and target is not None
+            ):
+                # Pinned removeItems/removeUsedMiracles dispatch uses the
+                # opposite pending role when present. Admit only a seeded duel;
+                # explicit playerId is not ownership proof for these effects.
+                expected_owner, basis = target, "target_context"
             if owner.item_owner_player_id != expected_owner or owner.basis != basis:
                 raise ValueError("event ownership differs from the reviewed phase replay")
-            bound = (
-                expected_owner == self.self_player_id and event.action in PHASE_PRESERVING_ACTIONS
+            bound = expected_owner == self.self_player_id and (
+                event.action in PHASE_PRESERVING_ACTIONS
+                or (self.target_removal_duel_context and event.action in TARGET_REMOVAL_ACTIONS)
             )
             if event.self_item_payload_bound != bound:
                 raise ValueError("event item binding differs from the resolved self owner")

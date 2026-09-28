@@ -17,6 +17,7 @@ from godfield_bot.acquisition_probe import (
     AcquisitionCollectorError,
     AcquisitionCollectorSummary,
     AcquisitionEvidenceBatch,
+    AcquisitionItem,
     AcquisitionProbeStatus,
     AcquisitionSnapshot,
 )
@@ -54,6 +55,9 @@ class AcquisitionEvidenceAudit(BaseModel):
     capture_schema_versions: tuple[int, ...]
     pinned_client_interpretation_applied: bool
     max_client_unused_distinct_instances: int = Field(ge=0)
+    raw_used_true_observation_count: int = Field(ge=0)
+    owned_inventory_growth_pair_count: int = Field(ge=0)
+    client_interpreted_used_activation_count: int = Field(ge=0)
     client_empty_placeholder_observation_count: int = Field(ge=0)
     malformed_wire_item_observation_count: int = Field(ge=0)
     unverified_phase_context_count: int = Field(ge=0)
@@ -147,12 +151,14 @@ def audit_acquisition_batches(
     repeated = inconsistent = boundaries = gaps = adjacent = invalid = unknown_used = 0
     maximum = unused_maximum = unreviewed = redacted = 0
     client_unused_max = placeholders = malformed_wire = unverified_phase = 0
+    raw_used_true = growth_pairs = used_activations = 0
     bound_attacks = bound_defenses = attack_items = defense_items = unresolved_owners = overflow = 0
     event_counts: Counter[str] = Counter()
     start_seen = zero_seen = terminal_seen = False
     for stream_rows in rows.values():
         previous: AcquisitionSnapshot | None = None
         previous_valid = False
+        previous_owned: tuple[AcquisitionItem, ...] = ()
         versions: dict[int, dict[str, object]] = {}
         for row in stream_rows.values():
             owned = list(row.self_items)
@@ -186,6 +192,7 @@ def audit_acquisition_batches(
             valid_ids = None not in identities and len(set(identities)) == len(identities)
             invalid += not valid_ids
             unknown_used += sum(item.used is None for item in row.self_items)
+            raw_used_true += sum(item.used is True for item in row.self_items)
             if valid_ids:
                 maximum = max(maximum, len(identities))
                 unused_maximum = max(unused_maximum, sum(item.used is False for item in owned))
@@ -231,6 +238,28 @@ def audit_acquisition_batches(
                     gaps += 1
                 elif row.update_count > previous.update_count and valid_ids and previous_valid:
                     adjacent += 1
+                    if row.player_count == previous.player_count:
+                        growth_pairs += len(owned) > len(previous_owned)
+                        if client_interpretation:
+                            prior = {item.instance_id: item for item in previous_owned}
+                            gifted_ids = {
+                                event.item.instance_id
+                                for event in row.events
+                                if event.action == "gift"
+                                and event.self_item_payload_bound
+                                and event.item is not None
+                            }
+                            for item in owned:
+                                old = prior.get(item.instance_id)
+                                used_activations += (
+                                    old is not None
+                                    and item.instance_id not in gifted_ids
+                                    and item.model_id is not None
+                                    and (item.model_id, item.fake_model_id)
+                                    == (old.model_id, old.fake_model_id)
+                                    and old.used is not True
+                                    and item.used is True
+                                )
             if not repeated_version:
                 event_counts.update(event.action for event in row.events)
                 start_seen |= any(event.action == "startGame" for event in row.events)
@@ -255,6 +284,7 @@ def audit_acquisition_batches(
                         overflow += event.action == "gift" and event.overflow_item is not None
             previous = row
             previous_valid = valid_ids and consistent
+            previous_owned = tuple(owned)
     final_poll = summaries[-1].final_poll_succeeded if summaries else None
     issues: list[str] = []
     checks = {
@@ -307,6 +337,9 @@ def audit_acquisition_batches(
         capture_schema_versions=tuple(sorted({batch.schema_version for batch in batches})),
         pinned_client_interpretation_applied=client_interpretation,
         max_client_unused_distinct_instances=client_unused_max,
+        raw_used_true_observation_count=raw_used_true,
+        owned_inventory_growth_pair_count=growth_pairs,
+        client_interpreted_used_activation_count=used_activations,
         client_empty_placeholder_observation_count=placeholders,
         malformed_wire_item_observation_count=malformed_wire,
         unverified_phase_context_count=unverified_phase,

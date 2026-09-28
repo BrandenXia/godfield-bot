@@ -2,12 +2,17 @@
 
 import hashlib
 import json
+from itertools import pairwise
 from pathlib import Path
 
 import pytest
 
 from godfield_bot.acquisition_evidence import audit_acquisition_batches
-from godfield_bot.acquisition_probe import AcquisitionCollectorSummary, AcquisitionItem
+from godfield_bot.acquisition_probe import (
+    AcquisitionCollectorSummary,
+    AcquisitionEvidenceBatch,
+    AcquisitionItem,
+)
 from godfield_bot.acquisition_v2 import AcquisitionEvidenceBatchV2
 from godfield_bot.api_catalog import read_api_catalog_snapshot
 
@@ -15,6 +20,7 @@ np = pytest.importorskip("numpy")
 native = pytest.importorskip("godfield_sim")
 FIXTURE = Path("tests/fixtures/acquisition-v2-bc54a888.json")
 CATALOG = Path("data/snapshots/2026-09-21/api-catalog-en.json")
+MIRACLE_FIXTURE = Path("tests/fixtures/acquisition-v1-retained-flame.json")
 
 
 def rows(items: list[list[int]]) -> object:
@@ -42,9 +48,9 @@ def inventory(
 
 
 def test_replay_has_separate_identity_and_does_not_replace_training_rulesets() -> None:
-    assert native.ORDERED_INVENTORY_REPLAY_SCHEMA_VERSION == 1
+    assert native.ORDERED_INVENTORY_REPLAY_SCHEMA_VERSION == 2
     assert native.ORDERED_INVENTORY_REPLAY_RULESET_ID == (
-        "explicit-ordinary-consumption-ordered-gift-replay-v1"
+        "explicit-ordinary-and-retained-miracle-ordered-gift-replay-v2"
     )
     assert native.RULESET_ID != native.ORDERED_INVENTORY_REPLAY_RULESET_ID
     assert native.HAND_SLOTS == 9
@@ -256,3 +262,169 @@ def test_array_contract_rejects_lossy_conversions_and_wrong_shapes() -> None:
     with pytest.raises(TypeError):
         replay.gift(np.zeros(4))
     assert replay.size == 1
+
+
+def test_retained_flame_matches_two_observed_v1_inventory_pairs_not_full_events() -> None:
+    fixture = json.loads(MIRACLE_FIXTURE.read_text())
+    assert fixture["event_complete"] is False
+    assert not any(
+        fixture[key]
+        for key in ("training_eligible", "promotion_eligible", "acquisition_rule_eligible")
+    )
+    catalog = read_api_catalog_snapshot(CATALOG)
+    assert catalog.content_sha256 == fixture["catalog_sha256"]
+    flame = catalog.items[215 - 1]
+    assert flame.raw["category"] == "miracles"
+    assert flame.raw["imageName"] == "flame"
+    batches = tuple(
+        AcquisitionEvidenceBatch.model_validate_json(json.dumps(record["payload"]))
+        for record in fixture["evidence"]
+    )
+    for record, batch in zip(fixture["evidence"], batches, strict=True):
+        assert batch.model_dump(mode="json") == record["payload"]
+        assert batch.client_sha256 == fixture["client_sha256"]
+        assert batch.catalog_sha256 == fixture["catalog_sha256"]
+        assert not batch.acquisition_rule_eligible
+    snapshots = [snapshot for batch in batches for snapshot in batch.snapshots]
+    assert [snapshot.source_sequence for snapshot in snapshots] == [9, 10, 11]
+    observation_audit = audit_acquisition_batches(batches)
+    assert observation_audit.raw_used_true_observation_count == 2
+    assert observation_audit.owned_inventory_growth_pair_count == 2
+    assert observation_audit.client_interpreted_used_activation_count == 1
+    assert not observation_audit.acquisition_rule_eligible
+    replay = inventory([item_row(item) for item in snapshots[0].self_items])
+    replay.configure_retained_miracles(np.asarray(fixture["retained_miracle_model_ids"], np.int64))
+    for before, after in pairwise(snapshots):
+        assert after.source_sequence == before.source_sequence + 1
+        assert after.update_count == before.update_count + 1
+        assert after.self_player_id == before.self_player_id
+        retained = next(item for item in before.self_items if item.instance_id == 8)
+        assert retained.model_id == 215
+        # This operation is selected from the observed state change. V1 has
+        # no bound consumption payload, so it is NOT an event-complete replay.
+        assert all(
+            not event.self_item_payload_bound
+            for event in after.events
+            if event.action in {"useAttackItems", "useDefenseItems"}
+        )
+        replay.perform_retained_miracle(np.asarray(item_row(retained), np.int64))
+        for event in after.events:
+            if event.action == "gift" and event.self_item_payload_bound:
+                assert event.item is not None and event.overflow_item is None
+                replay.gift(np.asarray(item_row(event.item), np.int64))
+        np.testing.assert_array_equal(
+            replay.snapshot(), rows([item_row(item) for item in after.self_items])
+        )
+    assert replay.size == 11
+    assert replay.retained_miracle_use_count == 2
+    assert replay.consumed_item_count == 0
+    assert replay.gift_item_count == 2
+    assert snapshots[0].self_items[-1].used is None
+    assert snapshots[1].self_items[-2].used is True
+    assert snapshots[2].self_items[-2].used is True
+
+
+def test_first_use_and_reuse_retain_id_and_model_without_consumption_or_redraw() -> None:
+    replay = inventory([[1, 215, 0, 0], [2, 23, 0, 0], [3, 215, 0, 1]])
+    replay.configure_retained_miracles(np.asarray([215], np.int64))
+    initial = replay.snapshot()
+    replay.perform_retained_miracle(np.asarray([1, 215, 0, 0], np.int64))
+    np.testing.assert_array_equal(
+        replay.snapshot(), rows([[2, 23, 0, 0], [3, 215, 0, 1], [1, 215, 0, 1]])
+    )
+    replay.perform_retained_miracle(np.asarray([3, 215, 0, 1], np.int64))
+    np.testing.assert_array_equal(
+        replay.snapshot(), rows([[2, 23, 0, 0], [1, 215, 0, 1], [3, 215, 0, 1]])
+    )
+    assert replay.retained_miracle_use_count == 2
+    assert replay.consumed_item_count == replay.gift_item_count == 0
+    np.testing.assert_array_equal(initial, rows([[1, 215, 0, 0], [2, 23, 0, 0], [3, 215, 0, 1]]))
+
+
+@pytest.mark.parametrize(
+    "item, message",
+    [
+        ([1, 23, 0, 0], "allowlisted"),
+        ([2, 215, 23, 0], "undisguised"),
+        ([2, 215, 0, 1], "differs from owned"),
+        ([3, 215, 0, 0], "differs from owned"),
+        ([4, 215, 0, 0], "differs from owned"),
+        ([0, 215, 0, 0], "safe"),
+        ([2, 215, 0, 2], "boolean"),
+    ],
+)
+def test_failed_retention_is_atomic(item: list[int], message: str) -> None:
+    replay = inventory([[1, 23, 0, 0], [2, 215, 0, 0], [3, 211, 0, 0]])
+    replay.configure_retained_miracles(np.asarray([215], np.int64))
+    before = replay.snapshot()
+    with pytest.raises(ValueError, match=message):
+        replay.perform_retained_miracle(np.asarray(item, np.int64))
+    np.testing.assert_array_equal(replay.snapshot(), before)
+    assert replay.retained_miracle_use_count == 0
+
+
+@pytest.mark.parametrize(
+    "models, message",
+    [
+        ([215, 215], "distinct"),
+        ([0], "positive safe"),
+        ([-1], "positive safe"),
+        ([9007199254740992], "positive safe"),
+        ([23], "disjoint"),
+        (list(range(1, 514)), "exceeds"),
+    ],
+)
+def test_invalid_retention_configuration_is_atomic(models: list[int], message: str) -> None:
+    replay = inventory([[1, 215, 0, 0]])
+    before = replay.snapshot()
+    with pytest.raises(ValueError, match=message):
+        replay.configure_retained_miracles(np.asarray(models, np.int64))
+    assert not replay.retained_miracles_configured
+    np.testing.assert_array_equal(replay.snapshot(), before)
+    replay.configure_retained_miracles(np.asarray([215], np.int64))
+    assert replay.retained_miracles_configured
+
+
+@pytest.mark.parametrize("operation", ["gift", "consume", "empty_consume", "retain"])
+def test_retention_configuration_cannot_change_after_successful_operations(operation: str) -> None:
+    replay = inventory([[1, 215, 0, 0], [2, 23, 0, 0]])
+    if operation == "gift":
+        replay.gift(np.asarray([3, 142, 0, 0], np.int64))
+    elif operation == "consume":
+        replay.consume(rows([[2, 23, 0, 0]]))
+    elif operation == "empty_consume":
+        replay.consume(rows([]))
+    else:
+        replay.configure_retained_miracles(np.asarray([215], np.int64))
+        replay.perform_retained_miracle(np.asarray([1, 215, 0, 0], np.int64))
+    with pytest.raises(ValueError, match="unstepped"):
+        replay.configure_retained_miracles(np.asarray([215], np.int64))
+
+
+def test_retention_requires_opt_in_and_never_enters_ordinary_consumption() -> None:
+    replay = inventory([[1, 215, 0, 0]])
+    with pytest.raises(ValueError, match="configured"):
+        replay.perform_retained_miracle(np.asarray([1, 215, 0, 0], np.int64))
+    replay.configure_retained_miracles(np.asarray([215], np.int64))
+    with pytest.raises(ValueError, match="unconfigured"):
+        replay.configure_retained_miracles(np.asarray([215], np.int64))
+    with pytest.raises(ValueError, match="unsupported"):
+        replay.consume(rows([[1, 215, 0, 0]]))
+    replay.perform_retained_miracle(np.asarray([1, 215, 0, 0], np.int64))
+    with pytest.raises(ValueError, match="unsupported"):
+        replay.consume(rows([[1, 215, 0, 1]]))
+    assert replay.size == 1
+
+
+def test_retention_array_contract_and_full_capacity_population_preservation() -> None:
+    replay = inventory([[1, 215, 0, 0]], capacity=1)
+    with pytest.raises(TypeError):
+        replay.configure_retained_miracles(np.asarray([215], np.float64))
+    replay.configure_retained_miracles(np.asarray([215], np.int64))
+    with pytest.raises(TypeError):
+        replay.perform_retained_miracle(np.asarray([1, 215, 0, 0], np.float64))
+    with pytest.raises(TypeError):
+        replay.perform_retained_miracle(rows([[1, 215, 0, 0]]))
+    replay.perform_retained_miracle(np.asarray([1, 215, 0, 0], np.int64))
+    assert replay.size == replay.capacity == 1
+    np.testing.assert_array_equal(replay.snapshot(), rows([[1, 215, 0, 1]]))

@@ -343,13 +343,25 @@ NB_MODULE(_native, module) {
            nb::arg("expected_items").noconvert())
       .def("gift", &godfield_sim::OrderedInventoryReplay::gift,
            nb::arg("item").noconvert())
+      .def("configure_retained_miracles",
+           &godfield_sim::OrderedInventoryReplay::configure_retained_miracles,
+           nb::arg("model_ids").noconvert())
+      .def("perform_retained_miracle",
+           &godfield_sim::OrderedInventoryReplay::perform_retained_miracle,
+           nb::arg("expected_item").noconvert())
       .def("snapshot", &godfield_sim::OrderedInventoryReplay::snapshot)
       .def_prop_ro("size", &godfield_sim::OrderedInventoryReplay::size)
       .def_prop_ro("capacity", &godfield_sim::OrderedInventoryReplay::capacity)
       .def_prop_ro("consumed_item_count",
                    &godfield_sim::OrderedInventoryReplay::consumed_item_count)
       .def_prop_ro("gift_item_count",
-                   &godfield_sim::OrderedInventoryReplay::gift_item_count);
+                   &godfield_sim::OrderedInventoryReplay::gift_item_count)
+      .def_prop_ro(
+          "retained_miracles_configured",
+          &godfield_sim::OrderedInventoryReplay::retained_miracles_configured)
+      .def_prop_ro(
+          "retained_miracle_use_count",
+          &godfield_sim::OrderedInventoryReplay::retained_miracle_use_count);
 
   nb::class_<FixedAttackBatch>(module, "FixedAttackBatch")
       .def(nb::init<std::size_t, godfield_sim::TokenInput,

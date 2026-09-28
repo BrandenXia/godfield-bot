@@ -592,6 +592,98 @@ def test_audit_inconsistent_repeated_version_breaks_next_pair():
     assert report.adjacent_pair_count == 0
 
 
+@pytest.mark.parametrize("boundary", ["source_gap", "server_gap", "self", "players", "invalid"])
+def test_lifecycle_observation_counts_do_not_cross_unsafe_pairs(boundary):
+    first = snapshot(
+        self_items=[
+            {"raw_index": 0, "instance_id": 1, "model_id": 215, "fake_model_id": None, "used": None}
+        ]
+    )
+    second = snapshot(
+        2,
+        self_items=[
+            {
+                "raw_index": 0,
+                "instance_id": 1,
+                "model_id": 215,
+                "fake_model_id": None,
+                "used": True,
+            },
+            {"raw_index": 1, "instance_id": 2, "model_id": 23, "fake_model_id": None, "used": None},
+        ],
+    )
+    if boundary == "source_gap":
+        second = second.model_copy(update={"source_sequence": 3})
+    elif boundary == "server_gap":
+        second = second.model_copy(update={"update_count": 3})
+    elif boundary == "self":
+        second = second.model_copy(update={"self_player_id": 2})
+    elif boundary == "players":
+        second = second.model_copy(update={"player_count": 3})
+    else:
+        second = second.model_copy(
+            update={"self_items": (second.self_items[0].model_copy(update={"instance_id": None}),)}
+        )
+    report = audit_acquisition_batches((batch(first, second),))
+    assert report.raw_used_true_observation_count == 1
+    assert report.owned_inventory_growth_pair_count == 0
+    assert report.client_interpreted_used_activation_count == 0
+
+
+@pytest.mark.parametrize("replaced", ["model", "fake_model", "gift"])
+def test_used_activation_does_not_treat_replaced_or_changed_identity_as_retained(replaced):
+    initial = {
+        "raw_index": 0,
+        "instance_id": 1,
+        "model_id": 215,
+        "fake_model_id": None,
+        "used": None,
+    }
+    current = {**initial, "used": True}
+    events = []
+    if replaced == "model":
+        current["model_id"] = 211
+    elif replaced == "fake_model":
+        current["fake_model_id"] = 211
+    else:
+        events = [event("gift", bound=True, item=current)]
+    report = audit_acquisition_batches(
+        (batch(snapshot(self_items=[initial]), snapshot(2, self_items=[current], events=events)),)
+    )
+    assert report.client_interpreted_used_activation_count == 0
+
+
+def test_missing_raw_used_flags_remain_unknown_and_unpinned_client_is_not_interpreted():
+    first = snapshot(
+        self_items=[
+            {"raw_index": 0, "instance_id": 1, "model_id": 215, "fake_model_id": None, "used": None}
+        ]
+    )
+    second = snapshot(
+        2,
+        self_items=[
+            {"raw_index": 0, "instance_id": 1, "model_id": 215, "fake_model_id": None, "used": True}
+        ],
+    )
+    saved = batch(first, second)
+    report = audit_acquisition_batches((saved,))
+    assert report.unknown_used_flag_count == report.raw_used_true_observation_count == 1
+    assert report.client_interpreted_used_activation_count == 1
+    other_client = "c" * 64
+    saved = saved.model_copy(
+        update={
+            "client_sha256": other_client,
+            "input_sha256": acquisition_batch_digest(
+                other_client, saved.catalog_sha256, saved.status, saved.snapshots
+            ),
+        }
+    )
+    report = audit_acquisition_batches((saved,))
+    assert not report.pinned_client_interpretation_applied
+    assert report.client_interpreted_used_activation_count == 0
+    assert report.unknown_used_flag_count == 1
+
+
 def test_audit_is_read_only_deterministic_and_rejects_digest_tampering(tmp_path):
     store, run = make_store(tmp_path)
     store.append_event(run.run_id, EventKind.EVIDENCE, batch(snapshot()))

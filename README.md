@@ -1065,6 +1065,14 @@ building block, not a new training curriculum; miracles, gift scheduling, and
 overflow still need verified lifecycle fixtures. See
 [ADR 0064](docs/architecture/0064-verified-ordinary-inventory-replay.md).
 
+Native 0.35.0 adds explicit retained-miracle replay support. Two inventory
+transitions from the older v1 run `f456703e-a514-44fc-b474-ba95a676b264` retain
+the same `<Flame>` instance/model, including reuse after its used flag is true.
+The replay matches those ordered states, but missing v1 consumption bodies mean
+this is not a complete event replay or training-label source. Full v2 miracle
+coverage, overflow/removal, and gift scheduling remain the next boundary.
+See [ADR 0065](docs/architecture/0065-retained-miracle-observation-replay.md).
+
 For further bounded collection against the official Training computer, with the
 existing heuristic keeping control:
 
@@ -1087,6 +1095,11 @@ This read-only report exposes missing source/server versions, hook and delivery
 failures, raw unknown flags, separately interpreted client-unused counts,
 ownership coverage, and reviewed event counts. Its audit schema version is 2;
 `capture_schema_versions` identifies whether the actual evidence is v1 or v2.
+It also reports raw true-flag observations, inventory-growth pairs, and
+client-interpreted used activations. Growth/activation comparisons never cross
+source/server gaps, invalid identities, or changed player membership counts;
+replacement gifts and changed model identities cannot count as retained
+activations. These are observations, not cast counts or causal rule labels.
 Even a clean transport report is not evidence for adopting acquisition rules.
 Do not start a concurrent campaign on the same browser profile. Capture and
 review contiguous fixtures before changing C++ consumption/gift/overflow

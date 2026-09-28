@@ -114,3 +114,20 @@ a resource bound, not an official maximum. Overflow removal, performed-miracle
 retention, trade/discard effects, gift timing, and random acquisition are not
 inferred. Evidence and generated trajectories are not admitted to training or
 promotion by this API. See root ADR 0064.
+
+Version 0.35.0 extends this diagnostic replay to schema 2 with an explicit
+retained-miracle operation. Before any operation, call
+`configure_retained_miracles(model_ids)` once with a catalog-verified allowlist
+disjoint from ordinary consumables. `perform_retained_miracle(expected_item)`
+requires an exact owned, undisguised item, retains its instance/model, sets used
+to 1, and appends it to the tail. Both first use and an already-used item are
+accepted; population and ordinary-consumption/gift counters do not change.
+Successful operation counts and configuration state are exposed separately.
+
+The official observation fixture uses only `<Flame>`/model 215 and reproduces
+two contiguous v1 inventory pairs. V1 consumption bodies are missing, so these
+are observed-state replays, not full event verification or training examples.
+Miracle configuration cannot change after any successful operation, including
+an empty selection. Disguises, mixed selections, automatic lifecycle dispatch,
+MP/combat, overflow, and scheduling remain outside this operation. Ordinary-only
+constructor and method behavior remain supported. See root ADR 0065.

@@ -91,6 +91,7 @@ void OrderedInventoryReplay::consume(InventoryInput expected_items) {
     return selected.contains(item[0]);
   });
   consumed_item_count_ += static_cast<std::uint64_t>(selected.size());
+  has_operations_ = true;
 }
 
 void OrderedInventoryReplay::gift(InventoryItemInput input) {
@@ -106,6 +107,59 @@ void OrderedInventoryReplay::gift(InventoryItemInput input) {
   }
   items_.push_back(item);
   ++gift_item_count_;
+  has_operations_ = true;
+}
+
+void OrderedInventoryReplay::configure_retained_miracles(
+    ActionInput model_ids) {
+  if (retained_miracles_configured_ || has_operations_) {
+    throw std::invalid_argument("retained miracle configuration requires an "
+                                "unconfigured unstepped replay");
+  }
+  if (model_ids.shape(0) > kMaximumInventoryReplayItems) {
+    throw std::invalid_argument(
+        "retained miracle allowlist exceeds replay bound");
+  }
+  std::unordered_set<std::int64_t> models;
+  for (std::size_t index = 0; index < model_ids.shape(0); ++index) {
+    const auto model_id = model_ids(index);
+    if (!positive_safe_integer(model_id) || !models.insert(model_id).second) {
+      throw std::invalid_argument(
+          "retained miracle allowlist requires distinct positive safe IDs");
+    }
+    if (ordinary_consumable_models_.contains(model_id)) {
+      throw std::invalid_argument(
+          "retained miracle and ordinary model allowlists must be disjoint");
+    }
+  }
+  retained_miracle_models_ = std::move(models);
+  retained_miracles_configured_ = true;
+}
+
+void OrderedInventoryReplay::perform_retained_miracle(
+    InventoryItemInput input) {
+  Item item{input(0), input(1), input(2), input(3)};
+  validate_item(item);
+  if (!retained_miracles_configured_ ||
+      !retained_miracle_models_.contains(item[1]) || item[2] != 0) {
+    throw std::invalid_argument(
+        "retention requires a configured allowlisted undisguised miracle");
+  }
+  const auto owned = std::find_if(
+      items_.begin(), items_.end(),
+      [&item](const Item &candidate) { return candidate[0] == item[0]; });
+  if (owned == items_.end() || *owned != item) {
+    throw std::invalid_argument("retained miracle differs from owned artifact");
+  }
+  // This is an explicit, single-item inventory operation, NOT automatic
+  // consumption dispatch or a claim about all official miracle combinations.
+  // The witnessed Flame transitions retain the ID/model, mark it used, and
+  // move it to the tail on both first use and reuse. MP/combat are untouched.
+  item[3] = 1;
+  items_.erase(owned);
+  items_.push_back(item); // capacity was reserved; population is unchanged.
+  ++retained_miracle_use_count_;
+  has_operations_ = true;
 }
 
 Int64_2D OrderedInventoryReplay::snapshot() const {

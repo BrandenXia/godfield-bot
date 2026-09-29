@@ -1265,6 +1265,13 @@ This leaves observed replay, the existing C++ training curriculum, model
 promotion, and live control unchanged. See
 [ADR 0076](docs/architecture/0076-provisional-soap-layer.md).
 
+To inspect the next native ruleset gap without mistaking card inclusion for
+mechanics fidelity, run `godfield-bot simulation coverage-report`. Against the
+pinned Bible, the latest trainable curriculum configures 196 of 291 artifacts;
+the report lists the other 95 by category. Its full-game readiness and promotion
+flags remain false, even if the artifact count later reaches 291. Isolated
+provisional components such as Soap are excluded from the trainable count.
+
 A later private-room trace contains one self-targeted Nocturnal Broom-style
 `removeItems` event. Its explicit three selected cards disappear in the next
 inventory, and native 0.36.0/schema 3 can reproduce that narrow operation with

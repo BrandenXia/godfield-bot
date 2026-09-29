@@ -2572,6 +2572,27 @@ def simulation_provisional_soap_plan(
     typer.echo(plan.model_dump_json(indent=2))
 
 
+@simulation_app.command("coverage-report")
+def simulation_coverage_report(
+    snapshot: Annotated[Path, typer.Option(exists=True, dir_okay=False, readable=True)] = Path(
+        "data", "snapshots", "2026-09-20", "bible.json"
+    ),
+) -> None:
+    """List missing artifacts in the latest native curriculum; not a fidelity gate."""
+
+    from godfield_bot.simulation import SimulationUnavailableError
+    from godfield_bot.simulation_coverage import build_simulation_coverage_report
+
+    try:
+        report = build_simulation_coverage_report(snapshot)
+    except (OSError, ValueError, SimulationUnavailableError) as error:
+        structlog.get_logger().error(
+            "simulation_coverage_report_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
 @simulation_app.command("trace-game")
 def simulation_trace_game(
     model: Annotated[Path, typer.Argument(exists=True, file_okay=False, readable=True)],

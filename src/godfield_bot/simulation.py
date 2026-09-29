@@ -193,6 +193,7 @@ class AttackDefenseSimulation:
 
     batch: AttackDefenseBatch
     metadata: SimulationMetadata
+    catalog_token_ids: tuple[int, ...] = ()
 
 
 def simulation_feature_tensors(
@@ -2925,8 +2926,15 @@ def create_attack_defense_simulation(
             "elemental-dream-resource-gift-weighted-9-to-18-initial-capacity-18-"
             "redraw-with-base-liveness"
         )
+    catalog_token_ids: list[int] = []
+    for row in catalog:
+        token_id = row["token_id"]
+        if not isinstance(token_id, int):
+            raise ValueError("native rule catalog has a non-integer token ID")
+        catalog_token_ids.append(token_id)
     return AttackDefenseSimulation(
         batch=batch,
+        catalog_token_ids=tuple(catalog_token_ids),
         metadata=SimulationMetadata(
             kernel_schema_version=kernel_schema_version,
             observation_schema_version=observation_schema_version,

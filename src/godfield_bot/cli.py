@@ -2616,13 +2616,31 @@ def simulation_guardian_batch_plan(
     batch_size: Annotated[int, typer.Option(min=1, max=2_000_000)] = 512,
     player_count: Annotated[int, typer.Option(min=2, max=9)] = 2,
     slots_per_environment: Annotated[int, typer.Option(min=1, max=64)] = 8,
+    combat: Annotated[
+        bool, typer.Option(help="Include provisional basic guardian combat.")
+    ] = False,
+    initial_hp: Annotated[int, typer.Option(min=1, max=100)] = 40,
 ) -> None:
     """Inspect a separate native guardian lifecycle batch; not a training gate."""
 
-    from godfield_bot.guardian_batch import create_provisional_guardian_batch
+    from godfield_bot.guardian_batch import (
+        create_provisional_guardian_batch,
+        create_provisional_guardian_combat_batch,
+    )
     from godfield_bot.provisional_rules import ProvisionalRuleUnavailableError
 
     try:
+        if combat:
+            combat_created = create_provisional_guardian_combat_batch(
+                catalog_path=catalog,
+                bible_path=bible,
+                batch_size=batch_size,
+                player_count=player_count,
+                slots_per_environment=slots_per_environment,
+                initial_hp=initial_hp,
+            )
+            typer.echo(combat_created.metadata.model_dump_json(indent=2))
+            return
         created = create_provisional_guardian_batch(
             catalog_path=catalog,
             bible_path=bible,

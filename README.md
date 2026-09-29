@@ -1311,6 +1311,13 @@ curricula. It has no game-turn `step`, effect resolution, local-training
 eligibility, or live promotion path. See
 [ADR 0080](docs/architecture/0080-versioned-guardian-lifecycle-batch.md).
 
+Add `--combat` to `simulation guardian-batch-plan` to inspect the new basic
+guardian combat batch. It supports explicit targeting, caller-supplied hit
+tickets, elemental defense, and HP loss for 21 catalog attacks; the other 19
+weighted effects are rejected without resampling. The inspection report still
+marks local training, full-game readiness, and promotion false. See
+[ADR 0081](docs/architecture/0081-provisional-guardian-combat-phases.md).
+
 A later private-room trace contains one self-targeted Nocturnal Broom-style
 `removeItems` event. Its explicit three selected cards disappear in the next
 inventory, and native 0.36.0/schema 3 can reproduce that narrow operation with

@@ -14,6 +14,7 @@ nanobind_add_module(
   src/provisional_soap.cpp
   src/provisional_guardian.cpp
   src/guardian_lifecycle_batch.cpp
+  src/guardian_combat_batch.cpp
 )
 target_compile_features(_native PRIVATE cxx_std_20)
 

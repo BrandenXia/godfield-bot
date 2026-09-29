@@ -133,19 +133,32 @@ GuardianModelOutput GuardianLifecycleBatch::attack_models(
   require_same_length(count, tickets);
   auto buffer = std::make_unique<std::int64_t[]>(std::max<std::size_t>(count, 1));
   for (std::size_t row = 0; row < count; ++row) {
-    const auto index = checked_index(environments(row), slots(row));
-    const auto &entry = state_[index];
-    if (expected_instance_ids(row) <= 0 ||
-        entry[0] != expected_instance_ids(row)) {
-      throw std::invalid_argument("guardian attack differs from active instance");
-    }
-    buffer[row] = picker_.model_for_ticket(entry[2], tickets(row));
+    buffer[row] = attack_model_for(environments(row), slots(row),
+                                  expected_instance_ids(row), tickets(row));
   }
   nb::capsule owner(buffer.get(), [](void *pointer) noexcept {
     delete[] static_cast<std::int64_t *>(pointer);
   });
   const auto *data = buffer.release();
   return GuardianModelOutput(data, {count}, owner);
+}
+
+std::int64_t GuardianLifecycleBatch::owner_for(
+    std::int64_t environment, std::int64_t slot,
+    std::int64_t expected_instance_id) const {
+  const auto &entry = state_[checked_index(environment, slot)];
+  if (expected_instance_id <= 0 || entry[0] != expected_instance_id) {
+    throw std::invalid_argument("guardian attack differs from active instance");
+  }
+  return entry[1];
+}
+
+std::int64_t GuardianLifecycleBatch::attack_model_for(
+    std::int64_t environment, std::int64_t slot,
+    std::int64_t expected_instance_id, std::int64_t ticket) const {
+  (void)owner_for(environment, slot, expected_instance_id);
+  const auto &entry = state_[checked_index(environment, slot)];
+  return picker_.model_for_ticket(entry[2], ticket);
 }
 
 GuardianStateSnapshot GuardianLifecycleBatch::snapshot() const {

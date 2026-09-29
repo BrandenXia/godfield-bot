@@ -4,6 +4,7 @@
 #include "provisional_soap.h"
 #include "provisional_guardian.h"
 #include "guardian_lifecycle_batch.h"
+#include "guardian_combat_batch.h"
 
 #include <nanobind/nanobind.h>
 
@@ -349,6 +350,40 @@ NB_MODULE(_native, module) {
       godfield_sim::kGuardianLifecycleObservationSchemaVersion;
   module.attr("GUARDIAN_LIFECYCLE_RULESET_ID") =
       godfield_sim::kGuardianLifecycleRulesetId;
+  module.attr("GUARDIAN_COMBAT_KERNEL_SCHEMA_VERSION") =
+      godfield_sim::kGuardianCombatKernelSchemaVersion;
+  module.attr("GUARDIAN_COMBAT_OBSERVATION_SCHEMA_VERSION") =
+      godfield_sim::kGuardianCombatObservationSchemaVersion;
+  module.attr("GUARDIAN_COMBAT_RULESET_ID") = godfield_sim::kGuardianCombatRulesetId;
+  nb::class_<godfield_sim::GuardianCombatBatch>(module, "GuardianCombatBatch")
+      .def(nb::init<std::size_t, std::size_t, std::size_t,
+                    godfield_sim::GuardianWeightInput,
+                    godfield_sim::GuardianWeightInput, std::uint16_t>(),
+           nb::arg("batch_size"), nb::arg("player_count"),
+           nb::arg("slots_per_environment"),
+           nb::arg("weighted_profiles").noconvert(),
+           nb::arg("basic_attack_profiles").noconvert(), nb::arg("initial_hp") = 40)
+      .def("summon", &godfield_sim::GuardianCombatBatch::summon,
+           nb::arg("environments").noconvert(), nb::arg("slots").noconvert(),
+           nb::arg("instances").noconvert(), nb::arg("owners").noconvert(),
+           nb::arg("groups").noconvert())
+      .def("remove", &godfield_sim::GuardianCombatBatch::remove,
+           nb::arg("environments").noconvert(), nb::arg("slots").noconvert(),
+           nb::arg("instances").noconvert())
+      .def("reset_environments", &godfield_sim::GuardianCombatBatch::reset_environments,
+           nb::arg("environments").noconvert())
+      .def("begin_attacks", &godfield_sim::GuardianCombatBatch::begin_attacks,
+           nb::arg("environments").noconvert(), nb::arg("slots").noconvert(),
+           nb::arg("instances").noconvert(), nb::arg("targets").noconvert(),
+           nb::arg("selection_tickets").noconvert(), nb::arg("hit_tickets").noconvert())
+      .def("resolve_defenses", &godfield_sim::GuardianCombatBatch::resolve_defenses,
+           nb::arg("environments").noconvert(), nb::arg("defense_values").noconvert(),
+           nb::arg("defense_elements").noconvert())
+      .def("guardian_snapshot", &godfield_sim::GuardianCombatBatch::guardian_snapshot)
+      .def("hp_snapshot", &godfield_sim::GuardianCombatBatch::hp_snapshot)
+      .def("combat_snapshot", &godfield_sim::GuardianCombatBatch::combat_snapshot)
+      .def_prop_ro("resolved_attack_count",
+                   &godfield_sim::GuardianCombatBatch::resolved_attack_count);
   nb::class_<godfield_sim::GuardianLifecycleBatch>(module,
                                                    "GuardianLifecycleBatch")
       .def(nb::init<std::size_t, std::size_t, std::size_t,

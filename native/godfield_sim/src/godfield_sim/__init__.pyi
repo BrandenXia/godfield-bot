@@ -11,6 +11,9 @@ ORDERED_INVENTORY_REPLAY_RULESET_ID: Final[str]
 GUARDIAN_LIFECYCLE_KERNEL_SCHEMA_VERSION: Final[int]
 GUARDIAN_LIFECYCLE_OBSERVATION_SCHEMA_VERSION: Final[int]
 GUARDIAN_LIFECYCLE_RULESET_ID: Final[str]
+GUARDIAN_COMBAT_KERNEL_SCHEMA_VERSION: Final[int]
+GUARDIAN_COMBAT_OBSERVATION_SCHEMA_VERSION: Final[int]
+GUARDIAN_COMBAT_RULESET_ID: Final[str]
 PROVISIONAL_GUARDIAN_SCHEMA_VERSION: Final[int]
 PROVISIONAL_GUARDIAN_RULESET_ID: Final[str]
 PROVISIONAL_SOAP_SCHEMA_VERSION: Final[int]
@@ -203,6 +206,37 @@ class OrderedInventoryReplay:
     def observed_removals_configured(self) -> bool: ...
     @property
     def observed_removal_count(self) -> int: ...
+
+class GuardianCombatBatch:
+    def __init__(
+        self, batch_size: int, player_count: int, slots_per_environment: int,
+        weighted_profiles: npt.NDArray[np.int64],
+        basic_attack_profiles: npt.NDArray[np.int64], initial_hp: int = ...,
+    ) -> None: ...
+    def summon(
+        self, environments: npt.NDArray[np.int64], slots: npt.NDArray[np.int64],
+        instances: npt.NDArray[np.int64], owners: npt.NDArray[np.int64],
+        groups: npt.NDArray[np.int64],
+    ) -> None: ...
+    def remove(
+        self, environments: npt.NDArray[np.int64], slots: npt.NDArray[np.int64],
+        instances: npt.NDArray[np.int64],
+    ) -> None: ...
+    def reset_environments(self, environments: npt.NDArray[np.int64]) -> None: ...
+    def begin_attacks(
+        self, environments: npt.NDArray[np.int64], slots: npt.NDArray[np.int64],
+        instances: npt.NDArray[np.int64], targets: npt.NDArray[np.int64],
+        selection_tickets: npt.NDArray[np.int64], hit_tickets: npt.NDArray[np.int64],
+    ) -> None: ...
+    def resolve_defenses(
+        self, environments: npt.NDArray[np.int64], defense_values: npt.NDArray[np.int64],
+        defense_elements: npt.NDArray[np.int64],
+    ) -> None: ...
+    def guardian_snapshot(self) -> npt.NDArray[np.int64]: ...
+    def hp_snapshot(self) -> npt.NDArray[np.int64]: ...
+    def combat_snapshot(self) -> npt.NDArray[np.int64]: ...
+    @property
+    def resolved_attack_count(self) -> int: ...
 
 class GuardianLifecycleBatch:
     def __init__(

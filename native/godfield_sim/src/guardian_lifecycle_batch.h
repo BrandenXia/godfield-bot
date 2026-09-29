@@ -38,6 +38,12 @@ public:
       ActionInput environments, ActionInput slots,
       ActionInput expected_instance_ids, ActionInput tickets) const;
   [[nodiscard]] GuardianStateSnapshot snapshot() const;
+  [[nodiscard]] std::int64_t owner_for(std::int64_t environment,
+                                      std::int64_t slot,
+                                      std::int64_t expected_instance_id) const;
+  [[nodiscard]] std::int64_t attack_model_for(
+      std::int64_t environment, std::int64_t slot,
+      std::int64_t expected_instance_id, std::int64_t ticket) const;
 
   [[nodiscard]] std::size_t batch_size() const noexcept { return batch_size_; }
   [[nodiscard]] std::size_t player_count() const noexcept { return player_count_; }

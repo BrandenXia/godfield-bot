@@ -8,6 +8,8 @@ OBSERVATION_SCHEMA_VERSION: Final[int]
 RULESET_ID: Final[str]
 ORDERED_INVENTORY_REPLAY_SCHEMA_VERSION: Final[int]
 ORDERED_INVENTORY_REPLAY_RULESET_ID: Final[str]
+PROVISIONAL_SOAP_SCHEMA_VERSION: Final[int]
+PROVISIONAL_SOAP_RULESET_ID: Final[str]
 ACTION_COUNT: Final[int]
 HAND_SLOTS: Final[int]
 ATTACK_DEFENSE_KERNEL_SCHEMA_VERSION: Final[int]
@@ -196,6 +198,20 @@ class OrderedInventoryReplay:
     def observed_removals_configured(self) -> bool: ...
     @property
     def observed_removal_count(self) -> int: ...
+
+class ProvisionalSoapProjection:
+    def __init__(
+        self,
+        initial_items: npt.NDArray[np.int64],
+        miracle_model_ids: npt.NDArray[np.int64],
+        capacity: int = ...,
+    ) -> None: ...
+    def wash_selected_two(self, expected_items: npt.NDArray[np.int64]) -> None: ...
+    def snapshot(self) -> npt.NDArray[np.int64]: ...
+    @property
+    def size(self) -> int: ...
+    @property
+    def removed_item_count(self) -> int: ...
 
 class FixedAttackBatch:
     def __init__(

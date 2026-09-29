@@ -173,3 +173,15 @@ validates all of them before mutation. It does not infer selected items from
 an inventory difference, simulate the Broom card or opponent, or enter the
 training curriculum. The same server update has an omitted defense array, so
 the full acquisition differential remains unsupported. See root ADR 0074.
+
+Version 0.37.0 adds a **separate provisional** `ProvisionalSoapProjection`,
+schema 1/ruleset `catalog-derived-selected-two-used-miracles-provisional-v1`.
+The pinned catalog identifies model 206 as `removeUsedMiracles`, while the
+pinned Bible describes washing away two performed miracles. The caller supplies
+the 30 catalog miracle models and an explicit two-item selection. The primitive
+requires both rows to be exact owned, used, undisguised miracles, validates the
+whole selection atomically, and preserves survivor order. It does not choose
+targets, determine whether fewer than two can be removed, simulate the card's
+cost or replacement gifts, or assert official fidelity. There is no `step` or
+training interface. The observed replay schema 3 and all existing curriculum
+identities remain unchanged. See root ADR 0076.

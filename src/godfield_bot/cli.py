@@ -2541,6 +2541,37 @@ def models_evaluate_live_shadow(
     typer.echo(result.model_dump_json(indent=2))
 
 
+@simulation_app.command("provisional-soap-plan")
+def simulation_provisional_soap_plan(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False, readable=True)] = Path(
+        "data", "snapshots", "2026-09-21", "api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False, readable=True)] = Path(
+        "data", "snapshots", "2026-09-20", "bible.json"
+    ),
+) -> None:
+    """Inspect an unvalidated local Soap hypothesis; never a training gate."""
+
+    from godfield_bot.api_catalog import read_api_catalog_snapshot
+    from godfield_bot.domain.reference import BibleSnapshot
+    from godfield_bot.provisional_rules import (
+        ProvisionalRuleUnavailableError,
+        build_provisional_soap_plan,
+    )
+
+    try:
+        plan = build_provisional_soap_plan(
+            read_api_catalog_snapshot(catalog),
+            BibleSnapshot.model_validate_json(bible.read_text(encoding="utf-8")),
+        )
+    except (OSError, ValueError, ProvisionalRuleUnavailableError) as error:
+        structlog.get_logger().error(
+            "provisional_soap_plan_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(plan.model_dump_json(indent=2))
+
+
 @simulation_app.command("trace-game")
 def simulation_trace_game(
     model: Annotated[Path, typer.Argument(exists=True, file_okay=False, readable=True)],

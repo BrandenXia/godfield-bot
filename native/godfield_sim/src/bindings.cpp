@@ -1,6 +1,7 @@
 #include "attack_defense_batch.h"
 #include "fixed_attack_batch.h"
 #include "ordered_inventory.h"
+#include "provisional_soap.h"
 
 #include <nanobind/nanobind.h>
 
@@ -332,6 +333,24 @@ NB_MODULE(_native, module) {
       godfield_sim::kOrderedInventoryReplaySchemaVersion;
   module.attr("ORDERED_INVENTORY_REPLAY_RULESET_ID") =
       godfield_sim::kOrderedInventoryReplayRulesetId;
+  module.attr("PROVISIONAL_SOAP_SCHEMA_VERSION") =
+      godfield_sim::kProvisionalSoapSchemaVersion;
+  module.attr("PROVISIONAL_SOAP_RULESET_ID") =
+      godfield_sim::kProvisionalSoapRulesetId;
+  nb::class_<godfield_sim::ProvisionalSoapProjection>(
+      module, "ProvisionalSoapProjection")
+      .def(nb::init<godfield_sim::InventoryInput, godfield_sim::ActionInput,
+                    std::size_t>(),
+           nb::arg("initial_items").noconvert(),
+           nb::arg("miracle_model_ids").noconvert(),
+           nb::arg("capacity") = godfield_sim::kMaximumInventoryReplayItems)
+      .def("wash_selected_two",
+           &godfield_sim::ProvisionalSoapProjection::wash_selected_two,
+           nb::arg("expected_items").noconvert())
+      .def("snapshot", &godfield_sim::ProvisionalSoapProjection::snapshot)
+      .def_prop_ro("size", &godfield_sim::ProvisionalSoapProjection::size)
+      .def_prop_ro("removed_item_count",
+                   &godfield_sim::ProvisionalSoapProjection::removed_item_count);
   nb::class_<godfield_sim::OrderedInventoryReplay>(module,
                                                    "OrderedInventoryReplay")
       .def(nb::init<godfield_sim::InventoryInput, godfield_sim::ActionInput,

@@ -1251,6 +1251,20 @@ missing/ambiguous events and other mechanics remain visible. Neither the C++
 training curriculum nor live neural control changed. See
 [ADR 0075](docs/architecture/0075-private-ordinary-selection-projection.md).
 
+The first isolated provisional rule component models a caller-selected
+two-performed-miracle removal for Goddess's Soap from the pinned catalog and
+Bible. It is **not** official evidence or a trainable environment. Inspect its
+source pins, assumptions, and false eligibility flags offline with:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --locked --offline --extra simulation --extra training \
+  godfield-bot simulation provisional-soap-plan
+```
+
+This leaves observed replay, the existing C++ training curriculum, model
+promotion, and live control unchanged. See
+[ADR 0076](docs/architecture/0076-provisional-soap-layer.md).
+
 A later private-room trace contains one self-targeted Nocturnal Broom-style
 `removeItems` event. Its explicit three selected cards disappear in the next
 inventory, and native 0.36.0/schema 3 can reproduce that narrow operation with

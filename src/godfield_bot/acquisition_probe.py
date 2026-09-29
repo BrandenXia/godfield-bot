@@ -20,6 +20,9 @@ from godfield_bot.run_store import RunStore
 ACQUISITION_REVIEWED_CLIENT_SHA256 = (
     "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd"
 )
+ACQUISITION_REVIEWED_CATALOG_SHA256 = (
+    "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249"
+)
 # Unknown action bodies are not retained; runner pins this reviewed client.
 REVIEWED_EVENT_ACTIONS = frozenset(
     [

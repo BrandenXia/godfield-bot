@@ -30,6 +30,7 @@ from godfield_bot.acquisition_v2 import (
 from godfield_bot.acquisition_v3 import AcquisitionEvidenceBatchV3, AcquisitionSnapshotV3
 from godfield_bot.acquisition_v4 import AcquisitionEvidenceBatchV4
 from godfield_bot.acquisition_v5 import AcquisitionEvidenceBatchV5, AcquisitionSnapshotV5
+from godfield_bot.api_acquisition import PrivateAcquisitionEvidenceBatch, PrivateAcquisitionSummary
 
 AcquisitionBatch = (
     AcquisitionEvidenceBatch
@@ -37,13 +38,15 @@ AcquisitionBatch = (
     | AcquisitionEvidenceBatchV3
     | AcquisitionEvidenceBatchV4
     | AcquisitionEvidenceBatchV5
+    | PrivateAcquisitionEvidenceBatch
 )
+AcquisitionSummary = AcquisitionCollectorSummary | PrivateAcquisitionSummary
 
 
 class AcquisitionEvidenceAudit(BaseModel):
-    schema_version: Literal[3] = 3
-    source_kind: Literal["official-acquisition-transport-audit-v3"] = (
-        "official-acquisition-transport-audit-v3"
+    schema_version: Literal[4] = 4
+    source_kind: Literal["official-acquisition-transport-audit-v4"] = (
+        "official-acquisition-transport-audit-v4"
     )
     batch_count: int = Field(ge=0)
     stream_count: int = Field(ge=0)
@@ -55,6 +58,8 @@ class AcquisitionEvidenceAudit(BaseModel):
     hook_error_count: int = Field(ge=0)
     hooked_stream_count: int = Field(ge=0)
     listening_stream_count: int = Field(ge=0)
+    api_polled_stream_count: int = Field(ge=0)
+    evidence_delivery_kinds: tuple[str, ...]
     read_error_count: int = Field(ge=0)
     ack_error_count: int = Field(ge=0)
     repeated_server_version_count: int = Field(ge=0)
@@ -97,6 +102,7 @@ class AcquisitionEvidenceAudit(BaseModel):
     terminal_snapshot_seen: bool
     collector_summary_count: int = Field(ge=0)
     final_poll_succeeded: bool | None
+    final_flush_succeeded: bool | None
     collection_issues: tuple[str, ...]
     training_eligible: Literal[False] = False
     promotion_eligible: Literal[False] = False
@@ -107,7 +113,7 @@ def audit_acquisition_batches(
     batches: tuple[AcquisitionBatch, ...],
     *,
     errors: tuple[AcquisitionCollectorError, ...] = (),
-    summaries: tuple[AcquisitionCollectorSummary, ...] = (),
+    summaries: tuple[AcquisitionSummary, ...] = (),
 ) -> AcquisitionEvidenceAudit:
     """Do not bridge document streams, invalid IDs, or skipped source/server updates.
 
@@ -123,9 +129,18 @@ def audit_acquisition_batches(
     )
     rows: dict[str, dict[int, AcquisitionSnapshot]] = {}
     statuses: dict[str, AcquisitionProbeStatus] = {}
+    deliveries: dict[str, str] = {}
     duplicates = 0
     for batch in batches:
         stream = batch.status.stream_id
+        delivery = (
+            "api-polling"
+            if isinstance(batch, PrivateAcquisitionEvidenceBatch)
+            else "browser-snapshot"
+        )
+        if stream in deliveries and deliveries[stream] != delivery:
+            raise ValueError("acquisition stream mixes delivery kinds")
+        deliveries[stream] = delivery
         previous_status = statuses.get(stream)
         if previous_status is not None and any(
             getattr(batch.status, name) < getattr(previous_status, name)
@@ -152,6 +167,15 @@ def audit_acquisition_batches(
                 stream_rows[row.source_sequence] = row
     # The final status is a pre-ack read, not a count of unsaved snapshots.
     for summary in summaries:
+        expected_delivery = (
+            "api-polling" if isinstance(summary, PrivateAcquisitionSummary) else "browser-snapshot"
+        )
+        if any(kind != expected_delivery for kind in deliveries.values()):
+            raise ValueError("collector summary differs from acquisition delivery kind")
+        if isinstance(summary, PrivateAcquisitionSummary) and {
+            status.stream_id for status in summary.streams
+        } != set(statuses):
+            raise ValueError("private collector summary omits saved streams")
         for status in summary.streams:
             if status.stream_id not in statuses or status != statuses[status.stream_id]:
                 raise ValueError("collector summary differs from final saved stream status")
@@ -164,7 +188,7 @@ def audit_acquisition_batches(
     hook_errors = sum(status.hook_error_count for status in statuses.values())
     hooked = sum(status.hook_installed for status in statuses.values())
     listening = sum(status.listener_registrations > 0 for status in statuses.values())
-    collector_events: tuple[AcquisitionCollectorError | AcquisitionCollectorSummary, ...] = (
+    collector_events: tuple[AcquisitionCollectorError | AcquisitionSummary, ...] = (
         *errors,
         *summaries,
     )
@@ -333,6 +357,12 @@ def audit_acquisition_batches(
             previous_valid = valid_ids and consistent
             previous_owned = tuple(owned)
     final_poll = summaries[-1].final_poll_succeeded if summaries else None
+    final_flush = (
+        summaries[-1].final_flush_succeeded
+        if summaries and isinstance(summaries[-1], PrivateAcquisitionSummary)
+        else None
+    )
+    browser_streams = sum(kind == "browser-snapshot" for kind in deliveries.values())
     issues: list[str] = []
     checks = {
         "no_saved_snapshots": saved == 0,
@@ -340,8 +370,8 @@ def audit_acquisition_batches(
         "queue_overflow": dropped > 0,
         "rejected_snapshots": rejected > 0,
         "hook_errors": hook_errors > 0,
-        "unhooked_stream": hooked < len(statuses),
-        "no_listener_in_stream": listening < len(statuses),
+        "unhooked_stream": hooked < browser_streams,
+        "no_listener_in_stream": listening < browser_streams,
         "read_errors": read_errors > 0,
         "ack_errors": ack_errors > 0,
         "inconsistent_server_versions": inconsistent > 0,
@@ -374,6 +404,8 @@ def audit_acquisition_batches(
         hook_error_count=hook_errors,
         hooked_stream_count=hooked,
         listening_stream_count=listening,
+        api_polled_stream_count=sum(kind == "api-polling" for kind in deliveries.values()),
+        evidence_delivery_kinds=tuple(sorted(set(deliveries.values()))),
         read_error_count=read_errors,
         ack_error_count=ack_errors,
         repeated_server_version_count=repeated,
@@ -416,6 +448,7 @@ def audit_acquisition_batches(
         terminal_snapshot_seen=terminal_seen,
         collector_summary_count=len(summaries),
         final_poll_succeeded=final_poll,
+        final_flush_succeeded=final_flush,
         collection_issues=tuple(issues),
     )
 
@@ -431,7 +464,7 @@ class LoadedAcquisitionRun:
     input_sha256: str
     batches: tuple[AcquisitionBatch, ...]
     errors: tuple[AcquisitionCollectorError, ...]
-    summaries: tuple[AcquisitionCollectorSummary, ...]
+    summaries: tuple[AcquisitionSummary, ...]
 
 
 def load_acquisition_run(database: Path, run_id: str) -> LoadedAcquisitionRun:
@@ -452,7 +485,7 @@ def load_acquisition_run(database: Path, run_id: str) -> LoadedAcquisitionRun:
         ).fetchall()
     batches: list[AcquisitionBatch] = []
     errors: list[AcquisitionCollectorError] = []
-    summaries: list[AcquisitionCollectorSummary] = []
+    summaries: list[AcquisitionSummary] = []
     evidence: list[dict[str, object]] = []
     config = json.loads(run["config_json"])
     for row in payloads:
@@ -464,9 +497,12 @@ def load_acquisition_run(database: Path, run_id: str) -> LoadedAcquisitionRun:
             "official-acquisition-evidence-v3",
             "official-acquisition-evidence-v4",
             "official-acquisition-evidence-v5",
+            "private-api-acquisition-evidence-v5",
         }:
             batch: AcquisitionBatch
-            if source == "official-acquisition-evidence-v5":
+            if source == "private-api-acquisition-evidence-v5":
+                batch = PrivateAcquisitionEvidenceBatch.model_validate_json(row["payload_json"])
+            elif source == "official-acquisition-evidence-v5":
                 batch = AcquisitionEvidenceBatchV5.model_validate_json(row["payload_json"])
             elif source == "official-acquisition-evidence-v4":
                 batch = AcquisitionEvidenceBatchV4.model_validate_json(row["payload_json"])
@@ -476,19 +512,47 @@ def load_acquisition_run(database: Path, run_id: str) -> LoadedAcquisitionRun:
                 batch = AcquisitionEvidenceBatchV2.model_validate_json(row["payload_json"])
             else:
                 batch = AcquisitionEvidenceBatch.model_validate_json(row["payload_json"])
+            if isinstance(batch, PrivateAcquisitionEvidenceBatch):
+                if (
+                    run["mode"] != "private"
+                    or batch.api_environment_sha256 != run["client_sha256"]
+                    or not isinstance(config, dict)
+                    or config.get("pygodfield_revision") != batch.pygodfield_revision
+                    or config.get("catalog_sha256") != batch.catalog_sha256
+                    or config.get("acquisition_decoder_client_sha256") != batch.client_sha256
+                    or config.get("acquisition_evidence_transport") != "api-polling"
+                    or config.get("collection_only") is not True
+                    or config.get("training_eligible") is not False
+                    or config.get("promotion_eligible") is not False
+                ):
+                    raise ValueError("private acquisition provenance differs from API run")
+            elif batch.client_sha256 != run["client_sha256"] or run["mode"] != "training":
+                raise ValueError("acquisition provenance differs from Training run")
             if (
-                batch.client_sha256 != run["client_sha256"]
-                or run["mode"] != "training"
-                or not isinstance(config, dict)
+                not isinstance(config, dict)
                 or config.get("acquisition_evidence_probe") is not True
                 or batch.catalog_sha256 != config.get("acquisition_evidence_catalog_sha256")
             ):
-                raise ValueError("acquisition provenance differs from Training run")
+                raise ValueError("acquisition provenance differs from collection run")
             batches.append(batch)
         elif source == "official-acquisition-collector-error-v1":
             errors.append(AcquisitionCollectorError.model_validate_json(row["payload_json"]))
         elif source == "official-acquisition-collector-summary-v1":
+            if run["mode"] != "training":
+                raise ValueError("browser acquisition summary differs from Training run")
             summaries.append(AcquisitionCollectorSummary.model_validate_json(row["payload_json"]))
+        elif source == "private-api-acquisition-collector-summary-v1":
+            if (
+                run["mode"] != "private"
+                or not isinstance(config, dict)
+                or config.get("acquisition_evidence_transport") != "api-polling"
+                or config.get("acquisition_evidence_probe") is not True
+                or config.get("collection_only") is not True
+                or config.get("training_eligible") is not False
+                or config.get("promotion_eligible") is not False
+            ):
+                raise ValueError("private acquisition summary differs from API run")
+            summaries.append(PrivateAcquisitionSummary.model_validate_json(row["payload_json"]))
         else:
             continue
         evidence.append({"sequence": row["sequence"], "payload": payload})
@@ -533,6 +597,9 @@ def audit_loaded_acquisition_run(loaded: LoadedAcquisitionRun) -> dict[str, obje
         "run_id": loaded.run_id,
         "mode": loaded.mode,
         "client_sha256": loaded.client_sha256,
+        "acquisition_decoder_client_sha256": loaded.batches[0].client_sha256
+        if loaded.batches
+        else None,
         "catalog_sha256": loaded.batches[0].catalog_sha256 if loaded.batches else None,
         "declared_capture_schema_version": declared_schema,
         "capture_schema_matches_run_config": schema_match,

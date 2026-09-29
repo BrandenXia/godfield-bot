@@ -19,13 +19,17 @@ from godfield_bot.acquisition_evidence import (
     audit_loaded_acquisition_run,
     load_acquisition_run,
 )
-from godfield_bot.acquisition_probe import AcquisitionItem, AcquisitionSnapshot
+from godfield_bot.acquisition_probe import (
+    ACQUISITION_REVIEWED_CATALOG_SHA256,
+    AcquisitionItem,
+    AcquisitionSnapshot,
+)
 from godfield_bot.acquisition_v2 import AcquisitionSnapshotV2
 from godfield_bot.acquisition_v3 import AcquisitionSnapshotV3
 from godfield_bot.api_catalog import ApiCatalogSnapshot, read_api_catalog_snapshot
 
 REPLAY_PROJECTION_ID = "observed-inventory-projection-verified-ordinary-wire-aware-v4"
-REPLAY_CATALOG_SHA256 = "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249"
+REPLAY_CATALOG_SHA256 = ACQUISITION_REVIEWED_CATALOG_SHA256
 NATIVE_REPLAY_RULESET_ID = "explicit-ordinary-and-retained-miracle-ordered-gift-replay-v2"
 # Only explicit single-item consumption witnessed in the official fixtures:
 # v2 bc54a888 (23, 142), v3 60fe19b4 and cb9da594 (the remaining models). Catalog

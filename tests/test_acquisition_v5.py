@@ -227,7 +227,7 @@ def test_removal_wire_preserves_omitted_null_and_explicit_empty_arrays(fields, k
     capture = v5_read([removal_room(**fields)])
     assert capture.snapshots[0].event_item_wire[-1].items_kind == kind
     audit = audit_acquisition_batches((batch(capture),))
-    assert audit.schema_version == 3
+    assert audit.schema_version == 4
     assert audit.capture_schema_versions == (5,)
     assert audit.self_bound_removal_event_count == 1 and audit.self_bound_removal_item_count == 0
     assert audit.ambiguous_self_removal_event_count == (kind != "array")
@@ -357,7 +357,7 @@ def test_v5_durable_capture_and_read_only_cli_do_not_make_removal_native_or_trai
     assert trace[:3] == ["read", "saved", "ack"]
     original = storage.path.read_bytes()
     report = audit_acquisition_run(storage.path, run.run_id)
-    assert report["schema_version"] == 3 and report["declared_capture_schema_version"] == 5
+    assert report["schema_version"] == 4 and report["declared_capture_schema_version"] == 5
     assert report["capture_schema_versions"] == [5] and report["capture_schema_matches_run_config"]
     assert report["self_bound_removal_item_count"] == 1 and report["final_poll_succeeded"]
     replay = audit_acquisition_replay_run(storage.path, run.run_id, catalog_path=CATALOG)

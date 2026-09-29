@@ -399,6 +399,16 @@ def play_private_api_game(
         int,
         typer.Option(min=1, max=1000, help="Hard in-match API action budget."),
     ] = 500,
+    acquisition_evidence_probe: Annotated[
+        bool,
+        typer.Option(
+            "--acquisition-evidence-probe",
+            help=(
+                "Collection only: capture self-only raw acquisition events from API reads. "
+                "Requires finite time, solo entry, reviewed catalog, and no shadow model."
+            ),
+        ),
+    ] = False,
     request_timeout_seconds: Annotated[
         float,
         typer.Option(min=1.0, max=120.0, help="Per-request API timeout."),
@@ -475,6 +485,7 @@ def play_private_api_game(
                 model_directory=shadow_model,
                 bible_snapshot=bible_snapshot,
                 max_in_match_actions=max_actions,
+                acquisition_evidence_probe=acquisition_evidence_probe,
                 max_seconds=max_seconds,
                 poll_seconds=poll_seconds,
                 no_progress_seconds=no_progress_seconds,

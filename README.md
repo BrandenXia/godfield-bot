@@ -1128,8 +1128,46 @@ The wall-clock cap ends an unfinished game and stops the campaign with
 `aborted:wall_clock_limit`; it is a budget stop, not a freeze. Do not run another
 campaign on the same profile while collecting.
 
-The default pinned catalog is `data/snapshots/2026-09-21/api-catalog-en.json`
-and the queue capacity is 256. Inspect each campaign run ID:
+For human-assisted removal capture, use a **two-player private room**. This is
+not another official-computer campaign. The later three v5 recordings
+`62af4169-69be-4fbf-a552-8c045faed389`, `57fe5532-b8ad-422a-9c2d-8f899f1de061`,
+and `c197e02f-58d1-47b4-a9f7-fb88d05a340f` completed without operational errors,
+but contained no removal event or self-owned browser-supported fixed-attack
+miracle; zero focused selections were expected. More random deals alone do
+not guarantee the missing mechanics evidence.
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --locked --offline --extra simulation --extra training \
+  godfield-bot api play-private --confirm-play --password-stdin \
+  --catalog-snapshot data/snapshots/2026-09-21/api-catalog-en.json \
+  --acquisition-evidence-probe --team 0 --max-seconds 900 \
+  --max-actions 1000 --poll-seconds 0.25 --no-progress-seconds 180
+```
+
+Enter `astra-vs-humans` at the hidden room-key prompt, then join the same room
+on the official website with your **different human account** and enter solo.
+Do not connect another runner/browser session as ロキ-67. Once the bot has
+performed a reusable miracle, use Goddess's Soap on it when you receive that
+card: Soap targets performed miracles, whereas Nocturnal Broom targets unused
+artifacts. No cards are injected, so the deal can still delay this experiment.
+Send the printed `run_id`, even if the relevant card never appeared.
+
+Private capture requires finite positive time, tactical control without a
+model, solo entry, and the explicitly supplied reviewed catalog (normal API
+play retains its older default). It waits past a pre-existing completed game,
+then stops at the first observed match result or an existing safety limit.
+It saves sanitized raw self-event evidence before normalized-state deduplication
+and decisions, using existing API reads. No extra capture requests are made.
+These reads are **polling, not browser push deliveries**: intervening server
+updates may be missed and cannot be reconstructed from inventory differences.
+Room keys, account IDs, arbitrary raw strings, and opponent item bodies never
+enter the evidence. Runs are collection-only and excluded from training
+exports; normal API play is unchanged when the flag is absent. See
+[ADR 0073](docs/architecture/0073-private-api-acquisition-evidence.md).
+
+The browser collector's default pinned catalog is
+`data/snapshots/2026-09-21/api-catalog-en.json` and its queue capacity is 256.
+Inspect each browser or private collection run ID:
 
 ```bash
 UV_CACHE_DIR=.uv-cache uv run --locked --offline --extra simulation --extra training \
@@ -1138,7 +1176,7 @@ UV_CACHE_DIR=.uv-cache uv run --locked --offline --extra simulation --extra trai
 
 This read-only report exposes missing source/server versions, hook and delivery
 failures, raw unknown flags, separately interpreted client-unused counts,
-ownership coverage, and reviewed event counts. Its audit schema version is 3;
+ownership coverage, and reviewed event counts. Its audit schema version is 4;
 `capture_schema_versions` identifies whether the actual evidence is v1–v5.
 It also reports raw true-flag observations, inventory-growth pairs, and
 client-interpreted used activations. Growth/activation comparisons never cross
@@ -1148,9 +1186,15 @@ activations. These are observations, not cast counts or causal rule labels.
 V3 additionally reports self-event wire coverage, malformed event fields, and
 ambiguous missing/null selection arrays. An explicitly empty array remains
 distinct from an omitted selection; v1/v2 data is not retrofitted with sidecars.
-Audit v3 additionally distinguishes self-bound removal events/items, unresolved
+Audit v3 introduced counters for self-bound removal events/items, unresolved
 removal recipients, and ambiguous removal arrays. These are payload observations,
-not successfully simulated removals. The native replay report remains schema 2.
+not successfully simulated removals. V4 also distinguishes API polling from
+browser snapshot streams: API captures honestly report zero hooks/listeners,
+`final_poll_succeeded: null`, and a separate `final_flush_succeeded: true`.
+The API run's `client_sha256` is its environment fingerprint; the separate
+`acquisition_decoder_client_sha256` identifies the reviewed decoder, not an
+observed browser client. Historical evidence input fingerprints remain unchanged.
+The native replay report remains schema 2 and removal remains unsupported.
 Even a clean transport report is not evidence for adopting acquisition rules.
 Do not start a concurrent campaign on the same browser profile. Capture and
 review contiguous fixtures before changing C++ consumption/gift/overflow

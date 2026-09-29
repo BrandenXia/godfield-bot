@@ -134,7 +134,13 @@ const firebase = {onSnapshot: function(...args) {
   calls.push({args, owner: this}); return unsubscribe;
 }};
 const window = {crypto: {randomUUID: () => input.stream}};
-const context = vm.createContext({window});
+// A real timestamp can accidentally contain the short numeric privacy markers.
+// Freeze only this synthetic VM clock; the production capture clock is unchanged.
+const EvidenceDate = class extends Date {
+  constructor(...args) { super(...(args.length ? args : ['2030-01-01T00:00:00.000Z'])); }
+  static now() { return Date.parse('2030-01-01T00:00:00.000Z'); }
+};
+const context = vm.createContext({window, Date: EvidenceDate});
 if (input.before) window.firebase = firebase;
 if (input.blocked) Object.defineProperty(firebase, 'onSnapshot', {writable: false});
 if (input.fixed) Object.defineProperty(window, 'firebase', {value: firebase, configurable: false});

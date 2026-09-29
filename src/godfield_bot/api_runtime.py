@@ -14,12 +14,17 @@ import structlog
 from godfield import TransportError  # type: ignore[import-untyped]
 from pydantic import BaseModel, Field, JsonValue, field_validator, model_validator
 
+from godfield_bot.acquisition_probe import (
+    ACQUISITION_REVIEWED_CATALOG_SHA256,
+    ACQUISITION_REVIEWED_CLIENT_SHA256,
+)
 from godfield_bot.api_account import (
     PYGODFIELD_REVISION,
     ApiAccountError,
     open_api_client,
     validate_api_credentials,
 )
+from godfield_bot.api_acquisition import PrivateAcquisitionRecorder
 from godfield_bot.api_catalog import (
     ApiCatalogSnapshot,
     item_catalog_from_snapshot,
@@ -99,6 +104,7 @@ class PrivateApiRunConfig(BaseModel):
     state_read_retry_seconds: float = Field(default=1.0, ge=0.1, le=30.0)
     command_retries: int = Field(default=2, ge=0, le=5)
     command_reconcile_seconds: float = Field(default=30.0, ge=1.0, le=300.0)
+    acquisition_evidence_probe: bool = False
 
     @field_validator("room_id")
     @classmethod
@@ -130,6 +136,18 @@ class PrivateApiRunConfig(BaseModel):
             raise ValueError("neural shadow mode requires a model directory")
         if self.policy is not ApiPolicyName.NEURAL_SHADOW and self.model_directory is not None:
             raise ValueError("a model directory is only valid for neural shadow policy")
+        if self.acquisition_evidence_probe:
+            if not self.enter_match or self.max_seconds == 0:
+                raise ValueError(
+                    "private acquisition collection requires match entry and finite time"
+                )
+            if (
+                self.policy is not ApiPolicyName.TACTICAL_HEURISTIC
+                or self.model_directory is not None
+            ):
+                raise ValueError("private acquisition requires tactical control without models")
+            if self.entry_team != 0:
+                raise ValueError("private acquisition collection requires solo entry")
         return self
 
 
@@ -1023,6 +1041,11 @@ def run_private_api_observer(
     snapshot = read_api_catalog_snapshot(config.catalog_snapshot)
     if snapshot.upstream_revision != PYGODFIELD_REVISION:
         raise ApiRuntimeError("catalog snapshot was captured by a different pygodfield revision")
+    if (
+        config.acquisition_evidence_probe
+        and snapshot.content_sha256 != ACQUISITION_REVIEWED_CATALOG_SHA256
+    ):
+        raise ApiRuntimeError("private acquisition requires the reviewed 2026-09-21 catalog")
     catalog = item_catalog_from_snapshot(snapshot)
     shadow_policy: Any | None = None
     tactical_snapshot: BibleSnapshot | None = None
@@ -1092,6 +1115,19 @@ def run_private_api_observer(
         )
     if tactical_snapshot is not None:
         run_config["tactical_bible_client_sha256"] = tactical_snapshot.client.sha256
+    if config.acquisition_evidence_probe:
+        run_config.update(
+            {
+                "acquisition_evidence_probe": True,
+                "acquisition_evidence_schema_version": 5,
+                "acquisition_evidence_transport": "api-polling",
+                "acquisition_evidence_catalog_sha256": snapshot.content_sha256,
+                "acquisition_decoder_client_sha256": ACQUISITION_REVIEWED_CLIENT_SHA256,
+                "collection_only": True,
+                "training_eligible": False,
+                "promotion_eligible": False,
+            }
+        )
     if config.room_id is not None:
         run_config["room_fingerprint"] = hashlib.sha256(config.room_id.encode()).hexdigest()
     run = store.start_run(
@@ -1105,6 +1141,16 @@ def run_private_api_observer(
         )
     )
     states_recorded = 0
+    acquisition = (
+        PrivateAcquisitionRecorder(
+            store,
+            run.run_id,
+            identity=settings.identity,
+            api_environment_sha256=environment_fingerprint,
+        )
+        if config.acquisition_evidence_probe
+        else None
+    )
     in_match_actions = 0
     games_completed = 0
     operational_recoveries = 0
@@ -1159,6 +1205,7 @@ def run_private_api_observer(
                 consecutive_entry_failures = 0
                 terminal_recorded = False
                 consecutive_state_read_failures = 0
+                acquisition_match_observed = False
 
                 def recover_continuous_session(
                     reason: str,
@@ -1247,6 +1294,8 @@ def run_private_api_observer(
                     try:
                         room = client.state()
                     except TransportError as error:
+                        if acquisition is not None:
+                            acquisition.read_failed()
                         consecutive_state_read_failures += 1
                         retryable = _is_retryable_state_read_error(error)
                         retry_scheduled = (
@@ -1296,6 +1345,8 @@ def run_private_api_observer(
                         continue
                     consecutive_state_read_failures = 0
                     if not room.is_present(user_id):
+                        if acquisition is not None:
+                            acquisition.boundary()
                         if not membership_request_pending:
                             client.join_room(
                                 joined_room_id,
@@ -1328,6 +1379,22 @@ def run_private_api_observer(
                     membership_request_pending = False
                     game = room.game
                     me = game.player_by_user(user_id) if game is not None else None
+                    if acquisition is not None:
+                        if (
+                            game is not None
+                            and me is not None
+                            and game.is_over
+                            and not acquisition_match_observed
+                        ):
+                            # The previous match may still be displayed on entry.
+                            # Reuse normal lobby entry, without labeling its result
+                            # or carrying its evidence into the requested match.
+                            acquisition.boundary()
+                            game = me = None
+                        else:
+                            acquisition.capture(room.raw, user_id=user_id)
+                            if game is not None and me is not None and not game.is_over:
+                                acquisition_match_observed = True
                     if game is None or me is None:
                         in_match_actions = 0
                         if ambiguous_action is not None:
@@ -1605,6 +1672,8 @@ def run_private_api_observer(
                                 if shadow_policy is not None:
                                     shadow_policy.reset()
                                 if config.max_seconds != 0:
+                                    if acquisition is not None:
+                                        acquisition.finalize()
                                     return _finish_terminal_run(
                                         store,
                                         run,
@@ -1744,13 +1813,17 @@ def run_private_api_observer(
                     time.sleep(config.poll_seconds)
             finally:
                 try:
-                    client.leave_room()
-                except Exception as error:
-                    log.warning(
-                        "api_private_leave_failed",
-                        error_type=type(error).__name__,
-                        reason="private-room cleanup request failed",
-                    )
+                    if acquisition is not None:
+                        acquisition.finalize()
+                finally:
+                    try:
+                        client.leave_room()
+                    except Exception as error:
+                        log.warning(
+                            "api_private_leave_failed",
+                            error_type=type(error).__name__,
+                            reason="private-room cleanup request failed",
+                        )
     except KeyboardInterrupt:
         outcome_reason = "operator_interrupt"
     except Exception as error:
@@ -1779,6 +1852,8 @@ def run_private_api_observer(
             )
             pending_action = None
         payload = _safe_runtime_error_payload(error)
+        if acquisition is not None:
+            acquisition.finalize()
         store.append_event(run.run_id, EventKind.ERROR, payload)
         return store.finish_run(run.run_id, RunStatus.FAILED, outcome=payload)
     if ambiguous_action is not None:
@@ -1802,6 +1877,8 @@ def run_private_api_observer(
             EventKind.TRANSITION,
             build_api_action_transition(action, before_state, None),
         )
+    if acquisition is not None:
+        acquisition.finalize()
     return store.finish_run(
         run.run_id,
         RunStatus.ABORTED,

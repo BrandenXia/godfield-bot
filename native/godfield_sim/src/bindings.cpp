@@ -2,6 +2,7 @@
 #include "fixed_attack_batch.h"
 #include "ordered_inventory.h"
 #include "provisional_soap.h"
+#include "provisional_guardian.h"
 
 #include <nanobind/nanobind.h>
 
@@ -337,6 +338,23 @@ NB_MODULE(_native, module) {
       godfield_sim::kProvisionalSoapSchemaVersion;
   module.attr("PROVISIONAL_SOAP_RULESET_ID") =
       godfield_sim::kProvisionalSoapRulesetId;
+  module.attr("PROVISIONAL_GUARDIAN_SCHEMA_VERSION") =
+      godfield_sim::kProvisionalGuardianSchemaVersion;
+  module.attr("PROVISIONAL_GUARDIAN_RULESET_ID") =
+      godfield_sim::kProvisionalGuardianRulesetId;
+  nb::class_<godfield_sim::ProvisionalGuardianPicker>(
+      module, "ProvisionalGuardianPicker")
+      .def(nb::init<godfield_sim::GuardianWeightInput>(),
+           nb::arg("profiles").noconvert())
+      .def("model_for_ticket",
+           &godfield_sim::ProvisionalGuardianPicker::model_for_ticket,
+           nb::arg("group"), nb::arg("ticket"))
+      .def("total_weight", &godfield_sim::ProvisionalGuardianPicker::total_weight,
+           nb::arg("group"))
+      .def_prop_ro("profile_count",
+                   &godfield_sim::ProvisionalGuardianPicker::profile_count)
+      .def_prop_ro("group_count",
+                   &godfield_sim::ProvisionalGuardianPicker::group_count);
   nb::class_<godfield_sim::ProvisionalSoapProjection>(
       module, "ProvisionalSoapProjection")
       .def(nb::init<godfield_sim::InventoryInput, godfield_sim::ActionInput,

@@ -8,6 +8,8 @@ OBSERVATION_SCHEMA_VERSION: Final[int]
 RULESET_ID: Final[str]
 ORDERED_INVENTORY_REPLAY_SCHEMA_VERSION: Final[int]
 ORDERED_INVENTORY_REPLAY_RULESET_ID: Final[str]
+PROVISIONAL_GUARDIAN_SCHEMA_VERSION: Final[int]
+PROVISIONAL_GUARDIAN_RULESET_ID: Final[str]
 PROVISIONAL_SOAP_SCHEMA_VERSION: Final[int]
 PROVISIONAL_SOAP_RULESET_ID: Final[str]
 ACTION_COUNT: Final[int]
@@ -198,6 +200,15 @@ class OrderedInventoryReplay:
     def observed_removals_configured(self) -> bool: ...
     @property
     def observed_removal_count(self) -> int: ...
+
+class ProvisionalGuardianPicker:
+    def __init__(self, profiles: npt.NDArray[np.int64]) -> None: ...
+    def model_for_ticket(self, group: int, ticket: int) -> int: ...
+    def total_weight(self, group: int) -> int: ...
+    @property
+    def profile_count(self) -> int: ...
+    @property
+    def group_count(self) -> int: ...
 
 class ProvisionalSoapProjection:
     def __init__(

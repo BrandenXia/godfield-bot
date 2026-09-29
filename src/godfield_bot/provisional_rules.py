@@ -15,6 +15,7 @@ from godfield_bot.api_catalog import ApiCatalogSnapshot, read_api_catalog_snapsh
 from godfield_bot.domain.reference import BibleSnapshot
 
 PROVISIONAL_SOAP_RULESET_ID = "catalog-derived-selected-two-used-miracles-provisional-v1"
+PROVISIONAL_GUARDIAN_RULESET_ID = "catalog-derived-guardian-weight-ticket-provisional-v1"
 PROVISIONAL_STRENGTH_POWDER_RULESET_PREFIX = "provisional-strength-powder-v1-"
 _PINNED_CATALOG_PATH = (
     Path(__file__).parents[2] / "data/snapshots/2026-09-21/api-catalog-en.json"
@@ -23,6 +24,101 @@ _PINNED_CATALOG_PATH = (
 
 class ProvisionalRuleUnavailableError(RuntimeError):
     """The separately versioned provisional native component is unavailable."""
+
+
+class ProvisionalGuardianPlan(BaseModel):
+    schema_version: Literal[1] = 1
+    source_kind: Literal["catalog-derived-guardian-weight-ticket-v1"] = (
+        "catalog-derived-guardian-weight-ticket-v1"
+    )
+    status: Literal["provisional-unvalidated"] = "provisional-unvalidated"
+    native_ruleset_id: str = PROVISIONAL_GUARDIAN_RULESET_ID
+    native_schema_version: Literal[1] = 1
+    catalog_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    bible_client_sha256: str = ACQUISITION_REVIEWED_CLIENT_SHA256
+    group_names: tuple[str, ...]
+    weighted_profiles: tuple[tuple[int, int, int], ...]
+    excluded_special_model_ids: tuple[int, ...]
+    ticket_interpretation: Literal["hypothetical-relative-weights"] = (
+        "hypothetical-relative-weights"
+    )
+    official_weight_selection_traces: Literal[0] = 0
+    effect_resolution_implemented: Literal[False] = False
+    local_training_eligible: Literal[False] = False
+    full_game_training_ready: Literal[False] = False
+    promotion_eligible: Literal[False] = False
+
+
+def build_provisional_guardian_plan(
+    catalog: ApiCatalogSnapshot, bible: BibleSnapshot
+) -> ProvisionalGuardianPlan:
+    """Pin a proposed ticket map, not guardian activation or combat behavior."""
+
+    if catalog.content_sha256 != ACQUISITION_REVIEWED_CATALOG_SHA256:
+        raise ValueError("provisional guardian plan requires the pinned reviewed catalog")
+    if bible.client.sha256 != ACQUISITION_REVIEWED_CLIENT_SHA256:
+        raise ValueError("provisional guardian plan requires the pinned reviewed Bible")
+    guardian_bible = bible.catalog.get("guardians")
+    guardian_items = [item for item in catalog.items if item.raw.get("category") == "guardians"]
+    if guardian_bible is None or len(guardian_items) != 42 or len(guardian_bible.items) != 42:
+        raise ValueError("pinned guardian catalog must contain 42 matching artifacts")
+    if {item.asset for item in guardian_bible.items} != {
+        item.raw.get("imageName") for item in guardian_items
+    }:
+        raise ValueError("pinned guardian Bible and API model names differ")
+
+    group_names = (
+        "mars",
+        "mercury",
+        "jupiter",
+        "saturn",
+        "uranus",
+        "pluto",
+        "neptune",
+        "venus",
+    )
+    profiles: list[tuple[int, int, int]] = []
+    for group_index, name in enumerate(group_names):
+        members = [item for item in guardian_items if item.raw.get("guardian") == name]
+        if len(members) != 5:
+            raise ValueError(f"pinned guardian group {name} must have five effects")
+        members.sort(key=lambda item: item.model_id)
+        rates = tuple(item.raw.get("guardianAttackRate") for item in members)
+        if rates != (6, 5, 4, 3, 2):
+            raise ValueError(f"pinned guardian group {name} weights differ")
+        profiles.extend(
+            (group_index, item.model_id, rate)
+            for item, rate in zip(members, (6, 5, 4, 3, 2), strict=True)
+        )
+    specials = [
+        item
+        for item in guardian_items
+        if item.raw.get("guardian") not in group_names
+    ]
+    if {(item.raw.get("guardian"), item.model_id) for item in specials} != {
+        ("earth", 285),
+        ("moon", 286),
+    } or any(item.raw.get("guardianAttackRate") is not None for item in specials):
+        raise ValueError("pinned special guardians differ from reviewed catalog")
+    try:
+        import godfield_sim as native
+    except (ImportError, OSError):
+        raise ProvisionalRuleUnavailableError(
+            "provisional guardian picker requires the native simulation extra"
+        ) from None
+    if (
+        getattr(native, "PROVISIONAL_GUARDIAN_SCHEMA_VERSION", None) != 1
+        or getattr(native, "PROVISIONAL_GUARDIAN_RULESET_ID", None)
+        != PROVISIONAL_GUARDIAN_RULESET_ID
+        or not hasattr(native, "ProvisionalGuardianPicker")
+    ):
+        raise ProvisionalRuleUnavailableError("provisional guardian native identity differs")
+    return ProvisionalGuardianPlan(
+        catalog_sha256=catalog.content_sha256,
+        group_names=group_names,
+        weighted_profiles=tuple(profiles),
+        excluded_special_model_ids=(285, 286),
+    )
 
 
 def provisional_strength_powder_boost(bible: BibleSnapshot) -> int:

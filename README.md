@@ -1288,6 +1288,14 @@ UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation --extra training \
 This is a local-training bridge for a single catalog-derived effect, not a
 full-game environment. See [ADR 0078](docs/architecture/0078-provisional-strength-powder-curriculum.md).
 
+The next isolated C++ primitive maps a caller-supplied weight ticket to one of
+40 attacks in the eight five-effect planet guardian groups. Inspect its pinned
+catalog-derived, explicitly unvalidated plan with
+`godfield-bot simulation provisional-guardian-plan`. Earth and Moon are
+excluded, and the primitive does not summon a guardian, decide when one acts,
+resolve an attack, or qualify for local training. See
+[ADR 0079](docs/architecture/0079-provisional-guardian-ticket-map.md).
+
 A later private-room trace contains one self-targeted Nocturnal Broom-style
 `removeItems` event. Its explicit three selected cards disappear in the next
 inventory, and native 0.36.0/schema 3 can reproduce that narrow operation with

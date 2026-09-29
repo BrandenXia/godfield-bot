@@ -12,6 +12,7 @@ nanobind_add_module(
   src/fixed_attack_batch.cpp
   src/ordered_inventory.cpp
   src/provisional_soap.cpp
+  src/provisional_guardian.cpp
 )
 target_compile_features(_native PRIVATE cxx_std_20)
 

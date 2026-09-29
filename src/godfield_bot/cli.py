@@ -2574,6 +2574,37 @@ def simulation_provisional_soap_plan(
     typer.echo(plan.model_dump_json(indent=2))
 
 
+@simulation_app.command("provisional-guardian-plan")
+def simulation_provisional_guardian_plan(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False, readable=True)] = Path(
+        "data", "snapshots", "2026-09-21", "api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False, readable=True)] = Path(
+        "data", "snapshots", "2026-09-20", "bible.json"
+    ),
+) -> None:
+    """Inspect a catalog-derived guardian weight map; not a combat rule."""
+
+    from godfield_bot.api_catalog import read_api_catalog_snapshot
+    from godfield_bot.domain.reference import BibleSnapshot
+    from godfield_bot.provisional_rules import (
+        ProvisionalRuleUnavailableError,
+        build_provisional_guardian_plan,
+    )
+
+    try:
+        plan = build_provisional_guardian_plan(
+            read_api_catalog_snapshot(catalog),
+            BibleSnapshot.model_validate_json(bible.read_text(encoding="utf-8")),
+        )
+    except (OSError, ValueError, ProvisionalRuleUnavailableError) as error:
+        structlog.get_logger().error(
+            "provisional_guardian_plan_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(plan.model_dump_json(indent=2))
+
+
 @simulation_app.command("coverage-report")
 def simulation_coverage_report(
     snapshot: Annotated[Path, typer.Option(exists=True, dir_okay=False, readable=True)] = Path(

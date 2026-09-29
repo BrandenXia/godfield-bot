@@ -358,11 +358,13 @@ NB_MODULE(_native, module) {
   nb::class_<godfield_sim::GuardianCombatBatch>(module, "GuardianCombatBatch")
       .def(nb::init<std::size_t, std::size_t, std::size_t,
                     godfield_sim::GuardianWeightInput,
-                    godfield_sim::GuardianWeightInput, std::uint16_t>(),
+                    godfield_sim::GuardianWeightInput, std::uint16_t,
+                    std::uint16_t, std::uint16_t>(),
            nb::arg("batch_size"), nb::arg("player_count"),
            nb::arg("slots_per_environment"),
            nb::arg("weighted_profiles").noconvert(),
-           nb::arg("basic_attack_profiles").noconvert(), nb::arg("initial_hp") = 40)
+           nb::arg("basic_attack_profiles").noconvert(), nb::arg("initial_hp") = 40,
+           nb::arg("initial_mp") = 10, nb::arg("initial_cp") = 0)
       .def("summon", &godfield_sim::GuardianCombatBatch::summon,
            nb::arg("environments").noconvert(), nb::arg("slots").noconvert(),
            nb::arg("instances").noconvert(), nb::arg("owners").noconvert(),
@@ -376,14 +378,21 @@ NB_MODULE(_native, module) {
            nb::arg("environments").noconvert(), nb::arg("slots").noconvert(),
            nb::arg("instances").noconvert(), nb::arg("targets").noconvert(),
            nb::arg("selection_tickets").noconvert(), nb::arg("hit_tickets").noconvert())
+      .def("begin_effects", &godfield_sim::GuardianCombatBatch::begin_attacks,
+           nb::arg("environments").noconvert(), nb::arg("slots").noconvert(),
+           nb::arg("instances").noconvert(), nb::arg("targets").noconvert(),
+           nb::arg("selection_tickets").noconvert(), nb::arg("hit_tickets").noconvert())
       .def("resolve_defenses", &godfield_sim::GuardianCombatBatch::resolve_defenses,
            nb::arg("environments").noconvert(), nb::arg("defense_values").noconvert(),
            nb::arg("defense_elements").noconvert())
       .def("guardian_snapshot", &godfield_sim::GuardianCombatBatch::guardian_snapshot)
       .def("hp_snapshot", &godfield_sim::GuardianCombatBatch::hp_snapshot)
       .def("combat_snapshot", &godfield_sim::GuardianCombatBatch::combat_snapshot)
+      .def("resource_snapshot", &godfield_sim::GuardianCombatBatch::resource_snapshot)
       .def_prop_ro("resolved_attack_count",
-                   &godfield_sim::GuardianCombatBatch::resolved_attack_count);
+                   &godfield_sim::GuardianCombatBatch::resolved_attack_count)
+      .def_prop_ro("resolved_effect_count",
+                   &godfield_sim::GuardianCombatBatch::resolved_effect_count);
   nb::class_<godfield_sim::GuardianLifecycleBatch>(module,
                                                    "GuardianLifecycleBatch")
       .def(nb::init<std::size_t, std::size_t, std::size_t,

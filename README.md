@@ -1311,12 +1311,15 @@ curricula. It has no game-turn `step`, effect resolution, local-training
 eligibility, or live promotion path. See
 [ADR 0080](docs/architecture/0080-versioned-guardian-lifecycle-batch.md).
 
-Add `--combat` to `simulation guardian-batch-plan` to inspect the new basic
-guardian combat batch. It supports explicit targeting, caller-supplied hit
-tickets, elemental defense, and HP loss for 21 catalog attacks; the other 19
-weighted effects are rejected without resampling. The inspection report still
-marks local training, full-game readiness, and promotion false. See
-[ADR 0081](docs/architecture/0081-provisional-guardian-combat-phases.md).
+Add `--combat` to `simulation guardian-batch-plan` to inspect the guardian
+combat batch. Schema 2 supports 39 of the 40 weighted effects: elemental attack
+and defense, absorption, HP/MP/money changes, and curse flags. Diamond Axe's
+weapon classification and the Earth/Moon special guardians remain unsupported.
+The inspection report marks local training, full-game readiness, official
+fidelity, and promotion false. See the initial combat contract in
+[ADR 0081](docs/architecture/0081-provisional-guardian-combat-phases.md) and the
+resource/curse expansion in
+[ADR 0082](docs/architecture/0082-provisional-guardian-resources-and-curses.md).
 
 A later private-room trace contains one self-targeted Nocturnal Broom-style
 `removeItems` event. Its explicit three selected cards disappear in the next

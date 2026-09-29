@@ -8,10 +8,10 @@
 
 namespace godfield_sim {
 
-inline constexpr std::uint32_t kGuardianCombatKernelSchemaVersion = 1;
-inline constexpr std::uint32_t kGuardianCombatObservationSchemaVersion = 1;
+inline constexpr std::uint32_t kGuardianCombatKernelSchemaVersion = 2;
+inline constexpr std::uint32_t kGuardianCombatObservationSchemaVersion = 2;
 inline constexpr const char *kGuardianCombatRulesetId =
-    "caller-driven-basic-guardian-combat-provisional-v1";
+    "caller-driven-guardian-resource-curse-combat-provisional-v2";
 
 class GuardianCombatBatch {
 public:
@@ -19,7 +19,9 @@ public:
                       std::size_t slots_per_environment,
                       GuardianWeightInput weighted_profiles,
                       GuardianWeightInput basic_attack_profiles,
-                      std::uint16_t initial_hp = 40);
+                      std::uint16_t initial_hp = 40,
+                      std::uint16_t initial_mp = 10,
+                      std::uint16_t initial_cp = 0);
   void summon(ActionInput environments, ActionInput slots,
               ActionInput instances, ActionInput owners, ActionInput groups);
   void remove(ActionInput environments, ActionInput slots,
@@ -35,8 +37,12 @@ public:
   }
   [[nodiscard]] Int64_2D hp_snapshot() const;
   [[nodiscard]] Int64_2D combat_snapshot() const;
+  [[nodiscard]] GuardianStateSnapshot resource_snapshot() const;
   [[nodiscard]] std::uint64_t resolved_attack_count() const noexcept {
     return resolved_attack_count_;
+  }
+  [[nodiscard]] std::uint64_t resolved_effect_count() const noexcept {
+    return resolved_effect_count_;
   }
 
 private:
@@ -44,21 +50,30 @@ private:
     std::int64_t value;
     std::int64_t element;
     std::int64_t hit_rate;
+    std::int64_t effect = 0;
+    std::int64_t utility = 0;
+    std::int64_t curse = 0;
   };
   // phase (0 idle, 1 defense), model, owner, target, ATK after hit,
   // element, HP lost at the last completed resolution.
-  using Pending = std::array<std::int64_t, 7>;
+  using Pending = std::array<std::int64_t, 10>;
   [[nodiscard]] std::size_t checked_environment(std::int64_t environment) const;
   void require_idle(ActionInput environments) const;
   static void same_length(std::size_t expected, ActionInput input);
   const std::size_t batch_size_;
   const std::size_t player_count_;
   const std::uint16_t initial_hp_;
+  const std::uint16_t initial_mp_;
+  const std::uint16_t initial_cp_;
   GuardianLifecycleBatch guardians_;
   std::unordered_map<std::int64_t, BasicAttack> attacks_;
   std::vector<std::int64_t> hp_;
+  std::vector<std::int64_t> mp_;
+  std::vector<std::int64_t> cp_;
+  std::vector<std::int64_t> curses_;
   std::vector<Pending> pending_;
   std::uint64_t resolved_attack_count_ = 0;
+  std::uint64_t resolved_effect_count_ = 0;
 };
 
 } // namespace godfield_sim

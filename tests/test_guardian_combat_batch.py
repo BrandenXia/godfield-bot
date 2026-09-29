@@ -116,7 +116,7 @@ def test_light_has_no_positive_elemental_defense():
     assert guardian.hp_snapshot()[2, 1] == 36
 
 
-def test_pinned_factory_reports_21_basic_attacks_and_19_unsupported_effects(monkeypatch):
+def test_pinned_factory_reports_39_effects_and_one_unsupported_weighted_effect(monkeypatch):
     created = create_provisional_guardian_combat_batch(
         catalog_path=Path("data/snapshots/2026-09-21/api-catalog-en.json"),
         bible_path=Path("data/snapshots/2026-09-20/bible.json"),
@@ -125,11 +125,13 @@ def test_pinned_factory_reports_21_basic_attacks_and_19_unsupported_effects(monk
     metadata = created.metadata
     assert metadata.ruleset_id == native.GUARDIAN_COMBAT_RULESET_ID
     assert len(metadata.basic_attack_model_ids) == 21
-    assert len(metadata.unsupported_weighted_model_ids) == 19
+    assert len(metadata.supported_effect_model_ids) == 39
+    assert metadata.unsupported_weighted_model_ids == (264,)
+    assert metadata.kernel_schema_version == metadata.observation_schema_version == 2
     assert not metadata.local_training_eligible
     assert not metadata.full_game_training_ready
     assert not metadata.promotion_eligible
     monkeypatch.setattr("godfield_bot.cli.configure_logging", lambda **_kwargs: None)
     result = CliRunner().invoke(app, ["simulation", "guardian-batch-plan", "--combat"])
     assert result.exit_code == 0, result.output
-    assert '"caller-driven-basic-guardian-combat-provisional-v1"' in result.output
+    assert '"caller-driven-guardian-resource-curse-combat-provisional-v2"' in result.output

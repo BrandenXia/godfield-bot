@@ -307,6 +307,54 @@ def test_resume_is_source_checked_cold_optimizer_and_never_overwrites(checkpoint
     assert not (tmp_path / "rejected").exists()
 
 
+def test_no_redraw_checkpoint_cannot_silently_resume_with_provisional_refills(checkpoint, tmp_path):
+    source, _ = checkpoint
+    with pytest.raises(GuardianTrainingError, match="curriculum/reward configuration differs"):
+        train_guardian_candidate(
+            catalog_path=CATALOG,
+            bible_path=BIBLE,
+            checkpoint_root=tmp_path / "rejected-refill",
+            config=config(
+                arena=GuardianRolloutConfig(
+                    batch_size=4, max_turns=8, max_decisions=16, refill="weighted-consumption-v1"
+                )
+            ),
+            resume=source,
+        )
+    assert not (tmp_path / "rejected-refill").exists()
+
+
+def test_refill_learning_saves_explicit_contract_and_rejects_no_redraw_resume(tmp_path):
+    cfg = config(
+        arena=GuardianRolloutConfig(
+            batch_size=4, max_turns=8, max_decisions=16, refill="weighted-consumption-v1"
+        )
+    )
+    directory, saved = train_guardian_candidate(
+        catalog_path=CATALOG, bible_path=BIBLE, checkpoint_root=tmp_path / "refill", config=cfg
+    )
+    loaded, _ = load_guardian_checkpoint(directory)
+    assert loaded == saved
+    assert saved.arena.refill_plan is not None
+    assert saved.arena.curriculum_id == "synthetic-guardian-weighted-refill-provisional-v1"
+    assert saved.evaluation_baseline.replacement_gifts > 0
+    assert saved.update_metrics[0].replacement_gifts is not None
+    assert not saved.full_game_training_ready and not saved.promotion_eligible
+    evaluated = evaluate_guardian_checkpoint(
+        directory, catalog_path=CATALOG, bible_path=BIBLE, games=4, seed=93, cpu_threads=1
+    )
+    assert evaluated.replacement_gifts is not None
+    with pytest.raises(GuardianTrainingError, match="curriculum/reward configuration differs"):
+        train_guardian_candidate(
+            catalog_path=CATALOG,
+            bible_path=BIBLE,
+            checkpoint_root=tmp_path / "rejected-no-refill",
+            config=config(),
+            resume=directory,
+        )
+    assert not (tmp_path / "rejected-no-refill").exists()
+
+
 @pytest.mark.parametrize(
     "mutation",
     [
@@ -355,7 +403,10 @@ def test_selected_defense_weighting_keeps_subgroup_metrics_visible(runtime):
     assert 0 <= metrics.selected_defense_accuracy <= 1
 
 
-def test_cli_trains_only_local_checkpoint_and_rejects_oversized_rollout(tmp_path, monkeypatch):
+@pytest.mark.parametrize("refill", ["none", "weighted-consumption-v1"])
+def test_cli_trains_only_local_checkpoint_and_rejects_oversized_rollout(
+    tmp_path, monkeypatch, refill
+):
     from structlog.testing import capture_logs
 
     monkeypatch.setattr("godfield_bot.cli.configure_logging", lambda **_kwargs: None)
@@ -389,6 +440,8 @@ def test_cli_trains_only_local_checkpoint_and_rejects_oversized_rollout(tmp_path
                 "8",
                 "--cpu-threads",
                 "1",
+                "--refill",
+                refill,
             ],
         )
         assert result.exit_code == 0, result.output
@@ -397,6 +450,7 @@ def test_cli_trains_only_local_checkpoint_and_rejects_oversized_rollout(tmp_path
         assert report["manifest"]["local_training_eligible"]
         assert not report["manifest"]["promotion_eligible"]
         assert report["manifest"]["training"]["environment_minibatch_size"] == 2
+        assert report["manifest"]["arena"]["config"]["refill"] == refill
         before = Path(report["checkpoint_directory"], WEIGHTS_FILE).read_bytes()
         evaluated = CliRunner().invoke(
             app,

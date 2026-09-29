@@ -125,6 +125,7 @@ class GuardianLearningRollout:
     truncated_games: int
     phase_counts: tuple[int, ...]
     digest: str
+    replacement_gifts: int
 
     @property
     def steps(self) -> int:
@@ -156,6 +157,7 @@ class GuardianDuelCollector:
         log_probs, values_history, rewards_history, done_history = [], [], [], []
         initial_states = self.states.detach().clone()
         completed = truncated = 0
+        initial_gifts = self.arena.replacement_gifts
         phase_counts = np.zeros(6, dtype=np.int64)
         digest = hashlib.sha256(self.arena.metadata.model_dump_json().encode())
         envs = torch.arange(config.arena.batch_size)
@@ -251,6 +253,7 @@ class GuardianDuelCollector:
             truncated,
             tuple(int(value) for value in phase_counts),
             digest.hexdigest(),
+            self.arena.replacement_gifts - initial_gifts,
         )
 
 
@@ -428,6 +431,7 @@ class GuardianEvaluation(BaseModel):
     win_fraction_all_games: float = Field(ge=0, le=1, allow_inf_nan=False)
     truncation_causes: GuardianTruncationCounts | None = None
     policy_kind: Literal["neural-greedy", "greedy-reference"] = "neural-greedy"
+    replacement_gifts: int | None = Field(default=None, ge=0, strict=True)
     paired_initial_states: Literal[True] = True
     opponent: Literal["greedy-smoke-baseline-v1"] = "greedy-smoke-baseline-v1"
     promotion_eligible: Literal[False] = False
@@ -474,6 +478,7 @@ def evaluate_guardian_policy(
         raise GuardianTrainingError("evaluation requires 2..256 paired duel games")
     wins, losses, truncations = [0, 0], [0, 0], [0, 0]
     causes = GuardianTruncationCounts().model_dump()
+    replacement_gifts = 0
     if model is not None:
         model.eval()
     for learner_seat in (0, 1):
@@ -511,6 +516,7 @@ def evaluate_guardian_policy(
                 causes[reasons[env]] += 1
         if np.any(arena.observe().active):
             raise GuardianTrainingError("bounded evaluation left unfinished games")
+        replacement_gifts += arena.replacement_gifts
     return GuardianEvaluation(
         seed=seed,
         games=games,
@@ -523,6 +529,7 @@ def evaluate_guardian_policy(
         win_fraction_all_games=sum(wins) / games,
         truncation_causes=GuardianTruncationCounts(**causes),
         policy_kind="neural-greedy" if model is not None else "greedy-reference",
+        replacement_gifts=replacement_gifts,
     )
 
 
@@ -534,6 +541,7 @@ class GuardianUpdateMetrics(BaseModel):
     learner_decisions: int = Field(ge=0, strict=True)
     baseline_decisions: int = Field(ge=0, strict=True)
     decisions_by_phase: tuple[int, ...]
+    replacement_gifts: int | None = Field(default=None, ge=0, strict=True)
 
 
 class GuardianArenaManifest(BaseModel):
@@ -667,6 +675,10 @@ def _compatible(
         exclude={"batch_size", "seed"}
     ):
         raise GuardianTrainingError("arena checkpoint curriculum/reward configuration differs")
+    if parent.arena.model_dump(exclude={"native", "config"}) != arena.model_dump(
+        exclude={"native", "config"}
+    ):
+        raise GuardianTrainingError("arena checkpoint acquisition/observation contract differs")
 
 
 def evaluate_guardian_checkpoint(
@@ -769,6 +781,7 @@ def train_guardian_candidate(
                     learner_decisions=int(rollout.policy_trainable.sum()),
                     baseline_decisions=int((~rollout.policy_trainable).sum()),
                     decisions_by_phase=rollout.phase_counts,
+                    replacement_gifts=rollout.replacement_gifts,
                 )
             )
             digest.update(bytes.fromhex(rollout.digest))
@@ -778,6 +791,7 @@ def train_guardian_candidate(
                 total_loss=metrics.total_loss,
                 completed_games=rollout.completed_games,
                 truncated_games=rollout.truncated_games,
+                replacement_gifts=rollout.replacement_gifts,
             )
         after = evaluate_guardian_policy(
             model,

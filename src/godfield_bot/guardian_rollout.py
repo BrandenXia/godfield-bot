@@ -13,9 +13,12 @@ from typing import Literal
 
 import numpy as np
 import numpy.typing as npt
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from godfield_bot.api_catalog import read_api_catalog_snapshot
+from godfield_bot.domain.reference import BibleSnapshot
 from godfield_bot.guardian_batch import GuardianTurnMetadata, create_provisional_guardian_turn_batch
+from godfield_bot.guardian_refill import GuardianRefillPlan, build_guardian_refill_plan
 from godfield_bot.provisional_rules import ProvisionalRuleUnavailableError
 
 HAND_SLOTS = 18
@@ -48,15 +51,19 @@ class GuardianRolloutConfig(BaseModel):
     initial_hp: int = Field(default=40, ge=1, le=100, strict=True)
     initial_mp: int = Field(default=10, ge=0, le=100, strict=True)
     opening: Literal["cards-only", "mars-opening", "mixed"] = "mixed"
+    refill: Literal["none", "weighted-consumption-v1"] = "none"
     gamma: float = Field(default=0.99, gt=0, le=1, allow_inf_nan=False)
     shaping_weight: float = Field(default=0.1, ge=0, le=1, allow_inf_nan=False)
 
 
 class GuardianRolloutMetadata(BaseModel):
     schema_version: Literal[1] = 1
-    source_kind: Literal["provisional-guardian-arena-rollout-v1"] = (
-        "provisional-guardian-arena-rollout-v1"
-    )
+    source_kind: Literal[
+        "provisional-guardian-arena-rollout-v1", "provisional-guardian-refill-arena-rollout-v1"
+    ] = "provisional-guardian-arena-rollout-v1"
+    curriculum_id: Literal[
+        "synthetic-guardian-no-redraw-v1", "synthetic-guardian-weighted-refill-provisional-v1"
+    ] = "synthetic-guardian-no-redraw-v1"
     observation_schema_id: Literal["actor-relative-guardian-arena-v1"] = (
         "actor-relative-guardian-arena-v1"
     )
@@ -70,9 +77,11 @@ class GuardianRolloutMetadata(BaseModel):
     player_feature_count: Literal[8] = 8
     hand_feature_count: Literal[7] = 7
     initial_cards_per_player: Literal[9] = 9
-    acquisition_policy: Literal["synthetic-balanced-initial-deal-no-redraw"] = (
-        "synthetic-balanced-initial-deal-no-redraw"
-    )
+    acquisition_policy: Literal[
+        "synthetic-balanced-initial-deal-no-redraw",
+        "synthetic-balanced-deal-deferred-weighted-refill",
+    ] = "synthetic-balanced-initial-deal-no-redraw"
+    refill_plan: GuardianRefillPlan | None = None
     guardian_policy: Literal["optional-one-mars-effect-at-episode-opening"] = (
         "optional-one-mars-effect-at-episode-opening"
     )
@@ -131,6 +140,40 @@ class GuardianRolloutMetadata(BaseModel):
     official_fidelity_verified: Literal[False] = False
     promotion_eligible: Literal[False] = False
     live_checkpoint_compatible: Literal[False] = False
+
+    @model_validator(mode="after")
+    def separate_acquisition_contract(self) -> GuardianRolloutMetadata:
+        weighted = self.config.refill != "none"
+        if weighted:
+            if (
+                self.source_kind != "provisional-guardian-refill-arena-rollout-v1"
+                or self.curriculum_id != "synthetic-guardian-weighted-refill-provisional-v1"
+                or self.acquisition_policy != "synthetic-balanced-deal-deferred-weighted-refill"
+                or self.refill_plan is None
+            ):
+                raise ValueError(
+                    "weighted refill requires an explicit separate curriculum and plan"
+                )
+            supported = (
+                self.native.defense_model_ids
+                + self.native.attack_weapon_model_ids
+                + self.native.attack_miracle_model_ids
+            )
+            if (
+                tuple(sorted(supported))
+                != tuple(model for model, _ in self.refill_plan.model_weights)
+                or self.native.catalog_sha256 != self.refill_plan.catalog_sha256
+                or self.native.bible_client_sha256 != self.refill_plan.bible_client_sha256
+            ):
+                raise ValueError("refill profile and native supported sources differ")
+        elif (
+            self.source_kind != "provisional-guardian-arena-rollout-v1"
+            or self.curriculum_id != "synthetic-guardian-no-redraw-v1"
+            or self.acquisition_policy != "synthetic-balanced-initial-deal-no-redraw"
+            or self.refill_plan is not None
+        ):
+            raise ValueError("no-redraw curriculum cannot declare replacement gifts")
+        return self
 
 
 @dataclass(frozen=True)
@@ -193,13 +236,56 @@ class GuardianRolloutArena:
             initial_mp=config.initial_mp,
         )
         self.config = config
-        self.metadata = GuardianRolloutMetadata(native=created.metadata, config=config)
+        if config.refill == "none":
+            self.metadata = GuardianRolloutMetadata(native=created.metadata, config=config)
+        else:
+            meta = created.metadata
+            plan = build_guardian_refill_plan(
+                read_api_catalog_snapshot(catalog_path),
+                BibleSnapshot.model_validate_json(bible_path.read_text(encoding="utf-8")),
+                meta.defense_model_ids
+                + meta.attack_weapon_model_ids
+                + meta.attack_miracle_model_ids,
+            )
+            self.metadata = GuardianRolloutMetadata(
+                native=meta,
+                config=config,
+                source_kind="provisional-guardian-refill-arena-rollout-v1",
+                curriculum_id="synthetic-guardian-weighted-refill-provisional-v1",
+                acquisition_policy="synthetic-balanced-deal-deferred-weighted-refill",
+                refill_plan=plan,
+            )
         self._native = created.batch
         self._episode_ids = np.full(config.batch_size, -1, dtype=np.int64)
         self._decisions = np.zeros(config.batch_size, dtype=np.int64)
         self._selected_slots = np.full(config.batch_size, -1, dtype=np.int64)
         self._budget_truncated = np.zeros(config.batch_size, dtype=np.bool_)
+        self._pending_refills: list[set[tuple[int, int]]] = [
+            set() for _ in range(config.batch_size)
+        ]
+        self._refill_rngs: dict[int, np.random.Generator] = {}
+        self._next_instances = np.full(
+            config.batch_size, config.player_count * 9 + 1, dtype=np.int64
+        )
+        self._replacement_gifts = 0
+        self._refill_models = np.asarray(
+            [model for model, _ in self.metadata.refill_plan.model_weights]
+            if self.metadata.refill_plan is not None
+            else [],
+            dtype=np.int64,
+        )
+        self._refill_cumulative = np.cumsum(
+            [weight for _, weight in self.metadata.refill_plan.model_weights]
+            if self.metadata.refill_plan is not None
+            else [],
+            dtype=np.int64,
+        )
         self._reset(np.arange(config.batch_size, dtype=np.int64))
+
+    @property
+    def replacement_gifts(self) -> int:
+        """Lifetime diagnostic counter, not a policy feature or shaping reward."""
+        return self._replacement_gifts
 
     def _reset(self, rows: IntArray) -> None:
         if len(rows) == 0:
@@ -255,6 +341,40 @@ class GuardianRolloutArena:
         self._decisions[rows] = 0
         self._selected_slots[rows] = -1
         self._budget_truncated[rows] = False
+        for env in rows:
+            self._pending_refills[env].clear()
+            self._next_instances[env] = config.player_count * 9 + 1
+            if config.refill != "none":
+                self._refill_rngs[int(env)] = np.random.default_rng(
+                    np.random.SeedSequence(
+                        [config.seed, int(env), int(self._episode_ids[env]), 6771]
+                    )
+                )
+
+    def _apply_refills(self, turn: IntArray, finished: BoolArray) -> None:
+        """Defer gifts across defense/bounce; never deal into pending or finished rows."""
+        if self.metadata.refill_plan is None:
+            return
+        resources = self._native.resource_snapshot()
+        deals: list[tuple[int, int, int, int, int]] = []
+        for env, pending in enumerate(self._pending_refills):
+            if finished[env]:
+                pending.clear()
+            elif turn[env, 0] == 0 and self._selected_slots[env] < 0:
+                for owner, slot in sorted(pending):
+                    if resources[env, owner, 0] <= 0:
+                        continue
+                    ticket = self._refill_rngs[env].integers(int(self._refill_cumulative[-1]))
+                    model = self._refill_models[
+                        np.searchsorted(self._refill_cumulative, ticket, side="right")
+                    ]
+                    deals.append((env, owner, slot, int(self._next_instances[env]), int(model)))
+                    self._next_instances[env] += 1
+                pending.clear()
+        if deals:
+            columns = np.asarray(deals, dtype=np.int64).T
+            self._native.deal_cards(*(np.ascontiguousarray(column) for column in columns))
+            self._replacement_gifts += len(deals)
 
     def reset_done(self) -> GuardianObservation:
         turn = self._native.turn_snapshot()
@@ -406,12 +526,28 @@ class GuardianRolloutArena:
             self._native.begin_card_attacks(
                 attack, before.actors[attack], self._selected_slots[attack], targets
             )
+            if self.metadata.refill_plan is not None:
+                for env in attack:
+                    slot = int(self._selected_slots[env])
+                    if (
+                        before.hand_model_ids[env, slot]
+                        in self.metadata.native.attack_weapon_model_ids
+                    ):
+                        self._pending_refills[env].add((int(before.actors[env]), slot))
             self._selected_slots[attack] = -1
         if len(defend):
             native_actions = np.where(
                 actions[defend] < TARGET_START, actions[defend] - 1, actions[defend] - 10
             )
             self._native.step_defenses(defend, before.actors[defend], native_actions)
+            if self.metadata.refill_plan is not None:
+                for env in defend[actions[defend] == CONFIRM]:
+                    selected = before.hand_features[env, :, 6] > 0
+                    armor = np.isin(
+                        before.hand_model_ids[env], self.metadata.native.armor_model_ids
+                    )
+                    for armor_slot in np.flatnonzero(selected & armor):
+                        self._pending_refills[env].add((int(before.actors[env]), int(armor_slot)))
         if len(bounce):
             targets = (
                 before.actors[bounce] + actions[bounce] - TARGET_START
@@ -426,6 +562,7 @@ class GuardianRolloutArena:
         )
         truncated = (turn[:, 0] == 3) | self._budget_truncated
         finished = terminated | truncated
+        self._apply_refills(turn, finished)
         newly_finished = before.active & finished
         next_potential = self._potential()
         next_potential[finished] = 0  # bounded episodes explicitly use zero bootstrap
@@ -491,6 +628,7 @@ class GuardianRolloutReport(BaseModel):
     decisions_by_phase: tuple[int, ...]
     actions_by_index: tuple[int, ...]
     transition_sha256: str
+    replacement_gifts: int = Field(default=0, ge=0, strict=True)
     collection_policy: Literal["greedy-smoke-baseline-v1"] = "greedy-smoke-baseline-v1"
     learning_performed: Literal[False] = False
 
@@ -508,6 +646,7 @@ def collect_guardian_rollout(arena: GuardianRolloutArena, *, steps: int) -> Guar
     action_counts = np.zeros(ACTION_COUNT, dtype=np.int64)
     wins = np.zeros(arena.config.player_count, dtype=np.int64)
     completed = truncated = 0
+    initial_gifts = arena.replacement_gifts
     for _ in range(steps):
         observation = arena.reset_done()
         actions = greedy_guardian_actions(observation)
@@ -543,4 +682,5 @@ def collect_guardian_rollout(arena: GuardianRolloutArena, *, steps: int) -> Guar
         decisions_by_phase=tuple(int(value) for value in phases),
         actions_by_index=tuple(int(value) for value in action_counts),
         transition_sha256=digest.hexdigest(),
+        replacement_gifts=arena.replacement_gifts - initial_gifts,
     )

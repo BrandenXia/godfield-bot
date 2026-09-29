@@ -1378,6 +1378,27 @@ experiments reduced defense-toggle loops, but did not establish baseline
 superiority; no-redraw turn limits remain common. See
 [ADR 0086](docs/architecture/0086-local-guardian-neural-training.md).
 
+An opt-in refill curriculum now replaces consumed weapons and confirmed armor
+using pinned relative gift weights for the same 94 supported cards. To start
+a **new** local candidate under this separate provisional ruleset:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation --extra training \
+  godfield-bot simulation guardian-train \
+  --batch-size 32 --teacher-updates 64 --teacher-selected-defense-weight 4 \
+  --updates 10 --max-turns 32 --max-decisions 128 \
+  --refill weighted-consumption-v1
+```
+
+The same flag works with `guardian-rollout`; `guardian-evaluate` reads the
+checkpoint's recorded rules automatically. Gifts wait until defense/bounce
+finishes, and reports count them. Without the flag, no redraw remains the
+default. No-redraw/refill checkpoints cannot silently resume across curricula.
+On one paired baseline diagnostic set, decisive games increased from 8/32 to
+24/32. Neural candidates still lose and sometimes reach toggle/decision limits.
+This is not official acquisition timing, the full gift pool, full-game readiness,
+or live promotion. See [ADR 0087](docs/architecture/0087-provisional-weighted-refill-curriculum.md).
+
 A later private-room trace contains one self-targeted Nocturnal Broom-style
 `removeItems` event. Its explicit three selected cards disappear in the next
 inventory, and native 0.36.0/schema 3 can reproduce that narrow operation with

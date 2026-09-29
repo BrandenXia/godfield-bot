@@ -2696,9 +2696,13 @@ def simulation_guardian_rollout(
     max_turns: Annotated[int, typer.Option(min=1, max=100_000)] = 64,
     max_decisions: Annotated[int, typer.Option(min=1, max=100_000)] = 1024,
     opening: Annotated[str, typer.Option(help="cards-only, mars-opening, or mixed.")] = "mixed",
+    refill: Annotated[
+        str, typer.Option(help="none, or weighted-consumption-v1 (provisional replacement gifts).")
+    ] = "none",
 ) -> None:
     """Exercise seeded local C++ arena episodes; does not train or play online."""
 
+    from godfield_bot.api_catalog import ApiCatalogError
     from godfield_bot.provisional_rules import ProvisionalRuleUnavailableError
 
     try:
@@ -2716,13 +2720,20 @@ def simulation_guardian_rollout(
                 "max_turns": max_turns,
                 "max_decisions": max_decisions,
                 "opening": opening,
+                "refill": refill,
             }
         )
         if steps * batch_size > 1_000_000:
             raise ValueError("rollout is limited to 1000000 transitions")
         arena = GuardianRolloutArena(catalog_path=catalog, bible_path=bible, config=config)
         report = collect_guardian_rollout(arena, steps=steps)
-    except (ImportError, OSError, ValueError, ProvisionalRuleUnavailableError) as error:
+    except (
+        ImportError,
+        OSError,
+        ValueError,
+        ApiCatalogError,
+        ProvisionalRuleUnavailableError,
+    ) as error:
         structlog.get_logger().error("guardian_rollout_failed", reason=str(error).splitlines()[0])
         raise typer.Exit(code=1) from None
     typer.echo(report.model_dump_json(indent=2))
@@ -2751,6 +2762,10 @@ def simulation_guardian_train(
     max_turns: Annotated[int, typer.Option(min=1, max=100_000)] = 64,
     max_decisions: Annotated[int, typer.Option(min=1, max=100_000)] = 128,
     opening: Annotated[str, typer.Option(help="cards-only, mars-opening, or mixed.")] = "mixed",
+    refill: Annotated[
+        str,
+        typer.Option(help="none, or weighted-consumption-v1 (separate provisional curriculum)."),
+    ] = "none",
     baseline_opponent_fraction: Annotated[float, typer.Option(min=0, max=1)] = 0.5,
     evaluation_games: Annotated[int, typer.Option(min=2, max=256)] = 32,
     cpu_threads: Annotated[int, typer.Option(min=1, max=16)] = 2,
@@ -2773,6 +2788,7 @@ def simulation_guardian_train(
                     "max_turns": max_turns,
                     "max_decisions": max_decisions,
                     "opening": opening,
+                    "refill": refill,
                 },
                 "rollout_steps": rollout_steps,
                 "updates": updates,

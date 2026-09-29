@@ -28,13 +28,76 @@ from godfield_bot.acquisition_v2 import AcquisitionSnapshotV2
 from godfield_bot.acquisition_v3 import AcquisitionSnapshotV3
 from godfield_bot.api_catalog import ApiCatalogSnapshot, read_api_catalog_snapshot
 
-REPLAY_PROJECTION_ID = "observed-inventory-projection-verified-ordinary-wire-aware-v4"
+REPLAY_PROJECTION_ID = "observed-inventory-projection-verified-ordinary-wire-aware-v5"
 REPLAY_CATALOG_SHA256 = ACQUISITION_REVIEWED_CATALOG_SHA256
 NATIVE_REPLAY_RULESET_ID = "explicit-ordinary-retained-miracle-and-observed-three-removal-replay-v3"
 # Only explicit single-item consumption witnessed in the official fixtures:
-# v2 bc54a888 (23, 142), v3 60fe19b4 and cb9da594 (the remaining models). Catalog
-# membership or an ordinary category alone is not sufficient for admission.
-ORDINARY_MODELS = (16, 23, 26, 29, 32, 40, 41, 44, 55, 81, 123, 130, 135, 142, 166, 192, 195)
+# v2 bc54a888, v3 60fe19b4/cb9da594, and 36 adjacent private API transitions
+# pinned in acquisition-private-ordinary-single-use-v1.json. Catalog membership
+# or an ordinary category alone is not sufficient for admission.
+ORDINARY_MODELS = (
+    6,
+    10,
+    13,
+    14,
+    16,
+    19,
+    21,
+    23,
+    26,
+    29,
+    30,
+    32,
+    33,
+    35,
+    40,
+    41,
+    44,
+    52,
+    55,
+    57,
+    60,
+    64,
+    73,
+    75,
+    81,
+    89,
+    92,
+    116,
+    118,
+    123,
+    130,
+    135,
+    137,
+    142,
+    143,
+    166,
+    169,
+    177,
+    179,
+    190,
+    191,
+    192,
+    194,
+    195,
+    196,
+)
+# Exact ordered pairs witnessed in adjacent private API transitions. Pair-only
+# models are available to the native primitive but never admitted alone.
+WITNESSED_ORDINARY_PAIRS = (
+    (29, 15),
+    (29, 22),
+    (54, 12),
+    (54, 74),
+    (90, 25),
+    (118, 161),
+    (123, 149),
+    (134, 157),
+    (142, 154),
+)
+NATIVE_CONSUMABLE_MODELS = tuple(
+    sorted(set(ORDINARY_MODELS) | {model for pair in WITNESSED_ORDINARY_PAIRS for model in pair})
+)
 RETAINED_MODELS = (215,)
 # Only the handlers reviewed for the existing fixture are admitted. Being in
 # the collector's reviewed-action list does NOT establish inventory neutrality.
@@ -91,19 +154,21 @@ class InventoryReplayResult(BaseModel):
     replayed_item_count: int | None = Field(default=None, ge=0)
     first_difference_index: int | None = Field(default=None, ge=0)
     consumed_item_count: int = Field(default=0, ge=0)
+    paired_consumption_event_count: int = Field(default=0, ge=0)
     gift_item_count: int = Field(default=0, ge=0)
     retained_miracle_use_count: int = Field(default=0, ge=0)
 
 
 class AcquisitionReplayAudit(BaseModel):
-    schema_version: Literal[2] = 2
-    source_kind: Literal["official-acquisition-native-projection-audit-v2"] = (
-        "official-acquisition-native-projection-audit-v2"
+    schema_version: Literal[3] = 3
+    source_kind: Literal["official-acquisition-native-projection-audit-v3"] = (
+        "official-acquisition-native-projection-audit-v3"
     )
     replay_projection_id: str = REPLAY_PROJECTION_ID
     native_replay_schema_version: Literal[3] = 3
     native_replay_ruleset_id: str = NATIVE_REPLAY_RULESET_ID
     ordinary_model_ids: tuple[int, ...] = ORDINARY_MODELS
+    witnessed_ordinary_pairs: tuple[tuple[int, int], ...] = WITNESSED_ORDINARY_PAIRS
     retained_miracle_model_ids: tuple[int, ...] = RETAINED_MODELS
     interpretation_basis: Literal["pinned-client-sanitized-item-projection"] = (
         "pinned-client-sanitized-item-projection"
@@ -119,6 +184,7 @@ class AcquisitionReplayAudit(BaseModel):
     skipped_snapshot_count: int = Field(ge=0)
     repeated_server_snapshot_count: int = Field(ge=0)
     matched_consumed_item_count: int = Field(ge=0)
+    matched_paired_consumption_event_count: int = Field(ge=0)
     matched_gift_item_count: int = Field(ge=0)
     matched_retained_miracle_use_count: int = Field(ge=0)
     reason_counts: dict[str, int]
@@ -197,9 +263,10 @@ def _native_check(
 
     replay = native.OrderedInventoryReplay(
         np.asarray(initial, dtype=np.int64).reshape(-1, 4),
-        np.asarray(ORDINARY_MODELS, dtype=np.int64),
+        np.asarray(NATIVE_CONSUMABLE_MODELS, dtype=np.int64),
     )
     replay.configure_retained_miracles(np.asarray(RETAINED_MODELS, dtype=np.int64))
+    paired_consumption_event_count = 0
     event_wires = (
         {wire.event_index: wire for wire in row.event_item_wire}
         if isinstance(row, AcquisitionSnapshotV3)
@@ -247,6 +314,12 @@ def _native_check(
                     replay.perform_retained_miracle(np.asarray(selected[0], dtype=np.int64))
                 elif len(selected) <= 1 and all(item[1] in ORDINARY_MODELS for item in selected):
                     replay.consume(np.asarray(selected, dtype=np.int64).reshape(-1, 4))
+                elif (
+                    len(selected) == 2
+                    and tuple(item[1] for item in selected) in WITNESSED_ORDINARY_PAIRS
+                ):
+                    replay.consume(np.asarray(selected, dtype=np.int64).reshape(-1, 4))
+                    paired_consumption_event_count += 1
                 else:
                     raise _UnsupportedReplay("unsupported_selection_model_or_combination")
         except _UnsupportedReplay as error:
@@ -284,6 +357,7 @@ def _native_check(
         replayed_item_count=len(actual),
         first_difference_index=first_difference,
         consumed_item_count=replay.consumed_item_count,
+        paired_consumption_event_count=paired_consumption_event_count,
         gift_item_count=replay.gift_item_count,
         retained_miracle_use_count=replay.retained_miracle_use_count,
     )
@@ -450,6 +524,9 @@ def audit_acquisition_replay_batches(
         skipped_snapshot_count=sum(result.status == "skipped" for result in results),
         repeated_server_snapshot_count=sum(result.status == "repeat" for result in results),
         matched_consumed_item_count=sum(result.consumed_item_count for result in matched),
+        matched_paired_consumption_event_count=sum(
+            result.paired_consumption_event_count for result in matched
+        ),
         matched_gift_item_count=sum(result.gift_item_count for result in matched),
         matched_retained_miracle_use_count=sum(
             result.retained_miracle_use_count for result in matched

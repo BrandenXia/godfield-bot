@@ -193,14 +193,14 @@ def test_two_casts_match_but_omitted_defenses_and_other_models_stay_unsupported(
     report = audit_acquisition_replay_batches(
         official_batches()[1], catalog=read_api_catalog_snapshot(CATALOG)
     )
-    assert report.matched_initial_snapshot_count == 1 and report.matched_transition_count == 4
+    assert report.matched_initial_snapshot_count == 1 and report.matched_transition_count == 5
     assert report.matched_retained_miracle_use_count == 2
-    assert report.matched_consumed_item_count == 2 and report.matched_gift_item_count == 13
-    assert report.mismatch_count == 0 and report.unsupported_snapshot_count == 10
+    assert report.matched_consumed_item_count == 3 and report.matched_gift_item_count == 14
+    assert report.mismatch_count == 0 and report.unsupported_snapshot_count == 9
     assert report.reason_counts == {
         "ambiguous_self_selection_array": 4,
         "unresolved_item_owner": 1,
-        "unsupported_selection_model_or_combination": 5,
+        "unsupported_selection_model_or_combination": 4,
     }
     for sequence in (9, 11):
         assert report.results[sequence - 1].status == "matched"

@@ -1,0 +1,1431 @@
+{
+  "source_kind": "private-api-ordinary-paired-use-observation-fixture-v1",
+  "catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+  "interpretation_basis": "pinned-client-sanitized-item-projection",
+  "complete_game_replay": false,
+  "training_eligible": false,
+  "promotion_eligible": false,
+  "acquisition_rule_eligible": false,
+  "source_runs": {
+    "509dc7e0-7f23-42a6-8e15-5043cd845d68": "0013cd5921315fbdd4dc2c0ce7f72ca1d0f9aad9b476b6e7f47dd91d3a11dfac",
+    "63cad70b-6a4b-4e5c-aa32-292a663d07be": "cd8ff2d3b386de4cbc72222f8852263ce459e92ab596dcaff1ed0dac22fa4047",
+    "66b59540-f51e-4eac-bfcf-d0398c78e1db": "6416fbaeed5d81b07a41cf5618bfda2326ccb009231b6283510c8ea1f6e38e79",
+    "eeefd6ff-e70e-44c0-8fd8-f9c2f35f551a": "aa2f07cd4b7f38e708cb20a167722670aa8aa9d569f207751559957c16f970d7",
+    "f0b3c27d-74a0-4d06-bac3-d1bfd6bdeb6a": "37aca3327228934ee6b234a128c6826461429dc32bf82e44724fc1e3509c1b82",
+    "f995628a-0dbc-45de-afa2-ca6f2473f09e": "0ebca6733041a434e543521004eda19bf65d3a53f046ca9094449f39eb580f37"
+  },
+  "witnessed_ordered_model_pairs": [
+    [
+      29,
+      15
+    ],
+    [
+      29,
+      22
+    ],
+    [
+      54,
+      12
+    ],
+    [
+      54,
+      74
+    ],
+    [
+      90,
+      25
+    ],
+    [
+      118,
+      161
+    ],
+    [
+      123,
+      149
+    ],
+    [
+      134,
+      157
+    ],
+    [
+      142,
+      154
+    ]
+  ],
+  "cases": [
+    {
+      "run_id": "509dc7e0-7f23-42a6-8e15-5043cd845d68",
+      "stream_id": "d243f71a-baf9-47dc-bc27-a2317d9f5999",
+      "before_batch_input_sha256": "964cee6c07cbc2782d14a4ef4e04cf64f090946e61237151d6f5f2c6ea3de113",
+      "after_batch_input_sha256": "321788f08fe36b35e0864c373b33b5f8e331798c0275169b1de6ccb7b777f2c0",
+      "before_source_sequence": 36,
+      "after_source_sequence": 37,
+      "before_update_count": 6,
+      "after_update_count": 7,
+      "self_player_id": 2,
+      "phase_input_status": "consecutive",
+      "selected_event_index": 0,
+      "selected_model_ids": [
+        123,
+        149
+      ],
+      "selected_items_wire_kind": "array",
+      "before_items": [
+        [
+          1,
+          123,
+          0,
+          0
+        ],
+        [
+          2,
+          135,
+          0,
+          0
+        ],
+        [
+          4,
+          149,
+          0,
+          0
+        ],
+        [
+          5,
+          195,
+          0,
+          0
+        ],
+        [
+          7,
+          135,
+          0,
+          0
+        ],
+        [
+          8,
+          135,
+          0,
+          0
+        ],
+        [
+          9,
+          4,
+          0,
+          0
+        ],
+        [
+          6,
+          200,
+          0,
+          0
+        ],
+        [
+          3,
+          5,
+          0,
+          0
+        ]
+      ],
+      "operations": [
+        {
+          "action": "useDefenseItems",
+          "event_index": 0,
+          "items": [
+            [
+              1,
+              123,
+              0,
+              0
+            ],
+            [
+              4,
+              149,
+              0,
+              0
+            ]
+          ]
+        },
+        {
+          "action": "gift",
+          "event_index": 2,
+          "item": [
+            1,
+            64,
+            0,
+            0
+          ]
+        },
+        {
+          "action": "gift",
+          "event_index": 3,
+          "item": [
+            4,
+            26,
+            0,
+            0
+          ]
+        }
+      ],
+      "after_items": [
+        [
+          2,
+          135,
+          0,
+          0
+        ],
+        [
+          5,
+          195,
+          0,
+          0
+        ],
+        [
+          7,
+          135,
+          0,
+          0
+        ],
+        [
+          8,
+          135,
+          0,
+          0
+        ],
+        [
+          9,
+          4,
+          0,
+          0
+        ],
+        [
+          6,
+          200,
+          0,
+          0
+        ],
+        [
+          3,
+          5,
+          0,
+          0
+        ],
+        [
+          1,
+          64,
+          0,
+          0
+        ],
+        [
+          4,
+          26,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "run_id": "63cad70b-6a4b-4e5c-aa32-292a663d07be",
+      "stream_id": "ae794ee0-04ab-4211-b40b-f62fc7693388",
+      "before_batch_input_sha256": "36c03a22dd958dfba831343b7cebcb71ada464ceb842fbf2748c1d7c2bd7a124",
+      "after_batch_input_sha256": "b841386f05323e8a1f676f0fdcc6547f4d1ac3448d4c59fd7792e362f5fe2b36",
+      "before_source_sequence": 74,
+      "after_source_sequence": 75,
+      "before_update_count": 15,
+      "after_update_count": 16,
+      "self_player_id": 2,
+      "phase_input_status": "consecutive",
+      "selected_event_index": 0,
+      "selected_model_ids": [
+        142,
+        154
+      ],
+      "selected_items_wire_kind": "array",
+      "before_items": [
+        [
+          2,
+          195,
+          0,
+          0
+        ],
+        [
+          3,
+          170,
+          0,
+          0
+        ],
+        [
+          4,
+          142,
+          0,
+          0
+        ],
+        [
+          5,
+          199,
+          0,
+          0
+        ],
+        [
+          8,
+          154,
+          0,
+          0
+        ],
+        [
+          9,
+          56,
+          0,
+          0
+        ],
+        [
+          1,
+          196,
+          0,
+          0
+        ],
+        [
+          7,
+          117,
+          0,
+          0
+        ]
+      ],
+      "operations": [
+        {
+          "action": "useDefenseItems",
+          "event_index": 0,
+          "items": [
+            [
+              4,
+              142,
+              0,
+              0
+            ],
+            [
+              8,
+              154,
+              0,
+              0
+            ]
+          ]
+        },
+        {
+          "action": "gift",
+          "event_index": 3,
+          "item": [
+            4,
+            55,
+            0,
+            0
+          ]
+        },
+        {
+          "action": "gift",
+          "event_index": 5,
+          "item": [
+            6,
+            135,
+            0,
+            0
+          ]
+        },
+        {
+          "action": "gift",
+          "event_index": 6,
+          "item": [
+            8,
+            89,
+            0,
+            0
+          ]
+        }
+      ],
+      "after_items": [
+        [
+          2,
+          195,
+          0,
+          0
+        ],
+        [
+          3,
+          170,
+          0,
+          0
+        ],
+        [
+          5,
+          199,
+          0,
+          0
+        ],
+        [
+          9,
+          56,
+          0,
+          0
+        ],
+        [
+          1,
+          196,
+          0,
+          0
+        ],
+        [
+          7,
+          117,
+          0,
+          0
+        ],
+        [
+          4,
+          55,
+          0,
+          0
+        ],
+        [
+          6,
+          135,
+          0,
+          0
+        ],
+        [
+          8,
+          89,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "run_id": "66b59540-f51e-4eac-bfcf-d0398c78e1db",
+      "stream_id": "54282fbf-cd2e-4554-9bc3-37e04f05dceb",
+      "before_batch_input_sha256": "a87a2a6bf7408888095b55c81b0a2c606f44ef751194a46a8eb9e04354bbb5c9",
+      "after_batch_input_sha256": "6b2f2cb72c0c3768938a6fb5fa09c7df9ff6f119101745fb1493b2dd9ee3d8aa",
+      "before_source_sequence": 1,
+      "after_source_sequence": 2,
+      "before_update_count": 1,
+      "after_update_count": 2,
+      "self_player_id": 1,
+      "phase_input_status": "consecutive",
+      "selected_event_index": 0,
+      "selected_model_ids": [
+        90,
+        25
+      ],
+      "selected_items_wire_kind": "array",
+      "before_items": [
+        [
+          1,
+          90,
+          0,
+          0
+        ],
+        [
+          2,
+          58,
+          0,
+          0
+        ],
+        [
+          3,
+          60,
+          0,
+          0
+        ],
+        [
+          4,
+          170,
+          0,
+          0
+        ],
+        [
+          5,
+          149,
+          0,
+          0
+        ],
+        [
+          6,
+          192,
+          0,
+          0
+        ],
+        [
+          7,
+          5,
+          0,
+          0
+        ],
+        [
+          8,
+          25,
+          0,
+          0
+        ],
+        [
+          9,
+          108,
+          0,
+          0
+        ]
+      ],
+      "operations": [
+        {
+          "action": "useAttackItems",
+          "event_index": 0,
+          "items": [
+            [
+              1,
+              90,
+              0,
+              0
+            ],
+            [
+              8,
+              25,
+              0,
+              0
+            ]
+          ]
+        }
+      ],
+      "after_items": [
+        [
+          2,
+          58,
+          0,
+          0
+        ],
+        [
+          3,
+          60,
+          0,
+          0
+        ],
+        [
+          4,
+          170,
+          0,
+          0
+        ],
+        [
+          5,
+          149,
+          0,
+          0
+        ],
+        [
+          6,
+          192,
+          0,
+          0
+        ],
+        [
+          7,
+          5,
+          0,
+          0
+        ],
+        [
+          9,
+          108,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "run_id": "eeefd6ff-e70e-44c0-8fd8-f9c2f35f551a",
+      "stream_id": "757f578b-aea0-491d-bc15-030404fbb255",
+      "before_batch_input_sha256": "57aa957cfbae53ce965f26c653a002047838e74add5604f3dfea95d527c4c4c3",
+      "after_batch_input_sha256": "830942bd91504ce4d0770fb1c6f9f0ab7c4653eb5beb062957523f86b619610b",
+      "before_source_sequence": 13,
+      "after_source_sequence": 14,
+      "before_update_count": 3,
+      "after_update_count": 4,
+      "self_player_id": 2,
+      "phase_input_status": "consecutive",
+      "selected_event_index": 0,
+      "selected_model_ids": [
+        29,
+        22
+      ],
+      "selected_items_wire_kind": "array",
+      "before_items": [
+        [
+          1,
+          113,
+          0,
+          0
+        ],
+        [
+          2,
+          22,
+          0,
+          0
+        ],
+        [
+          4,
+          200,
+          0,
+          0
+        ],
+        [
+          5,
+          29,
+          0,
+          0
+        ],
+        [
+          6,
+          5,
+          0,
+          0
+        ],
+        [
+          7,
+          23,
+          0,
+          0
+        ],
+        [
+          8,
+          4,
+          0,
+          0
+        ],
+        [
+          9,
+          191,
+          0,
+          0
+        ],
+        [
+          3,
+          169,
+          0,
+          0
+        ]
+      ],
+      "operations": [
+        {
+          "action": "useAttackItems",
+          "event_index": 0,
+          "items": [
+            [
+              5,
+              29,
+              0,
+              0
+            ],
+            [
+              2,
+              22,
+              0,
+              0
+            ]
+          ]
+        }
+      ],
+      "after_items": [
+        [
+          1,
+          113,
+          0,
+          0
+        ],
+        [
+          4,
+          200,
+          0,
+          0
+        ],
+        [
+          6,
+          5,
+          0,
+          0
+        ],
+        [
+          7,
+          23,
+          0,
+          0
+        ],
+        [
+          8,
+          4,
+          0,
+          0
+        ],
+        [
+          9,
+          191,
+          0,
+          0
+        ],
+        [
+          3,
+          169,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "run_id": "eeefd6ff-e70e-44c0-8fd8-f9c2f35f551a",
+      "stream_id": "757f578b-aea0-491d-bc15-030404fbb255",
+      "before_batch_input_sha256": "d3dc1a5ca4fbea8f9a62966225d313b7e3d61baad311887f5e377f3b032da5d0",
+      "after_batch_input_sha256": "9c5e305942e2e817a211c4a5409e1a71d599913a641d8e973ba589c9db36fcd4",
+      "before_source_sequence": 171,
+      "after_source_sequence": 172,
+      "before_update_count": 33,
+      "after_update_count": 34,
+      "self_player_id": 2,
+      "phase_input_status": "consecutive",
+      "selected_event_index": 0,
+      "selected_model_ids": [
+        54,
+        74
+      ],
+      "selected_items_wire_kind": "array",
+      "before_items": [
+        [
+          4,
+          200,
+          0,
+          0
+        ],
+        [
+          6,
+          5,
+          0,
+          0
+        ],
+        [
+          8,
+          4,
+          0,
+          0
+        ],
+        [
+          5,
+          237,
+          0,
+          0
+        ],
+        [
+          2,
+          230,
+          0,
+          0
+        ],
+        [
+          3,
+          74,
+          0,
+          0
+        ],
+        [
+          7,
+          196,
+          0,
+          0
+        ],
+        [
+          9,
+          54,
+          0,
+          0
+        ],
+        [
+          1,
+          116,
+          0,
+          0
+        ]
+      ],
+      "operations": [
+        {
+          "action": "useAttackItems",
+          "event_index": 0,
+          "items": [
+            [
+              9,
+              54,
+              0,
+              0
+            ],
+            [
+              3,
+              74,
+              0,
+              0
+            ]
+          ]
+        }
+      ],
+      "after_items": [
+        [
+          4,
+          200,
+          0,
+          0
+        ],
+        [
+          6,
+          5,
+          0,
+          0
+        ],
+        [
+          8,
+          4,
+          0,
+          0
+        ],
+        [
+          5,
+          237,
+          0,
+          0
+        ],
+        [
+          2,
+          230,
+          0,
+          0
+        ],
+        [
+          7,
+          196,
+          0,
+          0
+        ],
+        [
+          1,
+          116,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "run_id": "f0b3c27d-74a0-4d06-bac3-d1bfd6bdeb6a",
+      "stream_id": "e58e371d-7af0-457c-8284-b978d9ad4dfb",
+      "before_batch_input_sha256": "3a4e119145a006308f26c9feaca97c84fbedf6d0c22ad24140a1a40fb26a6088",
+      "after_batch_input_sha256": "533e14fe645bd0433e3f973ac86f0ff69cd6be907626c387f711e46b82f7d524",
+      "before_source_sequence": 24,
+      "after_source_sequence": 25,
+      "before_update_count": 4,
+      "after_update_count": 5,
+      "self_player_id": 1,
+      "phase_input_status": "consecutive",
+      "selected_event_index": 0,
+      "selected_model_ids": [
+        118,
+        161
+      ],
+      "selected_items_wire_kind": "array",
+      "before_items": [
+        [
+          1,
+          187,
+          0,
+          0
+        ],
+        [
+          2,
+          64,
+          0,
+          0
+        ],
+        [
+          3,
+          37,
+          0,
+          0
+        ],
+        [
+          4,
+          26,
+          0,
+          0
+        ],
+        [
+          5,
+          118,
+          0,
+          0
+        ],
+        [
+          6,
+          81,
+          0,
+          0
+        ],
+        [
+          7,
+          161,
+          0,
+          0
+        ],
+        [
+          8,
+          41,
+          0,
+          0
+        ],
+        [
+          9,
+          29,
+          0,
+          0
+        ]
+      ],
+      "operations": [
+        {
+          "action": "useDefenseItems",
+          "event_index": 0,
+          "items": [
+            [
+              5,
+              118,
+              0,
+              0
+            ],
+            [
+              7,
+              161,
+              0,
+              0
+            ]
+          ]
+        },
+        {
+          "action": "gift",
+          "event_index": 2,
+          "item": [
+            5,
+            134,
+            0,
+            0
+          ]
+        },
+        {
+          "action": "gift",
+          "event_index": 3,
+          "item": [
+            7,
+            15,
+            0,
+            0
+          ]
+        }
+      ],
+      "after_items": [
+        [
+          1,
+          187,
+          0,
+          0
+        ],
+        [
+          2,
+          64,
+          0,
+          0
+        ],
+        [
+          3,
+          37,
+          0,
+          0
+        ],
+        [
+          4,
+          26,
+          0,
+          0
+        ],
+        [
+          6,
+          81,
+          0,
+          0
+        ],
+        [
+          8,
+          41,
+          0,
+          0
+        ],
+        [
+          9,
+          29,
+          0,
+          0
+        ],
+        [
+          5,
+          134,
+          0,
+          0
+        ],
+        [
+          7,
+          15,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "run_id": "f0b3c27d-74a0-4d06-bac3-d1bfd6bdeb6a",
+      "stream_id": "e58e371d-7af0-457c-8284-b978d9ad4dfb",
+      "before_batch_input_sha256": "cde624783d847fd4bd8964aaf7c1063f45d17fecfe4478b5ea21c5466b464037",
+      "after_batch_input_sha256": "3817cbd9e1909ad1674f2155da8b54fed5a12850a45552c12a4c847490a18de7",
+      "before_source_sequence": 44,
+      "after_source_sequence": 45,
+      "before_update_count": 8,
+      "after_update_count": 9,
+      "self_player_id": 1,
+      "phase_input_status": "consecutive",
+      "selected_event_index": 0,
+      "selected_model_ids": [
+        134,
+        157
+      ],
+      "selected_items_wire_kind": "array",
+      "before_items": [
+        [
+          1,
+          187,
+          0,
+          0
+        ],
+        [
+          2,
+          64,
+          0,
+          0
+        ],
+        [
+          3,
+          37,
+          0,
+          0
+        ],
+        [
+          4,
+          26,
+          0,
+          0
+        ],
+        [
+          6,
+          81,
+          0,
+          0
+        ],
+        [
+          9,
+          29,
+          0,
+          0
+        ],
+        [
+          5,
+          134,
+          0,
+          0
+        ],
+        [
+          7,
+          15,
+          0,
+          0
+        ],
+        [
+          8,
+          157,
+          0,
+          0
+        ]
+      ],
+      "operations": [
+        {
+          "action": "useDefenseItems",
+          "event_index": 0,
+          "items": [
+            [
+              5,
+              134,
+              0,
+              0
+            ],
+            [
+              8,
+              157,
+              0,
+              0
+            ]
+          ]
+        },
+        {
+          "action": "gift",
+          "event_index": 2,
+          "item": [
+            5,
+            195,
+            0,
+            0
+          ]
+        },
+        {
+          "action": "gift",
+          "event_index": 4,
+          "item": [
+            8,
+            124,
+            0,
+            0
+          ]
+        }
+      ],
+      "after_items": [
+        [
+          1,
+          187,
+          0,
+          0
+        ],
+        [
+          2,
+          64,
+          0,
+          0
+        ],
+        [
+          3,
+          37,
+          0,
+          0
+        ],
+        [
+          4,
+          26,
+          0,
+          0
+        ],
+        [
+          6,
+          81,
+          0,
+          0
+        ],
+        [
+          9,
+          29,
+          0,
+          0
+        ],
+        [
+          7,
+          15,
+          0,
+          0
+        ],
+        [
+          5,
+          195,
+          0,
+          0
+        ],
+        [
+          8,
+          124,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "run_id": "f0b3c27d-74a0-4d06-bac3-d1bfd6bdeb6a",
+      "stream_id": "e58e371d-7af0-457c-8284-b978d9ad4dfb",
+      "before_batch_input_sha256": "3817cbd9e1909ad1674f2155da8b54fed5a12850a45552c12a4c847490a18de7",
+      "after_batch_input_sha256": "be30c12b877a99cd7fb2ab3a7d7d13d143532f1a94f60df1f5fd993f74a02246",
+      "before_source_sequence": 45,
+      "after_source_sequence": 46,
+      "before_update_count": 9,
+      "after_update_count": 10,
+      "self_player_id": 1,
+      "phase_input_status": "consecutive",
+      "selected_event_index": 0,
+      "selected_model_ids": [
+        29,
+        15
+      ],
+      "selected_items_wire_kind": "array",
+      "before_items": [
+        [
+          1,
+          187,
+          0,
+          0
+        ],
+        [
+          2,
+          64,
+          0,
+          0
+        ],
+        [
+          3,
+          37,
+          0,
+          0
+        ],
+        [
+          4,
+          26,
+          0,
+          0
+        ],
+        [
+          6,
+          81,
+          0,
+          0
+        ],
+        [
+          9,
+          29,
+          0,
+          0
+        ],
+        [
+          7,
+          15,
+          0,
+          0
+        ],
+        [
+          5,
+          195,
+          0,
+          0
+        ],
+        [
+          8,
+          124,
+          0,
+          0
+        ]
+      ],
+      "operations": [
+        {
+          "action": "useAttackItems",
+          "event_index": 0,
+          "items": [
+            [
+              9,
+              29,
+              0,
+              0
+            ],
+            [
+              7,
+              15,
+              0,
+              0
+            ]
+          ]
+        }
+      ],
+      "after_items": [
+        [
+          1,
+          187,
+          0,
+          0
+        ],
+        [
+          2,
+          64,
+          0,
+          0
+        ],
+        [
+          3,
+          37,
+          0,
+          0
+        ],
+        [
+          4,
+          26,
+          0,
+          0
+        ],
+        [
+          6,
+          81,
+          0,
+          0
+        ],
+        [
+          5,
+          195,
+          0,
+          0
+        ],
+        [
+          8,
+          124,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "run_id": "f995628a-0dbc-45de-afa2-ca6f2473f09e",
+      "stream_id": "58f53311-8c33-4abc-808e-ceb91e62b801",
+      "before_batch_input_sha256": "505a8532ec0b95265263e5d49a0ea3132beec9ccb3e7ac8d24e3c0b7def84553",
+      "after_batch_input_sha256": "b4444c78e5f7abab1c304a992552f092aeab5f4ed9cb63dc4437b01103edd3c9",
+      "before_source_sequence": 39,
+      "after_source_sequence": 40,
+      "before_update_count": 4,
+      "after_update_count": 5,
+      "self_player_id": 1,
+      "phase_input_status": "consecutive",
+      "selected_event_index": 0,
+      "selected_model_ids": [
+        54,
+        12
+      ],
+      "selected_items_wire_kind": "array",
+      "before_items": [
+        [
+          1,
+          235,
+          0,
+          0
+        ],
+        [
+          2,
+          107,
+          0,
+          0
+        ],
+        [
+          3,
+          191,
+          0,
+          0
+        ],
+        [
+          4,
+          4,
+          0,
+          0
+        ],
+        [
+          5,
+          54,
+          0,
+          0
+        ],
+        [
+          6,
+          191,
+          0,
+          0
+        ],
+        [
+          7,
+          223,
+          0,
+          0
+        ],
+        [
+          9,
+          186,
+          0,
+          0
+        ],
+        [
+          8,
+          12,
+          0,
+          0
+        ]
+      ],
+      "operations": [
+        {
+          "action": "useAttackItems",
+          "event_index": 0,
+          "items": [
+            [
+              5,
+              54,
+              0,
+              0
+            ],
+            [
+              8,
+              12,
+              0,
+              0
+            ]
+          ]
+        }
+      ],
+      "after_items": [
+        [
+          1,
+          235,
+          0,
+          0
+        ],
+        [
+          2,
+          107,
+          0,
+          0
+        ],
+        [
+          3,
+          191,
+          0,
+          0
+        ],
+        [
+          4,
+          4,
+          0,
+          0
+        ],
+        [
+          6,
+          191,
+          0,
+          0
+        ],
+        [
+          7,
+          223,
+          0,
+          0
+        ],
+        [
+          9,
+          186,
+          0,
+          0
+        ]
+      ]
+    }
+  ]
+}

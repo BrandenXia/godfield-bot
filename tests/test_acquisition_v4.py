@@ -261,8 +261,8 @@ def test_real_v4_projection_and_cli_keep_unsupported_updates_and_database_unchan
     assert audit["declared_capture_schema_version"] == 4
     assert audit["capture_schema_matches_run_config"]
     assert replay["matched_initial_snapshot_count"] == 1
-    assert replay["matched_transition_count"] == 5
-    assert replay["mismatch_count"] == 0 and replay["unsupported_snapshot_count"] == 28
+    assert replay["matched_transition_count"] == 9
+    assert replay["mismatch_count"] == 0 and replay["unsupported_snapshot_count"] == 24
     assert (
         not replay["complete_projection_replay"] and not replay["event_item_wire_metadata_complete"]
     )

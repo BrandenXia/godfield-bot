@@ -446,7 +446,7 @@ def test_replay_requires_explicit_v3_selection_array_and_cli_reports_are_read_on
     asyncio.run(recorder.finalize(page))
     original = storage.path.read_bytes()
     report = audit_acquisition_replay_run(storage.path, run.run_id, catalog_path=CATALOG)
-    assert report["schema_version"] == 2
+    assert report["schema_version"] == 3
     assert report["event_item_wire_metadata_complete"]
     assert report["results"][-1]["status"] == status
     assert report["complete_projection_replay"] == (status == "matched")

@@ -1194,7 +1194,7 @@ browser snapshot streams: API captures honestly report zero hooks/listeners,
 The API run's `client_sha256` is its environment fingerprint; the separate
 `acquisition_decoder_client_sha256` identifies the reviewed decoder, not an
 observed browser client. Historical evidence input fingerprints remain unchanged.
-The native replay report remains schema 2 and full-run removal replay remains unsupported.
+The native replay report is schema 3; full-run removal replay remains unsupported.
 Even a clean transport report is not evidence for adopting acquisition rules.
 Do not start a concurrent campaign on the same browser profile. Capture and
 review contiguous fixtures before changing C++ consumption/gift/overflow
@@ -1215,10 +1215,14 @@ matches all four inventories: the initial deal and three adjacent transitions,
 with two ordinary items consumed and 11 gifts appended. Original evidence and
 input fingerprints remain unchanged.
 
-The checker deliberately limits ordinary consumption to the 17 models with
-explicit captured single-item uses: 16, 23, 26, 29, 32, 40, 41, 44, 55, 81,
-123, 130, 135, 142, 166, 192, and 195. Single-item retained-miracle comparison
-is still limited to model 215.
+The checker deliberately limits single-item ordinary consumption to 45 models
+with explicit captured uses: the earlier 17 and 28 additional models witnessed
+in adjacent private API updates. It also admits nine exact, ordered two-item
+ordinary selections; 12 models witnessed only in those pairs remain unsupported
+when played alone. The [curated single-use fixture](tests/fixtures/acquisition-private-ordinary-single-use-v1.json)
+and [paired-use fixture](tests/fixtures/acquisition-private-ordinary-paired-use-v1.json)
+pin those boundaries. Single-item retained-miracle comparison is still limited
+to model 215.
 Other models may remain as opaque owned/gifted records, not automatically acquire supported
 lifecycle rules. Each transition uses a fresh native object seeded from its
 recorded previous inventory; a mismatch remains visible even if a later pair
@@ -1226,7 +1230,7 @@ matches. V1 captures, unresolved owners, unreviewed effects, overflow, disguised
 selections, and unsupported combinations are not inferred or counted as matches.
 `complete_projection_replay` is not a promotion pass: combat, gift timing, and
 overflow remain unverified, and all training/promotion/acquisition-rule
-eligibility flags stay false. The replay report now has schema 2 and separately
+eligibility flags stay false. The replay report has schema 3 and separately
 reports `event_item_wire_metadata_complete`: v3 supplies classifications
 for every reviewed self-bound event, and this flag also requires resolved
 ownership and verified phase coverage. It rejects malformed event fields and
@@ -1239,6 +1243,13 @@ wire classifications change despite unchanged inventory. Opponent payloads do
 not enter this comparison. Restart collection with the same command above to
 use v3; do not start a concurrent campaign on the same browser profile.
 See [ADR 0067](docs/architecture/0067-event-item-wire-and-repeat-integrity.md).
+
+Private-room capture broadened only the read-only inventory projection: 36
+single-card transitions and nine two-card transitions match native replay.
+Across the eight reviewed private runs, none has a complete projection replay;
+missing/ambiguous events and other mechanics remain visible. Neither the C++
+training curriculum nor live neural control changed. See
+[ADR 0075](docs/architecture/0075-private-ordinary-selection-projection.md).
 
 A later private-room trace contains one self-targeted Nocturnal Broom-style
 `removeItems` event. Its explicit three selected cards disappear in the next

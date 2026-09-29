@@ -159,8 +159,12 @@ def test_allowlist_is_exactly_witnessed_models_not_catalog_categories():
         and len(operation["items"]) == 1
         for artifact in operation["items"]
     }
+    private = json.loads(
+        Path("tests/fixtures/acquisition-private-ordinary-single-use-v1.json").read_text()
+    )
+    witnessed.update(case["selected_model_id"] for case in private["cases"])
     assert tuple(sorted(witnessed)) == ORDINARY_MODELS
-    assert REPLAY_PROJECTION_ID == "observed-inventory-projection-verified-ordinary-wire-aware-v4"
+    assert REPLAY_PROJECTION_ID == "observed-inventory-projection-verified-ordinary-wire-aware-v5"
     # Flare Axe occurs as an opaque gift, but this trace never consumes it.
     first = snapshot(
         owned=[item(1, 110)],

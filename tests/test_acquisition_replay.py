@@ -254,6 +254,58 @@ def test_missing_consumption_is_a_mismatch_not_recovered_from_inventory():
     assert not report.complete_projection_replay
 
 
+def test_newly_witnessed_private_ordinary_model_is_admitted_only_for_inventory_replay():
+    first = snapshot(
+        owned=[item(1, 10)],
+        events=[
+            event("startGame"),
+            event("gift", actor=2, gift=item(1, 10)),
+            event("advanceGF", actor=2),
+        ],
+    )
+    second = snapshot(
+        2, previous=first, owned=[], events=[event("useAttackItems", items=[item(1, 10)])]
+    )
+    report = audit(batch(first, second))
+    assert report.complete_projection_replay
+    assert report.matched_consumed_item_count == 1
+    assert not report.training_eligible and not report.promotion_eligible
+
+
+def test_witnessed_pair_is_atomic_and_pair_only_models_stay_unsupported_alone():
+    first = snapshot(
+        owned=[item(1, 29), item(2, 15)],
+        events=[
+            event("startGame"),
+            event("gift", actor=2, gift=item(1, 29)),
+            event("gift", actor=2, gift=item(2, 15)),
+            event("advanceGF", actor=2),
+        ],
+    )
+    pair = snapshot(
+        2,
+        previous=first,
+        owned=[],
+        events=[event("useAttackItems", items=[item(1, 29), item(2, 15)])],
+    )
+    matched = audit(batch(first, pair))
+    assert matched.complete_projection_replay
+    assert matched.matched_consumed_item_count == 2
+    assert matched.matched_paired_consumption_event_count == 1
+    assert not matched.training_eligible
+
+    alone = snapshot(2, previous=first, events=[event("useAttackItems", items=[item(2, 15)])])
+    reversed_pair = snapshot(
+        2,
+        previous=first,
+        events=[event("useAttackItems", items=[item(2, 15), item(1, 29)])],
+    )
+    for row in (alone, reversed_pair):
+        report = audit(batch(first, row))
+        assert report.results[-1].reason == "unsupported_selection_model_or_combination"
+        assert not report.complete_projection_replay
+
+
 @pytest.mark.parametrize("invalid", ["unknown_id", "wrong_model", "overwrite"])
 def test_native_rejections_stay_visible_and_do_not_count_partial_operations(invalid):
     first = snapshot()
@@ -292,7 +344,7 @@ def test_a_failed_update_is_not_hidden_by_a_later_independent_match():
     [
         (event("removeItems"), "unsupported_inventory_event"),
         (
-            event("useAttackItems", items=[item(1, 10)]),
+            event("useAttackItems", items=[item(1, 7)]),
             "unsupported_selection_model_or_combination",
         ),
         (

@@ -9,6 +9,7 @@ namespace godfield_sim {
 inline constexpr std::uint32_t kGuardianTurnKernelSchemaVersion = 2;
 inline constexpr std::uint32_t kGuardianTurnObservationSchemaVersion = 2;
 inline constexpr std::uint32_t kGuardianTurnMaxDefenseActions = 64;
+inline constexpr std::uint32_t kGuardianActorHandSchemaVersion = 1;
 inline constexpr const char *kGuardianTurnRulesetId =
     "round-robin-card-guardian-resource-turns-provisional-v2";
 using GuardianInventorySnapshot =
@@ -53,6 +54,7 @@ public:
   [[nodiscard]] Int64_2D turn_snapshot() const;
   [[nodiscard]] GuardianInventorySnapshot inventory_snapshot() const;
   [[nodiscard]] GuardianInventorySnapshot hand_feature_snapshot() const;
+  [[nodiscard]] GuardianStateSnapshot actor_hand_snapshot() const;
   [[nodiscard]] GuardianStateSnapshot guardian_snapshot() const {
     return combat_.guardian_snapshot();
   }
@@ -121,6 +123,8 @@ private:
   selected_special_slot(std::size_t environment) const;
   [[nodiscard]] bool finished(std::size_t environment) const;
   [[nodiscard]] Bool2D target_masks(bool bounce) const;
+  [[nodiscard]] std::array<std::int64_t, 6>
+  hand_features(const Card &card) const;
   const std::size_t batch_size_;
   const std::size_t player_count_;
   const std::size_t hand_slots_;

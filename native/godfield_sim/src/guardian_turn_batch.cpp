@@ -607,24 +607,8 @@ GuardianInventorySnapshot GuardianTurnBatch::hand_feature_snapshot() const {
   auto buffer = std::make_unique<std::int64_t[]>(cards_.size() * 6);
   std::fill_n(buffer.get(), cards_.size() * 6, 0);
   for (std::size_t offset = 0; offset < cards_.size(); ++offset) {
-    if (cards_[offset].instance == 0)
-      continue;
-    const auto defense = defenses_.find(cards_[offset].model);
-    if (defense != defenses_.end()) {
-      const auto &profile = defense->second;
-      buffer[offset * 6] = profile.kind == 0 ? 1 : profile.kind == 1 ? 4 : 5;
-      buffer[offset * 6 + 2] = profile.value;
-      buffer[offset * 6 + 3] = profile.element;
-      buffer[offset * 6 + 4] = profile.cost;
-      buffer[offset * 6 + 5] = profile.kind == 0 ? 0 : 1;
-    } else {
-      const auto &profile = attacks_.at(cards_[offset].model);
-      buffer[offset * 6] = profile.origin == 0 ? 2 : 3;
-      buffer[offset * 6 + 1] = profile.value;
-      buffer[offset * 6 + 3] = profile.element;
-      buffer[offset * 6 + 4] = profile.cost;
-      buffer[offset * 6 + 5] = profile.origin;
-    }
+    const auto features = hand_features(cards_[offset]);
+    std::copy(features.begin(), features.end(), buffer.get() + offset * 6);
   }
   nb::capsule owner(buffer.get(), [](void *p) noexcept {
     delete[] static_cast<std::int64_t *>(p);
@@ -632,6 +616,60 @@ GuardianInventorySnapshot GuardianTurnBatch::hand_feature_snapshot() const {
   const auto *data = buffer.release();
   return GuardianInventorySnapshot(
       data, {batch_size_, player_count_, hand_slots_, 6}, owner);
+}
+
+std::array<std::int64_t, 6>
+GuardianTurnBatch::hand_features(const Card &card) const {
+  if (card.instance == 0)
+    return {0, 0, 0, 0, 0, 0};
+  const auto defense = defenses_.find(card.model);
+  if (defense != defenses_.end()) {
+    const auto &profile = defense->second;
+    return {profile.kind == 0   ? 1
+            : profile.kind == 1 ? 4
+                                : 5,
+            0,
+            profile.value,
+            profile.element,
+            profile.cost,
+            profile.kind == 0 ? 0 : 1};
+  }
+  const auto &profile = attacks_.at(card.model);
+  return {profile.origin == 0 ? 2 : 3,
+          profile.value,
+          0,
+          profile.element,
+          profile.cost,
+          profile.origin};
+}
+
+GuardianStateSnapshot GuardianTurnBatch::actor_hand_snapshot() const {
+  // Project only the acting player's hand in C++; callers need not copy or
+  // receive opponents' hidden models to build an observation.
+  auto buffer = std::make_unique<std::int64_t[]>(batch_size_ * hand_slots_ * 9);
+  std::fill_n(buffer.get(), batch_size_ * hand_slots_ * 9, 0);
+  for (std::size_t environment = 0; environment < batch_size_; ++environment) {
+    if (finished(environment))
+      continue;
+    const auto &pending = combat_.pending_[environment];
+    const auto player =
+        pending[0] == 1 ? pending[3] : turns_[environment].owner;
+    for (std::size_t slot = 0; slot < hand_slots_; ++slot) {
+      const auto &card = cards_[card_offset(environment, player, slot)];
+      const auto offset = (environment * hand_slots_ + slot) * 9;
+      buffer[offset] = card.instance;
+      buffer[offset + 1] = card.model;
+      buffer[offset + 2] =
+          pending[0] == 1 ? selected_[environment * hand_slots_ + slot] : 0;
+      const auto features = hand_features(card);
+      std::copy(features.begin(), features.end(), buffer.get() + offset + 3);
+    }
+  }
+  nb::capsule owner(buffer.get(), [](void *p) noexcept {
+    delete[] static_cast<std::int64_t *>(p);
+  });
+  const auto *data = buffer.release();
+  return GuardianStateSnapshot(data, {batch_size_, hand_slots_, 9}, owner);
 }
 GuardianInventorySnapshot GuardianTurnBatch::inventory_snapshot() const {
   auto buffer = std::make_unique<std::int64_t[]>(cards_.size() * 3);

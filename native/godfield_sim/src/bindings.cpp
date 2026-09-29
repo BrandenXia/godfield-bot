@@ -363,6 +363,7 @@ NB_MODULE(_native, module) {
       godfield_sim::kGuardianTurnObservationSchemaVersion;
   module.attr("GUARDIAN_TURN_RULESET_ID") = godfield_sim::kGuardianTurnRulesetId;
   module.attr("GUARDIAN_TURN_MAX_DEFENSE_ACTIONS") = godfield_sim::kGuardianTurnMaxDefenseActions;
+  module.attr("GUARDIAN_ACTOR_HAND_SCHEMA_VERSION") = godfield_sim::kGuardianActorHandSchemaVersion;
   nb::class_<godfield_sim::GuardianTurnBatch>(module, "GuardianTurnBatch")
       .def(nb::init<std::size_t, std::size_t, std::size_t,
                     godfield_sim::GuardianWeightInput,
@@ -416,6 +417,7 @@ NB_MODULE(_native, module) {
       .def("turn_snapshot", &godfield_sim::GuardianTurnBatch::turn_snapshot)
       .def("inventory_snapshot", &godfield_sim::GuardianTurnBatch::inventory_snapshot)
       .def("hand_feature_snapshot", &godfield_sim::GuardianTurnBatch::hand_feature_snapshot)
+      .def("actor_hand_snapshot", &godfield_sim::GuardianTurnBatch::actor_hand_snapshot)
       .def("guardian_snapshot", &godfield_sim::GuardianTurnBatch::guardian_snapshot)
       .def("resource_snapshot", &godfield_sim::GuardianTurnBatch::resource_snapshot)
       .def("combat_snapshot", &godfield_sim::GuardianTurnBatch::combat_snapshot)

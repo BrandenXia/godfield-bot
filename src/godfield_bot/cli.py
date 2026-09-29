@@ -2681,6 +2681,53 @@ def simulation_guardian_batch_plan(
     typer.echo(created.metadata.model_dump_json(indent=2))
 
 
+@simulation_app.command("guardian-rollout")
+def simulation_guardian_rollout(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False, readable=True)] = Path(
+        "data", "snapshots", "2026-09-21", "api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False, readable=True)] = Path(
+        "data", "snapshots", "2026-09-20", "bible.json"
+    ),
+    batch_size: Annotated[int, typer.Option(min=1, max=4096)] = 64,
+    player_count: Annotated[int, typer.Option(min=2, max=9)] = 2,
+    steps: Annotated[int, typer.Option(min=1, max=100_000)] = 256,
+    seed: Annotated[int, typer.Option(min=0, max=2**32 - 1)] = 67,
+    max_turns: Annotated[int, typer.Option(min=1, max=100_000)] = 64,
+    max_decisions: Annotated[int, typer.Option(min=1, max=100_000)] = 1024,
+    opening: Annotated[str, typer.Option(help="cards-only, mars-opening, or mixed.")] = "mixed",
+) -> None:
+    """Exercise seeded local C++ arena episodes; does not train or play online."""
+
+    from godfield_bot.provisional_rules import ProvisionalRuleUnavailableError
+
+    try:
+        from godfield_bot.guardian_rollout import (
+            GuardianRolloutArena,
+            GuardianRolloutConfig,
+            collect_guardian_rollout,
+        )
+
+        config = GuardianRolloutConfig.model_validate(
+            {
+                "batch_size": batch_size,
+                "player_count": player_count,
+                "seed": seed,
+                "max_turns": max_turns,
+                "max_decisions": max_decisions,
+                "opening": opening,
+            }
+        )
+        if steps * batch_size > 1_000_000:
+            raise ValueError("rollout is limited to 1000000 transitions")
+        arena = GuardianRolloutArena(catalog_path=catalog, bible_path=bible, config=config)
+        report = collect_guardian_rollout(arena, steps=steps)
+    except (ImportError, OSError, ValueError, ProvisionalRuleUnavailableError) as error:
+        structlog.get_logger().error("guardian_rollout_failed", reason=str(error).splitlines()[0])
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
 @simulation_app.command("coverage-report")
 def simulation_coverage_report(
     snapshot: Annotated[Path, typer.Option(exists=True, dir_okay=False, readable=True)] = Path(

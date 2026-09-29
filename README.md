@@ -1340,6 +1340,24 @@ training and promotion remain blocked. See the original arena contract in
 [ADR 0083](docs/architecture/0083-provisional-guardian-turns-and-armor.md) and
 [ADR 0084](docs/architecture/0084-card-attacks-and-reusable-defenses.md).
 
+Native 0.44.0 adds a separate seeded rollout adapter with acting-player-only
+hands, relative multiplayer targets, zero-sum HP/MP rewards, and decision/turn
+limits. Exercise it locally without starting online games:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
+  godfield-bot simulation guardian-rollout \
+  --batch-size 64 --steps 256 --seed 67 --opening mixed
+```
+
+This runs a legal greedy smoke-test baseline; it **does not train weights**.
+Add `--player-count 3` (up to nine) to exercise multiplayer target choices.
+The report distinguishes wins from truncations and includes a reproducible
+transition digest. Its synthetic initial nine-card deal has no redraw, and
+the optional guardian opening uses only Mars's five simple effects. This is
+not full-game fidelity, a live-model migration, or a promotion gate. See
+[ADR 0085](docs/architecture/0085-seeded-guardian-arena-rollouts.md).
+
 A later private-room trace contains one self-targeted Nocturnal Broom-style
 `removeItems` event. Its explicit three selected cards disappear in the next
 inventory, and native 0.36.0/schema 3 can reproduce that narrow operation with

@@ -46,6 +46,9 @@ public:
   }
 
 private:
+  // The scheduler composes this kernel without copying its state or exposing
+  // arbitrary defense values to policy callers.
+  friend class GuardianTurnBatch;
   struct BasicAttack {
     std::int64_t value;
     std::int64_t element;
@@ -60,6 +63,7 @@ private:
   [[nodiscard]] std::size_t checked_environment(std::int64_t environment) const;
   void require_idle(ActionInput environments) const;
   static void same_length(std::size_t expected, ActionInput input);
+  static bool compatible(std::int64_t attack, std::int64_t defense);
   const std::size_t batch_size_;
   const std::size_t player_count_;
   const std::uint16_t initial_hp_;

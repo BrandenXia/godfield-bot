@@ -8,16 +8,18 @@ from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, Field
 
-from godfield_bot.api_catalog import read_api_catalog_snapshot
+from godfield_bot.api_catalog import ApiCatalogSnapshot, read_api_catalog_snapshot
 from godfield_bot.domain.reference import BibleSnapshot
 from godfield_bot.elements import COMBAT_ELEMENT_IDS
 from godfield_bot.provisional_rules import (
+    ProvisionalGuardianPlan,
     ProvisionalRuleUnavailableError,
     build_provisional_guardian_plan,
 )
+from godfield_bot.reference import plain_defense_armor_cards
 
 if TYPE_CHECKING:
-    from godfield_sim import GuardianCombatBatch, GuardianLifecycleBatch
+    from godfield_sim import GuardianCombatBatch, GuardianLifecycleBatch, GuardianTurnBatch
 
 
 class GuardianLifecycleMetadata(BaseModel):
@@ -95,24 +97,9 @@ class ProvisionalGuardianCombatBatch:
     metadata: GuardianCombatMetadata
 
 
-def create_provisional_guardian_combat_batch(
-    *,
-    catalog_path: Path,
-    bible_path: Path,
-    batch_size: int,
-    player_count: int = 2,
-    slots_per_environment: int = 8,
-    initial_hp: int = 40,
-    initial_mp: int = 10,
-    initial_cp: int = 0,
-) -> ProvisionalGuardianCombatBatch:
-    """Configure 39 provisional guardian combat, resource, and curse effects."""
-
-    catalog = read_api_catalog_snapshot(catalog_path)
-    plan = build_provisional_guardian_plan(
-        catalog,
-        BibleSnapshot.model_validate_json(bible_path.read_text(encoding="utf-8")),
-    )
+def _guardian_effect_profiles(
+    catalog: ApiCatalogSnapshot, plan: ProvisionalGuardianPlan
+) -> list[tuple[int, int, int, int, int, int, int]]:
     weighted = {model for _group, model, _rate in plan.weighted_profiles}
     effect_ids = {
         None: 0,
@@ -156,6 +143,29 @@ def create_provisional_guardian_combat_batch(
         )
     if len(profiles) != 39:
         raise ValueError("pinned guardian combat catalog must have 39 supported effects")
+    return profiles
+
+
+def create_provisional_guardian_combat_batch(
+    *,
+    catalog_path: Path,
+    bible_path: Path,
+    batch_size: int,
+    player_count: int = 2,
+    slots_per_environment: int = 8,
+    initial_hp: int = 40,
+    initial_mp: int = 10,
+    initial_cp: int = 0,
+) -> ProvisionalGuardianCombatBatch:
+    """Configure 39 provisional guardian combat, resource, and curse effects."""
+
+    catalog = read_api_catalog_snapshot(catalog_path)
+    plan = build_provisional_guardian_plan(
+        catalog,
+        BibleSnapshot.model_validate_json(bible_path.read_text(encoding="utf-8")),
+    )
+    profiles = _guardian_effect_profiles(catalog, plan)
+    weighted = {model for _group, model, _rate in plan.weighted_profiles}
     try:
         import godfield_sim as native
         import numpy as np
@@ -195,6 +205,154 @@ def create_provisional_guardian_combat_batch(
             basic_attack_model_ids=tuple(row[0] for row in profiles if row[4] == 0),
             supported_effect_model_ids=tuple(row[0] for row in profiles),
             unsupported_weighted_model_ids=tuple(sorted(weighted - {row[0] for row in profiles})),
+        ),
+    )
+
+
+class GuardianTurnMetadata(BaseModel):
+    schema_version: Literal[1] = 1
+    kernel_schema_version: Literal[1] = 1
+    observation_schema_version: Literal[1] = 1
+    ruleset_id: Literal["round-robin-guardian-armor-turns-provisional-v1"] = (
+        "round-robin-guardian-armor-turns-provisional-v1"
+    )
+    combat_kernel_schema_version: Literal[2] = 2
+    combat_observation_schema_version: Literal[2] = 2
+    combat_ruleset_id: Literal["caller-driven-guardian-resource-curse-combat-provisional-v2"] = (
+        "caller-driven-guardian-resource-curse-combat-provisional-v2"
+    )
+    catalog_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    bible_client_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    batch_size: int = Field(gt=0)
+    player_count: int = Field(ge=2, le=9)
+    slots_per_environment: int = Field(ge=1, le=64)
+    hand_slots: int = Field(ge=1, le=18)
+    max_turns: int = Field(ge=1, le=1_000_000_000)
+    max_defense_actions: Literal[64] = 64
+    initial_hp: int = Field(ge=1, le=100)
+    initial_mp: int = Field(ge=0, le=100)
+    initial_cp: int = Field(ge=0, le=100)
+    defense_model_ids: tuple[int, ...]
+    supported_effect_model_ids: tuple[int, ...]
+    unsupported_weighted_model_ids: tuple[int, ...] = (264,)
+    unsupported_special_model_ids: tuple[int, ...] = (285, 286)
+    action_count: int
+    forgive_action: int
+    confirm_action: int
+    turn_fields: tuple[str, ...] = (
+        "phase",
+        "turn_owner",
+        "actor",
+        "completed_turns",
+        "winner",
+        "truncated",
+        "selected_defense",
+        "defense_actions",
+    )
+    inventory_fields: tuple[str, ...] = ("instance_id", "model_id", "selected")
+    scheduling_policy: Literal["one-caller-selected-effect-or-pass-per-living-player-turn"] = (
+        "one-caller-selected-effect-or-pass-per-living-player-turn"
+    )
+    randomness_policy: Literal["caller-supplied-tickets"] = "caller-supplied-tickets"
+    acquisition_policy: Literal["caller-dealt-armor-no-redraw"] = "caller-dealt-armor-no-redraw"
+    official_fidelity_verified: Literal[False] = False
+    local_training_eligible: Literal[False] = False
+    full_game_training_ready: Literal[False] = False
+    promotion_eligible: Literal[False] = False
+
+
+@dataclass(frozen=True)
+class ProvisionalGuardianTurnBatch:
+    batch: GuardianTurnBatch
+    metadata: GuardianTurnMetadata
+
+
+def create_provisional_guardian_turn_batch(
+    *,
+    catalog_path: Path,
+    bible_path: Path,
+    batch_size: int,
+    player_count: int = 2,
+    slots_per_environment: int = 8,
+    hand_slots: int = 18,
+    max_turns: int = 1000,
+    initial_hp: int = 40,
+    initial_mp: int = 10,
+    initial_cp: int = 0,
+) -> ProvisionalGuardianTurnBatch:
+    """Compose legal armor choices with explicitly provisional turn scheduling."""
+
+    catalog = read_api_catalog_snapshot(catalog_path)
+    bible = BibleSnapshot.model_validate_json(bible_path.read_text(encoding="utf-8"))
+    plan = build_provisional_guardian_plan(catalog, bible)
+    profiles = _guardian_effect_profiles(catalog, plan)
+    armor = plain_defense_armor_cards(bible)
+    defenses: list[tuple[int, int, int]] = []
+    for item in catalog.items:
+        asset = item.raw.get("imageName")
+        if not isinstance(asset, str) or asset not in armor:
+            continue
+        value, element = armor[asset]
+        if (
+            item.raw.get("category") != "armor"
+            or item.raw.get("def") != value
+            or item.raw.get("element", "non-element") != element
+            or item.raw.get("ability") is not None
+        ):
+            raise ValueError("pinned guardian defense armor differs between sources")
+        defenses.append((item.model_id, value, COMBAT_ELEMENT_IDS[element]))
+    if len(defenses) != 47 or len(armor) != 47:
+        raise ValueError("pinned guardian defense catalog is incomplete")
+    try:
+        import godfield_sim as native
+        import numpy as np
+    except (ImportError, OSError):
+        raise ProvisionalRuleUnavailableError(
+            "guardian turn batch requires the native simulation extra"
+        ) from None
+    if (
+        getattr(native, "GUARDIAN_TURN_KERNEL_SCHEMA_VERSION", None) != 1
+        or getattr(native, "GUARDIAN_TURN_OBSERVATION_SCHEMA_VERSION", None) != 1
+        or getattr(native, "GUARDIAN_TURN_RULESET_ID", None)
+        != "round-robin-guardian-armor-turns-provisional-v1"
+        or getattr(native, "GUARDIAN_COMBAT_KERNEL_SCHEMA_VERSION", None) != 2
+        or getattr(native, "GUARDIAN_COMBAT_OBSERVATION_SCHEMA_VERSION", None) != 2
+        or getattr(native, "GUARDIAN_COMBAT_RULESET_ID", None)
+        != "caller-driven-guardian-resource-curse-combat-provisional-v2"
+        or not hasattr(native, "GuardianTurnBatch")
+    ):
+        raise ProvisionalRuleUnavailableError("guardian turn native identity differs")
+    batch = native.GuardianTurnBatch(
+        batch_size,
+        player_count,
+        slots_per_environment,
+        np.asarray(plan.weighted_profiles, dtype=np.int64),
+        np.asarray(profiles, dtype=np.int64),
+        np.asarray(defenses, dtype=np.int64),
+        hand_slots,
+        max_turns,
+        initial_hp,
+        initial_mp,
+        initial_cp,
+    )
+    return ProvisionalGuardianTurnBatch(
+        batch=batch,
+        metadata=GuardianTurnMetadata(
+            catalog_sha256=plan.catalog_sha256,
+            bible_client_sha256=plan.bible_client_sha256,
+            batch_size=batch_size,
+            player_count=player_count,
+            slots_per_environment=slots_per_environment,
+            hand_slots=hand_slots,
+            max_turns=max_turns,
+            initial_hp=initial_hp,
+            initial_mp=initial_mp,
+            initial_cp=initial_cp,
+            defense_model_ids=tuple(row[0] for row in defenses),
+            supported_effect_model_ids=tuple(row[0] for row in profiles),
+            action_count=batch.action_count,
+            forgive_action=hand_slots,
+            confirm_action=hand_slots + 1,
         ),
     )
 

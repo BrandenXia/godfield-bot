@@ -1321,6 +1321,22 @@ fidelity, and promotion false. See the initial combat contract in
 resource/curse expansion in
 [ADR 0082](docs/architecture/0082-provisional-guardian-resources-and-curses.md).
 
+Add `--turns` to inspect native 0.42.0's separate, bounded guardian/armor arena:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
+  godfield-bot simulation guardian-batch-plan --turns --max-turns 1000
+```
+
+It rotates through living players, offers legal select/confirm/forgive defense
+actions for 47 pinned effect-free armor models, and consumes confirmed armor.
+Turn and defense-selection limits prevent indefinite passing or toggling.
+The one-guardian-effect-per-turn schedule is explicitly provisional, cards are
+caller-dealt without redraw, and reusable miracle costs are not implemented.
+It is not a full-game training environment or compatible with existing live
+checkpoint action schemas; training and promotion remain blocked. See
+[ADR 0083](docs/architecture/0083-provisional-guardian-turns-and-armor.md).
+
 A later private-room trace contains one self-targeted Nocturnal Broom-style
 `removeItems` event. Its explicit three selected cards disappear in the next
 inventory, and native 0.36.0/schema 3 can reproduce that narrow operation with

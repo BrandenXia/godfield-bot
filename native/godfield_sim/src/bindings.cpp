@@ -5,6 +5,7 @@
 #include "provisional_guardian.h"
 #include "guardian_lifecycle_batch.h"
 #include "guardian_combat_batch.h"
+#include "guardian_turn_batch.h"
 
 #include <nanobind/nanobind.h>
 
@@ -355,6 +356,55 @@ NB_MODULE(_native, module) {
   module.attr("GUARDIAN_COMBAT_OBSERVATION_SCHEMA_VERSION") =
       godfield_sim::kGuardianCombatObservationSchemaVersion;
   module.attr("GUARDIAN_COMBAT_RULESET_ID") = godfield_sim::kGuardianCombatRulesetId;
+  module.attr("GUARDIAN_TURN_KERNEL_SCHEMA_VERSION") =
+      godfield_sim::kGuardianTurnKernelSchemaVersion;
+  module.attr("GUARDIAN_TURN_OBSERVATION_SCHEMA_VERSION") =
+      godfield_sim::kGuardianTurnObservationSchemaVersion;
+  module.attr("GUARDIAN_TURN_RULESET_ID") = godfield_sim::kGuardianTurnRulesetId;
+  nb::class_<godfield_sim::GuardianTurnBatch>(module, "GuardianTurnBatch")
+      .def(nb::init<std::size_t, std::size_t, std::size_t,
+                    godfield_sim::GuardianWeightInput,
+                    godfield_sim::GuardianWeightInput,
+                    godfield_sim::GuardianWeightInput, std::size_t,
+                    std::uint64_t, std::uint16_t, std::uint16_t, std::uint16_t>(),
+           nb::arg("batch_size"), nb::arg("player_count"), nb::arg("guardian_slots"),
+           nb::arg("weighted_profiles").noconvert(),
+           nb::arg("effect_profiles").noconvert(),
+           nb::arg("defense_profiles").noconvert(), nb::arg("hand_slots") = 18,
+           nb::arg("max_turns") = 1000, nb::arg("initial_hp") = 40,
+           nb::arg("initial_mp") = 10, nb::arg("initial_cp") = 0)
+      .def("summon", &godfield_sim::GuardianTurnBatch::summon,
+           nb::arg("environments").noconvert(), nb::arg("slots").noconvert(),
+           nb::arg("instances").noconvert(), nb::arg("owners").noconvert(),
+           nb::arg("groups").noconvert())
+      .def("remove", &godfield_sim::GuardianTurnBatch::remove,
+           nb::arg("environments").noconvert(), nb::arg("slots").noconvert(),
+           nb::arg("instances").noconvert())
+      .def("deal_defenses", &godfield_sim::GuardianTurnBatch::deal_defenses,
+           nb::arg("environments").noconvert(), nb::arg("players").noconvert(),
+           nb::arg("slots").noconvert(), nb::arg("instances").noconvert(),
+           nb::arg("models").noconvert())
+      .def("begin_effects", &godfield_sim::GuardianTurnBatch::begin_effects,
+           nb::arg("environments").noconvert(), nb::arg("slots").noconvert(),
+           nb::arg("instances").noconvert(), nb::arg("targets").noconvert(),
+           nb::arg("selection_tickets").noconvert(), nb::arg("hit_tickets").noconvert())
+      .def("pass_turns", &godfield_sim::GuardianTurnBatch::pass_turns,
+           nb::arg("environments").noconvert(), nb::arg("players").noconvert())
+      .def("step_defenses", &godfield_sim::GuardianTurnBatch::step_defenses,
+           nb::arg("environments").noconvert(), nb::arg("players").noconvert(),
+           nb::arg("actions").noconvert())
+      .def("reset_environments", &godfield_sim::GuardianTurnBatch::reset_environments,
+           nb::arg("environments").noconvert())
+      .def("defense_action_masks", &godfield_sim::GuardianTurnBatch::defense_action_masks)
+      .def("turn_snapshot", &godfield_sim::GuardianTurnBatch::turn_snapshot)
+      .def("inventory_snapshot", &godfield_sim::GuardianTurnBatch::inventory_snapshot)
+      .def("guardian_snapshot", &godfield_sim::GuardianTurnBatch::guardian_snapshot)
+      .def("resource_snapshot", &godfield_sim::GuardianTurnBatch::resource_snapshot)
+      .def("combat_snapshot", &godfield_sim::GuardianTurnBatch::combat_snapshot)
+      .def_prop_ro("hand_slots", &godfield_sim::GuardianTurnBatch::hand_slots)
+      .def_prop_ro("action_count", &godfield_sim::GuardianTurnBatch::action_count)
+      .def_prop_ro("consumed_card_count", &godfield_sim::GuardianTurnBatch::consumed_card_count)
+      .def_prop_ro("resolved_effect_count", &godfield_sim::GuardianTurnBatch::resolved_effect_count);
   nb::class_<godfield_sim::GuardianCombatBatch>(module, "GuardianCombatBatch")
       .def(nb::init<std::size_t, std::size_t, std::size_t,
                     godfield_sim::GuardianWeightInput,

@@ -7,19 +7,6 @@
 
 namespace godfield_sim {
 namespace {
-bool compatible(std::int64_t attack, std::int64_t defense) {
-  if (attack == 5)
-    return false;
-  if (attack == 1)
-    return defense == 2 || defense == 5;
-  if (attack == 2)
-    return defense == 1 || defense == 5;
-  if (attack == 3)
-    return defense == 4 || defense == 5;
-  if (attack == 4)
-    return defense == 3 || defense == 5;
-  return true;
-}
 Int64_2D copied_matrix(const std::int64_t *source, std::size_t rows,
                        std::size_t columns) {
   const auto count = rows * columns;
@@ -33,6 +20,20 @@ Int64_2D copied_matrix(const std::int64_t *source, std::size_t rows,
   return Int64_2D(data, {rows, columns}, owner);
 }
 } // namespace
+
+bool GuardianCombatBatch::compatible(std::int64_t attack, std::int64_t defense) {
+  if (attack == 5)
+    return false;
+  if (attack == 1)
+    return defense == 2 || defense == 5;
+  if (attack == 2)
+    return defense == 1 || defense == 5;
+  if (attack == 3)
+    return defense == 4 || defense == 5;
+  if (attack == 4)
+    return defense == 3 || defense == 5;
+  return true;
+}
 
 GuardianCombatBatch::GuardianCombatBatch(
     std::size_t batch_size, std::size_t player_count,

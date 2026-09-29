@@ -349,6 +349,12 @@ NB_MODULE(_native, module) {
       .def("perform_retained_miracle",
            &godfield_sim::OrderedInventoryReplay::perform_retained_miracle,
            nb::arg("expected_item").noconvert())
+      .def("configure_observed_removal_models",
+           &godfield_sim::OrderedInventoryReplay::configure_observed_removal_models,
+           nb::arg("model_ids").noconvert())
+      .def("remove_observed_three",
+           &godfield_sim::OrderedInventoryReplay::remove_observed_three,
+           nb::arg("expected_items").noconvert())
       .def("snapshot", &godfield_sim::OrderedInventoryReplay::snapshot)
       .def_prop_ro("size", &godfield_sim::OrderedInventoryReplay::size)
       .def_prop_ro("capacity", &godfield_sim::OrderedInventoryReplay::capacity)
@@ -361,7 +367,11 @@ NB_MODULE(_native, module) {
           &godfield_sim::OrderedInventoryReplay::retained_miracles_configured)
       .def_prop_ro(
           "retained_miracle_use_count",
-          &godfield_sim::OrderedInventoryReplay::retained_miracle_use_count);
+          &godfield_sim::OrderedInventoryReplay::retained_miracle_use_count)
+      .def_prop_ro("observed_removals_configured",
+                   &godfield_sim::OrderedInventoryReplay::observed_removals_configured)
+      .def_prop_ro("observed_removal_count",
+                   &godfield_sim::OrderedInventoryReplay::observed_removal_count);
 
   nb::class_<FixedAttackBatch>(module, "FixedAttackBatch")
       .def(nb::init<std::size_t, godfield_sim::TokenInput,

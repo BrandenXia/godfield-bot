@@ -48,9 +48,9 @@ def inventory(
 
 
 def test_replay_has_separate_identity_and_does_not_replace_training_rulesets() -> None:
-    assert native.ORDERED_INVENTORY_REPLAY_SCHEMA_VERSION == 2
+    assert native.ORDERED_INVENTORY_REPLAY_SCHEMA_VERSION == 3
     assert native.ORDERED_INVENTORY_REPLAY_RULESET_ID == (
-        "explicit-ordinary-and-retained-miracle-ordered-gift-replay-v2"
+        "explicit-ordinary-retained-miracle-and-observed-three-removal-replay-v3"
     )
     assert native.RULESET_ID != native.ORDERED_INVENTORY_REPLAY_RULESET_ID
     assert native.HAND_SLOTS == 9

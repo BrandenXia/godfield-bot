@@ -1,0 +1,38 @@
+{
+  "source_kind": "private-api-observed-three-item-removal-fixture-v1",
+  "source_run_id": "34732bcb-cd59-475d-bce8-bfb1596b8b89",
+  "source_run_input_sha256": "f9f9f92bec8dad89c9e566f2e0c0489ec657c636214c915e82c6a6295b7b49b0",
+  "source_stream_id": "d617f770-07fa-405d-a9e3-ef800c5925bb",
+  "client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+  "catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+  "before_batch_input_sha256": "91e3346160715e1238d8e1083d3fb7aa6d5164332281404e1d39183c793aabf4",
+  "after_batch_input_sha256": "6cddef13694cda65251b5cb8e4d4597613fde6d8744d95b3401f190e6009fd61",
+  "before_source_sequence": 36,
+  "after_source_sequence": 37,
+  "before_update_count": 5,
+  "after_update_count": 6,
+  "self_player_id": 2,
+  "phase_input_status": "consecutive",
+  "removal_action": "removeItems",
+  "removal_event_index": 1,
+  "removal_owner_player_id": 2,
+  "removal_items_wire_kind": "array",
+  "preceding_self_defense_event_index": 0,
+  "preceding_self_defense_items_wire_kind": "missing",
+  "before_items": [
+    [1, 118, 0, 0], [2, 75, 0, 0], [3, 99, 0, 0],
+    [5, 139, 0, 0], [6, 4, 0, 0], [7, 199, 0, 0],
+    [8, 195, 0, 0], [9, 138, 0, 0], [4, 151, 0, 0]
+  ],
+  "selected_items": [[2, 75, 0, 0], [5, 139, 0, 0], [3, 99, 0, 0]],
+  "after_items": [
+    [1, 118, 0, 0], [6, 4, 0, 0], [7, 199, 0, 0],
+    [8, 195, 0, 0], [9, 138, 0, 0], [4, 151, 0, 0]
+  ],
+  "raw_used_flags_all_missing": true,
+  "removal_event_payload_explicit": true,
+  "complete_projection_replay": false,
+  "training_eligible": false,
+  "promotion_eligible": false,
+  "acquisition_rule_eligible": false
+}

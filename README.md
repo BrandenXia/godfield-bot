@@ -1194,7 +1194,7 @@ browser snapshot streams: API captures honestly report zero hooks/listeners,
 The API run's `client_sha256` is its environment fingerprint; the separate
 `acquisition_decoder_client_sha256` identifies the reviewed decoder, not an
 observed browser client. Historical evidence input fingerprints remain unchanged.
-The native replay report remains schema 2 and removal remains unsupported.
+The native replay report remains schema 2 and full-run removal replay remains unsupported.
 Even a clean transport report is not evidence for adopting acquisition rules.
 Do not start a concurrent campaign on the same browser profile. Capture and
 review contiguous fixtures before changing C++ consumption/gift/overflow
@@ -1239,6 +1239,14 @@ wire classifications change despite unchanged inventory. Opponent payloads do
 not enter this comparison. Restart collection with the same command above to
 use v3; do not start a concurrent campaign on the same browser profile.
 See [ADR 0067](docs/architecture/0067-event-item-wire-and-repeat-integrity.md).
+
+A later private-room trace contains one self-targeted Nocturnal Broom-style
+`removeItems` event. Its explicit three selected cards disappear in the next
+inventory, and native 0.36.0/schema 3 can reproduce that narrow operation with
+a fixture-specific model allowlist. The same update has an omitted defense
+selection, so the full-run checker still reports it as unsupported; no
+acquisition training or promotion gate changes. See
+[ADR 0074](docs/architecture/0074-private-broom-observed-removal.md).
 
 The first real v3 run, `60fe19b4-1ed3-42cf-9ce6-b63c52baa858`, completed against
 the official computer without operational failures. Its checksummed regression

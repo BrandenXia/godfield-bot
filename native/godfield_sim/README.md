@@ -161,3 +161,15 @@ The kernel must not fuse these into an automatic redraw. Empty serialized
 placeholders are normalized outside C++; unresolved reflected defenses remain
 unreplayed. This is a recorded timing case, not a complete scheduler or a new
 training ruleset. See root ADR 0069.
+
+Version 0.36.0 advances the separate ordered-inventory diagnostic to schema 3
+with `configure_observed_removal_models(model_ids)` and
+`remove_observed_three(expected_items)`. The sole admitted observation is a
+self-targeted `removeItems` event in a private game: selected models 75, 139,
+and 99 disappear, while all six other items keep their order. Supply only
+these three witnessed model IDs to the configuration; the native operation
+requires exactly the three configured, explicit, unused, undisguised, exactly owned rows and
+validates all of them before mutation. It does not infer selected items from
+an inventory difference, simulate the Broom card or opponent, or enter the
+training curriculum. The same server update has an omitted defense array, so
+the full acquisition differential remains unsupported. See root ADR 0074.

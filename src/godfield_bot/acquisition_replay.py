@@ -30,7 +30,7 @@ from godfield_bot.api_catalog import ApiCatalogSnapshot, read_api_catalog_snapsh
 
 REPLAY_PROJECTION_ID = "observed-inventory-projection-verified-ordinary-wire-aware-v4"
 REPLAY_CATALOG_SHA256 = ACQUISITION_REVIEWED_CATALOG_SHA256
-NATIVE_REPLAY_RULESET_ID = "explicit-ordinary-and-retained-miracle-ordered-gift-replay-v2"
+NATIVE_REPLAY_RULESET_ID = "explicit-ordinary-retained-miracle-and-observed-three-removal-replay-v3"
 # Only explicit single-item consumption witnessed in the official fixtures:
 # v2 bc54a888 (23, 142), v3 60fe19b4 and cb9da594 (the remaining models). Catalog
 # membership or an ordinary category alone is not sufficient for admission.
@@ -101,7 +101,7 @@ class AcquisitionReplayAudit(BaseModel):
         "official-acquisition-native-projection-audit-v2"
     )
     replay_projection_id: str = REPLAY_PROJECTION_ID
-    native_replay_schema_version: Literal[2] = 2
+    native_replay_schema_version: Literal[3] = 3
     native_replay_ruleset_id: str = NATIVE_REPLAY_RULESET_ID
     ordinary_model_ids: tuple[int, ...] = ORDINARY_MODELS
     retained_miracle_model_ids: tuple[int, ...] = RETAINED_MODELS
@@ -144,7 +144,7 @@ def _require_native_replay() -> None:
             "native replay is unavailable; install the simulation extra with uv"
         ) from None
     if (
-        getattr(native, "ORDERED_INVENTORY_REPLAY_SCHEMA_VERSION", None) != 2
+        getattr(native, "ORDERED_INVENTORY_REPLAY_SCHEMA_VERSION", None) != 3
         or getattr(native, "ORDERED_INVENTORY_REPLAY_RULESET_ID", None) != NATIVE_REPLAY_RULESET_ID
         or not hasattr(native, "OrderedInventoryReplay")
     ):

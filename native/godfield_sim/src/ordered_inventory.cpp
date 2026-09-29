@@ -162,6 +162,67 @@ void OrderedInventoryReplay::perform_retained_miracle(
   has_operations_ = true;
 }
 
+void OrderedInventoryReplay::configure_observed_removal_models(
+    ActionInput model_ids) {
+  if (observed_removals_configured_ || has_operations_) {
+    throw std::invalid_argument("observed removal configuration requires an "
+                                "unconfigured unstepped replay");
+  }
+  if (model_ids.shape(0) != 3) {
+    throw std::invalid_argument(
+        "observed removal configuration requires exactly three models");
+  }
+  std::unordered_set<std::int64_t> models;
+  for (std::size_t index = 0; index < model_ids.shape(0); ++index) {
+    const auto model_id = model_ids(index);
+    if (!positive_safe_integer(model_id) || !models.insert(model_id).second) {
+      throw std::invalid_argument(
+          "observed removal allowlist requires distinct positive safe IDs");
+    }
+  }
+  observed_removal_models_ = std::move(models);
+  observed_removals_configured_ = true;
+}
+
+void OrderedInventoryReplay::remove_observed_three(
+    InventoryInput expected_items) {
+  if (!observed_removals_configured_) {
+    throw std::invalid_argument("observed removal requires a configured allowlist");
+  }
+  if (expected_items.shape(0) != 3 || expected_items.shape(0) > items_.size()) {
+    throw std::invalid_argument(
+        "observed removal requires exactly three owned artifacts");
+  }
+  std::unordered_set<std::int64_t> selected;
+  std::unordered_set<std::int64_t> selected_models;
+  // Validate the complete explicit event payload before changing inventory.
+  for (std::size_t row = 0; row < expected_items.shape(0); ++row) {
+    const Item item{expected_items(row, 0), expected_items(row, 1),
+                    expected_items(row, 2), expected_items(row, 3)};
+    validate_item(item);
+    if (!selected.insert(item[0]).second) {
+      throw std::invalid_argument("observed removal contains duplicate IDs");
+    }
+    if (item[2] != 0 || item[3] != 0 ||
+        !observed_removal_models_.contains(item[1]) ||
+        !selected_models.insert(item[1]).second) {
+      throw std::invalid_argument(
+          "observed removal requires each witnessed unused undisguised model once");
+    }
+    const auto owned = std::find_if(
+        items_.begin(), items_.end(),
+        [&item](const Item &candidate) { return candidate[0] == item[0]; });
+    if (owned == items_.end() || *owned != item) {
+      throw std::invalid_argument("removed item differs from owned artifact");
+    }
+  }
+  std::erase_if(items_, [&selected](const Item &item) {
+    return selected.contains(item[0]);
+  });
+  observed_removal_count_ += 3;
+  has_operations_ = true;
+}
+
 Int64_2D OrderedInventoryReplay::snapshot() const {
   const auto count = items_.size() * 4;
   // Independently owned snapshots survive mutation, resizing, and destruction

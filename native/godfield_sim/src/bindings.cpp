@@ -8,6 +8,7 @@
 #include "guardian_turn_batch.h"
 
 #include <nanobind/nanobind.h>
+#include <nanobind/stl/optional.h>
 
 namespace nb = nanobind;
 using godfield_sim::AbsorptionWeaponResourceAttackDefenseBatch;
@@ -361,18 +362,21 @@ NB_MODULE(_native, module) {
   module.attr("GUARDIAN_TURN_OBSERVATION_SCHEMA_VERSION") =
       godfield_sim::kGuardianTurnObservationSchemaVersion;
   module.attr("GUARDIAN_TURN_RULESET_ID") = godfield_sim::kGuardianTurnRulesetId;
+  module.attr("GUARDIAN_TURN_MAX_DEFENSE_ACTIONS") = godfield_sim::kGuardianTurnMaxDefenseActions;
   nb::class_<godfield_sim::GuardianTurnBatch>(module, "GuardianTurnBatch")
       .def(nb::init<std::size_t, std::size_t, std::size_t,
                     godfield_sim::GuardianWeightInput,
                     godfield_sim::GuardianWeightInput,
                     godfield_sim::GuardianWeightInput, std::size_t,
-                    std::uint64_t, std::uint16_t, std::uint16_t, std::uint16_t>(),
+                    std::uint64_t, std::uint16_t, std::uint16_t, std::uint16_t,
+                    std::optional<godfield_sim::GuardianWeightInput>>(),
            nb::arg("batch_size"), nb::arg("player_count"), nb::arg("guardian_slots"),
            nb::arg("weighted_profiles").noconvert(),
            nb::arg("effect_profiles").noconvert(),
            nb::arg("defense_profiles").noconvert(), nb::arg("hand_slots") = 18,
            nb::arg("max_turns") = 1000, nb::arg("initial_hp") = 40,
-           nb::arg("initial_mp") = 10, nb::arg("initial_cp") = 0)
+           nb::arg("initial_mp") = 10, nb::arg("initial_cp") = 0,
+           nb::arg("attack_profiles").noconvert() = nb::none())
       .def("summon", &godfield_sim::GuardianTurnBatch::summon,
            nb::arg("environments").noconvert(), nb::arg("slots").noconvert(),
            nb::arg("instances").noconvert(), nb::arg("owners").noconvert(),
@@ -384,6 +388,13 @@ NB_MODULE(_native, module) {
            nb::arg("environments").noconvert(), nb::arg("players").noconvert(),
            nb::arg("slots").noconvert(), nb::arg("instances").noconvert(),
            nb::arg("models").noconvert())
+      .def("deal_cards", &godfield_sim::GuardianTurnBatch::deal_cards,
+           nb::arg("environments").noconvert(), nb::arg("players").noconvert(),
+           nb::arg("slots").noconvert(), nb::arg("instances").noconvert(),
+           nb::arg("models").noconvert())
+      .def("begin_card_attacks", &godfield_sim::GuardianTurnBatch::begin_card_attacks,
+           nb::arg("environments").noconvert(), nb::arg("players").noconvert(),
+           nb::arg("slots").noconvert(), nb::arg("targets").noconvert())
       .def("begin_effects", &godfield_sim::GuardianTurnBatch::begin_effects,
            nb::arg("environments").noconvert(), nb::arg("slots").noconvert(),
            nb::arg("instances").noconvert(), nb::arg("targets").noconvert(),
@@ -393,17 +404,26 @@ NB_MODULE(_native, module) {
       .def("step_defenses", &godfield_sim::GuardianTurnBatch::step_defenses,
            nb::arg("environments").noconvert(), nb::arg("players").noconvert(),
            nb::arg("actions").noconvert())
+      .def("resolve_bounces", &godfield_sim::GuardianTurnBatch::resolve_bounces,
+           nb::arg("environments").noconvert(), nb::arg("players").noconvert(),
+           nb::arg("targets").noconvert())
       .def("reset_environments", &godfield_sim::GuardianTurnBatch::reset_environments,
            nb::arg("environments").noconvert())
       .def("defense_action_masks", &godfield_sim::GuardianTurnBatch::defense_action_masks)
+      .def("attack_action_masks", &godfield_sim::GuardianTurnBatch::attack_action_masks)
+      .def("attack_target_masks", &godfield_sim::GuardianTurnBatch::attack_target_masks)
+      .def("bounce_target_masks", &godfield_sim::GuardianTurnBatch::bounce_target_masks)
       .def("turn_snapshot", &godfield_sim::GuardianTurnBatch::turn_snapshot)
       .def("inventory_snapshot", &godfield_sim::GuardianTurnBatch::inventory_snapshot)
+      .def("hand_feature_snapshot", &godfield_sim::GuardianTurnBatch::hand_feature_snapshot)
       .def("guardian_snapshot", &godfield_sim::GuardianTurnBatch::guardian_snapshot)
       .def("resource_snapshot", &godfield_sim::GuardianTurnBatch::resource_snapshot)
       .def("combat_snapshot", &godfield_sim::GuardianTurnBatch::combat_snapshot)
       .def_prop_ro("hand_slots", &godfield_sim::GuardianTurnBatch::hand_slots)
       .def_prop_ro("action_count", &godfield_sim::GuardianTurnBatch::action_count)
       .def_prop_ro("consumed_card_count", &godfield_sim::GuardianTurnBatch::consumed_card_count)
+      .def_prop_ro("miracle_cast_count", &godfield_sim::GuardianTurnBatch::miracle_cast_count)
+      .def_prop_ro("mp_spent", &godfield_sim::GuardianTurnBatch::mp_spent)
       .def_prop_ro("resolved_effect_count", &godfield_sim::GuardianTurnBatch::resolved_effect_count);
   nb::class_<godfield_sim::GuardianCombatBatch>(module, "GuardianCombatBatch")
       .def(nb::init<std::size_t, std::size_t, std::size_t,

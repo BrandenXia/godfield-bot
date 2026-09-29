@@ -105,7 +105,7 @@ def test_combo_selection_toggles_mask_and_consumes_only_on_confirmation():
     np.testing.assert_array_equal(after[0, 1, 2:, :2], before[0, 1, 2:, :2])
     assert game.resource_snapshot()[0, 1, 0] == 40
     assert game.consumed_card_count == 2
-    np.testing.assert_array_equal(game.turn_snapshot()[0], [0, 1, 1, 1, -1, 0, 0, 0])
+    np.testing.assert_array_equal(game.turn_snapshot()[0], [0, 1, 1, 1, -1, 0, 0, 0, 0, 2, 0])
     assert not np.any(game.defense_action_masks())
     assert np.all(before[0, 1, :2, 0] > 0)
 
@@ -444,8 +444,12 @@ def test_pinned_factory_and_cli_keep_promotion_and_training_blocked(monkeypatch)
     )
     metadata = created.metadata
     assert metadata.ruleset_id == native.GUARDIAN_TURN_RULESET_ID
-    assert metadata.kernel_schema_version == metadata.observation_schema_version == 1
-    assert len(metadata.defense_model_ids) == 47
+    assert metadata.kernel_schema_version == metadata.observation_schema_version == 2
+    assert len(metadata.defense_model_ids) == 49
+    assert len(metadata.armor_model_ids) == 47
+    assert metadata.defense_miracle_model_ids == (233, 234)
+    assert len(metadata.attack_weapon_model_ids) == 39
+    assert len(metadata.attack_miracle_model_ids) == 6
     assert len(metadata.supported_effect_model_ids) == 39
     assert metadata.action_count == 20
     assert not metadata.local_training_eligible

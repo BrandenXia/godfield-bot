@@ -16,7 +16,11 @@ from godfield_bot.provisional_rules import (
     ProvisionalRuleUnavailableError,
     build_provisional_guardian_plan,
 )
-from godfield_bot.reference import plain_defense_armor_cards
+from godfield_bot.reference import (
+    plain_attack_weapon_cards,
+    plain_defense_armor_cards,
+    verified_attack_miracle_cards,
+)
 
 if TYPE_CHECKING:
     from godfield_sim import GuardianCombatBatch, GuardianLifecycleBatch, GuardianTurnBatch
@@ -210,11 +214,11 @@ def create_provisional_guardian_combat_batch(
 
 
 class GuardianTurnMetadata(BaseModel):
-    schema_version: Literal[1] = 1
-    kernel_schema_version: Literal[1] = 1
-    observation_schema_version: Literal[1] = 1
-    ruleset_id: Literal["round-robin-guardian-armor-turns-provisional-v1"] = (
-        "round-robin-guardian-armor-turns-provisional-v1"
+    schema_version: Literal[2] = 2
+    kernel_schema_version: Literal[2] = 2
+    observation_schema_version: Literal[2] = 2
+    ruleset_id: Literal["round-robin-card-guardian-resource-turns-provisional-v2"] = (
+        "round-robin-card-guardian-resource-turns-provisional-v2"
     )
     combat_kernel_schema_version: Literal[2] = 2
     combat_observation_schema_version: Literal[2] = 2
@@ -233,12 +237,18 @@ class GuardianTurnMetadata(BaseModel):
     initial_mp: int = Field(ge=0, le=100)
     initial_cp: int = Field(ge=0, le=100)
     defense_model_ids: tuple[int, ...]
+    armor_model_ids: tuple[int, ...]
+    defense_miracle_model_ids: tuple[int, ...]
+    attack_weapon_model_ids: tuple[int, ...]
+    attack_miracle_model_ids: tuple[int, ...]
     supported_effect_model_ids: tuple[int, ...]
     unsupported_weighted_model_ids: tuple[int, ...] = (264,)
     unsupported_special_model_ids: tuple[int, ...] = (285, 286)
     action_count: int
     forgive_action: int
     confirm_action: int
+    attack_action_count: int
+    pass_action: int
     turn_fields: tuple[str, ...] = (
         "phase",
         "turn_owner",
@@ -248,13 +258,28 @@ class GuardianTurnMetadata(BaseModel):
         "truncated",
         "selected_defense",
         "defense_actions",
+        "selected_mp_cost",
+        "attack_origin",
+        "bounce_count",
     )
     inventory_fields: tuple[str, ...] = ("instance_id", "model_id", "selected")
-    scheduling_policy: Literal["one-caller-selected-effect-or-pass-per-living-player-turn"] = (
-        "one-caller-selected-effect-or-pass-per-living-player-turn"
+    hand_feature_fields: tuple[str, ...] = (
+        "role",
+        "attack",
+        "defense",
+        "element",
+        "mp_cost",
+        "reusable",
+    )
+    attack_origins: tuple[str, ...] = ("weapon", "miracle", "unclassified-guardian")
+    scheduling_policy: Literal["one-card-or-guardian-effect-or-pass-per-living-player-turn"] = (
+        "one-card-or-guardian-effect-or-pass-per-living-player-turn"
     )
     randomness_policy: Literal["caller-supplied-tickets"] = "caller-supplied-tickets"
-    acquisition_policy: Literal["caller-dealt-armor-no-redraw"] = "caller-dealt-armor-no-redraw"
+    acquisition_policy: Literal["caller-dealt-cards-no-redraw"] = "caller-dealt-cards-no-redraw"
+    bounce_policy: Literal["explicit-living-target-single-bounce-per-attack"] = (
+        "explicit-living-target-single-bounce-per-attack"
+    )
     official_fidelity_verified: Literal[False] = False
     local_training_eligible: Literal[False] = False
     full_game_training_ready: Literal[False] = False
@@ -280,14 +305,14 @@ def create_provisional_guardian_turn_batch(
     initial_mp: int = 10,
     initial_cp: int = 0,
 ) -> ProvisionalGuardianTurnBatch:
-    """Compose legal armor choices with explicitly provisional turn scheduling."""
+    """Compose basic card attacks, reusable defenses, and provisional guardian turns."""
 
     catalog = read_api_catalog_snapshot(catalog_path)
     bible = BibleSnapshot.model_validate_json(bible_path.read_text(encoding="utf-8"))
     plan = build_provisional_guardian_plan(catalog, bible)
     profiles = _guardian_effect_profiles(catalog, plan)
     armor = plain_defense_armor_cards(bible)
-    defenses: list[tuple[int, int, int]] = []
+    defenses: list[tuple[int, int, int, int, int]] = []
     for item in catalog.items:
         asset = item.raw.get("imageName")
         if not isinstance(asset, str) or asset not in armor:
@@ -300,9 +325,60 @@ def create_provisional_guardian_turn_batch(
             or item.raw.get("ability") is not None
         ):
             raise ValueError("pinned guardian defense armor differs between sources")
-        defenses.append((item.model_id, value, COMBAT_ELEMENT_IDS[element]))
+        defenses.append((item.model_id, value, COMBAT_ELEMENT_IDS[element], 0, 0))
     if len(defenses) != 47 or len(armor) != 47:
         raise ValueError("pinned guardian defense catalog is incomplete")
+    by_asset = {item.raw.get("imageName"): item for item in catalog.items}
+    for asset, model, ability, description, cost, kind in (
+        ("wall", 233, "blockWeapon", "Block a NE weapon", 6, 1),
+        ("turbulence", 234, "bounceMiracle", "Bounce a miracle", 5, 2),
+    ):
+        miracle_item = by_asset.get(asset)
+        reference = next(
+            (entry for entry in bible.catalog["miracles"].items if entry.asset == asset), None
+        )
+        if (
+            miracle_item is None
+            or miracle_item.model_id != model
+            or miracle_item.raw.get("category") != "miracles"
+            or miracle_item.raw.get("ability") != ability
+            or miracle_item.raw.get("cost") != cost
+            or miracle_item.raw.get("element") is not None
+            or miracle_item.raw.get("atk") is not None
+            or miracle_item.raw.get("def") is not None
+            or reference is None
+            or reference.element_image_paths
+            or reference.detail
+            != (f"<{asset.title()}>", description, "Cost", f"{cost}MP", "Gift Rate: 1/500")
+        ):
+            raise ValueError("pinned reusable defense miracle differs between sources")
+        defenses.append((model, 0, 0, kind, cost))
+    weapons = plain_attack_weapon_cards(bible)
+    miracles = verified_attack_miracle_cards(bible)
+    attacks: list[tuple[int, int, int, int, int]] = []
+    for item in catalog.items:
+        asset = item.raw.get("imageName")
+        if not isinstance(asset, str) or (asset not in weapons and asset not in miracles):
+            continue
+        origin = 0 if asset in weapons else 1
+        if origin == 0:
+            value, element = weapons[asset]
+            cost = 0
+        else:
+            value, cost, element = miracles[asset]
+        if (
+            item.raw.get("category") != ("weapons" if origin == 0 else "miracles")
+            or item.raw.get("atk") != value
+            or item.raw.get("element", "non-element") != element
+            or item.raw.get("ability") is not None
+            or item.raw.get("isPlusAtk", False)
+            or item.raw.get("hitRate", 100) != 100
+            or item.raw.get("cost", 0) != cost
+        ):
+            raise ValueError("pinned basic card attack differs between sources")
+        attacks.append((item.model_id, value, COMBAT_ELEMENT_IDS[element], origin, cost))
+    if len(weapons) != 39 or len(miracles) != 6 or len(attacks) != 45:
+        raise ValueError("pinned basic card attack catalog is incomplete")
     try:
         import godfield_sim as native
         import numpy as np
@@ -311,10 +387,11 @@ def create_provisional_guardian_turn_batch(
             "guardian turn batch requires the native simulation extra"
         ) from None
     if (
-        getattr(native, "GUARDIAN_TURN_KERNEL_SCHEMA_VERSION", None) != 1
-        or getattr(native, "GUARDIAN_TURN_OBSERVATION_SCHEMA_VERSION", None) != 1
+        getattr(native, "GUARDIAN_TURN_KERNEL_SCHEMA_VERSION", None) != 2
+        or getattr(native, "GUARDIAN_TURN_OBSERVATION_SCHEMA_VERSION", None) != 2
         or getattr(native, "GUARDIAN_TURN_RULESET_ID", None)
-        != "round-robin-guardian-armor-turns-provisional-v1"
+        != "round-robin-card-guardian-resource-turns-provisional-v2"
+        or getattr(native, "GUARDIAN_TURN_MAX_DEFENSE_ACTIONS", None) != 64
         or getattr(native, "GUARDIAN_COMBAT_KERNEL_SCHEMA_VERSION", None) != 2
         or getattr(native, "GUARDIAN_COMBAT_OBSERVATION_SCHEMA_VERSION", None) != 2
         or getattr(native, "GUARDIAN_COMBAT_RULESET_ID", None)
@@ -334,6 +411,7 @@ def create_provisional_guardian_turn_batch(
         initial_hp,
         initial_mp,
         initial_cp,
+        attack_profiles=np.asarray(attacks, dtype=np.int64),
     )
     return ProvisionalGuardianTurnBatch(
         batch=batch,
@@ -349,10 +427,16 @@ def create_provisional_guardian_turn_batch(
             initial_mp=initial_mp,
             initial_cp=initial_cp,
             defense_model_ids=tuple(row[0] for row in defenses),
+            armor_model_ids=tuple(row[0] for row in defenses if row[3] == 0),
+            defense_miracle_model_ids=tuple(row[0] for row in defenses if row[3] != 0),
+            attack_weapon_model_ids=tuple(row[0] for row in attacks if row[3] == 0),
+            attack_miracle_model_ids=tuple(row[0] for row in attacks if row[3] == 1),
             supported_effect_model_ids=tuple(row[0] for row in profiles),
             action_count=batch.action_count,
             forgive_action=hand_slots,
             confirm_action=hand_slots + 1,
+            attack_action_count=hand_slots + 1,
+            pass_action=hand_slots,
         ),
     )
 

@@ -2621,10 +2621,12 @@ def simulation_guardian_batch_plan(
     ] = False,
     initial_hp: Annotated[int, typer.Option(min=1, max=100)] = 40,
     turns: Annotated[
-        bool, typer.Option(help="Include provisional turn scheduling and consumable armor.")
+        bool, typer.Option(help="Include provisional card turns, armor, and reusable defenses.")
     ] = False,
     hand_slots: Annotated[int, typer.Option(min=1, max=18)] = 18,
     max_turns: Annotated[int, typer.Option(min=1, max=1_000_000_000)] = 1000,
+    initial_mp: Annotated[int, typer.Option(min=0, max=100)] = 10,
+    initial_cp: Annotated[int, typer.Option(min=0, max=100)] = 0,
 ) -> None:
     """Inspect a separate native guardian lifecycle batch; not a training gate."""
 
@@ -2646,6 +2648,8 @@ def simulation_guardian_batch_plan(
                 initial_hp=initial_hp,
                 hand_slots=hand_slots,
                 max_turns=max_turns,
+                initial_mp=initial_mp,
+                initial_cp=initial_cp,
             )
             typer.echo(turn_created.metadata.model_dump_json(indent=2))
             return
@@ -2657,6 +2661,8 @@ def simulation_guardian_batch_plan(
                 player_count=player_count,
                 slots_per_environment=slots_per_environment,
                 initial_hp=initial_hp,
+                initial_mp=initial_mp,
+                initial_cp=initial_cp,
             )
             typer.echo(combat_created.metadata.model_dump_json(indent=2))
             return

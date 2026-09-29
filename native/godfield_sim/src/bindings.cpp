@@ -3,6 +3,7 @@
 #include "ordered_inventory.h"
 #include "provisional_soap.h"
 #include "provisional_guardian.h"
+#include "guardian_lifecycle_batch.h"
 
 #include <nanobind/nanobind.h>
 
@@ -342,6 +343,46 @@ NB_MODULE(_native, module) {
       godfield_sim::kProvisionalGuardianSchemaVersion;
   module.attr("PROVISIONAL_GUARDIAN_RULESET_ID") =
       godfield_sim::kProvisionalGuardianRulesetId;
+  module.attr("GUARDIAN_LIFECYCLE_KERNEL_SCHEMA_VERSION") =
+      godfield_sim::kGuardianLifecycleKernelSchemaVersion;
+  module.attr("GUARDIAN_LIFECYCLE_OBSERVATION_SCHEMA_VERSION") =
+      godfield_sim::kGuardianLifecycleObservationSchemaVersion;
+  module.attr("GUARDIAN_LIFECYCLE_RULESET_ID") =
+      godfield_sim::kGuardianLifecycleRulesetId;
+  nb::class_<godfield_sim::GuardianLifecycleBatch>(module,
+                                                   "GuardianLifecycleBatch")
+      .def(nb::init<std::size_t, std::size_t, std::size_t,
+                    godfield_sim::GuardianWeightInput>(),
+           nb::arg("batch_size"), nb::arg("player_count"),
+           nb::arg("slots_per_environment"), nb::arg("profiles").noconvert())
+      .def("summon", &godfield_sim::GuardianLifecycleBatch::summon,
+           nb::arg("environments").noconvert(), nb::arg("slots").noconvert(),
+           nb::arg("instance_ids").noconvert(), nb::arg("owners").noconvert(),
+           nb::arg("groups").noconvert())
+      .def("remove", &godfield_sim::GuardianLifecycleBatch::remove,
+           nb::arg("environments").noconvert(), nb::arg("slots").noconvert(),
+           nb::arg("expected_instance_ids").noconvert())
+      .def("reset_environments",
+           &godfield_sim::GuardianLifecycleBatch::reset_environments,
+           nb::arg("environments").noconvert())
+      .def("attack_models", &godfield_sim::GuardianLifecycleBatch::attack_models,
+           nb::arg("environments").noconvert(), nb::arg("slots").noconvert(),
+           nb::arg("expected_instance_ids").noconvert(),
+           nb::arg("tickets").noconvert())
+      .def("snapshot", &godfield_sim::GuardianLifecycleBatch::snapshot)
+      .def_prop_ro("batch_size", &godfield_sim::GuardianLifecycleBatch::batch_size)
+      .def_prop_ro("player_count",
+                   &godfield_sim::GuardianLifecycleBatch::player_count)
+      .def_prop_ro("slots_per_environment",
+                   &godfield_sim::GuardianLifecycleBatch::slots_per_environment)
+      .def_prop_ro("active_count",
+                   &godfield_sim::GuardianLifecycleBatch::active_count)
+      .def_prop_ro("summon_count",
+                   &godfield_sim::GuardianLifecycleBatch::summon_count)
+      .def_prop_ro("removal_count",
+                   &godfield_sim::GuardianLifecycleBatch::removal_count)
+      .def_prop_ro("reset_count",
+                   &godfield_sim::GuardianLifecycleBatch::reset_count);
   nb::class_<godfield_sim::ProvisionalGuardianPicker>(
       module, "ProvisionalGuardianPicker")
       .def(nb::init<godfield_sim::GuardianWeightInput>(),

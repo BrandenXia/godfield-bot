@@ -8,6 +8,9 @@ OBSERVATION_SCHEMA_VERSION: Final[int]
 RULESET_ID: Final[str]
 ORDERED_INVENTORY_REPLAY_SCHEMA_VERSION: Final[int]
 ORDERED_INVENTORY_REPLAY_RULESET_ID: Final[str]
+GUARDIAN_LIFECYCLE_KERNEL_SCHEMA_VERSION: Final[int]
+GUARDIAN_LIFECYCLE_OBSERVATION_SCHEMA_VERSION: Final[int]
+GUARDIAN_LIFECYCLE_RULESET_ID: Final[str]
 PROVISIONAL_GUARDIAN_SCHEMA_VERSION: Final[int]
 PROVISIONAL_GUARDIAN_RULESET_ID: Final[str]
 PROVISIONAL_SOAP_SCHEMA_VERSION: Final[int]
@@ -200,6 +203,52 @@ class OrderedInventoryReplay:
     def observed_removals_configured(self) -> bool: ...
     @property
     def observed_removal_count(self) -> int: ...
+
+class GuardianLifecycleBatch:
+    def __init__(
+        self,
+        batch_size: int,
+        player_count: int,
+        slots_per_environment: int,
+        profiles: npt.NDArray[np.int64],
+    ) -> None: ...
+    def summon(
+        self,
+        environments: npt.NDArray[np.int64],
+        slots: npt.NDArray[np.int64],
+        instance_ids: npt.NDArray[np.int64],
+        owners: npt.NDArray[np.int64],
+        groups: npt.NDArray[np.int64],
+    ) -> None: ...
+    def remove(
+        self,
+        environments: npt.NDArray[np.int64],
+        slots: npt.NDArray[np.int64],
+        expected_instance_ids: npt.NDArray[np.int64],
+    ) -> None: ...
+    def reset_environments(self, environments: npt.NDArray[np.int64]) -> None: ...
+    def attack_models(
+        self,
+        environments: npt.NDArray[np.int64],
+        slots: npt.NDArray[np.int64],
+        expected_instance_ids: npt.NDArray[np.int64],
+        tickets: npt.NDArray[np.int64],
+    ) -> npt.NDArray[np.int64]: ...
+    def snapshot(self) -> npt.NDArray[np.int64]: ...
+    @property
+    def batch_size(self) -> int: ...
+    @property
+    def player_count(self) -> int: ...
+    @property
+    def slots_per_environment(self) -> int: ...
+    @property
+    def active_count(self) -> int: ...
+    @property
+    def summon_count(self) -> int: ...
+    @property
+    def removal_count(self) -> int: ...
+    @property
+    def reset_count(self) -> int: ...
 
 class ProvisionalGuardianPicker:
     def __init__(self, profiles: npt.NDArray[np.int64]) -> None: ...

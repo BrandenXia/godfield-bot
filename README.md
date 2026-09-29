@@ -1296,6 +1296,21 @@ excluded, and the primitive does not summon a guardian, decide when one acts,
 resolve an attack, or qualify for local training. See
 [ADR 0079](docs/architecture/0079-provisional-guardian-ticket-map.md).
 
+The next versioned C++ batch keeps caller-driven guardian instance, owner, and
+group state across parallel environments. It supports explicit summon,
+removal, reset, and model lookup with atomic multi-row validation and copied
+snapshots. Inspect its pinned-source identity and limits offline with:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
+  godfield-bot simulation guardian-batch-plan
+```
+
+Native package 0.39.0 keeps this batch separate from all existing duel
+curricula. It has no game-turn `step`, effect resolution, local-training
+eligibility, or live promotion path. See
+[ADR 0080](docs/architecture/0080-versioned-guardian-lifecycle-batch.md).
+
 A later private-room trace contains one self-targeted Nocturnal Broom-style
 `removeItems` event. Its explicit three selected cards disappear in the next
 inventory, and native 0.36.0/schema 3 can reproduce that narrow operation with

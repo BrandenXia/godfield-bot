@@ -2605,6 +2605,39 @@ def simulation_provisional_guardian_plan(
     typer.echo(plan.model_dump_json(indent=2))
 
 
+@simulation_app.command("guardian-batch-plan")
+def simulation_guardian_batch_plan(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False, readable=True)] = Path(
+        "data", "snapshots", "2026-09-21", "api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False, readable=True)] = Path(
+        "data", "snapshots", "2026-09-20", "bible.json"
+    ),
+    batch_size: Annotated[int, typer.Option(min=1, max=2_000_000)] = 512,
+    player_count: Annotated[int, typer.Option(min=2, max=9)] = 2,
+    slots_per_environment: Annotated[int, typer.Option(min=1, max=64)] = 8,
+) -> None:
+    """Inspect a separate native guardian lifecycle batch; not a training gate."""
+
+    from godfield_bot.guardian_batch import create_provisional_guardian_batch
+    from godfield_bot.provisional_rules import ProvisionalRuleUnavailableError
+
+    try:
+        created = create_provisional_guardian_batch(
+            catalog_path=catalog,
+            bible_path=bible,
+            batch_size=batch_size,
+            player_count=player_count,
+            slots_per_environment=slots_per_environment,
+        )
+    except (OSError, ValueError, ProvisionalRuleUnavailableError) as error:
+        structlog.get_logger().error(
+            "guardian_batch_plan_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(created.metadata.model_dump_json(indent=2))
+
+
 @simulation_app.command("coverage-report")
 def simulation_coverage_report(
     snapshot: Annotated[Path, typer.Option(exists=True, dir_okay=False, readable=True)] = Path(

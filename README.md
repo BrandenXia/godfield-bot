@@ -1358,6 +1358,26 @@ the optional guardian opening uses only Mars's five simple effects. This is
 not full-game fidelity, a live-model migration, or a promotion gate. See
 [ADR 0085](docs/architecture/0085-seeded-guardian-arena-rollouts.md).
 
+The arena now has a separate CPU neural trainer. It uses recurrent imitation
+followed by PPO, independent player memories, and paired unseen-seed local
+evaluations. Run a bounded experiment with:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation --extra training \
+  godfield-bot simulation guardian-train \
+  --batch-size 32 --teacher-updates 64 --teacher-selected-defense-weight 4 \
+  --updates 10 --max-turns 32 --max-decisions 128
+```
+
+The result prints a new `checkpoint_directory`. Inspect it read-only with
+`simulation guardian-evaluate --checkpoint <checkpoint_directory> --games 64`.
+Resume learning with `guardian-train --resume <checkpoint_directory>` and the
+same arena bounds/opening and architecture; this writes a new child checkpoint
+with fresh optimizers. These checkpoints cannot control live games. Initial
+experiments reduced defense-toggle loops, but did not establish baseline
+superiority; no-redraw turn limits remain common. See
+[ADR 0086](docs/architecture/0086-local-guardian-neural-training.md).
+
 A later private-room trace contains one self-targeted Nocturnal Broom-style
 `removeItems` event. Its explicit three selected cards disappear in the next
 inventory, and native 0.36.0/schema 3 can reproduce that narrow operation with

@@ -2728,6 +2728,139 @@ def simulation_guardian_rollout(
     typer.echo(report.model_dump_json(indent=2))
 
 
+@simulation_app.command("guardian-train")
+def simulation_guardian_train(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False, readable=True)] = Path(
+        "data", "snapshots", "2026-09-21", "api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False, readable=True)] = Path(
+        "data", "snapshots", "2026-09-20", "bible.json"
+    ),
+    checkpoint_root: Annotated[Path, typer.Option(file_okay=False)] = Path(
+        "checkpoints/guardian-arena"
+    ),
+    resume: Annotated[Path | None, typer.Option(exists=True, file_okay=False)] = None,
+    batch_size: Annotated[int, typer.Option(min=1, max=4096)] = 64,
+    rollout_steps: Annotated[int, typer.Option(min=2, max=256)] = 64,
+    updates: Annotated[int, typer.Option(min=1, max=1000)] = 10,
+    teacher_updates: Annotated[int, typer.Option(min=0, max=1000)] = 64,
+    teacher_selected_defense_weight: Annotated[float, typer.Option(min=1, max=16)] = 4,
+    ppo_epochs: Annotated[int, typer.Option(min=1, max=10)] = 2,
+    environment_minibatch_size: Annotated[int | None, typer.Option(min=1, max=512)] = None,
+    seed: Annotated[int, typer.Option(min=0, max=2**32 - 1)] = 67,
+    max_turns: Annotated[int, typer.Option(min=1, max=100_000)] = 64,
+    max_decisions: Annotated[int, typer.Option(min=1, max=100_000)] = 128,
+    opening: Annotated[str, typer.Option(help="cards-only, mars-opening, or mixed.")] = "mixed",
+    baseline_opponent_fraction: Annotated[float, typer.Option(min=0, max=1)] = 0.5,
+    evaluation_games: Annotated[int, typer.Option(min=2, max=256)] = 32,
+    cpu_threads: Annotated[int, typer.Option(min=1, max=16)] = 2,
+    hidden_size: Annotated[int, typer.Option(min=16, max=256)] = 128,
+    embedding_size: Annotated[int, typer.Option(min=8, max=128)] = 32,
+) -> None:
+    """Train a separate local C++ duel candidate; never changes live controls."""
+
+    from godfield_bot.api_catalog import ApiCatalogError
+    from godfield_bot.provisional_rules import ProvisionalRuleUnavailableError
+
+    try:
+        from godfield_bot.guardian_training import GuardianTrainingConfig, train_guardian_candidate
+
+        config = GuardianTrainingConfig.model_validate(
+            {
+                "arena": {
+                    "batch_size": batch_size,
+                    "seed": seed,
+                    "max_turns": max_turns,
+                    "max_decisions": max_decisions,
+                    "opening": opening,
+                },
+                "rollout_steps": rollout_steps,
+                "updates": updates,
+                "teacher_updates": teacher_updates,
+                "teacher_selected_defense_weight": teacher_selected_defense_weight,
+                "ppo_epochs": ppo_epochs,
+                "environment_minibatch_size": environment_minibatch_size
+                if environment_minibatch_size is not None
+                else min(16, batch_size),
+                "baseline_opponent_fraction": baseline_opponent_fraction,
+                "evaluation_games": evaluation_games,
+                "cpu_threads": cpu_threads,
+                "hidden_size": hidden_size,
+                "embedding_size": embedding_size,
+            }
+        )
+        directory, manifest = train_guardian_candidate(
+            catalog_path=catalog,
+            bible_path=bible,
+            checkpoint_root=checkpoint_root,
+            config=config,
+            resume=resume,
+        )
+    except (
+        ImportError,
+        OSError,
+        ValueError,
+        RuntimeError,
+        ApiCatalogError,
+        ProvisionalRuleUnavailableError,
+    ) as error:
+        structlog.get_logger().error("guardian_training_failed", reason=str(error).splitlines()[0])
+        raise typer.Exit(code=1) from None
+    typer.echo(
+        json.dumps(
+            {
+                "checkpoint_directory": str(directory.resolve()),
+                "manifest": manifest.model_dump(mode="json"),
+            },
+            indent=2,
+        )
+    )
+
+
+@simulation_app.command("guardian-evaluate")
+def simulation_guardian_evaluate(
+    checkpoint: Annotated[Path, typer.Option(exists=True, file_okay=False)],
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False, readable=True)] = Path(
+        "data", "snapshots", "2026-09-21", "api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False, readable=True)] = Path(
+        "data", "snapshots", "2026-09-20", "bible.json"
+    ),
+    games: Annotated[int, typer.Option(min=2, max=256)] = 64,
+    seed: Annotated[int, typer.Option(min=0, max=2**32 - 1)] = 2_000_070,
+    cpu_threads: Annotated[int, typer.Option(min=1, max=16)] = 2,
+) -> None:
+    """Read-only paired local evaluation; not official play or a promotion gate."""
+
+    from godfield_bot.api_catalog import ApiCatalogError
+    from godfield_bot.provisional_rules import ProvisionalRuleUnavailableError
+
+    try:
+        from godfield_bot.guardian_training import evaluate_guardian_checkpoint
+
+        report = evaluate_guardian_checkpoint(
+            checkpoint,
+            catalog_path=catalog,
+            bible_path=bible,
+            games=games,
+            seed=seed,
+            cpu_threads=cpu_threads,
+        )
+    except (
+        ImportError,
+        OSError,
+        ValueError,
+        RuntimeError,
+        ApiCatalogError,
+        ProvisionalRuleUnavailableError,
+    ) as error:
+        structlog.get_logger().error(
+            "guardian_evaluation_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
 @simulation_app.command("coverage-report")
 def simulation_coverage_report(
     snapshot: Annotated[Path, typer.Option(exists=True, dir_okay=False, readable=True)] = Path(

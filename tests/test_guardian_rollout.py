@@ -183,6 +183,7 @@ def test_finite_passing_and_explicit_reset_no_repeat_reward():
     game.step(ids([0] * 4))
     terminal = game.step(ids([0] * 4))
     assert np.all(terminal.truncated) and not np.any(terminal.terminated)
+    assert game.finish_reasons() == ("turn_limit",) * 4
     assert not np.any(terminal.observation.active)
     assert not np.any(terminal.observation.action_mask)
     assert not np.any(terminal.observation.hand_model_ids)
@@ -204,6 +205,7 @@ def test_decision_limit_catches_attack_target_and_toggle_stalls():
     deal(game, 0, 0, [211])
     stop = game.step(ids([1]))
     assert stop.truncated[0] and not stop.terminated[0]
+    assert game.finish_reasons() == ("decision_limit",)
     assert not stop.observation.active[0]
     assert game._native.resource_snapshot()[0, 0, 1] == 10
     assert game._native.miracle_cast_count == 0
@@ -239,6 +241,7 @@ def test_native_toggle_bound_and_selected_projection_are_retained():
         stop = game.step(ids([1]))
     assert stop.truncated[0] and not stop.terminated[0]
     assert game._native.turn_snapshot()[0, 0] == 3
+    assert game.finish_reasons() == ("defense_selection_limit",)
     assert not np.any(game._native.actor_hand_snapshot())
 
 
@@ -284,6 +287,7 @@ def test_winner_takes_precedence_over_decision_boundary_and_rewards_zero_sum():
     end = game.step(ids([FORGIVE]))
     assert end.terminated[0] and not end.truncated[0]
     assert end.winners[0] == 0
+    assert game.finish_reasons() == ("winner",)
     np.testing.assert_array_equal(end.rewards, [[1, -1]])
     assert end.acting_rewards[0] == -1
 

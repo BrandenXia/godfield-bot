@@ -261,6 +261,24 @@ class GuardianRolloutArena:
         self._reset(np.flatnonzero((turn[:, 0] == 2) | (turn[:, 0] == 3) | self._budget_truncated))
         return self.observe()
 
+    def finish_reasons(self) -> tuple[str, ...]:
+        """Public episode diagnostics, separate from policy features and rewards."""
+        turn = self._native.turn_snapshot()
+        reasons = []
+        for env in range(self.config.batch_size):
+            if turn[env, 0] == 2:
+                reason = "winner"
+            elif turn[env, 0] == 3 and turn[env, 7] >= self.metadata.native.max_defense_actions:
+                reason = "defense_selection_limit"
+            elif turn[env, 0] == 3:
+                reason = "turn_limit"
+            elif self._budget_truncated[env]:
+                reason = "decision_limit"
+            else:
+                reason = "active"
+            reasons.append(reason)
+        return tuple(reasons)
+
     def observe(self) -> GuardianObservation:
         size, players = self.config.batch_size, self.config.player_count
         turn = self._native.turn_snapshot()

@@ -81,6 +81,7 @@ class SimulationTrainingConfig(BaseModel):
         "dream-resource-hand",
         "gift-weighted-dream-resource-hand",
         "wide-hand-gift-weighted-dream-resource-hand",
+        "provisional-strength-powder-wide-hand",
     ] = "fixed-role"
     batch_size: int = Field(default=256, ge=1, le=1_000_000)
     rollout_steps: int = Field(default=32, ge=2, le=4096)

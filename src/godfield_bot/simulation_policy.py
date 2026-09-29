@@ -168,7 +168,10 @@ def build_curriculum_heuristic(
     *,
     ruleset: AttackDefenseRuleset = "fixed-role",
 ) -> CurriculumHeuristic:
-    wide_hand = ruleset == "wide-hand-gift-weighted-dream-resource-hand"
+    provisional_strength_powder = ruleset == "provisional-strength-powder-wide-hand"
+    wide_hand = provisional_strength_powder or ruleset == (
+        "wide-hand-gift-weighted-dream-resource-hand"
+    )
     if wide_hand or ruleset == "gift-weighted-dream-resource-hand":
         ruleset = "dream-resource-hand"
     dream_ruleset = ruleset == "dream-resource-hand"
@@ -592,6 +595,12 @@ def build_curriculum_heuristic(
     booster_token_values.update(
         {vocabulary.token_id("miracles", slug): boost for slug, boost in miracle_boosters.items()}
     )
+    if provisional_strength_powder:
+        from godfield_bot.provisional_rules import provisional_strength_powder_boost
+
+        booster_token_values[vocabulary.token_id("sundries", "strength-powder")] = (
+            provisional_strength_powder_boost(snapshot)
+        )
     reflection_defense_tokens: set[int] = set()
     if ruleset in {
         "reflection-resource-hand",
@@ -824,7 +833,13 @@ def build_curriculum_heuristic(
         flash_attack_tokens=frozenset(flash_attack_tokens),
         dark_cloud_attack_tokens=frozenset(dark_cloud_attack_tokens),
         dream_attack_tokens=frozenset(dream_attack_tokens),
-        policy_id="evidenced-wide-hand-dream-resource-combo-v1" if wide_hand else policy_id,
+        policy_id=(
+            "provisional-strength-powder-wide-hand-combo-v1"
+            if provisional_strength_powder
+            else "evidenced-wide-hand-dream-resource-combo-v1"
+            if wide_hand
+            else policy_id
+        ),
     )
 
 

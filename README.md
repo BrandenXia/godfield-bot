@@ -1272,6 +1272,22 @@ the report lists the other 95 by category. Its full-game readiness and promotion
 flags remain false, even if the artifact count later reaches 291. Isolated
 provisional components such as Soap are excluded from the trainable count.
 
+An opt-in provisional curriculum now admits Strength Powder as a neutral
+`+ATK10` booster using the existing C++ combo primitive. The pinned Bible and
+API catalog must agree exactly; the ruleset has a distinct identity and does
+not alter older checkpoints. Its catalog inclusion is 197/291, but its
+behavior has not been validated against official play, and promotion remains
+blocked. Inspect it with:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation --extra training \
+  godfield-bot simulation coverage-report \
+  --ruleset provisional-strength-powder-wide-hand
+```
+
+This is a local-training bridge for a single catalog-derived effect, not a
+full-game environment. See [ADR 0078](docs/architecture/0078-provisional-strength-powder-curriculum.md).
+
 A later private-room trace contains one self-targeted Nocturnal Broom-style
 `removeItems` event. Its explicit three selected cards disappear in the next
 inventory, and native 0.36.0/schema 3 can reproduce that narrow operation with

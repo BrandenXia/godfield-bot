@@ -100,6 +100,7 @@ AttackDefenseRuleset = Literal[
     "dream-resource-hand",
     "gift-weighted-dream-resource-hand",
     "wide-hand-gift-weighted-dream-resource-hand",
+    "provisional-strength-powder-wide-hand",
 ]
 
 
@@ -683,7 +684,10 @@ def create_attack_defense_simulation(
 ) -> AttackDefenseSimulation:
     """Build a non-promotable neutral attack/defense curriculum."""
 
-    wide_hand = ruleset == "wide-hand-gift-weighted-dream-resource-hand"
+    provisional_strength_powder = ruleset == "provisional-strength-powder-wide-hand"
+    wide_hand = provisional_strength_powder or ruleset == (
+        "wide-hand-gift-weighted-dream-resource-hand"
+    )
     gift_weighted = wide_hand or ruleset == "gift-weighted-dream-resource-hand"
     if gift_weighted:
         ruleset = "dream-resource-hand"
@@ -895,6 +899,11 @@ def create_attack_defense_simulation(
         ruleset = "fever-mask-resource-hand"
     snapshot = BibleSnapshot.model_validate_json(snapshot_path.read_text(encoding="utf-8"))
     vocabulary = ArtifactVocabulary.from_snapshot(snapshot)
+    strength_powder_boost = 0
+    if provisional_strength_powder:
+        from godfield_bot.provisional_rules import provisional_strength_powder_boost
+
+        strength_powder_boost = provisional_strength_powder_boost(snapshot)
     fever_mask_ruleset = ruleset == "fever-mask-resource-hand"
     expanded_rulesets = {
         "elemental-hand",
@@ -1000,6 +1009,18 @@ def create_attack_defense_simulation(
             }
             for slug, (boost, element) in sorted(boosters.items())
         ]
+        if provisional_strength_powder:
+            booster_catalog.append(
+                {
+                    "attack_boost": strength_powder_boost,
+                    "kind": "provisional-attack-booster",
+                    "slug": "strength-powder",
+                    "token_id": vocabulary.token_id("sundries", "strength-powder"),
+                    "element": "non-element",
+                    "element_id": COMBAT_ELEMENT_IDS["non-element"],
+                    "source": "pinned-catalog-derived-unvalidated",
+                }
+            )
         weapon_elements = np.asarray([row["element_id"] for row in weapon_catalog], dtype=np.uint8)
         booster_token_ids = np.asarray(
             [row["token_id"] for row in booster_catalog], dtype=np.uint32
@@ -2926,6 +2947,10 @@ def create_attack_defense_simulation(
             "elemental-dream-resource-gift-weighted-9-to-18-initial-capacity-18-"
             "redraw-with-base-liveness"
         )
+    if provisional_strength_powder:
+        from godfield_bot.provisional_rules import PROVISIONAL_STRENGTH_POWDER_RULESET_PREFIX
+
+        ruleset_id = PROVISIONAL_STRENGTH_POWDER_RULESET_PREFIX + ruleset_id
     catalog_token_ids: list[int] = []
     for row in catalog:
         token_id = row["token_id"]

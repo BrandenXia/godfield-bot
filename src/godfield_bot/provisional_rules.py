@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -10,14 +11,51 @@ from godfield_bot.acquisition_probe import (
     ACQUISITION_REVIEWED_CATALOG_SHA256,
     ACQUISITION_REVIEWED_CLIENT_SHA256,
 )
-from godfield_bot.api_catalog import ApiCatalogSnapshot
+from godfield_bot.api_catalog import ApiCatalogSnapshot, read_api_catalog_snapshot
 from godfield_bot.domain.reference import BibleSnapshot
 
 PROVISIONAL_SOAP_RULESET_ID = "catalog-derived-selected-two-used-miracles-provisional-v1"
+PROVISIONAL_STRENGTH_POWDER_RULESET_PREFIX = "provisional-strength-powder-v1-"
+_PINNED_CATALOG_PATH = (
+    Path(__file__).parents[2] / "data/snapshots/2026-09-21/api-catalog-en.json"
+)
 
 
 class ProvisionalRuleUnavailableError(RuntimeError):
     """The separately versioned provisional native component is unavailable."""
+
+
+def provisional_strength_powder_boost(bible: BibleSnapshot) -> int:
+    """Return a pinned, unvalidated booster value for opt-in local training."""
+
+    if bible.client.sha256 != ACQUISITION_REVIEWED_CLIENT_SHA256:
+        raise ValueError("provisional Strength Powder requires the pinned reviewed Bible")
+    sundries = bible.catalog.get("sundries")
+    powder_bible = (
+        next((item for item in sundries.items if item.asset == "strength-powder"), None)
+        if sundries
+        else None
+    )
+    if powder_bible is None or powder_bible.detail != (
+        "Strength Powder",
+        "+ATK10",
+        "$15",
+        "Gift Rate: 2/500",
+    ):
+        raise ValueError("pinned Bible does not define the reviewed Strength Powder boost")
+    catalog = read_api_catalog_snapshot(_PINNED_CATALOG_PATH)
+    if catalog.content_sha256 != ACQUISITION_REVIEWED_CATALOG_SHA256:
+        raise ValueError("provisional Strength Powder requires the pinned reviewed catalog")
+    powder = next((item for item in catalog.items if item.model_id == 203), None)
+    if powder is None or not (
+        powder.raw.get("category") == "sundries"
+        and powder.raw.get("imageName") == "strength-powder"
+        and powder.raw.get("atk") == 10
+        and powder.raw.get("isPlusAtk") is True
+        and powder.raw.get("giftRate") == 2
+    ):
+        raise ValueError("pinned catalog does not define the reviewed Strength Powder boost")
+    return 10
 
 
 class ProvisionalSoapPlan(BaseModel):

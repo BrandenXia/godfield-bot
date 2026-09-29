@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from godfield_bot.domain.reference import BibleSnapshot
 from godfield_bot.features import ArtifactVocabulary
-from godfield_bot.simulation import create_attack_defense_simulation
+from godfield_bot.simulation import AttackDefenseRuleset, create_attack_defense_simulation
 
 
 class SimulationCoverageReport(BaseModel):
@@ -32,7 +32,11 @@ class SimulationCoverageReport(BaseModel):
     promotion_eligible: Literal[False] = False
 
 
-def build_simulation_coverage_report(snapshot_path: Path) -> SimulationCoverageReport:
+def build_simulation_coverage_report(
+    snapshot_path: Path,
+    *,
+    ruleset: AttackDefenseRuleset = "wide-hand-gift-weighted-dream-resource-hand",
+) -> SimulationCoverageReport:
     """Compare the actual configured native catalog to the pinned Bible catalog."""
 
     snapshot = BibleSnapshot.model_validate_json(snapshot_path.read_text(encoding="utf-8"))
@@ -40,7 +44,7 @@ def build_simulation_coverage_report(snapshot_path: Path) -> SimulationCoverageR
     simulation = create_attack_defense_simulation(
         snapshot_path,
         batch_size=1,
-        ruleset="wide-hand-gift-weighted-dream-resource-hand",
+        ruleset=ruleset,
     )
     configured = simulation.catalog_token_ids
     if len(configured) != simulation.metadata.rule_catalog_size:

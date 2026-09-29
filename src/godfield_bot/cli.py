@@ -2103,6 +2103,7 @@ def models_train_simulation(
             "dream-resource-hand",
             "gift-weighted-dream-resource-hand",
             "wide-hand-gift-weighted-dream-resource-hand",
+            "provisional-strength-powder-wide-hand",
         ],
         typer.Option(help="Attack/defense hand-distribution curriculum."),
     ] = "fixed-role",
@@ -2277,6 +2278,7 @@ def models_evaluate_simulation(
             "dream-resource-hand",
             "gift-weighted-dream-resource-hand",
             "wide-hand-gift-weighted-dream-resource-hand",
+            "provisional-strength-powder-wide-hand",
         ],
         typer.Option(help="Attack/defense hand-distribution curriculum."),
     ] = "fixed-role",
@@ -2577,6 +2579,13 @@ def simulation_coverage_report(
     snapshot: Annotated[Path, typer.Option(exists=True, dir_okay=False, readable=True)] = Path(
         "data", "snapshots", "2026-09-20", "bible.json"
     ),
+    ruleset: Annotated[
+        Literal[
+            "wide-hand-gift-weighted-dream-resource-hand",
+            "provisional-strength-powder-wide-hand",
+        ],
+        typer.Option(help="Native curriculum to audit."),
+    ] = "wide-hand-gift-weighted-dream-resource-hand",
 ) -> None:
     """List missing artifacts in the latest native curriculum; not a fidelity gate."""
 
@@ -2584,7 +2593,7 @@ def simulation_coverage_report(
     from godfield_bot.simulation_coverage import build_simulation_coverage_report
 
     try:
-        report = build_simulation_coverage_report(snapshot)
+        report = build_simulation_coverage_report(snapshot, ruleset=ruleset)
     except (OSError, ValueError, SimulationUnavailableError) as error:
         structlog.get_logger().error(
             "simulation_coverage_report_failed", reason=str(error).splitlines()[0]

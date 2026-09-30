@@ -18,6 +18,11 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from godfield_bot.api_catalog import read_api_catalog_snapshot
 from godfield_bot.domain.reference import BibleSnapshot
 from godfield_bot.guardian_batch import GuardianTurnMetadata, create_provisional_guardian_turn_batch
+from godfield_bot.guardian_discard import (
+    GuardianDiscardTurnMetadata,
+    create_provisional_guardian_discard_turn_batch,
+)
+from godfield_bot.guardian_discard_refill import GuardianDiscardRefillPlan
 from godfield_bot.guardian_refill import GuardianRefillPlan, build_guardian_refill_plan
 from godfield_bot.guardian_utility import (
     GuardianUtilityTurnMetadata,
@@ -31,7 +36,12 @@ from godfield_bot.provisional_rules import ProvisionalRuleUnavailableError
 
 HAND_SLOTS = 18
 MAX_PLAYERS = 9
-ACTION_COUNT = 30
+ACTION_COUNT: Literal[30] = 30
+DISCARD_ACTION_COUNT: Literal[48] = 48
+DISCARD_START = 30
+DISCARD_OBSERVATION_ID: Literal["actor-relative-guardian-discard-arena-v3"] = (
+    "actor-relative-guardian-discard-arena-v3"
+)
 TARGET_START = 19
 FORGIVE = 28
 CONFIRM = 29
@@ -39,7 +49,9 @@ GLOBAL_FEATURE_COUNT = 43
 PLAYER_FEATURE_COUNT = 8
 HAND_FEATURE_COUNT = 7
 UTILITY_HAND_FEATURE_COUNT = 9
-UTILITY_OBSERVATION_ID = "actor-relative-guardian-utility-arena-v2"
+UTILITY_OBSERVATION_ID: Literal["actor-relative-guardian-utility-arena-v2"] = (
+    "actor-relative-guardian-utility-arena-v2"
+)
 TARGET_PHASE = 5
 IntArray = npt.NDArray[np.int64]
 FloatArray = npt.NDArray[np.float32]
@@ -62,12 +74,26 @@ class GuardianRolloutConfig(BaseModel):
     initial_mp: int = Field(default=10, ge=0, le=100, strict=True)
     opening: Literal["cards-only", "mars-opening", "mixed"] = "mixed"
     inventory_utilities: bool = Field(default=False, strict=True)
-    refill: Literal["none", "weighted-consumption-v1", "weighted-utility-consumption-v1"] = "none"
+    inventory_discards: bool = Field(default=False, strict=True)
+    refill: Literal[
+        "none",
+        "weighted-consumption-v1",
+        "weighted-utility-consumption-v1",
+        "weighted-discard-consumption-v1",
+    ] = "none"
     gamma: float = Field(default=0.99, gt=0, le=1, allow_inf_nan=False)
     shaping_weight: float = Field(default=0.1, ge=0, le=1, allow_inf_nan=False)
 
     @model_validator(mode="after")
     def separate_utility_refill(self) -> GuardianRolloutConfig:
+        if self.inventory_discards or self.refill == "weighted-discard-consumption-v1":
+            if not (
+                self.inventory_discards
+                and self.inventory_utilities
+                and self.refill == "weighted-discard-consumption-v1"
+            ):
+                raise ValueError("discard requires utilities and its separate weighted refill")
+            return self
         if (self.inventory_utilities and self.refill == "weighted-consumption-v1") or (
             not self.inventory_utilities and self.refill == "weighted-utility-consumption-v1"
         ):
@@ -76,28 +102,32 @@ class GuardianRolloutConfig(BaseModel):
 
 
 class GuardianRolloutMetadata(BaseModel):
-    schema_version: Literal[1, 2] = 1
+    schema_version: Literal[1, 2, 3] = 1
     source_kind: Literal[
         "provisional-guardian-arena-rollout-v1",
         "provisional-guardian-refill-arena-rollout-v1",
         "provisional-guardian-utility-arena-rollout-v2",
         "provisional-guardian-utility-refill-arena-rollout-v2",
+        "provisional-guardian-discard-refill-arena-rollout-v3",
     ] = "provisional-guardian-arena-rollout-v1"
     curriculum_id: Literal[
         "synthetic-guardian-no-redraw-v1",
         "synthetic-guardian-weighted-refill-provisional-v1",
         "synthetic-guardian-utility-no-redraw-v2",
         "synthetic-guardian-utility-weighted-refill-provisional-v2",
+        "synthetic-guardian-discard-weighted-refill-provisional-v3",
     ] = "synthetic-guardian-no-redraw-v1"
     observation_schema_id: Literal[
-        "actor-relative-guardian-arena-v1", "actor-relative-guardian-utility-arena-v2"
+        "actor-relative-guardian-arena-v1",
+        "actor-relative-guardian-utility-arena-v2",
+        "actor-relative-guardian-discard-arena-v3",
     ] = "actor-relative-guardian-arena-v1"
     actor_hand_schema_version: Literal[1] = 1
-    native: GuardianTurnMetadata | GuardianUtilityTurnMetadata
+    native: GuardianTurnMetadata | GuardianUtilityTurnMetadata | GuardianDiscardTurnMetadata
     config: GuardianRolloutConfig
     hand_slots: Literal[18] = 18
     max_players: Literal[9] = 9
-    action_count: Literal[30] = 30
+    action_count: Literal[30, 48] = 30
     global_feature_count: Literal[43] = 43
     player_feature_count: Literal[8] = 8
     hand_feature_count: Literal[7, 9] = 7
@@ -107,8 +137,11 @@ class GuardianRolloutMetadata(BaseModel):
         "synthetic-balanced-deal-deferred-weighted-refill",
         "synthetic-balanced-utility-initial-deal-no-redraw",
         "synthetic-balanced-utility-deal-deferred-weighted-refill",
+        "synthetic-balanced-discard-deal-deferred-weighted-refill",
     ] = "synthetic-balanced-initial-deal-no-redraw"
-    refill_plan: GuardianRefillPlan | GuardianUtilityRefillPlan | None = None
+    refill_plan: (
+        GuardianRefillPlan | GuardianUtilityRefillPlan | GuardianDiscardRefillPlan | None
+    ) = None
     guardian_policy: Literal["optional-one-mars-effect-at-episode-opening"] = (
         "optional-one-mars-effect-at-episode-opening"
     )
@@ -168,8 +201,70 @@ class GuardianRolloutMetadata(BaseModel):
     promotion_eligible: Literal[False] = False
     live_checkpoint_compatible: Literal[False] = False
 
+    @property
+    def base_native(self) -> GuardianTurnMetadata | GuardianUtilityTurnMetadata:
+        return (
+            self.native.utility_base
+            if isinstance(self.native, GuardianDiscardTurnMetadata)
+            else self.native
+        )
+
     @model_validator(mode="after")
     def separate_acquisition_contract(self) -> GuardianRolloutMetadata:
+        if self.config.inventory_discards:
+            if not (
+                self.schema_version == 3
+                and isinstance(self.native, GuardianDiscardTurnMetadata)
+                and isinstance(self.refill_plan, GuardianDiscardRefillPlan)
+                and self.action_count == DISCARD_ACTION_COUNT
+                and self.observation_schema_id == DISCARD_OBSERVATION_ID
+                and self.source_kind == "provisional-guardian-discard-refill-arena-rollout-v3"
+                and self.curriculum_id
+                == "synthetic-guardian-discard-weighted-refill-provisional-v3"
+                and self.acquisition_policy
+                == "synthetic-balanced-discard-deal-deferred-weighted-refill"
+                and self.action_layout
+                == (
+                    "0:pass",
+                    "1..18:hand-slot",
+                    "19..27:actor-relative-target",
+                    "28:forgive",
+                    "29:confirm",
+                    "30..47:discard-hand-slot",
+                )
+            ):
+                raise ValueError("discard arena requires its separate 48-action contract")
+            # Validate unchanged utility observation/distribution through its original contract.
+            GuardianRolloutMetadata.model_validate(
+                {
+                    **self.model_dump(),
+                    "schema_version": 2,
+                    "native": self.native.utility_base.model_dump(),
+                    "config": {
+                        **self.config.model_dump(),
+                        "inventory_discards": False,
+                        "refill": "weighted-utility-consumption-v1",
+                    },
+                    "action_count": 30,
+                    "observation_schema_id": UTILITY_OBSERVATION_ID,
+                    "source_kind": "provisional-guardian-utility-refill-arena-rollout-v2",
+                    "curriculum_id": "synthetic-guardian-utility-weighted-refill-provisional-v2",
+                    "acquisition_policy": (
+                        "synthetic-balanced-utility-deal-deferred-weighted-refill"
+                    ),
+                    "action_layout": self.action_layout[:-1],
+                    "refill_plan": self.refill_plan.distribution_base.model_dump(),
+                }
+            )
+            return self
+        if self.action_count != ACTION_COUNT or self.action_layout != (
+            "0:pass",
+            "1..18:hand-slot",
+            "19..27:actor-relative-target",
+            "28:forgive",
+            "29:confirm",
+        ):
+            raise ValueError("original curricula require the unchanged 30-action layout")
         if self.config.inventory_utilities:
             if (
                 self.schema_version != 2
@@ -343,7 +438,9 @@ class GuardianRolloutArena:
         if getattr(native, "GUARDIAN_ACTOR_HAND_SCHEMA_VERSION", None) != 1:
             raise ProvisionalRuleUnavailableError("guardian actor hand projection identity differs")
         created = (
-            create_provisional_guardian_utility_turn_batch
+            create_provisional_guardian_discard_turn_batch
+            if config.inventory_discards
+            else create_provisional_guardian_utility_turn_batch
             if config.inventory_utilities
             else create_provisional_guardian_turn_batch
         )(
@@ -360,22 +457,36 @@ class GuardianRolloutArena:
         self.config = config
         if config.inventory_utilities:
             meta = created.metadata
-            assert isinstance(meta, GuardianUtilityTurnMetadata)
+            utility_meta = (
+                meta.utility_base if isinstance(meta, GuardianDiscardTurnMetadata) else meta
+            )
+            assert isinstance(utility_meta, GuardianUtilityTurnMetadata)
             utility_refill = None
             if config.refill != "none":
                 utility_refill = build_guardian_utility_refill_plan(
                     read_api_catalog_snapshot(catalog_path),
                     BibleSnapshot.model_validate_json(bible_path.read_text(encoding="utf-8")),
-                    meta.defense_model_ids
-                    + meta.attack_weapon_model_ids
-                    + meta.attack_miracle_model_ids
-                    + tuple(row[0] for row in meta.utility_plan.profiles),
+                    utility_meta.defense_model_ids
+                    + utility_meta.attack_weapon_model_ids
+                    + utility_meta.attack_miracle_model_ids
+                    + tuple(row[0] for row in utility_meta.utility_plan.profiles),
                 )
             self.metadata = GuardianRolloutMetadata(
-                schema_version=2,
+                schema_version=3 if config.inventory_discards else 2,
                 native=meta,
                 config=config,
-                observation_schema_id="actor-relative-guardian-utility-arena-v2",
+                observation_schema_id=DISCARD_OBSERVATION_ID
+                if config.inventory_discards
+                else UTILITY_OBSERVATION_ID,
+                action_count=DISCARD_ACTION_COUNT if config.inventory_discards else ACTION_COUNT,
+                action_layout=(
+                    "0:pass",
+                    "1..18:hand-slot",
+                    "19..27:actor-relative-target",
+                    "28:forgive",
+                    "29:confirm",
+                )
+                + (("30..47:discard-hand-slot",) if config.inventory_discards else ()),
                 hand_feature_count=9,
                 hand_fields=(
                     "role/7",
@@ -388,16 +499,24 @@ class GuardianRolloutArena:
                     "hp_gain/100",
                     "mp_gain/100",
                 ),
-                source_kind="provisional-guardian-utility-refill-arena-rollout-v2"
+                source_kind="provisional-guardian-discard-refill-arena-rollout-v3"
+                if config.inventory_discards
+                else "provisional-guardian-utility-refill-arena-rollout-v2"
                 if utility_refill is not None
                 else "provisional-guardian-utility-arena-rollout-v2",
-                curriculum_id="synthetic-guardian-utility-weighted-refill-provisional-v2"
+                curriculum_id="synthetic-guardian-discard-weighted-refill-provisional-v3"
+                if config.inventory_discards
+                else "synthetic-guardian-utility-weighted-refill-provisional-v2"
                 if utility_refill is not None
                 else "synthetic-guardian-utility-no-redraw-v2",
-                acquisition_policy="synthetic-balanced-utility-deal-deferred-weighted-refill"
+                acquisition_policy="synthetic-balanced-discard-deal-deferred-weighted-refill"
+                if config.inventory_discards
+                else "synthetic-balanced-utility-deal-deferred-weighted-refill"
                 if utility_refill is not None
                 else "synthetic-balanced-utility-initial-deal-no-redraw",
-                refill_plan=utility_refill,
+                refill_plan=GuardianDiscardRefillPlan(distribution_base=utility_refill)
+                if config.inventory_discards and utility_refill is not None
+                else utility_refill,
             )
         elif config.refill == "none":
             self.metadata = GuardianRolloutMetadata(native=created.metadata, config=config)
@@ -420,6 +539,12 @@ class GuardianRolloutArena:
                 refill_plan=plan,
             )
         self._native = created.batch
+        self._discard_native = (
+            self._native
+            if config.inventory_discards
+            and isinstance(self._native, native.GuardianDiscardTurnBatch)
+            else None
+        )
         self._utility_native = (
             self._native
             if config.inventory_utilities
@@ -459,6 +584,10 @@ class GuardianRolloutArena:
         return self._replacement_gifts
 
     @property
+    def discarded_cards(self) -> int:
+        return self._discard_native.discarded_card_count if self._discard_native is not None else 0
+
+    @property
     def utility_statistics(self) -> GuardianUtilityStatistics | None:
         if self._utility_native is None:
             return None
@@ -474,7 +603,7 @@ class GuardianRolloutArena:
     def _reset(self, rows: IntArray) -> None:
         if len(rows) == 0:
             return
-        config, meta = self.config, self.metadata.native
+        config, meta = self.config, self.metadata.base_native
         all_models = (
             meta.defense_model_ids + meta.attack_weapon_model_ids + meta.attack_miracle_model_ids
         )
@@ -548,7 +677,11 @@ class GuardianRolloutArena:
                             config.seed,
                             int(env),
                             int(self._episode_ids[env]),
-                            6772 if config.inventory_utilities else 6771,
+                            6773
+                            if config.inventory_discards
+                            else 6772
+                            if config.inventory_utilities
+                            else 6771,
                         ]
                     )
                 )
@@ -590,7 +723,9 @@ class GuardianRolloutArena:
         for env in range(self.config.batch_size):
             if turn[env, 0] == 2:
                 reason = "winner"
-            elif turn[env, 0] == 3 and turn[env, 7] >= self.metadata.native.max_defense_actions:
+            elif (
+                turn[env, 0] == 3 and turn[env, 7] >= self.metadata.base_native.max_defense_actions
+            ):
                 reason = "defense_selection_limit"
             elif turn[env, 0] == 3:
                 reason = "turn_limit"
@@ -633,7 +768,7 @@ class GuardianRolloutArena:
         hand_features /= np.asarray(scales, dtype=np.float32)
         target_rows = np.flatnonzero(targeting)
         hand_features[target_rows, self._selected_slots[target_rows], 6] = 1
-        mask = np.zeros((size, ACTION_COUNT), dtype=np.bool_)
+        mask = np.zeros((size, self.metadata.action_count), dtype=np.bool_)
         ready = active & (phases == 0)
         attack_mask = (
             self._utility_native.ready_action_masks()
@@ -642,10 +777,12 @@ class GuardianRolloutArena:
         )
         mask[ready, 0] = attack_mask[ready, HAND_SLOTS]
         mask[ready, 1:TARGET_START] = attack_mask[ready, :HAND_SLOTS]
+        if self._discard_native is not None:
+            mask[ready, DISCARD_START:] = self._discard_native.discard_action_masks()[ready]
         defense = active & (phases == 1)
         defense_mask = self._native.defense_action_masks()
         mask[defense, 1:TARGET_START] = defense_mask[defense, :HAND_SLOTS]
-        mask[defense, FORGIVE:] = defense_mask[defense, HAND_SLOTS:]
+        mask[defense, FORGIVE:ACTION_COUNT] = defense_mask[defense, HAND_SLOTS:]
         for phase, native_targets in (
             (TARGET_PHASE, self._native.attack_target_masks()),
             (4, self._native.bounce_target_masks()),
@@ -717,13 +854,14 @@ class GuardianRolloutArena:
         if np.any(actions[~before.active] != -1):
             raise ValueError("finished environments require action -1 and explicit reset_done")
         chosen = actions[rows]
-        if np.any((chosen < 0) | (chosen >= ACTION_COUNT)) or not np.all(
+        if np.any((chosen < 0) | (chosen >= self.metadata.action_count)) or not np.all(
             before.action_mask[rows, chosen]
         ):
             raise ValueError("illegal arena action; batch was not changed")
         potential = self._potential()
         ready_pass = rows[(before.phases[rows] == 0) & (chosen == 0)]
-        select = rows[(before.phases[rows] == 0) & (chosen != 0)]
+        discard = rows[(before.phases[rows] == 0) & (chosen >= DISCARD_START)]
+        select = rows[(before.phases[rows] == 0) & (chosen > 0) & (chosen < TARGET_START)]
         utility = np.empty(0, dtype=np.int64)
         if self._utility_native is not None:
             utility_masks = self._utility_native.utility_action_masks()
@@ -735,6 +873,15 @@ class GuardianRolloutArena:
         # All rows are validated above before any grouped native operation mutates state.
         if len(ready_pass):
             self._native.pass_turns(ready_pass, before.actors[ready_pass])
+        if len(discard):
+            assert self._discard_native is not None
+            self._discard_native.discard_cards(
+                discard, before.actors[discard], actions[discard] - DISCARD_START
+            )
+            for env in discard:
+                self._pending_refills[env].add(
+                    (int(before.actors[env]), int(actions[env]) - DISCARD_START)
+                )
         if len(utility):
             assert self._utility_native is not None
             self._utility_native.use_utility_cards(
@@ -762,7 +909,7 @@ class GuardianRolloutArena:
                     slot = int(self._selected_slots[env])
                     if (
                         before.hand_model_ids[env, slot]
-                        in self.metadata.native.attack_weapon_model_ids
+                        in self.metadata.base_native.attack_weapon_model_ids
                     ):
                         self._pending_refills[env].add((int(before.actors[env]), slot))
             self._selected_slots[attack] = -1
@@ -775,7 +922,7 @@ class GuardianRolloutArena:
                 for env in defend[actions[defend] == CONFIRM]:
                     selected = before.hand_features[env, :, 6] > 0
                     armor = np.isin(
-                        before.hand_model_ids[env], self.metadata.native.armor_model_ids
+                        before.hand_model_ids[env], self.metadata.base_native.armor_model_ids
                     )
                     for armor_slot in np.flatnonzero(selected & armor):
                         self._pending_refills[env].add((int(before.actors[env]), int(armor_slot)))
@@ -837,7 +984,14 @@ def greedy_guardian_actions(observation: GuardianObservation) -> IntArray:
                     score[mana] = 1.2 * np.minimum(gains, missing) + 0.05 * gains
                 actions[env] = slots[int(np.argmax(score))] + 1
             else:
-                actions[env] = 0
+                discards = np.flatnonzero(mask[DISCARD_START:])
+                # Recovery-only teacher: do not throw away playable attacks/utilities.
+                # Retain MP gifts and valuable armor when another stale card is available.
+                actions[env] = (
+                    DISCARD_START + discards[int(np.argmin(hand[discards, 2] + hand[discards, 8]))]
+                    if len(discards)
+                    else 0
+                )
         elif phase in (4, TARGET_PHASE):
             targets = np.flatnonzero(mask[TARGET_START:FORGIVE])
             hp = observation.players[env, targets, 0]
@@ -873,9 +1027,12 @@ class GuardianRolloutReport(BaseModel):
     transition_sha256: str
     replacement_gifts: int = Field(default=0, ge=0, strict=True)
     utility_statistics: GuardianUtilityStatistics | None = None
-    collection_policy: Literal["greedy-smoke-baseline-v1", "greedy-utility-smoke-baseline-v2"] = (
-        "greedy-smoke-baseline-v1"
-    )
+    discarded_cards: int = Field(default=0, ge=0, strict=True)
+    collection_policy: Literal[
+        "greedy-smoke-baseline-v1",
+        "greedy-utility-smoke-baseline-v2",
+        "greedy-discard-smoke-baseline-v3",
+    ] = "greedy-smoke-baseline-v1"
     learning_performed: Literal[False] = False
 
 
@@ -889,16 +1046,17 @@ def collect_guardian_rollout(arena: GuardianRolloutArena, *, steps: int) -> Guar
         raise ValueError("rollout requires 1..100000 steps and at most 1000000 transitions")
     digest = hashlib.sha256(arena.metadata.model_dump_json().encode())
     phases = np.zeros(6, dtype=np.int64)
-    action_counts = np.zeros(ACTION_COUNT, dtype=np.int64)
+    action_counts = np.zeros(arena.metadata.action_count, dtype=np.int64)
     wins = np.zeros(arena.config.player_count, dtype=np.int64)
     completed = truncated = 0
     initial_gifts = arena.replacement_gifts
     initial_utilities = arena.utility_statistics
+    initial_discards = arena.discarded_cards
     for _ in range(steps):
         observation = arena.reset_done()
         actions = greedy_guardian_actions(observation)
         phases += np.bincount(observation.phases, minlength=6)
-        action_counts += np.bincount(actions, minlength=ACTION_COUNT)
+        action_counts += np.bincount(actions, minlength=arena.metadata.action_count)
         transition = arena.step(actions)
         completed += int(np.count_nonzero(transition.newly_finished & transition.terminated))
         truncated += int(np.count_nonzero(transition.newly_finished & transition.truncated))
@@ -933,7 +1091,10 @@ def collect_guardian_rollout(arena: GuardianRolloutArena, *, steps: int) -> Guar
         utility_statistics=arena.utility_statistics.since(initial_utilities)
         if initial_utilities is not None and arena.utility_statistics is not None
         else None,
-        collection_policy="greedy-utility-smoke-baseline-v2"
+        discarded_cards=arena.discarded_cards - initial_discards,
+        collection_policy="greedy-discard-smoke-baseline-v3"
+        if arena.config.inventory_discards
+        else "greedy-utility-smoke-baseline-v2"
         if arena.config.inventory_utilities
         else "greedy-smoke-baseline-v1",
     )

@@ -26,9 +26,12 @@ utility projection while admitting source-restricted removal in ready turns.
 It does not widen old batches, generate gifts automatically, or connect discard
 to existing neural checkpoints. Caller-supplied replacements can recover
 pass-only inventories; timing and miracle eligibility remain provisional, and
-Sacrifice is excluded. The planned 48-action training adapter/migration is
-still pending. See
-[ADR 0091](../../docs/architecture/0091-pass-only-diagnostics-and-discard-component.md).
+Sacrifice is excluded. A separate Python schema-3 adapter now connects 48-action
+rollouts and local imitation/PPO training, with explicit 30→48 checkpoint
+migration and its own provisional replacement RNG. Old native batches, action
+layouts, models, and live controls remain unchanged. See
+[ADR 0091](../../docs/architecture/0091-pass-only-diagnostics-and-discard-component.md)
+and [ADR 0092](../../docs/architecture/0092-discard-arena-training-and-action-migration.md).
 
 Every included curriculum is intentionally incomplete and its generated
 trajectories are not eligible for live model promotion. The broadest current

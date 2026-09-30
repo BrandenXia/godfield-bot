@@ -21,14 +21,16 @@ from torch import Tensor, nn
 from torch.nn import functional as F
 
 from godfield_bot.api_catalog import read_api_catalog_snapshot
+from godfield_bot.guardian_discard_refill import GuardianDiscardRefillPlan
 from godfield_bot.guardian_neural import (
     GuardianArenaPolicy,
     GuardianPolicyArchitecture,
     guardian_feature_tensors,
+    migrate_guardian_discard_policy,
     migrate_guardian_utility_policy,
 )
 from godfield_bot.guardian_rollout import (
-    ACTION_COUNT,
+    DISCARD_START,
     FORGIVE,
     GuardianObservation,
     GuardianRolloutArena,
@@ -140,6 +142,7 @@ class GuardianLearningRollout:
     replacement_gifts: int
     defense_teacher_actions: Tensor | None = None
     utility_statistics: GuardianUtilityStatistics | None = None
+    discarded_cards: int | None = None
 
     @property
     def steps(self) -> int:
@@ -174,6 +177,7 @@ class GuardianDuelCollector:
         completed = truncated = 0
         initial_gifts = self.arena.replacement_gifts
         initial_utilities = self.arena.utility_statistics
+        initial_discards = self.arena.discarded_cards
         phase_counts = np.zeros(6, dtype=np.int64)
         digest = hashlib.sha256(self.arena.metadata.model_dump_json().encode())
         envs = torch.arange(config.arena.batch_size)
@@ -285,6 +289,9 @@ class GuardianDuelCollector:
             self.arena.utility_statistics.since(initial_utilities)
             if initial_utilities is not None and self.arena.utility_statistics is not None
             else None,
+            self.arena.discarded_cards - initial_discards
+            if config.arena.inventory_discards
+            else None,
         )
 
 
@@ -331,6 +338,7 @@ class GuardianTeacherMetrics(TeacherTrainingMetrics):
     selected_defense_accuracy: float | None = Field(default=None, ge=0, le=1, allow_inf_nan=False)
     selected_defense_samples: int | None = Field(default=None, ge=0, strict=True)
     utility_statistics: GuardianUtilityStatistics | None = None
+    discarded_cards: int | None = Field(default=None, ge=0, strict=True)
 
 
 def train_guardian_teacher(
@@ -371,6 +379,7 @@ def train_guardian_teacher(
         selected_defense_accuracy=selected_correct / selected_samples if selected_samples else 0,
         selected_defense_samples=selected_samples,
         utility_statistics=rollout.utility_statistics,
+        discarded_cards=rollout.discarded_cards,
     )
 
 
@@ -397,7 +406,9 @@ def train_guardian_ppo(
         teacher_actions is None
         or teacher_actions.shape != rollout.actions.shape
         or teacher_actions.dtype != torch.int64
-        or bool(((teacher_actions < 0) | (teacher_actions >= ACTION_COUNT)).any())
+        or bool(
+            ((teacher_actions < 0) | (teacher_actions >= model.architecture.action_count)).any()
+        )
         or not bool(rollout.observations[6].gather(-1, teacher_actions.unsqueeze(-1)).all())
     ):
         raise GuardianTrainingError("defense feedback requires legal observed-state labels")
@@ -500,6 +511,7 @@ class GuardianReadyActionCounts(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     attacks: int = Field(default=0, ge=0, strict=True)
     utilities: int = Field(default=0, ge=0, strict=True)
+    discards: int = Field(default=0, ge=0, strict=True)
     forced_passes: int = Field(default=0, ge=0, strict=True)
     voluntary_passes: int = Field(default=0, ge=0, strict=True)
 
@@ -567,6 +579,7 @@ class _GuardianPlayTracker:
         groups = {
             "attacks": selected & ~utility,
             "utilities": utility,
+            "discards": ready & (actions >= DISCARD_START),
             "forced_passes": forced,
             "voluntary_passes": ready & (actions == 0) & ~forced,
         }
@@ -610,11 +623,14 @@ class GuardianEvaluation(BaseModel):
     replacement_gifts: int | None = Field(default=None, ge=0, strict=True)
     defense_deselections: int | None = Field(default=None, ge=0, strict=True)
     utility_statistics: GuardianUtilityStatistics | None = None
+    discarded_cards: int | None = Field(default=None, ge=0, strict=True)
     play_statistics: GuardianPlayStatistics | None = None
     paired_initial_states: Literal[True] = True
-    opponent: Literal["greedy-smoke-baseline-v1", "greedy-utility-smoke-baseline-v2"] = (
-        "greedy-smoke-baseline-v1"
-    )
+    opponent: Literal[
+        "greedy-smoke-baseline-v1",
+        "greedy-utility-smoke-baseline-v2",
+        "greedy-discard-smoke-baseline-v3",
+    ] = "greedy-smoke-baseline-v1"
     promotion_eligible: Literal[False] = False
 
     @model_validator(mode="after")
@@ -649,6 +665,7 @@ class GuardianEvaluation(BaseModel):
             or stats.mutual_forced_pass_truncations > self.truncations
             or stats.ready_actions.utilities
             != (self.utility_statistics.uses if self.utility_statistics is not None else 0)
+            or stats.ready_actions.discards != (self.discarded_cards or 0)
         ):
             raise ValueError("evaluation play diagnostics differ from game/utility totals")
         return self
@@ -668,6 +685,7 @@ def evaluate_guardian_policy(
     wins, losses, truncations = [0, 0], [0, 0], [0, 0]
     causes = GuardianTruncationCounts().model_dump()
     replacement_gifts = 0
+    discarded_cards = 0
     defense_deselections = 0
     utility_totals = dict.fromkeys(GuardianUtilityStatistics.model_fields, 0)
     play_statistics = []
@@ -721,6 +739,7 @@ def evaluate_guardian_policy(
             raise GuardianTrainingError("bounded evaluation left unfinished games")
         play_statistics.append(tracker.statistics())
         replacement_gifts += arena.replacement_gifts
+        discarded_cards += arena.discarded_cards
         measured = arena.utility_statistics
         if measured is not None:
             for field, value in measured.model_dump().items():
@@ -738,6 +757,7 @@ def evaluate_guardian_policy(
         truncation_causes=GuardianTruncationCounts(**causes),
         policy_kind="neural-greedy" if model is not None else "greedy-reference",
         replacement_gifts=replacement_gifts,
+        discarded_cards=discarded_cards if config.inventory_discards else None,
         defense_deselections=defense_deselections,
         utility_statistics=GuardianUtilityStatistics(**utility_totals)
         if config.inventory_utilities
@@ -768,7 +788,9 @@ def evaluate_guardian_policy(
                 stats.mutual_forced_pass_truncations for stats in play_statistics
             ),
         ),
-        opponent="greedy-utility-smoke-baseline-v2"
+        opponent="greedy-discard-smoke-baseline-v3"
+        if config.inventory_discards
+        else "greedy-utility-smoke-baseline-v2"
         if config.inventory_utilities
         else "greedy-smoke-baseline-v1",
     )
@@ -784,6 +806,7 @@ class GuardianUpdateMetrics(BaseModel):
     decisions_by_phase: tuple[int, ...]
     replacement_gifts: int | None = Field(default=None, ge=0, strict=True)
     utility_statistics: GuardianUtilityStatistics | None = None
+    discarded_cards: int | None = Field(default=None, ge=0, strict=True)
 
 
 class GuardianUtilityMigration(BaseModel):
@@ -817,19 +840,58 @@ class GuardianUtilityMigration(BaseModel):
         return self
 
 
+class GuardianDiscardMigration(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    schema_version: Literal[1] = 1
+    migration_id: Literal["guardian-actions-30-to-48-discard-head-v1"] = (
+        "guardian-actions-30-to-48-discard-head-v1"
+    )
+    source_model_id: str = Field(min_length=1)
+    source_manifest_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    source_weights_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    source_architecture: GuardianPolicyArchitecture
+    source_arena: GuardianRolloutMetadata
+    source_action_count: Literal[30] = 30
+    target_action_count: Literal[48] = 48
+    unchanged_tensors: Literal["all-source-tensors"] = "all-source-tensors"
+    new_head: Literal["copied-card-hidden-layer-zero-output-weight-minus-four-bias"] = (
+        "copied-card-hidden-layer-zero-output-weight-minus-four-bias"
+    )
+    optimizer_resumed: Literal[False] = False
+
+    @model_validator(mode="after")
+    def source_contract(self) -> GuardianDiscardMigration:
+        if not (
+            self.source_architecture.action_count == 30
+            and self.source_architecture.hand_feature_count == 9
+            and self.source_arena.action_count == 30
+            and self.source_arena.hand_feature_count == 9
+            and self.source_architecture.observation_schema_id
+            == self.source_arena.observation_schema_id
+            and self.source_arena.schema_version == 2
+            and self.source_arena.config.refill == "weighted-utility-consumption-v1"
+        ):
+            raise ValueError("discard migration requires a 30-action weighted utility source")
+        return self
+
+
 class GuardianArenaManifest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    schema_version: Literal[1, 2] = 1
+    schema_version: Literal[1, 2, 3] = 1
     source_kind: Literal[
         "local-guardian-duel-neural-checkpoint-v1",
         "local-guardian-utility-duel-neural-checkpoint-v2",
+        "local-guardian-discard-duel-neural-checkpoint-v3",
     ] = "local-guardian-duel-neural-checkpoint-v1"
     observation_schema_id: Literal[
-        "actor-relative-guardian-arena-v1", "actor-relative-guardian-utility-arena-v2"
+        "actor-relative-guardian-arena-v1",
+        "actor-relative-guardian-utility-arena-v2",
+        "actor-relative-guardian-discard-arena-v3",
     ] = "actor-relative-guardian-arena-v1"
     policy_architecture: Literal[
         "numeric-slot-recurrent-guardian-arena-v1",
         "numeric-slot-recurrent-guardian-utility-arena-v2",
+        "numeric-slot-recurrent-guardian-discard-arena-v3",
     ] = "numeric-slot-recurrent-guardian-arena-v1"
     model_id: str
     created_at: datetime
@@ -844,6 +906,7 @@ class GuardianArenaManifest(BaseModel):
     ] = ALGORITHM
     parent_weights_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     utility_migration: GuardianUtilityMigration | None = None
+    discard_migration: GuardianDiscardMigration | None = None
     rollout_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     teacher_metrics: tuple[GuardianTeacherMetrics, ...]
     update_metrics: tuple[GuardianUpdateMetrics, ...]
@@ -860,23 +923,29 @@ class GuardianArenaManifest(BaseModel):
     @model_validator(mode="after")
     def validate_training_contract(self) -> GuardianArenaManifest:
         utility = self.training.arena.inventory_utilities
+        discard = self.training.arena.inventory_discards
         if (
-            self.schema_version != (2 if utility else 1)
+            self.schema_version != (3 if discard else 2 if utility else 1)
             or self.source_kind
             != (
-                "local-guardian-utility-duel-neural-checkpoint-v2"
+                "local-guardian-discard-duel-neural-checkpoint-v3"
+                if discard
+                else "local-guardian-utility-duel-neural-checkpoint-v2"
                 if utility
                 else "local-guardian-duel-neural-checkpoint-v1"
             )
             or self.policy_architecture
             != (
-                "numeric-slot-recurrent-guardian-utility-arena-v2"
+                "numeric-slot-recurrent-guardian-discard-arena-v3"
+                if discard
+                else "numeric-slot-recurrent-guardian-utility-arena-v2"
                 if utility
                 else "numeric-slot-recurrent-guardian-arena-v1"
             )
             or self.observation_schema_id != self.arena.observation_schema_id
             or self.observation_schema_id != self.architecture.observation_schema_id
             or self.architecture.hand_feature_count != self.arena.hand_feature_count
+            or self.architecture.action_count != self.arena.action_count
         ):
             raise ValueError(
                 "checkpoint policy, native curriculum, and observation identities differ"
@@ -884,6 +953,7 @@ class GuardianArenaManifest(BaseModel):
         migration = self.utility_migration
         if migration is not None and (
             not utility
+            or discard
             or self.parent_weights_sha256 != migration.source_weights_sha256
             or migration.source_architecture.model_dump(
                 exclude={"hand_feature_count", "observation_schema_id"}
@@ -915,17 +985,56 @@ class GuardianArenaManifest(BaseModel):
             if (
                 source_arena.config.model_dump(exclude=allowed)
                 != self.arena.config.model_dump(exclude=allowed)
-                or source_arena.native.catalog_sha256 != self.arena.native.catalog_sha256
-                or source_arena.native.bible_client_sha256 != self.arena.native.bible_client_sha256
+                or source_arena.base_native.catalog_sha256 != self.arena.base_native.catalog_sha256
+                or source_arena.base_native.bible_client_sha256
+                != self.arena.base_native.bible_client_sha256
                 or (source_arena.config.refill == "none") != (self.arena.config.refill == "none")
                 or any(
-                    getattr(source_arena.native, field) != getattr(self.arena.native, field)
+                    getattr(source_arena.base_native, field)
+                    != getattr(self.arena.base_native, field)
                     for field in common_native_fields
                 )
             ):
                 raise ValueError(
                     "utility migration may not change original combat/reward/bound contracts"
                 )
+        transfer = self.discard_migration
+        expanded_metadata_fields = {
+            "native",
+            "config",
+            "schema_version",
+            "source_kind",
+            "curriculum_id",
+            "observation_schema_id",
+            "action_count",
+            "acquisition_policy",
+            "refill_plan",
+            "action_layout",
+        }
+        if transfer is not None and (
+            not discard
+            or migration is not None
+            or self.parent_weights_sha256 != transfer.source_weights_sha256
+            or transfer.source_architecture.model_dump(
+                exclude={"action_count", "observation_schema_id"}
+            )
+            != self.architecture.model_dump(exclude={"action_count", "observation_schema_id"})
+            or transfer.source_arena.config.model_dump(
+                exclude={"batch_size", "seed", "inventory_discards", "refill"}
+            )
+            != self.arena.config.model_dump(
+                exclude={"batch_size", "seed", "inventory_discards", "refill"}
+            )
+            or transfer.source_arena.base_native.model_dump(exclude={"batch_size"})
+            != self.arena.base_native.model_dump(exclude={"batch_size"})
+            or transfer.source_arena.model_dump(exclude=expanded_metadata_fields)
+            != self.arena.model_dump(exclude=expanded_metadata_fields)
+            or not isinstance(self.arena.refill_plan, GuardianDiscardRefillPlan)
+            or transfer.source_arena.refill_plan != self.arena.refill_plan.distribution_base
+        ):
+            raise ValueError(
+                "discard migration may only expand actions/refill, not source/bounds/rewards"
+            )
         expected_algorithm = (
             DEFENSE_FEEDBACK_ALGORITHM if self.training.defense_feedback_weight > 0 else ALGORITHM
         )
@@ -944,8 +1053,8 @@ class GuardianArenaManifest(BaseModel):
         ):
             raise ValueError("checkpoint architecture differs from training configuration")
         if (
-            self.arena.native.batch_size != self.training.arena.batch_size
-            or self.arena.native.player_count != 2
+            self.arena.base_native.batch_size != self.training.arena.batch_size
+            or self.arena.base_native.player_count != 2
         ):
             raise ValueError("checkpoint native batch does not match its duel curriculum")
         decisions = self.training.arena.batch_size * self.training.rollout_steps
@@ -967,8 +1076,26 @@ class GuardianArenaManifest(BaseModel):
             raise ValueError("checkpoint utility statistics must match its measured curriculum")
         if any(metric is not None and metric.uses > decisions for metric in collected_measurements):
             raise ValueError("utility measurements exceed collected decisions")
+        discard_counts = [
+            *(m.discarded_cards for m in self.teacher_metrics),
+            *(m.discarded_cards for m in self.update_metrics),
+        ]
+        evaluations = [
+            e
+            for e in (self.evaluation_before, self.evaluation_after, self.evaluation_baseline)
+            if e is not None
+        ]
+        if any(
+            (count is None) == discard or (count is not None and count > decisions)
+            for count in discard_counts
+        ) or any((e.discarded_cards is None) == discard for e in evaluations):
+            raise ValueError("checkpoint discard measurements differ from its curriculum")
         expected_opponent = (
-            "greedy-utility-smoke-baseline-v2" if utility else "greedy-smoke-baseline-v1"
+            "greedy-discard-smoke-baseline-v3"
+            if discard
+            else "greedy-utility-smoke-baseline-v2"
+            if utility
+            else "greedy-smoke-baseline-v1"
         )
         if any(
             evaluation.opponent != expected_opponent
@@ -1090,9 +1217,9 @@ def _compatible(
     arena: GuardianRolloutMetadata,
     architecture: GuardianPolicyArchitecture,
 ) -> None:
-    if parent.architecture != architecture or parent.arena.native.model_dump(
+    if parent.architecture != architecture or parent.arena.base_native.model_dump(
         exclude={"batch_size"}
-    ) != arena.native.model_dump(exclude={"batch_size"}):
+    ) != arena.base_native.model_dump(exclude={"batch_size"}):
         raise GuardianTrainingError(
             "arena checkpoint architecture, source pins, or native contract differs"
         )
@@ -1102,6 +1229,10 @@ def _compatible(
         raise GuardianTrainingError("arena checkpoint curriculum/reward configuration differs")
     if parent.arena.model_dump(exclude={"native", "config"}) != arena.model_dump(
         exclude={"native", "config"}
+    ) or (
+        parent.arena.config.inventory_discards
+        and parent.arena.native.model_dump(exclude={"utility_base"})
+        != arena.native.model_dump(exclude={"utility_base"})
     ):
         raise GuardianTrainingError("arena checkpoint acquisition/observation contract differs")
 
@@ -1178,6 +1309,46 @@ def _migrate_utility_checkpoint(
     return parent, migrated, record
 
 
+def _migrate_discard_checkpoint(
+    source: Path,
+    arena: GuardianRolloutMetadata,
+    architecture: GuardianPolicyArchitecture,
+    *,
+    catalog_path: Path,
+    bible_path: Path,
+) -> tuple[GuardianArenaManifest, GuardianArenaPolicy, GuardianDiscardMigration]:
+    parent, model = load_guardian_checkpoint(source)
+    if not arena.config.inventory_discards:
+        raise GuardianTrainingError("discard migration requires the separate discard curriculum")
+    original_config = GuardianRolloutConfig.model_validate(
+        {
+            **arena.config.model_dump(),
+            "inventory_discards": False,
+            "refill": "weighted-utility-consumption-v1",
+        }
+    )
+    original = GuardianRolloutArena(
+        catalog_path=catalog_path, bible_path=bible_path, config=original_config
+    )
+    old_architecture = GuardianPolicyArchitecture.model_validate(
+        {
+            **architecture.model_dump(),
+            "action_count": 30,
+            "observation_schema_id": "actor-relative-guardian-utility-arena-v2",
+        }
+    )
+    _compatible(parent, original.metadata, old_architecture)
+    migrated = migrate_guardian_discard_policy(model, architecture)
+    record = GuardianDiscardMigration(
+        source_model_id=parent.model_id,
+        source_manifest_sha256=_file_digest(source / MANIFEST_FILE),
+        source_weights_sha256=parent.weights_sha256,
+        source_architecture=parent.architecture,
+        source_arena=parent.arena,
+    )
+    return parent, migrated, record
+
+
 def train_guardian_candidate(
     *,
     catalog_path: Path,
@@ -1186,11 +1357,19 @@ def train_guardian_candidate(
     config: GuardianTrainingConfig,
     resume: Path | None = None,
     migrate_utilities_from: Path | None = None,
+    migrate_discards_from: Path | None = None,
 ) -> tuple[Path, GuardianArenaManifest]:
     """Create a new private local checkpoint; never overwrite a source model."""
-    if resume is not None and migrate_utilities_from is not None:
-        raise GuardianTrainingError("choose either --resume or --migrate-utilities-from")
-    if migrate_utilities_from is not None and not config.arena.inventory_utilities:
+    if (
+        sum(path is not None for path in (resume, migrate_utilities_from, migrate_discards_from))
+        > 1
+    ):
+        raise GuardianTrainingError("choose only one resume or explicit migration source")
+    if migrate_discards_from is not None and not config.arena.inventory_discards:
+        raise GuardianTrainingError("--migrate-discards-from requires --inventory-discards")
+    if migrate_utilities_from is not None and (
+        not config.arena.inventory_utilities or config.arena.inventory_discards
+    ):
         raise GuardianTrainingError("--migrate-utilities-from requires --inventory-utilities")
     with _runtime(config.arena.seed, config.cpu_threads):
         arena = GuardianRolloutArena(
@@ -1202,11 +1381,21 @@ def train_guardian_candidate(
             hidden_size=config.hidden_size,
             embedding_size=config.embedding_size,
             hand_feature_count=arena.metadata.hand_feature_count,
+            action_count=arena.metadata.action_count,
             observation_schema_id=arena.metadata.observation_schema_id,
         )
         parent = None
         migration = None
-        if migrate_utilities_from is not None:
+        discard_migration = None
+        if migrate_discards_from is not None:
+            parent, model, discard_migration = _migrate_discard_checkpoint(
+                migrate_discards_from,
+                arena.metadata,
+                architecture,
+                catalog_path=catalog_path,
+                bible_path=bible_path,
+            )
+        elif migrate_utilities_from is not None:
             parent, model, migration = _migrate_utility_checkpoint(
                 migrate_utilities_from,
                 arena.metadata,
@@ -1255,6 +1444,7 @@ def train_guardian_candidate(
                 utility_statistics=teacher_metric.utility_statistics.model_dump()
                 if teacher_metric.utility_statistics is not None
                 else None,
+                discarded_cards=rollout.discarded_cards,
             )
         optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
         for update in range(config.updates):
@@ -1271,6 +1461,7 @@ def train_guardian_candidate(
                     decisions_by_phase=rollout.phase_counts,
                     replacement_gifts=rollout.replacement_gifts,
                     utility_statistics=rollout.utility_statistics,
+                    discarded_cards=rollout.discarded_cards,
                 )
             )
             digest.update(bytes.fromhex(rollout.digest))
@@ -1287,6 +1478,7 @@ def train_guardian_candidate(
                 utility_statistics=rollout.utility_statistics.model_dump()
                 if rollout.utility_statistics is not None
                 else None,
+                discarded_cards=rollout.discarded_cards,
             )
         after = evaluate_guardian_policy(
             model,
@@ -1309,12 +1501,20 @@ def train_guardian_candidate(
             torch.save(model.state_dict(), sink)
         os.replace(temporary_weights, directory / WEIGHTS_FILE)
         manifest = GuardianArenaManifest(
-            schema_version=2 if config.arena.inventory_utilities else 1,
-            source_kind="local-guardian-utility-duel-neural-checkpoint-v2"
+            schema_version=3
+            if config.arena.inventory_discards
+            else 2
+            if config.arena.inventory_utilities
+            else 1,
+            source_kind="local-guardian-discard-duel-neural-checkpoint-v3"
+            if config.arena.inventory_discards
+            else "local-guardian-utility-duel-neural-checkpoint-v2"
             if config.arena.inventory_utilities
             else "local-guardian-duel-neural-checkpoint-v1",
             observation_schema_id=arena.metadata.observation_schema_id,
-            policy_architecture="numeric-slot-recurrent-guardian-utility-arena-v2"
+            policy_architecture="numeric-slot-recurrent-guardian-discard-arena-v3"
+            if config.arena.inventory_discards
+            else "numeric-slot-recurrent-guardian-utility-arena-v2"
             if config.arena.inventory_utilities
             else "numeric-slot-recurrent-guardian-arena-v1",
             model_id=model_id,
@@ -1328,6 +1528,7 @@ def train_guardian_candidate(
             else ALGORITHM,
             parent_weights_sha256=parent.weights_sha256 if parent is not None else None,
             utility_migration=migration,
+            discard_migration=discard_migration,
             rollout_sha256=digest.hexdigest(),
             teacher_metrics=tuple(teacher_metrics),
             update_metrics=tuple(update_metrics),

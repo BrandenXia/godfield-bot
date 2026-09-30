@@ -2747,10 +2747,22 @@ def simulation_guardian_rollout(
     max_decisions: Annotated[int, typer.Option(min=1, max=100_000)] = 1024,
     opening: Annotated[str, typer.Option(help="cards-only, mars-opening, or mixed.")] = "mixed",
     refill: Annotated[
-        str, typer.Option(help="none, weighted-consumption-v1, or weighted-utility-consumption-v1.")
+        str,
+        typer.Option(
+            help=(
+                "none, weighted-consumption-v1, weighted-utility-consumption-v1, "
+                "or weighted-discard-consumption-v1."
+            )
+        ),
     ] = "none",
     inventory_utilities: Annotated[
         bool, typer.Option(help="Use the separate nine-feature HP/MP curriculum.")
+    ] = False,
+    inventory_discards: Annotated[
+        bool,
+        typer.Option(
+            help="Use 48 actions; requires utilities and weighted-discard-consumption-v1."
+        ),
     ] = False,
 ) -> None:
     """Exercise seeded local C++ arena episodes; does not train or play online."""
@@ -2775,6 +2787,7 @@ def simulation_guardian_rollout(
                 "opening": opening,
                 "refill": refill,
                 "inventory_utilities": inventory_utilities,
+                "inventory_discards": inventory_discards,
             }
         )
         if steps * batch_size > 1_000_000:
@@ -2813,6 +2826,14 @@ def simulation_guardian_train(
             help="Explicit 7→9-feature transfer into a new utility child; not --resume.",
         ),
     ] = None,
+    migrate_discards_from: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True,
+            file_okay=False,
+            help="Explicit utility 30→48-action transfer into a new discard child.",
+        ),
+    ] = None,
     batch_size: Annotated[int, typer.Option(min=1, max=4096)] = 64,
     rollout_steps: Annotated[int, typer.Option(min=2, max=256)] = 64,
     updates: Annotated[int, typer.Option(min=1, max=1000)] = 10,
@@ -2833,10 +2854,21 @@ def simulation_guardian_train(
     opening: Annotated[str, typer.Option(help="cards-only, mars-opening, or mixed.")] = "mixed",
     refill: Annotated[
         str,
-        typer.Option(help="none, weighted-consumption-v1, or weighted-utility-consumption-v1."),
+        typer.Option(
+            help=(
+                "none, weighted-consumption-v1, weighted-utility-consumption-v1, "
+                "or weighted-discard-consumption-v1."
+            )
+        ),
     ] = "none",
     inventory_utilities: Annotated[
         bool, typer.Option(help="Use the separate nine-feature HP/MP curriculum.")
+    ] = False,
+    inventory_discards: Annotated[
+        bool,
+        typer.Option(
+            help="Use 48 actions; requires utilities and weighted-discard-consumption-v1."
+        ),
     ] = False,
     baseline_opponent_fraction: Annotated[float, typer.Option(min=0, max=1)] = 0.5,
     evaluation_games: Annotated[int, typer.Option(min=2, max=256)] = 32,
@@ -2862,6 +2894,7 @@ def simulation_guardian_train(
                     "opening": opening,
                     "refill": refill,
                     "inventory_utilities": inventory_utilities,
+                    "inventory_discards": inventory_discards,
                 },
                 "rollout_steps": rollout_steps,
                 "updates": updates,
@@ -2887,6 +2920,7 @@ def simulation_guardian_train(
             config=config,
             resume=resume,
             migrate_utilities_from=migrate_utilities_from,
+            migrate_discards_from=migrate_discards_from,
         )
     except (
         ImportError,

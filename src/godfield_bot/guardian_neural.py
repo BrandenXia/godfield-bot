@@ -11,6 +11,8 @@ from torch import Tensor, nn
 
 from godfield_bot.guardian_rollout import (
     ACTION_COUNT,
+    DISCARD_ACTION_COUNT,
+    DISCARD_OBSERVATION_ID,
     GLOBAL_FEATURE_COUNT,
     HAND_SLOTS,
     MAX_PLAYERS,
@@ -26,18 +28,25 @@ class GuardianPolicyArchitecture(BaseModel):
     embedding_size: int = Field(default=32, ge=8, le=128, strict=True)
     hidden_size: int = Field(default=128, ge=16, le=256, strict=True)
     hand_feature_count: Literal[7, 9] = 7
+    action_count: Literal[30, 48] = 30
     observation_schema_id: Literal[
-        "actor-relative-guardian-arena-v1", "actor-relative-guardian-utility-arena-v2"
+        "actor-relative-guardian-arena-v1",
+        "actor-relative-guardian-utility-arena-v2",
+        "actor-relative-guardian-discard-arena-v3",
     ] = "actor-relative-guardian-arena-v1"
 
     @model_validator(mode="after")
     def feature_contract(self) -> GuardianPolicyArchitecture:
         expected = (
-            "actor-relative-guardian-utility-arena-v2"
+            DISCARD_OBSERVATION_ID
+            if self.action_count == DISCARD_ACTION_COUNT
+            else "actor-relative-guardian-utility-arena-v2"
             if self.hand_feature_count == 9
             else "actor-relative-guardian-arena-v1"
         )
-        if self.observation_schema_id != expected:
+        if self.observation_schema_id != expected or (
+            self.action_count == DISCARD_ACTION_COUNT and self.hand_feature_count != 9
+        ):
             raise ValueError("guardian architecture hand width and observation identity differ")
         return self
 
@@ -92,6 +101,12 @@ class GuardianArenaPolicy(nn.Module):
             nn.Linear(hidden * 2, hidden), nn.ReLU(), nn.Linear(hidden, 1)
         )
         self.value_head = nn.Linear(hidden, 1)
+        # Absent in old architectures: their state dicts remain byte-compatible.
+        self.discard_head = (
+            nn.Sequential(nn.Linear(hidden * 2, hidden), nn.ReLU(), nn.Linear(hidden, 1))
+            if architecture.action_count == DISCARD_ACTION_COUNT
+            else None
+        )
 
     def forward(
         self,
@@ -112,7 +127,7 @@ class GuardianArenaPolicy(nn.Module):
             or hand_model_ids.shape != (batch, HAND_SLOTS)
             or hand_features.shape != (batch, HAND_SLOTS, self.architecture.hand_feature_count)
             or hand_mask.shape != (batch, HAND_SLOTS)
-            or action_mask.shape != (batch, ACTION_COUNT)
+            or action_mask.shape != (batch, self.architecture.action_count)
         ):
             raise ValueError("guardian policy feature shape differs from arena schema")
         if not bool(action_mask.any(dim=1).all()):
@@ -155,6 +170,11 @@ class GuardianArenaPolicy(nn.Module):
             torch.cat((state[:, None].expand(-1, MAX_PLAYERS, -1), encoded_players), dim=-1)
         ).squeeze(-1)
         logits = torch.cat((controls[:, :1], slots, targets, controls[:, 1:]), dim=1)
+        if self.discard_head is not None:
+            discards = self.discard_head(
+                torch.cat((state[:, None].expand(-1, HAND_SLOTS, -1), cards), dim=-1)
+            ).squeeze(-1)
+            logits = torch.cat((logits, discards), dim=1)
         values = self.value_head(state).squeeze(-1)
         if not bool(torch.isfinite(logits).all()) or not bool(torch.isfinite(values).all()):
             raise ValueError("guardian policy produced non-finite outputs")
@@ -189,4 +209,33 @@ def migrate_guardian_utility_policy(
     target.load_state_dict(tensors, strict=True)
     if not all(bool(torch.isfinite(value).all()) for value in target.parameters()):
         raise ValueError("utility migration produced non-finite parameters")
+    return target
+
+
+def migrate_guardian_discard_policy(
+    source: GuardianArenaPolicy, architecture: GuardianPolicyArchitecture
+) -> GuardianArenaPolicy:
+    """Explicit 30→48 action transfer; keep all learned tensors unchanged.
+
+    New shared slot scoring starts from the learned card scorer with only its
+    final layer reset to constant -4. With discard masked off, original logits,
+    values and recurrent states are identical. No optimizer state is resumed.
+    """
+    if (
+        source.architecture.action_count != ACTION_COUNT
+        or source.architecture.hand_feature_count != 9
+        or architecture.action_count != DISCARD_ACTION_COUNT
+        or source.architecture.model_dump(exclude={"action_count", "observation_schema_id"})
+        != architecture.model_dump(exclude={"action_count", "observation_schema_id"})
+    ):
+        raise ValueError("discard migration requires matching nine-feature 30→48 architectures")
+    if not all(bool(torch.isfinite(value).all()) for value in source.parameters()):
+        raise ValueError("discard migration refuses non-finite source parameters")
+    target = GuardianArenaPolicy(architecture)
+    tensors = {name: value.detach().clone() for name, value in source.state_dict().items()}
+    for name, value in source.card_head.state_dict().items():
+        tensors[f"discard_head.{name}"] = value.detach().clone()
+    tensors["discard_head.2.weight"].zero_()
+    tensors["discard_head.2.bias"].fill_(-4)
+    target.load_state_dict(tensors, strict=True)
     return target

@@ -8,6 +8,10 @@ implements observability and the **caller-driven C++ discard component**, not
 its neural rollout/action migration. Existing training and live controls remain
 unchanged; all official/full-game/promotion gates remain blocked.
 
+Follow-up: [ADR 0092](0092-discard-arena-training-and-action-migration.md) implements
+the accepted separate 48-action adapter and explicit migration. This ADR records
+the original component milestone and its historical measurements.
+
 Utility child `d496547f-3fb4-4ca4-80ba-20e51bf89b84` was evaluated raw, unchanged,
 against the existing utility greedy opponent at diagnostic seed 1,000,070,
 with both learner seats and the same synthetic deal/refill rules. The following

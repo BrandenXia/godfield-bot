@@ -1472,11 +1472,39 @@ UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
 
 It admits 63 supported nonweapon models, excludes the documented exceptions,
 validates removal atomically, and leaves replacement gifts to its caller.
-This is **not yet a discard-enabled neural training command**. The next adapter
-will append 18 discard-slot actions to the unchanged 30-action layout and
-require an explicit new checkpoint migration. Existing trainers/checkpoints
-remain unchanged; no official timing, Sacrifice, or full-game readiness is
-claimed. See [ADR 0091](docs/architecture/0091-pass-only-diagnostics-and-discard-component.md).
+That inspection command does not train. A separate schema-3 rollout/trainer now
+appends 18 discard-slot actions to the unchanged 30-action layout. It requires
+its own refill identity/RNG and an explicit 30→48-action checkpoint migration:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation --extra training \
+  godfield-bot simulation guardian-train \
+  --migrate-discards-from checkpoints/guardian-arena/d496547f-3fb4-4ca4-80ba-20e51bf89b84 \
+  --inventory-utilities --inventory-discards --refill weighted-discard-consumption-v1 \
+  --batch-size 32 --teacher-updates 16 --updates 32 \
+  --teacher-selected-defense-weight 8 --defense-feedback-weight 1 \
+  --max-turns 32 --max-decisions 128
+```
+
+This copies every learned parent tensor unchanged, adds a shared discard scorer,
+and creates a private local child with fresh optimizers. `--resume` cannot
+silently widen actions or change episode bounds. To continue a migrated child,
+replace the migration flag with `--resume <discard_checkpoint_directory>` and
+retain its recorded inventory/refill/bound flags. The two inventory flags and
+new refill mode also work with `guardian-rollout`; `guardian-evaluate` reads
+checkpoint rules automatically. Reports count discards separately from utility
+use and consumed cards, with learner-only discard counts in evaluation.
+
+The first 98,304-decision child exercised 895 discards during collection. It
+made no forced/voluntary passes in 192 bounded diagnostic games, but evaluations
+do **not** establish stronger play; short healed games still frequently truncate.
+Existing models/live controls remain unchanged. Timing, miracle discard
+eligibility, and replacement are provisional; Sacrifice, official verification,
+full-game readiness, and live promotion remain blocked. See
+[ADR 0091](docs/architecture/0091-pass-only-diagnostics-and-discard-component.md)
+for the native component and
+[ADR 0092](docs/architecture/0092-discard-arena-training-and-action-migration.md)
+for migration, commands, and complete comparisons.
 
 A later private-room trace contains one self-targeted Nocturnal Broom-style
 `removeItems` event. Its explicit three selected cards disappear in the next

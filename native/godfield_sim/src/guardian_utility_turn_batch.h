@@ -111,6 +111,7 @@ public:
   [[nodiscard]] std::uint64_t mp_gained() const { return mp_gained_; }
 
 private:
+  friend class GuardianDiscardTurnBatch;
   struct Utility {
     std::int64_t resource; // 0 HP, 1 MP
     std::int64_t value;

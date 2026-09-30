@@ -7,6 +7,7 @@
 #include "guardian_combat_batch.h"
 #include "guardian_turn_batch.h"
 #include "guardian_utility_turn_batch.h"
+#include "guardian_discard_turn_batch.h"
 
 #include <nanobind/nanobind.h>
 #include <nanobind/stl/optional.h>
@@ -510,6 +511,37 @@ NB_MODULE(_native, module) {
       .def_prop_ro("utility_use_count", &GuardianUtilityTurnBatch::utility_use_count)
       .def_prop_ro("hp_gained", &GuardianUtilityTurnBatch::hp_gained)
       .def_prop_ro("mp_gained", &GuardianUtilityTurnBatch::mp_gained);
+  module.attr("GUARDIAN_DISCARD_TURN_KERNEL_SCHEMA_VERSION") =
+      godfield_sim::kGuardianDiscardTurnKernelSchemaVersion;
+  module.attr("GUARDIAN_DISCARD_TURN_OBSERVATION_SCHEMA_VERSION") =
+      godfield_sim::kGuardianDiscardTurnObservationSchemaVersion;
+  module.attr("GUARDIAN_DISCARD_TURN_RULESET_ID") =
+      godfield_sim::kGuardianDiscardTurnRulesetId;
+  using godfield_sim::GuardianDiscardTurnBatch;
+  nb::class_<GuardianDiscardTurnBatch, GuardianUtilityTurnBatch>(
+      module, "GuardianDiscardTurnBatch")
+      .def(nb::init<std::size_t, std::size_t, std::size_t,
+                    godfield_sim::GuardianWeightInput,
+                    godfield_sim::GuardianWeightInput,
+                    godfield_sim::GuardianWeightInput,
+                    godfield_sim::GuardianWeightInput,
+                    godfield_sim::GuardianWeightInput, godfield_sim::ActionInput,
+                    std::size_t, std::uint64_t, std::uint16_t, std::uint16_t,
+                    std::uint16_t>(),
+           nb::arg("batch_size"), nb::arg("player_count"), nb::arg("guardian_slots"),
+           nb::arg("weighted_profiles").noconvert(),
+           nb::arg("effect_profiles").noconvert(),
+           nb::arg("defense_profiles").noconvert(),
+           nb::arg("attack_profiles").noconvert(),
+           nb::arg("utility_profiles").noconvert(),
+           nb::arg("discard_models").noconvert(), nb::arg("hand_slots") = 18,
+           nb::arg("max_turns") = 1000, nb::arg("initial_hp") = 40,
+           nb::arg("initial_mp") = 10, nb::arg("initial_cp") = 0)
+      .def("discard_cards", &GuardianDiscardTurnBatch::discard_cards,
+           nb::arg("environments").noconvert(), nb::arg("players").noconvert(),
+           nb::arg("slots").noconvert())
+      .def("discard_action_masks", &GuardianDiscardTurnBatch::discard_action_masks)
+      .def_prop_ro("discarded_card_count", &GuardianDiscardTurnBatch::discarded_card_count);
   nb::class_<godfield_sim::GuardianCombatBatch>(module, "GuardianCombatBatch")
       .def(nb::init<std::size_t, std::size_t, std::size_t,
                     godfield_sim::GuardianWeightInput,

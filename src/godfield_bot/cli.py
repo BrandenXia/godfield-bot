@@ -2633,6 +2633,12 @@ def simulation_guardian_batch_plan(
             help="Use the separate, provisional eight-card HP/MP utility batch (requires --turns)."
         ),
     ] = False,
+    inventory_discards: Annotated[
+        bool,
+        typer.Option(
+            help="Inspect separate discard turns; requires --turns --inventory-utilities."
+        ),
+    ] = False,
 ) -> None:
     """Inspect a separate native guardian lifecycle batch; not a training gate."""
 
@@ -2644,6 +2650,25 @@ def simulation_guardian_batch_plan(
     from godfield_bot.provisional_rules import ProvisionalRuleUnavailableError
 
     try:
+        if inventory_discards:
+            if not turns or not inventory_utilities:
+                raise ValueError("--inventory-discards requires --turns --inventory-utilities")
+            from godfield_bot.guardian_discard import create_provisional_guardian_discard_turn_batch
+
+            discard_created = create_provisional_guardian_discard_turn_batch(
+                catalog_path=catalog,
+                bible_path=bible,
+                batch_size=batch_size,
+                player_count=player_count,
+                slots_per_environment=slots_per_environment,
+                hand_slots=hand_slots,
+                max_turns=max_turns,
+                initial_hp=initial_hp,
+                initial_mp=initial_mp,
+                initial_cp=initial_cp,
+            )
+            typer.echo(discard_created.metadata.model_dump_json(indent=2))
+            return
         if inventory_utilities:
             if not turns:
                 raise ValueError("--inventory-utilities requires --turns")

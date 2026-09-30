@@ -82,6 +82,7 @@ public:
 
 private:
   friend class GuardianUtilityTurnBatch;
+  friend class GuardianDiscardTurnBatch;
   struct Defense {
     std::int64_t value;
     std::int64_t element;

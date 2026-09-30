@@ -6,6 +6,7 @@ import hashlib
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from types import ModuleType
 from typing import TYPE_CHECKING, Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -193,6 +194,26 @@ class ProvisionalGuardianUtilityTurnBatch:
     metadata: GuardianUtilityTurnMetadata
 
 
+def _validate_utility_native_identity(native: ModuleType) -> None:
+    if (
+        getattr(native, "GUARDIAN_UTILITY_TURN_KERNEL_SCHEMA_VERSION", None) != 1
+        or getattr(native, "GUARDIAN_UTILITY_TURN_OBSERVATION_SCHEMA_VERSION", None) != 1
+        or getattr(native, "GUARDIAN_UTILITY_ACTOR_HAND_SCHEMA_VERSION", None) != 1
+        or getattr(native, "GUARDIAN_UTILITY_TURN_RULESET_ID", None) != UTILITY_RULESET_ID
+        or getattr(native, "GUARDIAN_TURN_KERNEL_SCHEMA_VERSION", None) != 2
+        or getattr(native, "GUARDIAN_TURN_OBSERVATION_SCHEMA_VERSION", None) != 2
+        or getattr(native, "GUARDIAN_TURN_RULESET_ID", None)
+        != "round-robin-card-guardian-resource-turns-provisional-v2"
+        or getattr(native, "GUARDIAN_TURN_MAX_DEFENSE_ACTIONS", None) != 64
+        or getattr(native, "GUARDIAN_COMBAT_KERNEL_SCHEMA_VERSION", None) != 2
+        or getattr(native, "GUARDIAN_COMBAT_OBSERVATION_SCHEMA_VERSION", None) != 2
+        or getattr(native, "GUARDIAN_COMBAT_RULESET_ID", None)
+        != "caller-driven-guardian-resource-curse-combat-provisional-v2"
+        or not hasattr(native, "GuardianUtilityTurnBatch")
+    ):
+        raise ProvisionalRuleUnavailableError("guardian inventory utility native identity differs")
+
+
 def create_provisional_guardian_utility_turn_batch(
     *,
     catalog_path: Path,
@@ -220,23 +241,7 @@ def create_provisional_guardian_utility_turn_batch(
         raise ProvisionalRuleUnavailableError(
             "guardian inventory utility batch requires the native simulation extra"
         ) from None
-    if (
-        getattr(native, "GUARDIAN_UTILITY_TURN_KERNEL_SCHEMA_VERSION", None) != 1
-        or getattr(native, "GUARDIAN_UTILITY_TURN_OBSERVATION_SCHEMA_VERSION", None) != 1
-        or getattr(native, "GUARDIAN_UTILITY_ACTOR_HAND_SCHEMA_VERSION", None) != 1
-        or getattr(native, "GUARDIAN_UTILITY_TURN_RULESET_ID", None) != UTILITY_RULESET_ID
-        or getattr(native, "GUARDIAN_TURN_KERNEL_SCHEMA_VERSION", None) != 2
-        or getattr(native, "GUARDIAN_TURN_OBSERVATION_SCHEMA_VERSION", None) != 2
-        or getattr(native, "GUARDIAN_TURN_RULESET_ID", None)
-        != "round-robin-card-guardian-resource-turns-provisional-v2"
-        or getattr(native, "GUARDIAN_TURN_MAX_DEFENSE_ACTIONS", None) != 64
-        or getattr(native, "GUARDIAN_COMBAT_KERNEL_SCHEMA_VERSION", None) != 2
-        or getattr(native, "GUARDIAN_COMBAT_OBSERVATION_SCHEMA_VERSION", None) != 2
-        or getattr(native, "GUARDIAN_COMBAT_RULESET_ID", None)
-        != "caller-driven-guardian-resource-curse-combat-provisional-v2"
-        or not hasattr(native, "GuardianUtilityTurnBatch")
-    ):
-        raise ProvisionalRuleUnavailableError("guardian inventory utility native identity differs")
+    _validate_utility_native_identity(native)
     batch = native.GuardianUtilityTurnBatch(
         batch_size,
         player_count,

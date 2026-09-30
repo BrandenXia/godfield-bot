@@ -1454,6 +1454,30 @@ training readiness and live promotion remain false. Commands, migration
 contracts, and comparisons are in
 [ADR 0090](docs/architecture/0090-utility-arena-training-and-checkpoint-migration.md).
 
+Evaluations now report `play_statistics`, separating attacks, utility use,
+forced/voluntary passing, and mutual pass-only witnesses, with learner-only
+ready-action counts beside totals. These diagnostics do not end games early
+or change rewards. Longer-horizon checks revealed genuine inventory dead ends:
+retained miracles cannot be afforded and neither player has another legal card
+play. Raising the turn limit alone cannot resolve such states in this subset.
+
+Native 0.46.0 adds a **separate caller-driven discard component** for the
+approved provisional recovery path. Inspect it with:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
+  godfield-bot simulation guardian-batch-plan --turns --inventory-utilities \
+  --inventory-discards --batch-size 512
+```
+
+It admits 63 supported nonweapon models, excludes the documented exceptions,
+validates removal atomically, and leaves replacement gifts to its caller.
+This is **not yet a discard-enabled neural training command**. The next adapter
+will append 18 discard-slot actions to the unchanged 30-action layout and
+require an explicit new checkpoint migration. Existing trainers/checkpoints
+remain unchanged; no official timing, Sacrifice, or full-game readiness is
+claimed. See [ADR 0091](docs/architecture/0091-pass-only-diagnostics-and-discard-component.md).
+
 A later private-room trace contains one self-targeted Nocturnal Broom-style
 `removeItems` event. Its explicit three selected cards disappear in the next
 inventory, and native 0.36.0/schema 3 can reproduce that narrow operation with

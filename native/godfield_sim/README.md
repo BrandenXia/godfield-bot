@@ -21,6 +21,15 @@ promotion remain false. See the native contract in
 the adapter/migration in
 [ADR 0090](../../docs/architecture/0090-utility-arena-training-and-checkpoint-migration.md).
 
+Native 0.46.0 adds the distinct `GuardianDiscardTurnBatch`, retaining the old
+utility projection while admitting source-restricted removal in ready turns.
+It does not widen old batches, generate gifts automatically, or connect discard
+to existing neural checkpoints. Caller-supplied replacements can recover
+pass-only inventories; timing and miracle eligibility remain provisional, and
+Sacrifice is excluded. The planned 48-action training adapter/migration is
+still pending. See
+[ADR 0091](../../docs/architecture/0091-pass-only-diagnostics-and-discard-component.md).
+
 Every included curriculum is intentionally incomplete and its generated
 trajectories are not eligible for live model promotion. The broadest current
 ruleset, `dream-resource-hand`, includes elemental multi-card

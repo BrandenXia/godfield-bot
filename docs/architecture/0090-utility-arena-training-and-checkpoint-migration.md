@@ -208,3 +208,8 @@ The two local browser regressions also pass when Chromium is allowed to launch
 outside the macOS sandbox (its Mach-port permission check blocks sandboxed
 launch). Ruff, changed-file formatting, strict mypy across 75 source modules,
 lock consistency, whitespace checks, and checksummed child evaluation pass.
+
+Follow-up: [ADR 0091](0091-pass-only-diagnostics-and-discard-component.md)
+separates policy-independent pass-only witnesses from other truncations and
+adds the approved isolated native discard recovery component. Its new action
+adapter/migration is not yet connected to this 30-action utility trainer.

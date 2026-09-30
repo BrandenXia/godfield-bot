@@ -50,6 +50,7 @@ private:
   // arbitrary defense values to policy callers.
   friend class GuardianTurnBatch;
   friend class GuardianUtilityTurnBatch;
+  friend class GuardianDiscardTurnBatch;
   struct BasicAttack {
     std::int64_t value;
     std::int64_t element;

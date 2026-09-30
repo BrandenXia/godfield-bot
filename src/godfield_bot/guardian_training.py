@@ -30,10 +30,13 @@ from godfield_bot.guardian_neural import (
 from godfield_bot.guardian_rollout import (
     ACTION_COUNT,
     FORGIVE,
+    GuardianObservation,
     GuardianRolloutArena,
     GuardianRolloutConfig,
     GuardianRolloutMetadata,
+    GuardianTransition,
     GuardianUtilityStatistics,
+    IntArray,
     greedy_guardian_actions,
 )
 from godfield_bot.simulation_training import (
@@ -493,6 +496,104 @@ class GuardianTruncationCounts(BaseModel):
     decision_limit: int = Field(default=0, ge=0, strict=True)
 
 
+class GuardianReadyActionCounts(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    attacks: int = Field(default=0, ge=0, strict=True)
+    utilities: int = Field(default=0, ge=0, strict=True)
+    forced_passes: int = Field(default=0, ge=0, strict=True)
+    voluntary_passes: int = Field(default=0, ge=0, strict=True)
+
+    @property
+    def total(self) -> int:
+        return sum(self.model_dump().values())
+
+
+class GuardianPlayStatistics(BaseModel):
+    """Visible-action diagnostics; pass-only witnesses never change termination."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    schema_version: Literal[1] = 1
+    decisions_by_phase: tuple[int, ...]
+    ready_actions: GuardianReadyActionCounts
+    learner_ready_actions: GuardianReadyActionCounts
+    mutual_forced_pass_games: int = Field(ge=0, strict=True)
+    mutual_forced_pass_truncations: int = Field(ge=0, strict=True)
+    stall_witness: Literal["consecutive-distinct-actors-with-pass-only-ready-masks-v1"] = (
+        "consecutive-distinct-actors-with-pass-only-ready-masks-v1"
+    )
+
+    @model_validator(mode="after")
+    def accounted(self) -> GuardianPlayStatistics:
+        if (
+            len(self.decisions_by_phase) != 6
+            or min(self.decisions_by_phase) < 0
+            or self.decisions_by_phase[2] != 0
+            or self.decisions_by_phase[3] != 0
+            or self.decisions_by_phase[0] != self.ready_actions.total
+            or self.mutual_forced_pass_truncations > self.mutual_forced_pass_games
+            or 2 * self.mutual_forced_pass_games > self.ready_actions.forced_passes
+            or any(
+                getattr(self.learner_ready_actions, field) > getattr(self.ready_actions, field)
+                for field in GuardianReadyActionCounts.model_fields
+            )
+        ):
+            raise ValueError("play diagnostics do not account for observed decisions")
+        return self
+
+
+class _GuardianPlayTracker:
+    """One evaluation cohort, without resetting episodes or reading hidden hands."""
+
+    def __init__(self, batch_size: int):
+        self.phases = np.zeros(6, dtype=np.int64)
+        self.ready = dict.fromkeys(GuardianReadyActionCounts.model_fields, 0)
+        self.learner_ready = self.ready.copy()
+        self.previous_forced_actor = np.full(batch_size, -1, dtype=np.int64)
+        self.stalled = np.zeros(batch_size, dtype=np.bool_)
+        self.stalled_truncations = 0
+
+    def observe(
+        self, observation: GuardianObservation, actions: IntArray, learner_seat: int
+    ) -> None:
+        active, actors = observation.active, observation.actors
+        self.phases += np.bincount(observation.phases[active], minlength=6)
+        ready = active & (observation.phases == 0)
+        selected = ready & (actions >= 1) & (actions <= 18)
+        utility = np.zeros(len(actions), dtype=np.bool_)
+        rows = np.flatnonzero(selected)
+        if observation.hand_features.shape[-1] == 9:
+            utility[rows] = observation.hand_features[rows, actions[rows] - 1, 7:].any(axis=-1)
+        forced = ready & (actions == 0) & ~observation.action_mask[:, 1:].any(axis=-1)
+        groups = {
+            "attacks": selected & ~utility,
+            "utilities": utility,
+            "forced_passes": forced,
+            "voluntary_passes": ready & (actions == 0) & ~forced,
+        }
+        for field, mask in groups.items():
+            self.ready[field] += int(np.count_nonzero(mask))
+            self.learner_ready[field] += int(np.count_nonzero(mask & (actors == learner_seat)))
+        self.stalled |= (
+            forced & (self.previous_forced_actor >= 0) & (self.previous_forced_actor != actors)
+        )
+        self.previous_forced_actor[active & ~forced] = -1
+        self.previous_forced_actor[forced] = actors[forced]
+
+    def finish(self, transition: GuardianTransition) -> None:
+        self.stalled_truncations += int(
+            np.count_nonzero(transition.newly_finished & transition.truncated & self.stalled)
+        )
+
+    def statistics(self) -> GuardianPlayStatistics:
+        return GuardianPlayStatistics(
+            decisions_by_phase=tuple(int(value) for value in self.phases),
+            ready_actions=GuardianReadyActionCounts(**self.ready),
+            learner_ready_actions=GuardianReadyActionCounts(**self.learner_ready),
+            mutual_forced_pass_games=int(np.count_nonzero(self.stalled)),
+            mutual_forced_pass_truncations=self.stalled_truncations,
+        )
+
+
 class GuardianEvaluation(BaseModel):
     schema_version: Literal[1] = 1
     seed: int = Field(ge=0, le=2**32 - 1, strict=True)
@@ -509,6 +610,7 @@ class GuardianEvaluation(BaseModel):
     replacement_gifts: int | None = Field(default=None, ge=0, strict=True)
     defense_deselections: int | None = Field(default=None, ge=0, strict=True)
     utility_statistics: GuardianUtilityStatistics | None = None
+    play_statistics: GuardianPlayStatistics | None = None
     paired_initial_states: Literal[True] = True
     opponent: Literal["greedy-smoke-baseline-v1", "greedy-utility-smoke-baseline-v2"] = (
         "greedy-smoke-baseline-v1"
@@ -541,6 +643,14 @@ class GuardianEvaluation(BaseModel):
             and sum(self.truncation_causes.model_dump().values()) != self.truncations
         ):
             raise ValueError("evaluation does not account for every truncation reason")
+        stats = self.play_statistics
+        if stats is not None and (
+            stats.mutual_forced_pass_games > self.games
+            or stats.mutual_forced_pass_truncations > self.truncations
+            or stats.ready_actions.utilities
+            != (self.utility_statistics.uses if self.utility_statistics is not None else 0)
+        ):
+            raise ValueError("evaluation play diagnostics differ from game/utility totals")
         return self
 
 
@@ -560,6 +670,7 @@ def evaluate_guardian_policy(
     replacement_gifts = 0
     defense_deselections = 0
     utility_totals = dict.fromkeys(GuardianUtilityStatistics.model_fields, 0)
+    play_statistics = []
     if model is not None:
         model.eval()
     for learner_seat in (0, 1):
@@ -568,6 +679,7 @@ def evaluate_guardian_policy(
             catalog_path=catalog_path, bible_path=bible_path, config=arena_config
         )
         memory = torch.zeros((games // 2, model.hidden_size if model is not None else 0))
+        tracker = _GuardianPlayTracker(games // 2)
         for _ in range(config.max_decisions):
             observation = arena.observe()
             if not np.any(observation.active):
@@ -589,7 +701,9 @@ def evaluate_guardian_policy(
                     observation.hand_features[defense_rows, actions[defense_rows] - 1, 6]
                 )
             )
+            tracker.observe(observation, actions, learner_seat)
             transition = arena.step(actions)
+            tracker.finish(transition)
             ended = transition.newly_finished & transition.terminated
             wins[learner_seat] += int(
                 np.count_nonzero(ended & (transition.winners == learner_seat))
@@ -605,6 +719,7 @@ def evaluate_guardian_policy(
                 causes[reasons[env]] += 1
         if np.any(arena.observe().active):
             raise GuardianTrainingError("bounded evaluation left unfinished games")
+        play_statistics.append(tracker.statistics())
         replacement_gifts += arena.replacement_gifts
         measured = arena.utility_statistics
         if measured is not None:
@@ -627,6 +742,32 @@ def evaluate_guardian_policy(
         utility_statistics=GuardianUtilityStatistics(**utility_totals)
         if config.inventory_utilities
         else None,
+        play_statistics=GuardianPlayStatistics(
+            decisions_by_phase=tuple(
+                sum(stats.decisions_by_phase[phase] for stats in play_statistics)
+                for phase in range(6)
+            ),
+            ready_actions=GuardianReadyActionCounts(
+                **{
+                    field: sum(getattr(stats.ready_actions, field) for stats in play_statistics)
+                    for field in GuardianReadyActionCounts.model_fields
+                }
+            ),
+            learner_ready_actions=GuardianReadyActionCounts(
+                **{
+                    field: sum(
+                        getattr(stats.learner_ready_actions, field) for stats in play_statistics
+                    )
+                    for field in GuardianReadyActionCounts.model_fields
+                }
+            ),
+            mutual_forced_pass_games=sum(
+                stats.mutual_forced_pass_games for stats in play_statistics
+            ),
+            mutual_forced_pass_truncations=sum(
+                stats.mutual_forced_pass_truncations for stats in play_statistics
+            ),
+        ),
         opponent="greedy-utility-smoke-baseline-v2"
         if config.inventory_utilities
         else "greedy-smoke-baseline-v1",
@@ -901,6 +1042,18 @@ class GuardianArenaManifest(BaseModel):
             raise ValueError(
                 "checkpoint diagnostic evaluations differ from the declared seed/games"
             )
+        if any(
+            evaluation.play_statistics is not None
+            and sum(evaluation.play_statistics.decisions_by_phase)
+            > evaluation.games * self.training.arena.max_decisions
+            for evaluation in (
+                self.evaluation_before,
+                self.evaluation_after,
+                self.evaluation_baseline,
+            )
+            if evaluation is not None
+        ):
+            raise ValueError("checkpoint play diagnostics exceed the bounded evaluation decisions")
         return self
 
 

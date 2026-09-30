@@ -23,6 +23,9 @@ GUARDIAN_UTILITY_TURN_KERNEL_SCHEMA_VERSION: Final[int]
 GUARDIAN_UTILITY_TURN_OBSERVATION_SCHEMA_VERSION: Final[int]
 GUARDIAN_UTILITY_TURN_RULESET_ID: Final[str]
 GUARDIAN_UTILITY_ACTOR_HAND_SCHEMA_VERSION: Final[int]
+GUARDIAN_DISCARD_TURN_KERNEL_SCHEMA_VERSION: Final[int]
+GUARDIAN_DISCARD_TURN_OBSERVATION_SCHEMA_VERSION: Final[int]
+GUARDIAN_DISCARD_TURN_RULESET_ID: Final[str]
 PROVISIONAL_GUARDIAN_SCHEMA_VERSION: Final[int]
 PROVISIONAL_GUARDIAN_RULESET_ID: Final[str]
 PROVISIONAL_SOAP_SCHEMA_VERSION: Final[int]
@@ -336,6 +339,21 @@ class GuardianUtilityTurnBatch:
     def hp_gained(self) -> int: ...
     @property
     def mp_gained(self) -> int: ...
+
+class GuardianDiscardTurnBatch(GuardianUtilityTurnBatch):
+    def __init__(
+        self, batch_size: int, player_count: int, guardian_slots: int,
+        weighted_profiles: npt.NDArray[np.int64], effect_profiles: npt.NDArray[np.int64],
+        defense_profiles: npt.NDArray[np.int64], attack_profiles: npt.NDArray[np.int64],
+        utility_profiles: npt.NDArray[np.int64], discard_models: npt.NDArray[np.int64],
+        hand_slots: int = 18, max_turns: int = 1000, initial_hp: int = 40,
+        initial_mp: int = 10, initial_cp: int = 0,
+    ) -> None: ...
+    def discard_cards(self, environments: npt.NDArray[np.int64], players: npt.NDArray[np.int64],
+                      slots: npt.NDArray[np.int64]) -> None: ...
+    def discard_action_masks(self) -> npt.NDArray[np.bool_]: ...
+    @property
+    def discarded_card_count(self) -> int: ...
 
 class GuardianCombatBatch:
     def __init__(

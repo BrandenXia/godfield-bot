@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 import numpy as np
 import torch
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from torch import Tensor, nn
 
 from godfield_bot.guardian_rollout import (
     ACTION_COUNT,
     GLOBAL_FEATURE_COUNT,
-    HAND_FEATURE_COUNT,
     HAND_SLOTS,
     MAX_PLAYERS,
     PLAYER_FEATURE_COUNT,
@@ -24,6 +25,21 @@ class GuardianPolicyArchitecture(BaseModel):
     vocabulary_size: int = Field(ge=2, le=4096, strict=True)
     embedding_size: int = Field(default=32, ge=8, le=128, strict=True)
     hidden_size: int = Field(default=128, ge=16, le=256, strict=True)
+    hand_feature_count: Literal[7, 9] = 7
+    observation_schema_id: Literal[
+        "actor-relative-guardian-arena-v1", "actor-relative-guardian-utility-arena-v2"
+    ] = "actor-relative-guardian-arena-v1"
+
+    @model_validator(mode="after")
+    def feature_contract(self) -> GuardianPolicyArchitecture:
+        expected = (
+            "actor-relative-guardian-utility-arena-v2"
+            if self.hand_feature_count == 9
+            else "actor-relative-guardian-arena-v1"
+        )
+        if self.observation_schema_id != expected:
+            raise ValueError("guardian architecture hand width and observation identity differ")
+        return self
 
 
 def guardian_feature_tensors(
@@ -61,7 +77,8 @@ class GuardianArenaPolicy(nn.Module):
             architecture.vocabulary_size, architecture.embedding_size, padding_idx=0
         )
         self.card_encoder = nn.Sequential(
-            nn.Linear(architecture.embedding_size + HAND_FEATURE_COUNT, hidden), nn.ReLU()
+            nn.Linear(architecture.embedding_size + architecture.hand_feature_count, hidden),
+            nn.ReLU(),
         )
         self.player_encoder = nn.Sequential(nn.Linear(PLAYER_FEATURE_COUNT, hidden), nn.ReLU())
         self.global_encoder = nn.Sequential(nn.Linear(GLOBAL_FEATURE_COUNT, hidden), nn.ReLU())
@@ -93,7 +110,7 @@ class GuardianArenaPolicy(nn.Module):
             or players.shape != (batch, MAX_PLAYERS, PLAYER_FEATURE_COUNT)
             or player_mask.shape != (batch, MAX_PLAYERS)
             or hand_model_ids.shape != (batch, HAND_SLOTS)
-            or hand_features.shape != (batch, HAND_SLOTS, HAND_FEATURE_COUNT)
+            or hand_features.shape != (batch, HAND_SLOTS, self.architecture.hand_feature_count)
             or hand_mask.shape != (batch, HAND_SLOTS)
             or action_mask.shape != (batch, ACTION_COUNT)
         ):
@@ -142,3 +159,34 @@ class GuardianArenaPolicy(nn.Module):
         if not bool(torch.isfinite(logits).all()) or not bool(torch.isfinite(values).all()):
             raise ValueError("guardian policy produced non-finite outputs")
         return logits.masked_fill(~action_mask, torch.finfo(logits.dtype).min), values, state
+
+
+def migrate_guardian_utility_policy(
+    source: GuardianArenaPolicy, architecture: GuardianPolicyArchitecture
+) -> GuardianArenaPolicy:
+    """Explicit local-only 7→9 transfer; role/7 is compensated in encoder weights.
+
+    New HP/MP columns start at zero. Every other tensor is copied exactly;
+    the source's parameters and recurrent/action architecture are untouched.
+    """
+    if (
+        source.architecture.hand_feature_count != 7
+        or architecture.hand_feature_count != 9
+        or source.architecture.model_dump(exclude={"hand_feature_count", "observation_schema_id"})
+        != architecture.model_dump(exclude={"hand_feature_count", "observation_schema_id"})
+    ):
+        raise ValueError("utility migration requires matching 7→9 guardian architectures")
+    if not all(bool(torch.isfinite(value).all()) for value in source.parameters()):
+        raise ValueError("utility migration refuses non-finite source parameters")
+    target = GuardianArenaPolicy(architecture)
+    tensors = {name: value.detach().clone() for name, value in source.state_dict().items()}
+    key = "card_encoder.0.weight"
+    old_weight = tensors[key]
+    widened = old_weight.new_zeros((old_weight.shape[0], old_weight.shape[1] + 2))
+    widened[:, : old_weight.shape[1]] = old_weight
+    widened[:, architecture.embedding_size] *= 7 / 5
+    tensors[key] = widened
+    target.load_state_dict(tensors, strict=True)
+    if not all(bool(torch.isfinite(value).all()) for value in target.parameters()):
+        raise ValueError("utility migration produced non-finite parameters")
+    return target

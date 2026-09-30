@@ -73,19 +73,22 @@ class GuardianRefillPlan(BaseModel):
         return self
 
 
-def build_guardian_refill_plan(
+def _supported_refill_weights(
     catalog: ApiCatalogSnapshot,
     bible: BibleSnapshot,
     supported_model_ids: tuple[int, ...],
-) -> GuardianRefillPlan:
-    """Cross-check both pinned sources; do not invent or widen supported gifts."""
+    expected_models: int,
+) -> tuple[tuple[int, int], ...]:
+    """Shared source checks; each caller separately pins its complete gift pool."""
     if (
         catalog.content_sha256 != ACQUISITION_REVIEWED_CATALOG_SHA256
         or bible.client.sha256 != ACQUISITION_REVIEWED_CLIENT_SHA256
-        or len(supported_model_ids) != 94
-        or len(set(supported_model_ids)) != 94
+        or len(supported_model_ids) != expected_models
+        or len(set(supported_model_ids)) != expected_models
     ):
-        raise ValueError("provisional refill requires 94 supported models and pinned sources")
+        raise ValueError(
+            f"provisional refill requires {expected_models} supported models and pinned sources"
+        )
     supported = set(supported_model_ids)
     records = [item for category in bible.catalog.values() for item in category.items]
     weights = []
@@ -105,8 +108,18 @@ def build_guardian_refill_plan(
         ):
             raise ValueError("missing, invalid, or mismatched supported refill gift rate")
         weights.append((item.model_id, int(match[1])))
+    return tuple(weights)
+
+
+def build_guardian_refill_plan(
+    catalog: ApiCatalogSnapshot,
+    bible: BibleSnapshot,
+    supported_model_ids: tuple[int, ...],
+) -> GuardianRefillPlan:
+    """Cross-check both pinned sources; do not invent or widen supported gifts."""
+    weights = _supported_refill_weights(catalog, bible, supported_model_ids, 94)
     return GuardianRefillPlan(
         catalog_sha256=catalog.content_sha256,
         bible_client_sha256=bible.client.sha256,
-        model_weights=tuple(weights),
+        model_weights=weights,
     )

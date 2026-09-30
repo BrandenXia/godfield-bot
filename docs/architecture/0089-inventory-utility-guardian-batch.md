@@ -115,3 +115,10 @@ seven-feature neural weights cannot simply read this wider hand. Any transfer
 must be explicit, preserve old artifacts, and remain local-only. Only then can
 this subset be marked locally training-eligible. Full-game and live readiness
 still require the remaining mechanics and official differential validation.
+
+Follow-up: [ADR 0090](0090-utility-arena-training-and-checkpoint-migration.md)
+implements that separate rollout, 102-card refill, and explicit 7→9-feature
+transfer. The native component's caller-driven metadata remains unchanged;
+the new outer checkpoint marks only this isolated curriculum as locally
+training-eligible. The measurements above describe the component milestone,
+not the subsequent utility training experiment.

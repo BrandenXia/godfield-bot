@@ -1422,10 +1422,37 @@ UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
 
 This is a component inspection, **not a training command**. Utility turns are
 provisional self-use, with capped gains, exact costs, and no native redraw.
-The new wider own-hand projection is not yet connected to the neural trainer;
-existing arena checkpoints and 94-card refill rules remain unchanged. The next
-step is a separately versioned utility rollout/policy adapter and refill pool.
 See [ADR 0089](docs/architecture/0089-inventory-utility-guardian-batch.md).
+
+The component now has an opt-in, separately versioned nine-feature neural
+curriculum. The recommended transfer preserves the existing seven-feature
+candidate, copies its recurrent/action weights, and initializes the two HP/MP
+value columns to zero. It writes a new local child with explicit migration
+provenance and fresh optimizers; ordinary `--resume` cannot perform the transfer.
+The utility refill pool has its own pinned 102-card profile. Existing models,
+the 94-card pool, and live controls remain unchanged.
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation --extra training \
+  godfield-bot simulation guardian-train \
+  --migrate-utilities-from checkpoints/guardian-arena/4d611acb-410e-40dd-8520-0257b5679d79 \
+  --inventory-utilities --refill weighted-utility-consumption-v1 \
+  --batch-size 32 --teacher-updates 16 --updates 32 \
+  --teacher-selected-defense-weight 8 --defense-feedback-weight 1 \
+  --max-turns 32 --max-decisions 128
+```
+
+This requires the referenced local parent. To continue an already migrated
+child, use `--resume <utility_checkpoint_directory>` instead of
+`--migrate-utilities-from`, retaining the utility/refill flags and matching
+arena bounds. `guardian-evaluate` reads those recorded rules automatically.
+Teacher/PPO/evaluation reports include capped HP/MP gains, consumptions, Spring
+casts, and utility MP costs across both actors. A 98,304-decision local run
+exercises the complete pipeline, but evaluations do **not** establish greater
+playing strength; healed games frequently reach the turn limit. Full-game
+training readiness and live promotion remain false. Commands, migration
+contracts, and comparisons are in
+[ADR 0090](docs/architecture/0090-utility-arena-training-and-checkpoint-migration.md).
 
 A later private-room trace contains one self-targeted Nocturnal Broom-style
 `removeItems` event. Its explicit three selected cards disappear in the next

@@ -2722,8 +2722,11 @@ def simulation_guardian_rollout(
     max_decisions: Annotated[int, typer.Option(min=1, max=100_000)] = 1024,
     opening: Annotated[str, typer.Option(help="cards-only, mars-opening, or mixed.")] = "mixed",
     refill: Annotated[
-        str, typer.Option(help="none, or weighted-consumption-v1 (provisional replacement gifts).")
+        str, typer.Option(help="none, weighted-consumption-v1, or weighted-utility-consumption-v1.")
     ] = "none",
+    inventory_utilities: Annotated[
+        bool, typer.Option(help="Use the separate nine-feature HP/MP curriculum.")
+    ] = False,
 ) -> None:
     """Exercise seeded local C++ arena episodes; does not train or play online."""
 
@@ -2746,6 +2749,7 @@ def simulation_guardian_rollout(
                 "max_decisions": max_decisions,
                 "opening": opening,
                 "refill": refill,
+                "inventory_utilities": inventory_utilities,
             }
         )
         if steps * batch_size > 1_000_000:
@@ -2776,6 +2780,14 @@ def simulation_guardian_train(
         "checkpoints/guardian-arena"
     ),
     resume: Annotated[Path | None, typer.Option(exists=True, file_okay=False)] = None,
+    migrate_utilities_from: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True,
+            file_okay=False,
+            help="Explicit 7→9-feature transfer into a new utility child; not --resume.",
+        ),
+    ] = None,
     batch_size: Annotated[int, typer.Option(min=1, max=4096)] = 64,
     rollout_steps: Annotated[int, typer.Option(min=2, max=256)] = 64,
     updates: Annotated[int, typer.Option(min=1, max=1000)] = 10,
@@ -2796,8 +2808,11 @@ def simulation_guardian_train(
     opening: Annotated[str, typer.Option(help="cards-only, mars-opening, or mixed.")] = "mixed",
     refill: Annotated[
         str,
-        typer.Option(help="none, or weighted-consumption-v1 (separate provisional curriculum)."),
+        typer.Option(help="none, weighted-consumption-v1, or weighted-utility-consumption-v1."),
     ] = "none",
+    inventory_utilities: Annotated[
+        bool, typer.Option(help="Use the separate nine-feature HP/MP curriculum.")
+    ] = False,
     baseline_opponent_fraction: Annotated[float, typer.Option(min=0, max=1)] = 0.5,
     evaluation_games: Annotated[int, typer.Option(min=2, max=256)] = 32,
     cpu_threads: Annotated[int, typer.Option(min=1, max=16)] = 2,
@@ -2821,6 +2836,7 @@ def simulation_guardian_train(
                     "max_decisions": max_decisions,
                     "opening": opening,
                     "refill": refill,
+                    "inventory_utilities": inventory_utilities,
                 },
                 "rollout_steps": rollout_steps,
                 "updates": updates,
@@ -2845,6 +2861,7 @@ def simulation_guardian_train(
             checkpoint_root=checkpoint_root,
             config=config,
             resume=resume,
+            migrate_utilities_from=migrate_utilities_from,
         )
     except (
         ImportError,

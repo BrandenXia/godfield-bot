@@ -142,6 +142,8 @@ class GuardianUtilityTurnMetadata(BaseModel):
     initial_mp: int = Field(ge=0, le=100)
     initial_cp: int = Field(ge=0, le=100)
     defense_model_ids: tuple[int, ...]
+    armor_model_ids: tuple[int, ...]
+    defense_miracle_model_ids: tuple[int, ...]
     attack_weapon_model_ids: tuple[int, ...]
     attack_miracle_model_ids: tuple[int, ...]
     supported_effect_model_ids: tuple[int, ...]
@@ -175,6 +177,14 @@ class GuardianUtilityTurnMetadata(BaseModel):
     full_game_training_ready: Literal[False] = False
     official_fidelity_verified: Literal[False] = False
     promotion_eligible: Literal[False] = False
+
+    @property
+    def catalog_sha256(self) -> str:
+        return self.utility_plan.catalog_sha256
+
+    @property
+    def bible_client_sha256(self) -> str:
+        return self.utility_plan.bible_client_sha256
 
 
 @dataclass(frozen=True)
@@ -255,6 +265,8 @@ def create_provisional_guardian_utility_turn_batch(
             initial_mp=initial_mp,
             initial_cp=initial_cp,
             defense_model_ids=tuple(row[0] for row in defenses),
+            armor_model_ids=tuple(row[0] for row in defenses if row[3] == 0),
+            defense_miracle_model_ids=tuple(row[0] for row in defenses if row[3] != 0),
             attack_weapon_model_ids=tuple(row[0] for row in attacks if row[3] == 0),
             attack_miracle_model_ids=tuple(row[0] for row in attacks if row[3] == 1),
             supported_effect_model_ids=tuple(row[0] for row in effects),

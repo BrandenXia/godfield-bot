@@ -2856,6 +2856,14 @@ def simulation_guardian_train(
     defense_feedback_scope: Annotated[
         str, typer.Option(help="all-defense, or finish-decisions (confirmation/forgiveness only).")
     ] = "all-defense",
+    ready_activity_weight: Annotated[
+        float,
+        typer.Option(
+            min=0,
+            max=4,
+            help="Training-only nonpass-group prior in learner ready states; 0 disables it.",
+        ),
+    ] = 0,
     ppo_epochs: Annotated[int, typer.Option(min=1, max=10)] = 2,
     environment_minibatch_size: Annotated[int | None, typer.Option(min=1, max=512)] = None,
     seed: Annotated[int, typer.Option(min=0, max=2**32 - 1)] = 67,
@@ -2912,6 +2920,7 @@ def simulation_guardian_train(
                 "teacher_selected_defense_weight": teacher_selected_defense_weight,
                 "defense_feedback_weight": defense_feedback_weight,
                 "defense_feedback_scope": defense_feedback_scope,
+                "ready_activity_weight": ready_activity_weight,
                 "ppo_epochs": ppo_epochs,
                 "environment_minibatch_size": environment_minibatch_size
                 if environment_minibatch_size is not None

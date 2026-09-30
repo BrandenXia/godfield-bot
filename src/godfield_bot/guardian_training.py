@@ -21,6 +21,7 @@ from torch import Tensor, nn
 from torch.nn import functional as F
 
 from godfield_bot.api_catalog import read_api_catalog_snapshot
+from godfield_bot.guardian_activity import guardian_ready_activity_loss
 from godfield_bot.guardian_coverage import (
     GuardianWindowOutcomeCoverage,
     count_guardian_window_outcomes,
@@ -61,6 +62,9 @@ IMITATION_ALGORITHM: Literal["provisional-guardian-duel-recurrent-imitation-only
 DEFENSE_FEEDBACK_ALGORITHM: Literal[
     "provisional-guardian-duel-recurrent-imitation-ppo-defense-feedback-v1"
 ] = "provisional-guardian-duel-recurrent-imitation-ppo-defense-feedback-v1"
+READY_ACTIVITY_ALGORITHM: Literal["provisional-guardian-duel-recurrent-ppo-ready-activity-v1"] = (
+    "provisional-guardian-duel-recurrent-ppo-ready-activity-v1"
+)
 MANIFEST_FILE = "arena-manifest.json"
 WEIGHTS_FILE = "arena-weights.pt"
 
@@ -80,6 +84,10 @@ class GuardianTrainingConfig(BaseModel):
     teacher_selected_defense_weight: float = Field(default=1, ge=1, le=16, allow_inf_nan=False)
     defense_feedback_weight: float = Field(default=0, ge=0, le=4, allow_inf_nan=False)
     defense_feedback_scope: Literal["all-defense", "finish-decisions"] = "all-defense"
+    ready_activity_weight: float = Field(default=0, ge=0, le=4, allow_inf_nan=False)
+    ready_activity_scope: Literal["learner-ready-pass-plus-alternative-v1"] = (
+        "learner-ready-pass-plus-alternative-v1"
+    )
     ppo_epochs: int = Field(default=2, ge=1, le=10, strict=True)
     environment_minibatch_size: int = Field(default=16, ge=1, le=512, strict=True)
     teacher_learning_rate: float = Field(default=1e-3, gt=0, le=0.1, allow_inf_nan=False)
@@ -97,7 +105,11 @@ class GuardianTrainingConfig(BaseModel):
 
     @model_validator(mode="after")
     def bounded_duel(self) -> GuardianTrainingConfig:
-        if self.updates == 0 and (self.teacher_updates == 0 or self.defense_feedback_weight > 0):
+        if self.updates == 0 and (
+            self.teacher_updates == 0
+            or self.defense_feedback_weight > 0
+            or self.ready_activity_weight > 0
+        ):
             raise ValueError("imitation-only training needs teacher updates and no PPO feedback")
         if self.arena.player_count != 2:
             raise ValueError(
@@ -410,6 +422,9 @@ class GuardianPpoMetrics(PpoTrainingMetrics):
     defense_teacher_loss: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     defense_teacher_accuracy: float | None = Field(default=None, ge=0, le=1, allow_inf_nan=False)
     defense_teacher_samples: int | None = Field(default=None, ge=0, strict=True)
+    ready_activity_loss: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    ready_pass_probability: float | None = Field(default=None, ge=0, le=1, allow_inf_nan=False)
+    ready_activity_samples: int | None = Field(default=None, ge=0, strict=True)
 
 
 def train_guardian_ppo(
@@ -440,6 +455,8 @@ def train_guardian_ppo(
     samples = 0
     feedback_loss_sum = 0.0
     feedback_samples = feedback_correct = 0
+    activity_loss_sum = activity_pass_sum = 0.0
+    activity_samples = 0
     for _ in range(config.ppo_epochs):
         permutation = torch.randperm(rollout.batch_size)
         for start in range(0, rollout.batch_size, config.environment_minibatch_size):
@@ -491,6 +508,15 @@ def train_guardian_ppo(
                 feedback_samples += count_feedback
                 feedback_correct += int((predictions.detach().argmax(-1) == labels).sum())
                 feedback_loss_sum += float(feedback_loss.detach()) * count_feedback
+            if config.ready_activity_weight > 0:
+                ready = mask & (rollout.observations[0][:, envs, 0] > 0)
+                activity_loss, pass_probability, count_activity = guardian_ready_activity_loss(
+                    logits, rollout.observations[6][:, envs], ready
+                )
+                loss = loss + config.ready_activity_weight * activity_loss
+                activity_samples += count_activity
+                activity_loss_sum += float(activity_loss.detach()) * count_activity
+                activity_pass_sum += float(pass_probability) * count_activity
             norm = _optimizer_step(model, optimizer, loss, config)
             kl = ((ratio - 1) - log_ratio).mean() if bool(mask.any()) else ratio.sum()
             fraction = (
@@ -516,6 +542,9 @@ def train_guardian_ppo(
         defense_teacher_loss=feedback_loss_sum / feedback_samples if feedback_samples else 0,
         defense_teacher_accuracy=feedback_correct / feedback_samples if feedback_samples else 0,
         defense_teacher_samples=feedback_samples,
+        ready_activity_loss=activity_loss_sum / activity_samples if activity_samples else 0,
+        ready_pass_probability=activity_pass_sum / activity_samples if activity_samples else 0,
+        ready_activity_samples=activity_samples,
     )
     if not all(math.isfinite(value) for value in metrics.model_dump().values()):
         raise GuardianTrainingError("guardian PPO metrics are not finite")
@@ -969,6 +998,7 @@ class GuardianArenaManifest(BaseModel):
         "provisional-guardian-duel-recurrent-imitation-ppo-v1",
         "provisional-guardian-duel-recurrent-imitation-ppo-defense-feedback-v1",
         "provisional-guardian-duel-recurrent-imitation-only-v1",
+        "provisional-guardian-duel-recurrent-ppo-ready-activity-v1",
     ] = ALGORITHM
     parent_weights_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     utility_migration: GuardianUtilityMigration | None = None
@@ -1132,6 +1162,8 @@ class GuardianArenaManifest(BaseModel):
         expected_algorithm = (
             IMITATION_ALGORITHM
             if self.training.updates == 0
+            else READY_ACTIVITY_ALGORITHM
+            if self.training.ready_activity_weight > 0
             else DEFENSE_FEEDBACK_ALGORITHM
             if self.training.defense_feedback_weight > 0
             else ALGORITHM
@@ -1247,6 +1279,27 @@ class GuardianArenaManifest(BaseModel):
                 )
             ):
                 raise ValueError("disabled defense feedback cannot record nonzero measurements")
+            activity_values = (
+                feedback.ready_activity_loss,
+                feedback.ready_pass_probability,
+                feedback.ready_activity_samples,
+            )
+            if self.training.ready_activity_weight > 0 and (
+                any(value is None for value in activity_values)
+                or feedback.ready_activity_samples is None
+                or feedback.ready_activity_samples
+                > min(update.learner_decisions, update.decisions_by_phase[0])
+                * self.training.ppo_epochs
+                or (
+                    feedback.ready_activity_samples == 0
+                    and (feedback.ready_activity_loss != 0 or feedback.ready_pass_probability != 0)
+                )
+            ):
+                raise ValueError("checkpoint requires complete bounded ready activity metrics")
+            if self.training.ready_activity_weight == 0 and any(
+                value not in (None, 0) for value in activity_values
+            ):
+                raise ValueError("disabled ready activity cannot record nonzero measurements")
         if any(
             not all(
                 math.isfinite(value)
@@ -1782,6 +1835,9 @@ def train_guardian_candidate(
                 defense_teacher_loss=metrics.defense_teacher_loss,
                 defense_teacher_accuracy=metrics.defense_teacher_accuracy,
                 defense_teacher_samples=metrics.defense_teacher_samples,
+                ready_activity_loss=metrics.ready_activity_loss,
+                ready_pass_probability=metrics.ready_pass_probability,
+                ready_activity_samples=metrics.ready_activity_samples,
                 utility_statistics=rollout.utility_statistics.model_dump()
                 if rollout.utility_statistics is not None
                 else None,
@@ -1839,6 +1895,8 @@ def train_guardian_candidate(
             training=config,
             algorithm=IMITATION_ALGORITHM
             if config.updates == 0
+            else READY_ACTIVITY_ALGORITHM
+            if config.ready_activity_weight > 0
             else DEFENSE_FEEDBACK_ALGORITHM
             if config.defense_feedback_weight > 0
             else ALGORITHM,

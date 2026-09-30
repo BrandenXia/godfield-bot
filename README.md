@@ -1546,6 +1546,23 @@ combined with utility/discard migration. See
 [ADR 0094](docs/architecture/0094-explicit-horizon-checkpoint-transfer.md)
 for the approved transfer contract and local training command.
 
+Ready-phase tactical diagnostics now include an opt-in training-only
+`--ready-activity-weight`: it discourages the pass probability group only when
+a learner-ready state has a legal alternative. Forced passes and opponent
+turns are excluded; no card is labeled correct, rewards/masks stay unchanged,
+and there is no inference-time pass ban. The default is 0. Matched continuation
+won 94/192 additional diagnostic games with ordinary PPO versus 86/192 with
+weight 0.25, with zero voluntary passes in both. Keep the prior **disabled**;
+it has not demonstrated an advantage. Neither result is a live/official gate.
+See [ADR 0095](docs/architecture/0095-ready-activity-prior-and-matched-continuation.md)
+for controls, artifact hashes, commands, and training-only boundaries.
+The retained experimental control,
+`checkpoints/guardian-arena/3d09213e-6c5e-4ca4-86f0-f8725d6678fd`, scored
+122 wins / 122 losses / 12 turn-limit truncations across four 64-game seed
+sets, without voluntary/forced passes or defense/decision-limit exits. A further
+64-update continuation did not improve that aggregate; it is not recommended
+over this parent. Neither is an accepted or live-ready baseline.
+
 A later private-room trace contains one self-targeted Nocturnal Broom-style
 `removeItems` event. Its explicit three selected cards disappear in the next
 inventory, and native 0.36.0/schema 3 can reproduce that narrow operation with

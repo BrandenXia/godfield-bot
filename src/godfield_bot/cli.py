@@ -2756,6 +2756,13 @@ def simulation_guardian_train(
     updates: Annotated[int, typer.Option(min=1, max=1000)] = 10,
     teacher_updates: Annotated[int, typer.Option(min=0, max=1000)] = 64,
     teacher_selected_defense_weight: Annotated[float, typer.Option(min=1, max=16)] = 4,
+    defense_feedback_weight: Annotated[
+        float,
+        typer.Option(min=0, max=4, help="Training-only teacher loss on learner defense states."),
+    ] = 0,
+    defense_feedback_scope: Annotated[
+        str, typer.Option(help="all-defense, or finish-decisions (confirmation/forgiveness only).")
+    ] = "all-defense",
     ppo_epochs: Annotated[int, typer.Option(min=1, max=10)] = 2,
     environment_minibatch_size: Annotated[int | None, typer.Option(min=1, max=512)] = None,
     seed: Annotated[int, typer.Option(min=0, max=2**32 - 1)] = 67,
@@ -2794,6 +2801,8 @@ def simulation_guardian_train(
                 "updates": updates,
                 "teacher_updates": teacher_updates,
                 "teacher_selected_defense_weight": teacher_selected_defense_weight,
+                "defense_feedback_weight": defense_feedback_weight,
+                "defense_feedback_scope": defense_feedback_scope,
                 "ppo_epochs": ppo_epochs,
                 "environment_minibatch_size": environment_minibatch_size
                 if environment_minibatch_size is not None

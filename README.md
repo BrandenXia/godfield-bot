@@ -1399,6 +1399,17 @@ On one paired baseline diagnostic set, decisive games increased from 8/32 to
 This is not official acquisition timing, the full gift pool, full-game readiness,
 or live promotion. See [ADR 0087](docs/architecture/0087-provisional-weighted-refill-curriculum.md).
 
+Local PPO training can now add `--defense-feedback-weight 1` to learn teacher
+labels on the defense states the candidate actually visits. It is disabled by
+default, does not replace sampled learner actions, and adds no inference-time
+fallback. The default `all-defense` scope performed better in the diagnostic
+than the experimental `--defense-feedback-scope finish-decisions` option.
+The selected refill candidate had zero defense-toggle limit exits in 288 local
+evaluation games versus 14 for its parent. Wins remain mixed across seeds;
+this improves observed defense stability, not full-game or live readiness.
+See [ADR 0088](docs/architecture/0088-on-policy-defense-feedback.md) for the
+reproducible continuation command and complete comparisons.
+
 A later private-room trace contains one self-targeted Nocturnal Broom-style
 `removeItems` event. Its explicit three selected cards disappear in the next
 inventory, and native 0.36.0/schema 3 can reproduce that narrow operation with

@@ -27,6 +27,8 @@ from godfield_bot.guardian_neural import (
     guardian_feature_tensors,
 )
 from godfield_bot.guardian_rollout import (
+    ACTION_COUNT,
+    FORGIVE,
     GuardianRolloutArena,
     GuardianRolloutConfig,
     GuardianRolloutMetadata,
@@ -41,6 +43,9 @@ from godfield_bot.simulation_training import (
 ALGORITHM: Literal["provisional-guardian-duel-recurrent-imitation-ppo-v1"] = (
     "provisional-guardian-duel-recurrent-imitation-ppo-v1"
 )
+DEFENSE_FEEDBACK_ALGORITHM: Literal[
+    "provisional-guardian-duel-recurrent-imitation-ppo-defense-feedback-v1"
+] = "provisional-guardian-duel-recurrent-imitation-ppo-defense-feedback-v1"
 MANIFEST_FILE = "arena-manifest.json"
 WEIGHTS_FILE = "arena-weights.pt"
 
@@ -58,6 +63,8 @@ class GuardianTrainingConfig(BaseModel):
     updates: int = Field(default=10, ge=1, le=1000, strict=True)
     teacher_updates: int = Field(default=64, ge=0, le=1000, strict=True)
     teacher_selected_defense_weight: float = Field(default=1, ge=1, le=16, allow_inf_nan=False)
+    defense_feedback_weight: float = Field(default=0, ge=0, le=4, allow_inf_nan=False)
+    defense_feedback_scope: Literal["all-defense", "finish-decisions"] = "all-defense"
     ppo_epochs: int = Field(default=2, ge=1, le=10, strict=True)
     environment_minibatch_size: int = Field(default=16, ge=1, le=512, strict=True)
     teacher_learning_rate: float = Field(default=1e-3, gt=0, le=0.1, allow_inf_nan=False)
@@ -126,6 +133,7 @@ class GuardianLearningRollout:
     phase_counts: tuple[int, ...]
     digest: str
     replacement_gifts: int
+    defense_teacher_actions: Tensor | None = None
 
     @property
     def steps(self) -> int:
@@ -154,6 +162,7 @@ class GuardianDuelCollector:
             raise GuardianTrainingError("collector and training arena configurations differ")
         observations: list[list[Tensor]] = [[] for _ in range(7)]
         actors_history, actions_history, starts_history, trainable_history = [], [], [], []
+        teacher_actions_history: list[Tensor] = []
         log_probs, values_history, rewards_history, done_history = [], [], [], []
         initial_states = self.states.detach().clone()
         completed = truncated = 0
@@ -177,12 +186,21 @@ class GuardianDuelCollector:
                 actions = distribution.sample()  # type: ignore[no-untyped-call]
                 learner_seats = (envs + torch.from_numpy(obs.episode_ids.copy())) % 2
                 trainable = ~(baseline_envs & (actors != learner_seats))
+                baseline = (
+                    torch.from_numpy(greedy_guardian_actions(obs))
+                    if teacher or bool((~trainable).any()) or config.defense_feedback_weight > 0
+                    else None
+                )
                 if teacher:
-                    actions = torch.from_numpy(greedy_guardian_actions(obs))
+                    assert baseline is not None
+                    actions = baseline
                     trainable = torch.ones_like(trainable)
                 elif bool((~trainable).any()):
-                    baseline = torch.from_numpy(greedy_guardian_actions(obs))
+                    assert baseline is not None
                     actions = torch.where(trainable, actions, baseline)
+                if config.defense_feedback_weight > 0:
+                    assert baseline is not None
+                    teacher_actions_history.append(baseline)
                 probabilities = distribution.log_prob(actions)  # type: ignore[no-untyped-call]
             self.states = _replace_states(self.states, actors, next_states).detach()
             transition = self.arena.step(np.ascontiguousarray(actions.numpy(), dtype=np.int64))
@@ -211,6 +229,8 @@ class GuardianDuelCollector:
                 torch.from_numpy(obs.episode_ids.copy()),
             ):
                 digest.update(value.numpy().tobytes())
+            if config.defense_feedback_weight > 0:
+                digest.update(teacher_actions_history[-1].numpy().tobytes())
         final = self.arena.observe()
         final_values = torch.zeros(config.arena.batch_size)
         rows = np.flatnonzero(final.active)
@@ -254,6 +274,7 @@ class GuardianDuelCollector:
             tuple(int(value) for value in phase_counts),
             digest.hexdigest(),
             self.arena.replacement_gifts - initial_gifts,
+            torch.stack(teacher_actions_history) if teacher_actions_history else None,
         )
 
 
@@ -341,21 +362,40 @@ def train_guardian_teacher(
     )
 
 
+class GuardianPpoMetrics(PpoTrainingMetrics):
+    # Historical PPO updates had no feedback measurements. New updates record
+    # zero samples when disabled, not fabricated measurements for old records.
+    defense_teacher_loss: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    defense_teacher_accuracy: float | None = Field(default=None, ge=0, le=1, allow_inf_nan=False)
+    defense_teacher_samples: int | None = Field(default=None, ge=0, strict=True)
+
+
 def train_guardian_ppo(
     model: GuardianArenaPolicy,
     optimizer: torch.optim.Optimizer,
     rollout: GuardianLearningRollout,
     config: GuardianTrainingConfig,
-) -> PpoTrainingMetrics:
+) -> GuardianPpoMetrics:
     model.train()
     selected = rollout.advantages[rollout.policy_trainable]
     if selected.numel() == 0:
         raise GuardianTrainingError("guardian PPO rollout has no learner decisions")
+    teacher_actions = rollout.defense_teacher_actions
+    if config.defense_feedback_weight > 0 and (
+        teacher_actions is None
+        or teacher_actions.shape != rollout.actions.shape
+        or teacher_actions.dtype != torch.int64
+        or bool(((teacher_actions < 0) | (teacher_actions >= ACTION_COUNT)).any())
+        or not bool(rollout.observations[6].gather(-1, teacher_actions.unsqueeze(-1)).all())
+    ):
+        raise GuardianTrainingError("defense feedback requires legal observed-state labels")
     advantages = (rollout.advantages - selected.mean()) / selected.std(unbiased=False).clamp_min(
         1e-8
     )
     totals = dict.fromkeys(PpoTrainingMetrics.model_fields, 0.0)
     samples = 0
+    feedback_loss_sum = 0.0
+    feedback_samples = feedback_correct = 0
     for _ in range(config.ppo_epochs):
         permutation = torch.randperm(rollout.batch_size)
         for start in range(0, rollout.batch_size, config.environment_minibatch_size):
@@ -386,6 +426,27 @@ def train_guardian_ppo(
                 * torch.maximum((values - returns).square(), (clipped - returns).square()).mean()
             )
             loss = policy_loss + config.value_weight * value_loss - config.entropy_weight * entropy
+            # Supervise only learner-controlled defense states from this on-policy
+            # rollout. The sampled actions, PPO likelihoods, rewards and legal
+            # masks remain unchanged; no teacher is used at inference time.
+            feedback_mask = mask & (rollout.observations[0][:, envs, 1] > 0)
+            if config.defense_feedback_scope == "finish-decisions" and teacher_actions is not None:
+                feedback_mask &= teacher_actions[:, envs] >= FORGIVE
+            if config.defense_feedback_weight > 0 and bool(feedback_mask.any()):
+                assert teacher_actions is not None
+                labels = teacher_actions[:, envs][feedback_mask]
+                predictions = logits[feedback_mask]
+                selected_defense = rollout.observations[4][:, envs, :, 6].any(dim=-1)
+                weights = torch.where(
+                    selected_defense[feedback_mask], config.teacher_selected_defense_weight, 1.0
+                )
+                losses = F.cross_entropy(predictions, labels, reduction="none")
+                feedback_loss = (losses * weights).sum() / weights.sum()
+                loss = loss + config.defense_feedback_weight * feedback_loss
+                count_feedback = labels.numel()
+                feedback_samples += count_feedback
+                feedback_correct += int((predictions.detach().argmax(-1) == labels).sum())
+                feedback_loss_sum += float(feedback_loss.detach()) * count_feedback
             norm = _optimizer_step(model, optimizer, loss, config)
             kl = ((ratio - 1) - log_ratio).mean() if bool(mask.any()) else ratio.sum()
             fraction = (
@@ -406,7 +467,12 @@ def train_guardian_ppo(
             samples += count
             for key, value in measured.items():
                 totals[key] += float(value.detach()) * count
-    metrics = PpoTrainingMetrics(**{key: value / samples for key, value in totals.items()})
+    metrics = GuardianPpoMetrics(
+        **{key: value / samples for key, value in totals.items()},
+        defense_teacher_loss=feedback_loss_sum / feedback_samples if feedback_samples else 0,
+        defense_teacher_accuracy=feedback_correct / feedback_samples if feedback_samples else 0,
+        defense_teacher_samples=feedback_samples,
+    )
     if not all(math.isfinite(value) for value in metrics.model_dump().values()):
         raise GuardianTrainingError("guardian PPO metrics are not finite")
     return metrics
@@ -432,6 +498,7 @@ class GuardianEvaluation(BaseModel):
     truncation_causes: GuardianTruncationCounts | None = None
     policy_kind: Literal["neural-greedy", "greedy-reference"] = "neural-greedy"
     replacement_gifts: int | None = Field(default=None, ge=0, strict=True)
+    defense_deselections: int | None = Field(default=None, ge=0, strict=True)
     paired_initial_states: Literal[True] = True
     opponent: Literal["greedy-smoke-baseline-v1"] = "greedy-smoke-baseline-v1"
     promotion_eligible: Literal[False] = False
@@ -479,6 +546,7 @@ def evaluate_guardian_policy(
     wins, losses, truncations = [0, 0], [0, 0], [0, 0]
     causes = GuardianTruncationCounts().model_dump()
     replacement_gifts = 0
+    defense_deselections = 0
     if model is not None:
         model.eval()
     for learner_seat in (0, 1):
@@ -500,6 +568,14 @@ def evaluate_guardian_policy(
                     )
                 actions[rows] = logits.argmax(dim=-1).numpy()
                 memory[rows] = states
+            defense_rows = np.flatnonzero(
+                observation.active & (observation.phases == 1) & (actions >= 1) & (actions <= 18)
+            )
+            defense_deselections += int(
+                np.count_nonzero(
+                    observation.hand_features[defense_rows, actions[defense_rows] - 1, 6]
+                )
+            )
             transition = arena.step(actions)
             ended = transition.newly_finished & transition.terminated
             wins[learner_seat] += int(
@@ -530,12 +606,13 @@ def evaluate_guardian_policy(
         truncation_causes=GuardianTruncationCounts(**causes),
         policy_kind="neural-greedy" if model is not None else "greedy-reference",
         replacement_gifts=replacement_gifts,
+        defense_deselections=defense_deselections,
     )
 
 
 class GuardianUpdateMetrics(BaseModel):
     update: int = Field(ge=1, strict=True)
-    ppo: PpoTrainingMetrics
+    ppo: GuardianPpoMetrics
     completed_games: int = Field(ge=0, strict=True)
     truncated_games: int = Field(ge=0, strict=True)
     learner_decisions: int = Field(ge=0, strict=True)
@@ -563,7 +640,10 @@ class GuardianArenaManifest(BaseModel):
     architecture: GuardianPolicyArchitecture
     arena: GuardianRolloutMetadata
     training: GuardianTrainingConfig
-    algorithm: Literal["provisional-guardian-duel-recurrent-imitation-ppo-v1"] = ALGORITHM
+    algorithm: Literal[
+        "provisional-guardian-duel-recurrent-imitation-ppo-v1",
+        "provisional-guardian-duel-recurrent-imitation-ppo-defense-feedback-v1",
+    ] = ALGORITHM
     parent_weights_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     rollout_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     teacher_metrics: tuple[GuardianTeacherMetrics, ...]
@@ -580,6 +660,11 @@ class GuardianArenaManifest(BaseModel):
 
     @model_validator(mode="after")
     def validate_training_contract(self) -> GuardianArenaManifest:
+        expected_algorithm = (
+            DEFENSE_FEEDBACK_ALGORITHM if self.training.defense_feedback_weight > 0 else ALGORITHM
+        )
+        if self.algorithm != expected_algorithm:
+            raise ValueError("checkpoint learning algorithm differs from feedback configuration")
         if self.arena.config != self.training.arena:
             raise ValueError("checkpoint arena and training configurations differ")
         if (
@@ -607,8 +692,37 @@ class GuardianArenaManifest(BaseModel):
                 or sum(update.decisions_by_phase) != decisions
             ):
                 raise ValueError("checkpoint update does not account for all decisions")
-            if not all(math.isfinite(value) for value in update.ppo.model_dump().values()):
+            if not all(
+                math.isfinite(value)
+                for value in update.ppo.model_dump().values()
+                if value is not None
+            ):
                 raise ValueError("checkpoint has non-finite PPO metrics")
+            feedback = update.ppo
+            if self.training.defense_feedback_weight > 0 and (
+                feedback.defense_teacher_loss is None
+                or feedback.defense_teacher_accuracy is None
+                or feedback.defense_teacher_samples is None
+                or feedback.defense_teacher_samples
+                > min(update.learner_decisions, update.decisions_by_phase[1])
+                * self.training.ppo_epochs
+                or (
+                    feedback.defense_teacher_samples == 0
+                    and (
+                        feedback.defense_teacher_loss != 0 or feedback.defense_teacher_accuracy != 0
+                    )
+                )
+            ):
+                raise ValueError("checkpoint requires complete bounded defense feedback metrics")
+            if self.training.defense_feedback_weight == 0 and any(
+                value not in (None, 0)
+                for value in (
+                    feedback.defense_teacher_loss,
+                    feedback.defense_teacher_accuracy,
+                    feedback.defense_teacher_samples,
+                )
+            ):
+                raise ValueError("disabled defense feedback cannot record nonzero measurements")
         if any(
             not all(
                 math.isfinite(value) for value in teacher.model_dump().values() if value is not None
@@ -792,6 +906,9 @@ def train_guardian_candidate(
                 completed_games=rollout.completed_games,
                 truncated_games=rollout.truncated_games,
                 replacement_gifts=rollout.replacement_gifts,
+                defense_teacher_loss=metrics.defense_teacher_loss,
+                defense_teacher_accuracy=metrics.defense_teacher_accuracy,
+                defense_teacher_samples=metrics.defense_teacher_samples,
             )
         after = evaluate_guardian_policy(
             model,
@@ -820,6 +937,9 @@ def train_guardian_candidate(
             architecture=architecture,
             arena=arena.metadata,
             training=config,
+            algorithm=DEFENSE_FEEDBACK_ALGORITHM
+            if config.defense_feedback_weight > 0
+            else ALGORITHM,
             parent_weights_sha256=parent.weights_sha256 if parent is not None else None,
             rollout_sha256=digest.hexdigest(),
             teacher_metrics=tuple(teacher_metrics),

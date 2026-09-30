@@ -4,6 +4,7 @@ import hashlib
 import json
 import math
 import stat
+from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
 
@@ -20,8 +21,14 @@ from godfield_bot.guardian_neural import (  # noqa: E402
     GuardianPolicyArchitecture,
     guardian_feature_tensors,
 )
-from godfield_bot.guardian_rollout import GuardianRolloutArena, GuardianRolloutConfig  # noqa: E402
+from godfield_bot.guardian_rollout import (  # noqa: E402
+    GuardianObservation,
+    GuardianRolloutArena,
+    GuardianRolloutConfig,
+    greedy_guardian_actions,
+)
 from godfield_bot.guardian_training import (  # noqa: E402
+    DEFENSE_FEEDBACK_ALGORITHM,
     MANIFEST_FILE,
     WEIGHTS_FILE,
     GuardianDuelCollector,
@@ -88,6 +95,10 @@ def runtime():
         {"learning_rate": float("nan")},
         {"updates": True},
         {"cpu_threads": 0},
+        {"defense_feedback_weight": -1},
+        {"defense_feedback_weight": 5},
+        {"defense_feedback_weight": float("nan")},
+        {"defense_feedback_scope": "shield"},
     ],
 )
 def test_training_configuration_is_bounded_and_duel_only(bad):
@@ -233,8 +244,247 @@ def test_evaluation_paired_seats_is_reproducible_and_counts_all_attempts(runtime
     assert reference.policy_kind == "greedy-reference"
     assert reference.wins == reference.losses
     assert reference.truncation_causes.defense_selection_limit == 0
+    assert reference.defense_deselections == 0
     with pytest.raises(GuardianTrainingError, match="paired"):
         evaluate_guardian_policy(model, **{**arguments, "games": 7})
+
+
+def test_feedback_labels_are_visible_legal_and_do_not_override_sampled_play():
+    cfg = config(teacher_updates=0)
+    feedback_cfg = cfg.model_copy(update={"defense_feedback_weight": 1})
+    with _runtime(67, 1):
+        original = GuardianDuelCollector(arena(cfg), policy(cfg)).collect(cfg)
+    with _runtime(67, 1):
+        labeled = GuardianDuelCollector(arena(feedback_cfg), policy(feedback_cfg)).collect(
+            feedback_cfg
+        )
+    assert original.defense_teacher_actions is None
+    assert labeled.defense_teacher_actions is not None
+    for attribute in (
+        "actors",
+        "actions",
+        "starts",
+        "initial_states",
+        "policy_trainable",
+        "old_log_probabilities",
+        "old_values",
+        "rewards",
+        "done",
+        "advantages",
+        "returns",
+    ):
+        torch.testing.assert_close(getattr(original, attribute), getattr(labeled, attribute))
+    for left, right in zip(original.observations, labeled.observations, strict=True):
+        torch.testing.assert_close(left, right)
+    labels = labeled.defense_teacher_actions
+    assert bool(labeled.observations[6].gather(-1, labels.unsqueeze(-1)).all())
+    mask = labeled.policy_trainable & (labeled.observations[0][:, :, 1] > 0)
+    assert bool((labeled.actions[mask] != labels[mask]).any())
+    for tick in range(labeled.steps):
+        # Reconstruct solely from the seven stored policy projections; no world
+        # inventory or extra teacher-only state is needed to reproduce labels.
+        observation = GuardianObservation(
+            *(value[tick].numpy() for value in labeled.observations),
+            labeled.actors[tick].numpy(),
+            labeled.observations[0][tick, :, :6].argmax(-1).numpy(),
+            np.zeros(labeled.batch_size, dtype=np.int64),
+            np.full(labeled.batch_size, tick, dtype=np.int64),
+            np.ones(labeled.batch_size, dtype=np.bool_),
+        )
+        np.testing.assert_array_equal(greedy_guardian_actions(observation), labels[tick].numpy())
+
+
+def test_feedback_loss_teaches_learner_defense_without_reward_changes(runtime):
+    cfg = config(
+        defense_feedback_weight=1,
+        value_weight=0,
+        entropy_weight=0,
+        environment_minibatch_size=4,
+        teacher_selected_defense_weight=1,
+    )
+    model = policy(cfg)
+    collected = GuardianDuelCollector(arena(cfg), model).collect(cfg)
+    rollout = replace(collected, advantages=torch.zeros_like(collected.advantages))
+    mask = rollout.policy_trainable & (rollout.observations[0][:, :, 1] > 0)
+    labels = rollout.defense_teacher_actions
+    assert labels is not None and mask.any()
+    initial, _ = replay_guardian_rollout(model, rollout, torch.arange(4))
+    initial_loss = torch.nn.functional.cross_entropy(initial[mask], labels[mask]).detach()
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.005)
+    for _ in range(5):
+        metrics = train_guardian_ppo(model, optimizer, rollout, cfg)
+        assert metrics.defense_teacher_samples == int(mask.sum()) * cfg.ppo_epochs
+        assert metrics.defense_teacher_loss > 0
+        assert 0 <= metrics.defense_teacher_accuracy <= 1
+    final, _ = replay_guardian_rollout(model, rollout, torch.arange(4))
+    assert torch.nn.functional.cross_entropy(final[mask], labels[mask]).detach() < initial_loss
+    torch.testing.assert_close(rollout.rewards, collected.rewards)
+    torch.testing.assert_close(rollout.actions, collected.actions)
+
+
+def test_baseline_teacher_labels_do_not_affect_feedback_gradients(runtime):
+    cfg = config(defense_feedback_weight=1)
+    model = policy(cfg)
+    rollout = GuardianDuelCollector(arena(cfg), model).collect(cfg)
+    assert rollout.defense_teacher_actions is not None
+    labels = rollout.defense_teacher_actions.clone()
+    excluded = ~rollout.policy_trainable
+    assert excluded.any()
+    labels[excluded] = rollout.actions[excluded]  # different but still legal labels
+    changed = replace(rollout, defense_teacher_actions=labels)
+    first, second = deepcopy(model), deepcopy(model)
+    with _runtime(778, 1):
+        a = train_guardian_ppo(first, torch.optim.Adam(first.parameters(), lr=0.001), rollout, cfg)
+    with _runtime(778, 1):
+        b = train_guardian_ppo(
+            second, torch.optim.Adam(second.parameters(), lr=0.001), changed, cfg
+        )
+    assert a == b
+    for name, weight in first.state_dict().items():
+        torch.testing.assert_close(weight, second.state_dict()[name])
+
+
+@pytest.mark.parametrize("mutation", ["missing", "shape", "dtype", "range", "illegal"])
+def test_feedback_requires_legal_observed_labels_before_optimization(runtime, mutation):
+    cfg = config(defense_feedback_weight=1)
+    model = policy(cfg)
+    rollout = GuardianDuelCollector(arena(cfg), model).collect(cfg)
+    assert rollout.defense_teacher_actions is not None
+    labels = rollout.defense_teacher_actions.clone()
+    if mutation == "missing":
+        labels = None
+    elif mutation == "shape":
+        labels = labels[:-1]
+    elif mutation == "dtype":
+        labels = labels.to(torch.float32)
+    elif mutation == "range":
+        labels[0, 0] = 30
+    else:
+        tick, env, action = (~rollout.observations[6]).nonzero()[0]
+        labels[tick, env] = action
+    before = deepcopy(model.state_dict())
+    with pytest.raises(GuardianTrainingError, match="legal observed-state labels"):
+        train_guardian_ppo(
+            model,
+            torch.optim.Adam(model.parameters()),
+            replace(rollout, defense_teacher_actions=labels),
+            cfg,
+        )
+    for name, value in before.items():
+        torch.testing.assert_close(value, model.state_dict()[name])
+
+
+def test_feedback_with_no_learner_defense_samples_is_finite(runtime):
+    cfg = config(defense_feedback_weight=1)
+    model = policy(cfg)
+    rollout = GuardianDuelCollector(arena(cfg), model).collect(cfg)
+    trainable = rollout.policy_trainable & (rollout.observations[0][:, :, 1] == 0)
+    assert trainable.any()
+    metric = train_guardian_ppo(
+        model,
+        torch.optim.Adam(model.parameters()),
+        replace(rollout, policy_trainable=trainable),
+        cfg,
+    )
+    assert metric.defense_teacher_samples == metric.defense_teacher_loss == 0
+    assert all(math.isfinite(value) for value in metric.model_dump().values())
+
+
+@pytest.mark.parametrize("scope", ["all-defense", "finish-decisions"])
+def test_feedback_scope_counts_only_the_requested_learner_states(runtime, scope):
+    cfg = config(defense_feedback_weight=1, defense_feedback_scope=scope)
+    model = policy(cfg)
+    rollout = GuardianDuelCollector(arena(cfg), model).collect(cfg)
+    labels = rollout.defense_teacher_actions
+    assert labels is not None
+    eligible = rollout.policy_trainable & (rollout.observations[0][:, :, 1] > 0)
+    if scope == "finish-decisions":
+        eligible &= labels >= 28
+    metric = train_guardian_ppo(model, torch.optim.Adam(model.parameters()), rollout, cfg)
+    assert metric.defense_teacher_samples == int(eligible.sum()) * cfg.ppo_epochs
+
+
+def test_evaluation_reports_deselections_instead_of_hiding_loops(runtime, monkeypatch):
+    import godfield_bot.guardian_training as module
+
+    original_constructor = GuardianRolloutArena
+
+    def prepared(**kwargs):
+        game = original_constructor(**kwargs)
+        envs = np.arange(game.config.batch_size, dtype=np.int64)
+        zeros, ones = np.zeros_like(envs), np.ones_like(envs)
+        game._native.reset_environments(envs)
+        game._native.deal_cards(envs, zeros, zeros, ones, np.full_like(envs, 6))
+        game._native.deal_cards(envs, ones, zeros, np.full_like(envs, 2), np.full_like(envs, 113))
+        game._native.begin_card_attacks(envs, zeros, zeros, ones)
+        return game
+
+    monkeypatch.setattr(module, "GuardianRolloutArena", prepared)
+    cfg = config(arena=GuardianRolloutConfig(batch_size=4, max_turns=8, max_decisions=128))
+    model = policy(cfg)
+    with torch.no_grad():
+        for parameter in model.parameters():
+            parameter.zero_()  # ties pick the first legal slot, repeatedly toggling it
+    evaluated = evaluate_guardian_policy(
+        model, catalog_path=CATALOG, bible_path=BIBLE, config=cfg.arena, games=2, seed=67
+    )
+    assert evaluated.defense_deselections == 32
+    assert evaluated.truncation_causes.defense_selection_limit == 1
+    assert not evaluated.promotion_eligible
+
+
+@pytest.mark.parametrize(
+    "mutation", ["missing-metrics", "algorithm", "sample-count", "disabled-config"]
+)
+def test_feedback_checkpoint_records_algorithm_metrics_and_preserves_old_parent(
+    checkpoint, tmp_path, mutation
+):
+    source, parent = checkpoint
+    original = (source / WEIGHTS_FILE).read_bytes()
+    cfg = config(teacher_updates=0, defense_feedback_weight=1)
+    directory, saved = train_guardian_candidate(
+        catalog_path=CATALOG,
+        bible_path=BIBLE,
+        checkpoint_root=tmp_path / "feedback",
+        config=cfg,
+        resume=source,
+    )
+    loaded, _ = load_guardian_checkpoint(directory)
+    assert loaded == saved and saved.algorithm == DEFENSE_FEEDBACK_ALGORITHM
+    assert saved.parent_weights_sha256 == parent.weights_sha256
+    assert saved.update_metrics[0].ppo.defense_teacher_samples > 0
+    assert not saved.promotion_eligible and not saved.live_checkpoint_compatible
+    assert (source / WEIGHTS_FILE).read_bytes() == original
+    record = json.loads((directory / MANIFEST_FILE).read_text())
+    if mutation == "missing-metrics":
+        del record["update_metrics"][0]["ppo"]["defense_teacher_samples"]
+    elif mutation == "algorithm":
+        record["algorithm"] = "provisional-guardian-duel-recurrent-imitation-ppo-v1"
+    elif mutation == "sample-count":
+        record["update_metrics"][0]["ppo"]["defense_teacher_samples"] = 999999
+    else:
+        record["training"]["defense_feedback_weight"] = 0
+    (directory / MANIFEST_FILE).write_text(json.dumps(record))
+    with pytest.raises(ValueError):
+        load_guardian_checkpoint(directory)
+
+
+def test_historical_feedback_measurements_remain_unknown_and_default_is_disabled(checkpoint):
+    directory, _ = checkpoint
+    record = json.loads((directory / MANIFEST_FILE).read_text())
+    del record["training"]["defense_feedback_weight"]
+    del record["training"]["defense_feedback_scope"]
+    for update in record["update_metrics"]:
+        for key in ("defense_teacher_loss", "defense_teacher_accuracy", "defense_teacher_samples"):
+            del update["ppo"][key]
+    for key in ("evaluation_before", "evaluation_after", "evaluation_baseline"):
+        del record[key]["defense_deselections"]
+    (directory / MANIFEST_FILE).write_text(json.dumps(record))
+    loaded, _ = load_guardian_checkpoint(directory)
+    assert loaded.training.defense_feedback_weight == 0
+    assert loaded.training.defense_feedback_scope == "all-defense"
+    assert loaded.update_metrics[0].ppo.defense_teacher_samples is None
+    assert loaded.evaluation_after.defense_deselections is None
 
 
 @pytest.fixture
@@ -442,6 +692,10 @@ def test_cli_trains_only_local_checkpoint_and_rejects_oversized_rollout(
                 "1",
                 "--refill",
                 refill,
+                "--defense-feedback-weight",
+                "1" if refill != "none" else "0",
+                "--defense-feedback-scope",
+                "finish-decisions",
             ],
         )
         assert result.exit_code == 0, result.output
@@ -451,6 +705,8 @@ def test_cli_trains_only_local_checkpoint_and_rejects_oversized_rollout(
         assert not report["manifest"]["promotion_eligible"]
         assert report["manifest"]["training"]["environment_minibatch_size"] == 2
         assert report["manifest"]["arena"]["config"]["refill"] == refill
+        if refill != "none":
+            assert report["manifest"]["algorithm"] == DEFENSE_FEEDBACK_ALGORITHM
         before = Path(report["checkpoint_directory"], WEIGHTS_FILE).read_bytes()
         evaluated = CliRunner().invoke(
             app,

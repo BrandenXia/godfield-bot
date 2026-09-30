@@ -239,3 +239,40 @@ def migrate_guardian_discard_policy(
     tensors["discard_head.2.bias"].fill_(-4)
     target.load_state_dict(tensors, strict=True)
     return target
+
+
+def migrate_guardian_horizon_policy(
+    source: GuardianArenaPolicy,
+    *,
+    source_max_turns: int,
+    source_max_decisions: int,
+    target_max_turns: int,
+    target_max_decisions: int,
+) -> GuardianArenaPolicy:
+    """Explicit longer-bound transfer, without altering the observation schema.
+
+    Inputs 7 and 42 are count/limit. Multiplying their encoder columns by
+    target_limit/source_limit preserves the same count's contribution (up to
+    floating-point rounding). This promises neither post-limit behavior nor
+    unchanged terminal rewards. All other weights, including bias, are copied.
+    """
+    bounds = (source_max_turns, source_max_decisions, target_max_turns, target_max_decisions)
+    if any(type(value) is not int or not 1 <= value <= 100_000 for value in bounds):
+        raise ValueError("horizon migration requires integer bounds in [1, 100000]")
+    if (
+        target_max_turns < source_max_turns
+        or target_max_decisions < source_max_decisions
+        or (target_max_turns, target_max_decisions) == (source_max_turns, source_max_decisions)
+    ):
+        raise ValueError("horizon migration must extend at least one bound and never shrink")
+    if not all(bool(torch.isfinite(value).all()) for value in source.parameters()):
+        raise ValueError("horizon migration refuses non-finite source parameters")
+    target = GuardianArenaPolicy(source.architecture)
+    tensors = {name: value.detach().clone() for name, value in source.state_dict().items()}
+    weight = tensors["global_encoder.0.weight"]
+    weight[:, 7] *= target_max_turns / source_max_turns
+    weight[:, 42] *= target_max_decisions / source_max_decisions
+    target.load_state_dict(tensors, strict=True)
+    if not all(bool(torch.isfinite(value).all()) for value in target.parameters()):
+        raise ValueError("horizon migration produced non-finite parameters")
+    return target

@@ -21,12 +21,17 @@ from torch import Tensor, nn
 from torch.nn import functional as F
 
 from godfield_bot.api_catalog import read_api_catalog_snapshot
+from godfield_bot.guardian_coverage import (
+    GuardianWindowOutcomeCoverage,
+    count_guardian_window_outcomes,
+)
 from godfield_bot.guardian_discard_refill import GuardianDiscardRefillPlan
 from godfield_bot.guardian_neural import (
     GuardianArenaPolicy,
     GuardianPolicyArchitecture,
     guardian_feature_tensors,
     migrate_guardian_discard_policy,
+    migrate_guardian_horizon_policy,
     migrate_guardian_utility_policy,
 )
 from godfield_bot.guardian_rollout import (
@@ -50,6 +55,9 @@ from godfield_bot.simulation_training import (
 ALGORITHM: Literal["provisional-guardian-duel-recurrent-imitation-ppo-v1"] = (
     "provisional-guardian-duel-recurrent-imitation-ppo-v1"
 )
+IMITATION_ALGORITHM: Literal["provisional-guardian-duel-recurrent-imitation-only-v1"] = (
+    "provisional-guardian-duel-recurrent-imitation-only-v1"
+)
 DEFENSE_FEEDBACK_ALGORITHM: Literal[
     "provisional-guardian-duel-recurrent-imitation-ppo-defense-feedback-v1"
 ] = "provisional-guardian-duel-recurrent-imitation-ppo-defense-feedback-v1"
@@ -67,7 +75,7 @@ class GuardianTrainingConfig(BaseModel):
         default_factory=lambda: GuardianRolloutConfig(max_decisions=128)
     )
     rollout_steps: int = Field(default=64, ge=2, le=256, strict=True)
-    updates: int = Field(default=10, ge=1, le=1000, strict=True)
+    updates: int = Field(default=10, ge=0, le=1000, strict=True)
     teacher_updates: int = Field(default=64, ge=0, le=1000, strict=True)
     teacher_selected_defense_weight: float = Field(default=1, ge=1, le=16, allow_inf_nan=False)
     defense_feedback_weight: float = Field(default=0, ge=0, le=4, allow_inf_nan=False)
@@ -89,6 +97,8 @@ class GuardianTrainingConfig(BaseModel):
 
     @model_validator(mode="after")
     def bounded_duel(self) -> GuardianTrainingConfig:
+        if self.updates == 0 and (self.teacher_updates == 0 or self.defense_feedback_weight > 0):
+            raise ValueError("imitation-only training needs teacher updates and no PPO feedback")
         if self.arena.player_count != 2:
             raise ValueError(
                 "guardian training v1 is duel-only; multiplayer requires different returns"
@@ -143,6 +153,7 @@ class GuardianLearningRollout:
     defense_teacher_actions: Tensor | None = None
     utility_statistics: GuardianUtilityStatistics | None = None
     discarded_cards: int | None = None
+    outcome_coverage: GuardianWindowOutcomeCoverage | None = None
 
     @property
     def steps(self) -> int:
@@ -173,6 +184,7 @@ class GuardianDuelCollector:
         actors_history, actions_history, starts_history, trainable_history = [], [], [], []
         teacher_actions_history: list[Tensor] = []
         log_probs, values_history, rewards_history, done_history = [], [], [], []
+        terminated_history: list[Tensor] = []
         initial_states = self.states.detach().clone()
         completed = truncated = 0
         initial_gifts = self.arena.replacement_gifts
@@ -227,6 +239,7 @@ class GuardianDuelCollector:
             values_history.append(values)
             rewards_history.append(rewards)
             done_history.append(done)
+            terminated_history.append(torch.from_numpy(transition.terminated.copy()))
             self.previous_done = done
             completed += int(np.count_nonzero(transition.newly_finished & transition.terminated))
             truncated += int(np.count_nonzero(transition.newly_finished & transition.truncated))
@@ -257,6 +270,11 @@ class GuardianDuelCollector:
         values = torch.stack(values_history)
         actors = torch.stack(actors_history)
         done = torch.stack(done_history)
+        trainable = torch.stack(trainable_history)
+        terminated = torch.stack(terminated_history)
+        coverage = count_guardian_window_outcomes(
+            terminated=terminated, truncated=done & ~terminated, trainable=trainable
+        )
         advantages, returns = signed_generalized_advantages(
             rewards=rewards,
             values=values,
@@ -273,7 +291,7 @@ class GuardianDuelCollector:
             torch.stack(actions_history),
             torch.stack(starts_history),
             initial_states,
-            torch.stack(trainable_history),
+            trainable,
             torch.stack(log_probs),
             values,
             rewards,
@@ -292,6 +310,7 @@ class GuardianDuelCollector:
             self.arena.discarded_cards - initial_discards
             if config.arena.inventory_discards
             else None,
+            coverage,
         )
 
 
@@ -339,6 +358,7 @@ class GuardianTeacherMetrics(TeacherTrainingMetrics):
     selected_defense_samples: int | None = Field(default=None, ge=0, strict=True)
     utility_statistics: GuardianUtilityStatistics | None = None
     discarded_cards: int | None = Field(default=None, ge=0, strict=True)
+    outcome_coverage: GuardianWindowOutcomeCoverage | None = None
 
 
 def train_guardian_teacher(
@@ -380,6 +400,7 @@ def train_guardian_teacher(
         selected_defense_samples=selected_samples,
         utility_statistics=rollout.utility_statistics,
         discarded_cards=rollout.discarded_cards,
+        outcome_coverage=rollout.outcome_coverage,
     )
 
 
@@ -807,6 +828,7 @@ class GuardianUpdateMetrics(BaseModel):
     replacement_gifts: int | None = Field(default=None, ge=0, strict=True)
     utility_statistics: GuardianUtilityStatistics | None = None
     discarded_cards: int | None = Field(default=None, ge=0, strict=True)
+    outcome_coverage: GuardianWindowOutcomeCoverage | None = None
 
 
 class GuardianUtilityMigration(BaseModel):
@@ -875,6 +897,49 @@ class GuardianDiscardMigration(BaseModel):
         return self
 
 
+class GuardianHorizonMigration(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    schema_version: Literal[1] = 1
+    migration_id: Literal["guardian-horizon-input-rescale-v1"] = "guardian-horizon-input-rescale-v1"
+    source_model_id: str = Field(min_length=1)
+    source_manifest_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    source_weights_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    source_architecture: GuardianPolicyArchitecture
+    source_arena: GuardianRolloutMetadata
+    target_max_turns: int = Field(ge=1, le=100_000, strict=True)
+    target_max_decisions: int = Field(ge=1, le=100_000, strict=True)
+    turn_column: Literal[7] = 7
+    decision_column: Literal[42] = 42
+    turn_column_multiplier: float = Field(gt=0, allow_inf_nan=False)
+    decision_column_multiplier: float = Field(gt=0, allow_inf_nan=False)
+    unchanged_tensors: Literal["all-except-two-global-encoder-weight-columns"] = (
+        "all-except-two-global-encoder-weight-columns"
+    )
+    equivalence_scope: Literal["same-state-predictions-before-old-limits-float-tolerance"] = (
+        "same-state-predictions-before-old-limits-float-tolerance"
+    )
+    optimizer_resumed: Literal[False] = False
+
+    @model_validator(mode="after")
+    def source_contract(self) -> GuardianHorizonMigration:
+        config = self.source_arena.config
+        if (
+            self.source_architecture.hand_feature_count != self.source_arena.hand_feature_count
+            or self.source_architecture.action_count != self.source_arena.action_count
+            or self.source_architecture.observation_schema_id
+            != self.source_arena.observation_schema_id
+            or config.max_turns != self.source_arena.base_native.max_turns
+            or self.target_max_turns < config.max_turns
+            or self.target_max_decisions < config.max_decisions
+            or (self.target_max_turns, self.target_max_decisions)
+            == (config.max_turns, config.max_decisions)
+            or self.turn_column_multiplier != self.target_max_turns / config.max_turns
+            or self.decision_column_multiplier != self.target_max_decisions / config.max_decisions
+        ):
+            raise ValueError("horizon migration bounds, source architecture, or ratios differ")
+        return self
+
+
 class GuardianArenaManifest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     schema_version: Literal[1, 2, 3] = 1
@@ -903,15 +968,18 @@ class GuardianArenaManifest(BaseModel):
     algorithm: Literal[
         "provisional-guardian-duel-recurrent-imitation-ppo-v1",
         "provisional-guardian-duel-recurrent-imitation-ppo-defense-feedback-v1",
+        "provisional-guardian-duel-recurrent-imitation-only-v1",
     ] = ALGORITHM
     parent_weights_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     utility_migration: GuardianUtilityMigration | None = None
     discard_migration: GuardianDiscardMigration | None = None
+    horizon_migration: GuardianHorizonMigration | None = None
     rollout_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     teacher_metrics: tuple[GuardianTeacherMetrics, ...]
     update_metrics: tuple[GuardianUpdateMetrics, ...]
     evaluation_before: GuardianEvaluation
     evaluation_after: GuardianEvaluation
+    evaluation_teacher: GuardianEvaluation | None = None
     evaluation_baseline: GuardianEvaluation | None = None
     local_training_eligible: Literal[True] = True
     full_game_training_ready: Literal[False] = False
@@ -1035,8 +1103,38 @@ class GuardianArenaManifest(BaseModel):
             raise ValueError(
                 "discard migration may only expand actions/refill, not source/bounds/rewards"
             )
+        horizon = self.horizon_migration
+        if horizon is not None and (
+            migration is not None
+            or transfer is not None
+            or self.parent_weights_sha256 != horizon.source_weights_sha256
+            or self.architecture != horizon.source_architecture
+            or self.arena.config.max_turns != horizon.target_max_turns
+            or self.arena.base_native.max_turns != horizon.target_max_turns
+            or self.arena.config.max_decisions != horizon.target_max_decisions
+            or horizon.source_arena.config.model_dump(
+                exclude={"batch_size", "seed", "max_turns", "max_decisions"}
+            )
+            != self.arena.config.model_dump(
+                exclude={"batch_size", "seed", "max_turns", "max_decisions"}
+            )
+            or horizon.source_arena.base_native.model_dump(exclude={"batch_size", "max_turns"})
+            != self.arena.base_native.model_dump(exclude={"batch_size", "max_turns"})
+            or horizon.source_arena.model_dump(exclude={"native", "config"})
+            != self.arena.model_dump(exclude={"native", "config"})
+            or (
+                discard
+                and horizon.source_arena.native.model_dump(exclude={"utility_base"})
+                != self.arena.native.model_dump(exclude={"utility_base"})
+            )
+        ):
+            raise ValueError("horizon migration may only extend bounds, not rules/sources/rewards")
         expected_algorithm = (
-            DEFENSE_FEEDBACK_ALGORITHM if self.training.defense_feedback_weight > 0 else ALGORITHM
+            IMITATION_ALGORITHM
+            if self.training.updates == 0
+            else DEFENSE_FEEDBACK_ALGORITHM
+            if self.training.defense_feedback_weight > 0
+            else ALGORITHM
         )
         if self.algorithm != expected_algorithm:
             raise ValueError("checkpoint learning algorithm differs from feedback configuration")
@@ -1058,32 +1156,34 @@ class GuardianArenaManifest(BaseModel):
         ):
             raise ValueError("checkpoint native batch does not match its duel curriculum")
         decisions = self.training.arena.batch_size * self.training.rollout_steps
+        evaluations = [
+            e
+            for e in (
+                self.evaluation_before,
+                self.evaluation_after,
+                self.evaluation_baseline,
+                self.evaluation_teacher,
+            )
+            if e is not None
+        ]
         collected_measurements = [
             *(metric.utility_statistics for metric in self.update_metrics),
             *(metric.utility_statistics for metric in self.teacher_metrics),
         ]
         measurements = [
             *collected_measurements,
-            self.evaluation_before.utility_statistics,
-            self.evaluation_after.utility_statistics,
-            self.evaluation_baseline.utility_statistics
-            if self.evaluation_baseline is not None
-            else None,
+            *(e.utility_statistics for e in evaluations),
         ]
-        if (utility and any(metric is None for metric in measurements)) or (
-            not utility and any(metric is not None for metric in measurements)
-        ):
+        if (
+            utility
+            and (self.evaluation_baseline is None or any(metric is None for metric in measurements))
+        ) or (not utility and any(metric is not None for metric in measurements)):
             raise ValueError("checkpoint utility statistics must match its measured curriculum")
         if any(metric is not None and metric.uses > decisions for metric in collected_measurements):
             raise ValueError("utility measurements exceed collected decisions")
         discard_counts = [
             *(m.discarded_cards for m in self.teacher_metrics),
             *(m.discarded_cards for m in self.update_metrics),
-        ]
-        evaluations = [
-            e
-            for e in (self.evaluation_before, self.evaluation_after, self.evaluation_baseline)
-            if e is not None
         ]
         if any(
             (count is None) == discard or (count is not None and count > decisions)
@@ -1097,15 +1197,7 @@ class GuardianArenaManifest(BaseModel):
             if utility
             else "greedy-smoke-baseline-v1"
         )
-        if any(
-            evaluation.opponent != expected_opponent
-            for evaluation in (
-                self.evaluation_before,
-                self.evaluation_after,
-                self.evaluation_baseline,
-            )
-            if evaluation is not None
-        ):
+        if any(evaluation.opponent != expected_opponent for evaluation in evaluations):
             raise ValueError("checkpoint evaluation opponent differs from the curriculum")
         for index, update in enumerate(self.update_metrics, 1):
             if (
@@ -1116,6 +1208,14 @@ class GuardianArenaManifest(BaseModel):
                 or sum(update.decisions_by_phase) != decisions
             ):
                 raise ValueError("checkpoint update does not account for all decisions")
+            coverage = update.outcome_coverage
+            if coverage is not None and (
+                coverage.decisions != decisions
+                or coverage.trainable_decisions != update.learner_decisions
+                or coverage.completed_episodes != update.completed_games
+                or coverage.truncated_episodes != update.truncated_games
+            ):
+                raise ValueError("checkpoint outcome coverage differs from its collected update")
             if not all(
                 math.isfinite(value)
                 for value in update.ppo.model_dump().values()
@@ -1150,21 +1250,27 @@ class GuardianArenaManifest(BaseModel):
         if any(
             not all(
                 math.isfinite(value)
-                for value in teacher.model_dump(exclude={"utility_statistics"}).values()
+                for value in teacher.model_dump(
+                    exclude={"utility_statistics", "outcome_coverage"}
+                ).values()
                 if value is not None
             )
             for teacher in self.teacher_metrics
         ):
             raise ValueError("checkpoint has non-finite teacher metrics")
+        if any(
+            teacher.outcome_coverage is not None
+            and (
+                teacher.outcome_coverage.decisions != decisions
+                or teacher.outcome_coverage.trainable_decisions != decisions
+            )
+            for teacher in self.teacher_metrics
+        ):
+            raise ValueError("checkpoint teacher coverage differs from its supervised window")
         expected_seed = (self.training.arena.seed + 1_000_003) % 2**32
         if any(
             evaluation.games != self.training.evaluation_games or evaluation.seed != expected_seed
-            for evaluation in (
-                self.evaluation_before,
-                self.evaluation_after,
-                self.evaluation_baseline,
-            )
-            if evaluation is not None
+            for evaluation in evaluations
         ):
             raise ValueError(
                 "checkpoint diagnostic evaluations differ from the declared seed/games"
@@ -1173,15 +1279,139 @@ class GuardianArenaManifest(BaseModel):
             evaluation.play_statistics is not None
             and sum(evaluation.play_statistics.decisions_by_phase)
             > evaluation.games * self.training.arena.max_decisions
-            for evaluation in (
-                self.evaluation_before,
-                self.evaluation_after,
-                self.evaluation_baseline,
-            )
-            if evaluation is not None
+            for evaluation in evaluations
         ):
             raise ValueError("checkpoint play diagnostics exceed the bounded evaluation decisions")
+        if self.evaluation_teacher is not None and (
+            self.training.teacher_updates == 0
+            or (self.training.updates == 0 and self.evaluation_teacher != self.evaluation_after)
+        ):
+            raise ValueError("checkpoint teacher evaluation differs from its declared stages")
         return self
+
+
+class GuardianTrainingPhaseExposure(BaseModel):
+    """Sum independent window classifications; do not relabel open prefixes."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    scope: Literal["sum-independent-windows-no-backfill-v1"] = (
+        "sum-independent-windows-no-backfill-v1"
+    )
+    windows: int = Field(ge=0, strict=True)
+    decisions_per_window: int = Field(ge=1, le=32768, strict=True)
+    decisions: int = Field(ge=0, strict=True)
+    measured_windows: int = Field(ge=0, strict=True)
+    unmeasured_windows: int = Field(ge=0, strict=True)
+    measured_window_totals: GuardianWindowOutcomeCoverage | None = None
+    winner_covered_trainable_fraction: float | None = Field(
+        default=None, ge=0, le=1, allow_inf_nan=False
+    )
+
+    @model_validator(mode="after")
+    def accounted(self) -> GuardianTrainingPhaseExposure:
+        total = self.measured_window_totals
+        if (
+            self.windows != self.measured_windows + self.unmeasured_windows
+            or self.decisions != self.windows * self.decisions_per_window
+            or (total is None) != (self.measured_windows == 0)
+            or (
+                total is not None
+                and total.decisions != self.measured_windows * self.decisions_per_window
+            )
+        ):
+            raise ValueError("phase exposure must account for measured and unknown windows")
+        fraction = self.winner_covered_trainable_fraction
+        expected = (
+            total.trainable_winner_covered_decisions / total.trainable_decisions
+            if total is not None and total.trainable_decisions
+            else None
+        )
+        if (fraction is None) != (expected is None) or (
+            fraction is not None
+            and expected is not None
+            and not math.isclose(fraction, expected, abs_tol=1e-12)
+        ):
+            raise ValueError("phase outcome fraction must use only measured trainable decisions")
+        return self
+
+
+class GuardianTrainingExposureReport(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    schema_version: Literal[1] = 1
+    source_kind: Literal["verified-local-guardian-training-exposure-v1"] = (
+        "verified-local-guardian-training-exposure-v1"
+    )
+    model_id: str
+    weights_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    arena_config: GuardianRolloutConfig
+    rollout_steps: int = Field(ge=2, le=256, strict=True)
+    teacher: GuardianTrainingPhaseExposure
+    ppo: GuardianTrainingPhaseExposure
+    evaluation_teacher: GuardianEvaluation | None = None
+    evaluation_after: GuardianEvaluation
+    checkpoint_weights_verified: Literal[True] = True
+    full_game_training_ready: Literal[False] = False
+    promotion_eligible: Literal[False] = False
+    live_checkpoint_compatible: Literal[False] = False
+
+    @model_validator(mode="after")
+    def window_size(self) -> GuardianTrainingExposureReport:
+        expected = self.arena_config.batch_size * self.rollout_steps
+        if any(phase.decisions_per_window != expected for phase in (self.teacher, self.ppo)):
+            raise ValueError("report exposure differs from the recorded collection window")
+        return self
+
+
+def report_guardian_training_exposure(directory: Path) -> GuardianTrainingExposureReport:
+    """Read-only checksum/architecture-verified report; no games or source refresh.
+
+    Historical absent measurements remain unknown. Winner coverage includes
+    either side winning, not learner wins, returns, or inferred credit quality.
+    """
+    # Loading a policy initializes modules before verified tensors replace them.
+    # Do not let that consume randomness from a caller's ongoing CPU training.
+    with torch.random.fork_rng(devices=[]):
+        manifest, _ = load_guardian_checkpoint(directory)
+    decisions = manifest.training.arena.batch_size * manifest.training.rollout_steps
+
+    def phase(
+        metrics: tuple[GuardianTeacherMetrics, ...] | tuple[GuardianUpdateMetrics, ...],
+    ) -> GuardianTrainingPhaseExposure:
+        measured = [m.outcome_coverage for m in metrics if m.outcome_coverage is not None]
+        total = (
+            GuardianWindowOutcomeCoverage.model_validate(
+                {
+                    field: sum(getattr(m, field) for m in measured)
+                    for field in GuardianWindowOutcomeCoverage.model_fields
+                    if field not in {"schema_version", "scope"}
+                }
+            )
+            if measured
+            else None
+        )
+        return GuardianTrainingPhaseExposure(
+            windows=len(metrics),
+            decisions_per_window=decisions,
+            decisions=len(metrics) * decisions,
+            measured_windows=len(measured),
+            unmeasured_windows=len(metrics) - len(measured),
+            measured_window_totals=total,
+            winner_covered_trainable_fraction=total.trainable_winner_covered_decisions
+            / total.trainable_decisions
+            if total is not None and total.trainable_decisions
+            else None,
+        )
+
+    return GuardianTrainingExposureReport(
+        model_id=manifest.model_id,
+        weights_sha256=manifest.weights_sha256,
+        arena_config=manifest.training.arena,
+        rollout_steps=manifest.training.rollout_steps,
+        teacher=phase(manifest.teacher_metrics),
+        ppo=phase(manifest.update_metrics),
+        evaluation_teacher=manifest.evaluation_teacher,
+        evaluation_after=manifest.evaluation_after,
+    )
 
 
 def _file_digest(path: Path) -> str:
@@ -1349,6 +1579,49 @@ def _migrate_discard_checkpoint(
     return parent, migrated, record
 
 
+def _migrate_horizon_checkpoint(
+    source: Path,
+    arena: GuardianRolloutMetadata,
+    architecture: GuardianPolicyArchitecture,
+    *,
+    catalog_path: Path,
+    bible_path: Path,
+) -> tuple[GuardianArenaManifest, GuardianArenaPolicy, GuardianHorizonMigration]:
+    parent, model = load_guardian_checkpoint(source)
+    original_config = GuardianRolloutConfig.model_validate(
+        {
+            **arena.config.model_dump(),
+            "max_turns": parent.arena.config.max_turns,
+            "max_decisions": parent.arena.config.max_decisions,
+        }
+    )
+    original = GuardianRolloutArena(
+        catalog_path=catalog_path, bible_path=bible_path, config=original_config
+    )
+    # Reuse the strict resume contract at the original bounds: no other
+    # curriculum, source, architecture, or reward difference is permitted.
+    _compatible(parent, original.metadata, architecture)
+    migrated = migrate_guardian_horizon_policy(
+        model,
+        source_max_turns=original_config.max_turns,
+        source_max_decisions=original_config.max_decisions,
+        target_max_turns=arena.config.max_turns,
+        target_max_decisions=arena.config.max_decisions,
+    )
+    record = GuardianHorizonMigration(
+        source_model_id=parent.model_id,
+        source_manifest_sha256=_file_digest(source / MANIFEST_FILE),
+        source_weights_sha256=parent.weights_sha256,
+        source_architecture=parent.architecture,
+        source_arena=parent.arena,
+        target_max_turns=arena.config.max_turns,
+        target_max_decisions=arena.config.max_decisions,
+        turn_column_multiplier=arena.config.max_turns / original_config.max_turns,
+        decision_column_multiplier=arena.config.max_decisions / original_config.max_decisions,
+    )
+    return parent, migrated, record
+
+
 def train_guardian_candidate(
     *,
     catalog_path: Path,
@@ -1358,10 +1631,19 @@ def train_guardian_candidate(
     resume: Path | None = None,
     migrate_utilities_from: Path | None = None,
     migrate_discards_from: Path | None = None,
+    migrate_horizon_from: Path | None = None,
 ) -> tuple[Path, GuardianArenaManifest]:
     """Create a new private local checkpoint; never overwrite a source model."""
     if (
-        sum(path is not None for path in (resume, migrate_utilities_from, migrate_discards_from))
+        sum(
+            path is not None
+            for path in (
+                resume,
+                migrate_utilities_from,
+                migrate_discards_from,
+                migrate_horizon_from,
+            )
+        )
         > 1
     ):
         raise GuardianTrainingError("choose only one resume or explicit migration source")
@@ -1387,7 +1669,16 @@ def train_guardian_candidate(
         parent = None
         migration = None
         discard_migration = None
-        if migrate_discards_from is not None:
+        horizon_migration = None
+        if migrate_horizon_from is not None:
+            parent, model, horizon_migration = _migrate_horizon_checkpoint(
+                migrate_horizon_from,
+                arena.metadata,
+                architecture,
+                catalog_path=catalog_path,
+                bible_path=bible_path,
+            )
+        elif migrate_discards_from is not None:
             parent, model, discard_migration = _migrate_discard_checkpoint(
                 migrate_discards_from,
                 arena.metadata,
@@ -1445,7 +1736,22 @@ def train_guardian_candidate(
                 if teacher_metric.utility_statistics is not None
                 else None,
                 discarded_cards=rollout.discarded_cards,
+                outcome_coverage=rollout.outcome_coverage.model_dump()
+                if rollout.outcome_coverage is not None
+                else None,
             )
+        teacher_evaluation = (
+            evaluate_guardian_policy(
+                model,
+                catalog_path=catalog_path,
+                bible_path=bible_path,
+                config=config.arena,
+                games=config.evaluation_games,
+                seed=evaluation_seed,
+            )
+            if config.teacher_updates > 0
+            else None
+        )
         optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
         for update in range(config.updates):
             rollout = collector.collect(config)
@@ -1462,6 +1768,7 @@ def train_guardian_candidate(
                     replacement_gifts=rollout.replacement_gifts,
                     utility_statistics=rollout.utility_statistics,
                     discarded_cards=rollout.discarded_cards,
+                    outcome_coverage=rollout.outcome_coverage,
                 )
             )
             digest.update(bytes.fromhex(rollout.digest))
@@ -1479,14 +1786,21 @@ def train_guardian_candidate(
                 if rollout.utility_statistics is not None
                 else None,
                 discarded_cards=rollout.discarded_cards,
+                outcome_coverage=rollout.outcome_coverage.model_dump()
+                if rollout.outcome_coverage is not None
+                else None,
             )
-        after = evaluate_guardian_policy(
-            model,
-            catalog_path=catalog_path,
-            bible_path=bible_path,
-            config=config.arena,
-            games=config.evaluation_games,
-            seed=evaluation_seed,
+        after = (
+            teacher_evaluation
+            if config.updates == 0 and teacher_evaluation is not None
+            else evaluate_guardian_policy(
+                model,
+                catalog_path=catalog_path,
+                bible_path=bible_path,
+                config=config.arena,
+                games=config.evaluation_games,
+                seed=evaluation_seed,
+            )
         )
         if not all(bool(torch.isfinite(parameter).all()) for parameter in model.parameters()):
             raise GuardianTrainingError("refusing to save non-finite arena weights")
@@ -1523,17 +1837,21 @@ def train_guardian_candidate(
             architecture=architecture,
             arena=arena.metadata,
             training=config,
-            algorithm=DEFENSE_FEEDBACK_ALGORITHM
+            algorithm=IMITATION_ALGORITHM
+            if config.updates == 0
+            else DEFENSE_FEEDBACK_ALGORITHM
             if config.defense_feedback_weight > 0
             else ALGORITHM,
             parent_weights_sha256=parent.weights_sha256 if parent is not None else None,
             utility_migration=migration,
             discard_migration=discard_migration,
+            horizon_migration=horizon_migration,
             rollout_sha256=digest.hexdigest(),
             teacher_metrics=tuple(teacher_metrics),
             update_metrics=tuple(update_metrics),
             evaluation_before=before,
             evaluation_after=after,
+            evaluation_teacher=teacher_evaluation,
             evaluation_baseline=baseline_reference,
         )
         temporary_manifest = directory / f"{MANIFEST_FILE}.tmp"

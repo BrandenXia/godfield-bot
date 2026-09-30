@@ -1506,6 +1506,46 @@ for the native component and
 [ADR 0092](docs/architecture/0092-discard-arena-training-and-action-migration.md)
 for migration, commands, and complete comparisons.
 
+Longer 128-turn / 512-decision **local subset** training is now exercised from a
+fresh model, without changing or implicitly transferring old checkpoints.
+New teacher/PPO metrics report `outcome_coverage`: sampled decisions whose
+episode reaches a winner inside that window, those ending at a truncation, and
+unfinished tails. Teacher labels and PPO-eligible decisions are counted
+separately; a winner can be a learner loss. These measurements do not alter
+actions, rewards, GAE, or bootstrap boundaries, and are not a promotion gate.
+
+Fresh runs also evaluate the imitation endpoint before PPO. An opt-in
+`guardian-train --updates 0` exports an imitation-only checkpoint, requiring
+positive teacher updates and disabled PPO defense feedback. Normal training
+defaults are unchanged. Inspect checksum-verified training exposure with:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation --extra training \
+  godfield-bot simulation guardian-training-report \
+  --checkpoint checkpoints/guardian-arena/b53ba01b-0f2c-4137-92d3-0e543e6c50f0
+```
+
+That command runs no games. Historical absent coverage/stage measurements stay
+unknown rather than being inferred from later outcomes. On two extra diagnostic
+seed sets, the 128-step PPO candidate reached winners in 125/128 games but won
+only 44; completion can improve by losing earlier. A 256-step continuation
+raised measured winner coverage from 44% to 69% of eligible decisions, but did
+not improve win rate and is **not** recommended over its parent. Full-game
+readiness, official fidelity, and live promotion stay blocked. See
+[ADR 0093](docs/architecture/0093-long-horizon-training-and-outcome-coverage.md)
+for recipes, stage comparisons, frozen-trajectory checks, and remaining work.
+
+To reuse a short-bound guardian checkpoint at longer limits, opt in with
+`simulation guardian-train --migrate-horizon-from CHECKPOINT` and specify the
+target `--max-turns` / `--max-decisions`. It saves a new child and rescales only
+the two horizon-input weight columns, preserving same-position predictions
+before the old limits within floating-point tolerance. Neither limit can
+shrink; rules, source pins, architecture, rewards, and live controls remain
+unchanged. Ordinary `--resume` still rejects changed limits. This cannot be
+combined with utility/discard migration. See
+[ADR 0094](docs/architecture/0094-explicit-horizon-checkpoint-transfer.md)
+for the approved transfer contract and local training command.
+
 A later private-room trace contains one self-targeted Nocturnal Broom-style
 `removeItems` event. Its explicit three selected cards disappear in the next
 inventory, and native 0.36.0/schema 3 can reproduce that narrow operation with

@@ -2834,9 +2834,19 @@ def simulation_guardian_train(
             help="Explicit utility 30→48-action transfer into a new discard child.",
         ),
     ] = None,
+    migrate_horizon_from: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True,
+            file_okay=False,
+            help="Explicit longer-bound transfer; rescale horizon inputs in a new child.",
+        ),
+    ] = None,
     batch_size: Annotated[int, typer.Option(min=1, max=4096)] = 64,
     rollout_steps: Annotated[int, typer.Option(min=2, max=256)] = 64,
-    updates: Annotated[int, typer.Option(min=1, max=1000)] = 10,
+    updates: Annotated[
+        int, typer.Option(min=0, max=1000, help="PPO updates; 0 exports imitation-only training.")
+    ] = 10,
     teacher_updates: Annotated[int, typer.Option(min=0, max=1000)] = 64,
     teacher_selected_defense_weight: Annotated[float, typer.Option(min=1, max=16)] = 4,
     defense_feedback_weight: Annotated[
@@ -2921,6 +2931,7 @@ def simulation_guardian_train(
             resume=resume,
             migrate_utilities_from=migrate_utilities_from,
             migrate_discards_from=migrate_discards_from,
+            migrate_horizon_from=migrate_horizon_from,
         )
     except (
         ImportError,
@@ -2982,6 +2993,23 @@ def simulation_guardian_evaluate(
     ) as error:
         structlog.get_logger().error(
             "guardian_evaluation_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
+@simulation_app.command("guardian-training-report")
+def simulation_guardian_training_report(
+    checkpoint: Annotated[Path, typer.Option(exists=True, file_okay=False)],
+) -> None:
+    """Summarize verified local training exposure; no games or live changes."""
+    try:
+        from godfield_bot.guardian_training import report_guardian_training_exposure
+
+        report = report_guardian_training_exposure(checkpoint)
+    except (ImportError, OSError, ValueError, RuntimeError) as error:
+        structlog.get_logger().error(
+            "guardian_training_report_failed", reason=str(error).splitlines()[0]
         )
         raise typer.Exit(code=1) from None
     typer.echo(report.model_dump_json(indent=2))

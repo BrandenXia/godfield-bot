@@ -292,25 +292,10 @@ class ProvisionalGuardianTurnBatch:
     metadata: GuardianTurnMetadata
 
 
-def create_provisional_guardian_turn_batch(
-    *,
-    catalog_path: Path,
-    bible_path: Path,
-    batch_size: int,
-    player_count: int = 2,
-    slots_per_environment: int = 8,
-    hand_slots: int = 18,
-    max_turns: int = 1000,
-    initial_hp: int = 40,
-    initial_mp: int = 10,
-    initial_cp: int = 0,
-) -> ProvisionalGuardianTurnBatch:
-    """Compose basic card attacks, reusable defenses, and provisional guardian turns."""
-
-    catalog = read_api_catalog_snapshot(catalog_path)
-    bible = BibleSnapshot.model_validate_json(bible_path.read_text(encoding="utf-8"))
-    plan = build_provisional_guardian_plan(catalog, bible)
-    profiles = _guardian_effect_profiles(catalog, plan)
+def _guardian_card_profiles(
+    catalog: ApiCatalogSnapshot, bible: BibleSnapshot
+) -> tuple[list[tuple[int, int, int, int, int]], list[tuple[int, int, int, int, int]]]:
+    """Shared source checks; widening a caller's inventory is a separate contract."""
     armor = plain_defense_armor_cards(bible)
     defenses: list[tuple[int, int, int, int, int]] = []
     for item in catalog.items:
@@ -379,6 +364,29 @@ def create_provisional_guardian_turn_batch(
         attacks.append((item.model_id, value, COMBAT_ELEMENT_IDS[element], origin, cost))
     if len(weapons) != 39 or len(miracles) != 6 or len(attacks) != 45:
         raise ValueError("pinned basic card attack catalog is incomplete")
+    return defenses, attacks
+
+
+def create_provisional_guardian_turn_batch(
+    *,
+    catalog_path: Path,
+    bible_path: Path,
+    batch_size: int,
+    player_count: int = 2,
+    slots_per_environment: int = 8,
+    hand_slots: int = 18,
+    max_turns: int = 1000,
+    initial_hp: int = 40,
+    initial_mp: int = 10,
+    initial_cp: int = 0,
+) -> ProvisionalGuardianTurnBatch:
+    """Compose basic card attacks, reusable defenses, and provisional guardian turns."""
+
+    catalog = read_api_catalog_snapshot(catalog_path)
+    bible = BibleSnapshot.model_validate_json(bible_path.read_text(encoding="utf-8"))
+    plan = build_provisional_guardian_plan(catalog, bible)
+    profiles = _guardian_effect_profiles(catalog, plan)
+    defenses, attacks = _guardian_card_profiles(catalog, bible)
     try:
         import godfield_sim as native
         import numpy as np

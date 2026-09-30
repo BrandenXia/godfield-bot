@@ -1410,6 +1410,23 @@ this improves observed defense stability, not full-game or live readiness.
 See [ADR 0088](docs/architecture/0088-on-policy-defense-feedback.md) for the
 reproducible continuation command and complete comparisons.
 
+Native 0.45.0 also adds a separate inventory-utility guardian batch: four HP
+items, three MP items, and reusable 7-MP Spring, increasing its supported
+inventory to 102 models. Inspect the versioned component with:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
+  godfield-bot simulation guardian-batch-plan --turns --inventory-utilities \
+  --batch-size 512
+```
+
+This is a component inspection, **not a training command**. Utility turns are
+provisional self-use, with capped gains, exact costs, and no native redraw.
+The new wider own-hand projection is not yet connected to the neural trainer;
+existing arena checkpoints and 94-card refill rules remain unchanged. The next
+step is a separately versioned utility rollout/policy adapter and refill pool.
+See [ADR 0089](docs/architecture/0089-inventory-utility-guardian-batch.md).
+
 A later private-room trace contains one self-targeted Nocturnal Broom-style
 `removeItems` event. Its explicit three selected cards disappear in the next
 inventory, and native 0.36.0/schema 3 can reproduce that narrow operation with

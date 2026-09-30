@@ -7,6 +7,13 @@ It is built and installed from the repository root with:
 uv sync --extra simulation --group dev
 ```
 
+Native 0.45.0 adds the isolated `GuardianUtilityTurnBatch`, combining the
+existing provisional guardian/card scheduler with eight inventory-backed
+HP/MP cards. Its schema-1 actor hand includes HP/MP values; the old
+`GuardianTurnBatch` schema and trained arena contracts stay unchanged. This
+new component is not yet connected to a neural rollout adapter and has no
+automatic refill. See [ADR 0089](../../docs/architecture/0089-inventory-utility-guardian-batch.md).
+
 Every included curriculum is intentionally incomplete and its generated
 trajectories are not eligible for live model promotion. The broadest current
 ruleset, `dream-resource-hand`, includes elemental multi-card

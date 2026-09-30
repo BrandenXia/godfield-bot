@@ -49,6 +49,7 @@ private:
   // The scheduler composes this kernel without copying its state or exposing
   // arbitrary defense values to policy callers.
   friend class GuardianTurnBatch;
+  friend class GuardianUtilityTurnBatch;
   struct BasicAttack {
     std::int64_t value;
     std::int64_t element;

@@ -123,10 +123,10 @@ void GuardianTurnBatch::deal_cards(ActionInput environments,
                                    ActionInput instances, ActionInput models) {
   deal_cards_impl(environments, players, slots, instances, models, false);
 }
-void GuardianTurnBatch::deal_cards_impl(ActionInput environments,
-                                        ActionInput players, ActionInput slots,
-                                        ActionInput instances,
-                                        ActionInput models, bool defense_only) {
+void GuardianTurnBatch::deal_cards_impl(
+    ActionInput environments, ActionInput players, ActionInput slots,
+    ActionInput instances, ActionInput models, bool defense_only,
+    const std::unordered_set<std::int64_t> &extra_models) {
   const auto count = environments.shape(0);
   for (const auto &values : {players, slots, instances, models})
     GuardianCombatBatch::same_length(count, values);
@@ -141,7 +141,8 @@ void GuardianTurnBatch::deal_cards_impl(ActionInput environments,
         static_cast<std::uint64_t>(slots(row)) >= hand_slots_ ||
         instances(row) <= 0 || instances(row) > kMaxExactId ||
         (!defenses_.contains(models(row)) &&
-         (defense_only || !attacks_.contains(models(row)))) ||
+         (defense_only || (!attacks_.contains(models(row)) &&
+                           !extra_models.contains(models(row))))) ||
         combat_.hp_[environment * player_count_ + players(row)] == 0)
       throw std::invalid_argument("invalid guardian defense card");
     const auto offset = card_offset(environment, players(row),

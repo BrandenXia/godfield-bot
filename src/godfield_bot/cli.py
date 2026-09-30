@@ -2627,6 +2627,12 @@ def simulation_guardian_batch_plan(
     max_turns: Annotated[int, typer.Option(min=1, max=1_000_000_000)] = 1000,
     initial_mp: Annotated[int, typer.Option(min=0, max=100)] = 10,
     initial_cp: Annotated[int, typer.Option(min=0, max=100)] = 0,
+    inventory_utilities: Annotated[
+        bool,
+        typer.Option(
+            help="Use the separate, provisional eight-card HP/MP utility batch (requires --turns)."
+        ),
+    ] = False,
 ) -> None:
     """Inspect a separate native guardian lifecycle batch; not a training gate."""
 
@@ -2638,6 +2644,25 @@ def simulation_guardian_batch_plan(
     from godfield_bot.provisional_rules import ProvisionalRuleUnavailableError
 
     try:
+        if inventory_utilities:
+            if not turns:
+                raise ValueError("--inventory-utilities requires --turns")
+            from godfield_bot.guardian_utility import create_provisional_guardian_utility_turn_batch
+
+            utility_created = create_provisional_guardian_utility_turn_batch(
+                catalog_path=catalog,
+                bible_path=bible,
+                batch_size=batch_size,
+                player_count=player_count,
+                slots_per_environment=slots_per_environment,
+                hand_slots=hand_slots,
+                max_turns=max_turns,
+                initial_hp=initial_hp,
+                initial_mp=initial_mp,
+                initial_cp=initial_cp,
+            )
+            typer.echo(utility_created.metadata.model_dump_json(indent=2))
+            return
         if turns:
             turn_created = create_provisional_guardian_turn_batch(
                 catalog_path=catalog,

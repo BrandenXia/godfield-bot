@@ -1,6 +1,7 @@
 #pragma once
 
 #include <optional>
+#include <unordered_set>
 
 #include "guardian_combat_batch.h"
 
@@ -80,6 +81,7 @@ public:
   [[nodiscard]] std::uint64_t mp_spent() const noexcept { return mp_spent_; }
 
 private:
+  friend class GuardianUtilityTurnBatch;
   struct Defense {
     std::int64_t value;
     std::int64_t element;
@@ -111,7 +113,8 @@ private:
   void finish_turn(std::size_t environment);
   void deal_cards_impl(ActionInput environments, ActionInput players,
                        ActionInput slots, ActionInput instances,
-                       ActionInput models, bool defense_only);
+                       ActionInput models, bool defense_only,
+                       const std::unordered_set<std::int64_t> &extra_models = {});
   [[nodiscard]] std::size_t card_offset(std::size_t environment,
                                         std::int64_t player,
                                         std::size_t slot) const;

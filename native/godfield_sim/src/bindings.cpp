@@ -6,6 +6,7 @@
 #include "guardian_lifecycle_batch.h"
 #include "guardian_combat_batch.h"
 #include "guardian_turn_batch.h"
+#include "guardian_utility_turn_batch.h"
 
 #include <nanobind/nanobind.h>
 #include <nanobind/stl/optional.h>
@@ -427,6 +428,88 @@ NB_MODULE(_native, module) {
       .def_prop_ro("miracle_cast_count", &godfield_sim::GuardianTurnBatch::miracle_cast_count)
       .def_prop_ro("mp_spent", &godfield_sim::GuardianTurnBatch::mp_spent)
       .def_prop_ro("resolved_effect_count", &godfield_sim::GuardianTurnBatch::resolved_effect_count);
+  module.attr("GUARDIAN_UTILITY_TURN_KERNEL_SCHEMA_VERSION") =
+      godfield_sim::kGuardianUtilityTurnKernelSchemaVersion;
+  module.attr("GUARDIAN_UTILITY_TURN_OBSERVATION_SCHEMA_VERSION") =
+      godfield_sim::kGuardianUtilityTurnObservationSchemaVersion;
+  module.attr("GUARDIAN_UTILITY_TURN_RULESET_ID") =
+      godfield_sim::kGuardianUtilityTurnRulesetId;
+  module.attr("GUARDIAN_UTILITY_ACTOR_HAND_SCHEMA_VERSION") =
+      godfield_sim::kGuardianUtilityActorHandSchemaVersion;
+  using godfield_sim::GuardianUtilityTurnBatch;
+  nb::class_<GuardianUtilityTurnBatch>(module, "GuardianUtilityTurnBatch")
+      .def(nb::init<std::size_t, std::size_t, std::size_t,
+                    godfield_sim::GuardianWeightInput,
+                    godfield_sim::GuardianWeightInput,
+                    godfield_sim::GuardianWeightInput,
+                    godfield_sim::GuardianWeightInput,
+                    godfield_sim::GuardianWeightInput, std::size_t,
+                    std::uint64_t, std::uint16_t, std::uint16_t, std::uint16_t>(),
+           nb::arg("batch_size"), nb::arg("player_count"), nb::arg("guardian_slots"),
+           nb::arg("weighted_profiles").noconvert(),
+           nb::arg("effect_profiles").noconvert(),
+           nb::arg("defense_profiles").noconvert(),
+           nb::arg("attack_profiles").noconvert(),
+           nb::arg("utility_profiles").noconvert(), nb::arg("hand_slots") = 18,
+           nb::arg("max_turns") = 1000, nb::arg("initial_hp") = 40,
+           nb::arg("initial_mp") = 10, nb::arg("initial_cp") = 0)
+      .def("summon", &GuardianUtilityTurnBatch::summon,
+           nb::arg("environments").noconvert(), nb::arg("slots").noconvert(),
+           nb::arg("instances").noconvert(), nb::arg("owners").noconvert(),
+           nb::arg("groups").noconvert())
+      .def("remove", &GuardianUtilityTurnBatch::remove,
+           nb::arg("environments").noconvert(), nb::arg("slots").noconvert(),
+           nb::arg("instances").noconvert())
+      .def("deal_defenses", &GuardianUtilityTurnBatch::deal_defenses,
+           nb::arg("environments").noconvert(), nb::arg("players").noconvert(),
+           nb::arg("slots").noconvert(), nb::arg("instances").noconvert(),
+           nb::arg("models").noconvert())
+      .def("deal_cards", &GuardianUtilityTurnBatch::deal_cards,
+           nb::arg("environments").noconvert(), nb::arg("players").noconvert(),
+           nb::arg("slots").noconvert(), nb::arg("instances").noconvert(),
+           nb::arg("models").noconvert())
+      .def("use_utility_cards", &GuardianUtilityTurnBatch::use_utility_cards,
+           nb::arg("environments").noconvert(), nb::arg("players").noconvert(),
+           nb::arg("slots").noconvert())
+      .def("begin_card_attacks", &GuardianUtilityTurnBatch::begin_card_attacks,
+           nb::arg("environments").noconvert(), nb::arg("players").noconvert(),
+           nb::arg("slots").noconvert(), nb::arg("targets").noconvert())
+      .def("begin_effects", &GuardianUtilityTurnBatch::begin_effects,
+           nb::arg("environments").noconvert(), nb::arg("slots").noconvert(),
+           nb::arg("instances").noconvert(), nb::arg("targets").noconvert(),
+           nb::arg("selection_tickets").noconvert(), nb::arg("hit_tickets").noconvert())
+      .def("pass_turns", &GuardianUtilityTurnBatch::pass_turns,
+           nb::arg("environments").noconvert(), nb::arg("players").noconvert())
+      .def("step_defenses", &GuardianUtilityTurnBatch::step_defenses,
+           nb::arg("environments").noconvert(), nb::arg("players").noconvert(),
+           nb::arg("actions").noconvert())
+      .def("resolve_bounces", &GuardianUtilityTurnBatch::resolve_bounces,
+           nb::arg("environments").noconvert(), nb::arg("players").noconvert(),
+           nb::arg("targets").noconvert())
+      .def("reset_environments", &GuardianUtilityTurnBatch::reset_environments,
+           nb::arg("environments").noconvert())
+      .def("utility_action_masks", &GuardianUtilityTurnBatch::utility_action_masks)
+      .def("ready_action_masks", &GuardianUtilityTurnBatch::ready_action_masks)
+      .def("defense_action_masks", &GuardianUtilityTurnBatch::defense_action_masks)
+      .def("attack_action_masks", &GuardianUtilityTurnBatch::attack_action_masks)
+      .def("attack_target_masks", &GuardianUtilityTurnBatch::attack_target_masks)
+      .def("bounce_target_masks", &GuardianUtilityTurnBatch::bounce_target_masks)
+      .def("turn_snapshot", &GuardianUtilityTurnBatch::turn_snapshot)
+      .def("inventory_snapshot", &GuardianUtilityTurnBatch::inventory_snapshot)
+      .def("hand_feature_snapshot", &GuardianUtilityTurnBatch::hand_feature_snapshot)
+      .def("actor_hand_snapshot", &GuardianUtilityTurnBatch::actor_hand_snapshot)
+      .def("guardian_snapshot", &GuardianUtilityTurnBatch::guardian_snapshot)
+      .def("resource_snapshot", &GuardianUtilityTurnBatch::resource_snapshot)
+      .def("combat_snapshot", &GuardianUtilityTurnBatch::combat_snapshot)
+      .def_prop_ro("hand_slots", &GuardianUtilityTurnBatch::hand_slots)
+      .def_prop_ro("action_count", &GuardianUtilityTurnBatch::action_count)
+      .def_prop_ro("consumed_card_count", &GuardianUtilityTurnBatch::consumed_card_count)
+      .def_prop_ro("miracle_cast_count", &GuardianUtilityTurnBatch::miracle_cast_count)
+      .def_prop_ro("mp_spent", &GuardianUtilityTurnBatch::mp_spent)
+      .def_prop_ro("resolved_effect_count", &GuardianUtilityTurnBatch::resolved_effect_count)
+      .def_prop_ro("utility_use_count", &GuardianUtilityTurnBatch::utility_use_count)
+      .def_prop_ro("hp_gained", &GuardianUtilityTurnBatch::hp_gained)
+      .def_prop_ro("mp_gained", &GuardianUtilityTurnBatch::mp_gained);
   nb::class_<godfield_sim::GuardianCombatBatch>(module, "GuardianCombatBatch")
       .def(nb::init<std::size_t, std::size_t, std::size_t,
                     godfield_sim::GuardianWeightInput,

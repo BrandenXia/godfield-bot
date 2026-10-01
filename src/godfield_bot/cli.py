@@ -3158,6 +3158,28 @@ def simulation_coverage_report(
     typer.echo(report.model_dump_json(indent=2))
 
 
+@simulation_app.command("full-game-readiness")
+def simulation_full_game_readiness(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-21/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+) -> None:
+    """Audit the integrated training subset and full-game gaps; no games or live changes."""
+    try:
+        from godfield_bot.full_game_readiness import build_full_game_readiness_report
+
+        report = build_full_game_readiness_report(catalog_path=catalog, bible_path=bible)
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error(
+            "full_game_readiness_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
 @simulation_app.command("trace-game")
 def simulation_trace_game(
     model: Annotated[Path, typer.Argument(exists=True, file_okay=False, readable=True)],

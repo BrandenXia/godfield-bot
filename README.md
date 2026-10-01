@@ -1581,6 +1581,23 @@ opponent diversity, not new C++ game mechanics or full-game readiness. See
 [ADR 0096](docs/architecture/0096-frozen-guardian-opponent-curriculum.md)
 for commands, source hashes, gradient boundaries, and per-opponent results.
 
+For the **actual integrated training environment**, inspect:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
+  godfield-bot simulation full-game-readiness
+```
+
+This offline audit distinguishes 102 inventory-usable models, five opening-only
+Mars effects, 34 standalone guardian effects, and 150 wholly unintegrated
+artifacts. It lists fourteen remaining full-game workflow requirements. The
+older 196-artifact component catalog is not the same training environment;
+component inclusion does not imply playable integrated mechanics or fidelity.
+The catalog and official client were rechecked on 2026-10-01 and match their
+existing source pins. Full-game readiness remains false. See
+[ADR 0097](docs/architecture/0097-full-game-integration-audit-and-readiness-plan.md)
+for source freshness, the acceptance boundary, and the remaining work.
+
 A later private-room trace contains one self-targeted Nocturnal Broom-style
 `removeItems` event. Its explicit three selected cards disappear in the next
 inventory, and native 0.36.0/schema 3 can reproduce that narrow operation with

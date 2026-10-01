@@ -6,6 +6,12 @@ import numpy.typing as npt
 KERNEL_SCHEMA_VERSION: Final[int]
 OBSERVATION_SCHEMA_VERSION: Final[int]
 RULESET_ID: Final[str]
+CURSE_DYNAMICS_SCHEMA_VERSION: Final[int]
+CURSE_DYNAMICS_RULESET_ID: Final[str]
+CURSE_FOG_BIT: Final[int]
+CURSE_DREAM_BIT: Final[int]
+CURSE_FLASH_BIT: Final[int]
+CURSE_DARK_CLOUD_BIT: Final[int]
 ORDERED_INVENTORY_REPLAY_SCHEMA_VERSION: Final[int]
 ORDERED_INVENTORY_REPLAY_RULESET_ID: Final[str]
 GUARDIAN_LIFECYCLE_KERNEL_SCHEMA_VERSION: Final[int]
@@ -187,6 +193,45 @@ CARD_KIND_SAME_DAMAGE_WEAPON: Final[int]
 FORGIVE_ACTION_INDEX: Final[int]
 CONFIRM_ACTION_INDEX: Final[int]
 GLOBAL_FEATURE_COUNT: Final[int]
+
+class CurseDynamicsBatch:
+    def __init__(
+        self, batch_size: int, player_count: int, initial_hp: int = ...
+    ) -> None: ...
+    def load_players(
+        self, environments: npt.NDArray[np.int64], players: npt.NDArray[np.int64],
+        hp: npt.NDArray[np.int64], illness: npt.NDArray[np.int64],
+        curse_masks: npt.NDArray[np.int64],
+    ) -> None: ...
+    def apply_illnesses(
+        self, environments: npt.NDArray[np.int64], players: npt.NDArray[np.int64],
+        stages: npt.NDArray[np.int64],
+    ) -> None: ...
+    def apply_curses(
+        self, environments: npt.NDArray[np.int64], players: npt.NDArray[np.int64],
+        curse_bits: npt.NDArray[np.int64],
+    ) -> None: ...
+    def cure_players(
+        self, environments: npt.NDArray[np.int64], players: npt.NDArray[np.int64],
+        scopes: npt.NDArray[np.int64],
+    ) -> None: ...
+    def finish_turns(
+        self, environments: npt.NDArray[np.int64], players: npt.NDArray[np.int64],
+        expected_ticks: npt.NDArray[np.int64], progression_tickets: npt.NDArray[np.int64],
+    ) -> None: ...
+    def reset_environments(self, environments: npt.NDArray[np.int64]) -> None: ...
+    def snapshot(self) -> npt.NDArray[np.int64]: ...
+    def transition_snapshot(self) -> npt.NDArray[np.int64]: ...
+    @property
+    def illness_count(self) -> int: ...
+    @property
+    def curse_count(self) -> int: ...
+    @property
+    def cure_count(self) -> int: ...
+    @property
+    def tick_count(self) -> int: ...
+    @property
+    def death_count(self) -> int: ...
 
 class OrderedInventoryReplay:
     def __init__(

@@ -1,13 +1,15 @@
 #include "attack_defense_batch.h"
+#include "curse_dynamics_batch.h"
+#include "curse_rules.h"
 #include "fixed_attack_batch.h"
-#include "ordered_inventory.h"
-#include "provisional_soap.h"
-#include "provisional_guardian.h"
-#include "guardian_lifecycle_batch.h"
 #include "guardian_combat_batch.h"
+#include "guardian_discard_turn_batch.h"
+#include "guardian_lifecycle_batch.h"
 #include "guardian_turn_batch.h"
 #include "guardian_utility_turn_batch.h"
-#include "guardian_discard_turn_batch.h"
+#include "ordered_inventory.h"
+#include "provisional_guardian.h"
+#include "provisional_soap.h"
 
 #include <nanobind/nanobind.h>
 #include <nanobind/stl/optional.h>
@@ -335,6 +337,51 @@ NB_MODULE(_native, module) {
   module.attr("ILLNESS_FEVER") = std::uint8_t{2U};
   module.attr("ILLNESS_HELL") = std::uint8_t{3U};
   module.attr("ILLNESS_HEAVEN") = std::uint8_t{4U};
+
+  module.attr("CURSE_DYNAMICS_SCHEMA_VERSION") =
+      godfield_sim::kCurseDynamicsSchemaVersion;
+  module.attr("CURSE_DYNAMICS_RULESET_ID") =
+      godfield_sim::kCurseDynamicsRulesetId;
+  module.attr("CURSE_FOG_BIT") = godfield_sim::kCurseFogBit;
+  module.attr("CURSE_DREAM_BIT") = godfield_sim::kCurseDreamBit;
+  module.attr("CURSE_FLASH_BIT") = godfield_sim::kCurseFlashBit;
+  module.attr("CURSE_DARK_CLOUD_BIT") = godfield_sim::kCurseDarkCloudBit;
+  nb::class_<godfield_sim::CurseDynamicsBatch>(module, "CurseDynamicsBatch")
+      .def(nb::init<std::size_t, std::size_t, std::uint16_t>(),
+           nb::arg("batch_size"), nb::arg("player_count"),
+           nb::arg("initial_hp") = 40)
+      .def("load_players", &godfield_sim::CurseDynamicsBatch::load_players,
+           nb::arg("environments").noconvert(), nb::arg("players").noconvert(),
+           nb::arg("hp").noconvert(), nb::arg("illness").noconvert(),
+           nb::arg("curse_masks").noconvert())
+      .def("apply_illnesses",
+           &godfield_sim::CurseDynamicsBatch::apply_illnesses,
+           nb::arg("environments").noconvert(), nb::arg("players").noconvert(),
+           nb::arg("stages").noconvert())
+      .def("apply_curses", &godfield_sim::CurseDynamicsBatch::apply_curses,
+           nb::arg("environments").noconvert(), nb::arg("players").noconvert(),
+           nb::arg("curse_bits").noconvert())
+      .def("cure_players", &godfield_sim::CurseDynamicsBatch::cure_players,
+           nb::arg("environments").noconvert(), nb::arg("players").noconvert(),
+           nb::arg("scopes").noconvert())
+      .def("finish_turns", &godfield_sim::CurseDynamicsBatch::finish_turns,
+           nb::arg("environments").noconvert(), nb::arg("players").noconvert(),
+           nb::arg("expected_ticks").noconvert(),
+           nb::arg("progression_tickets").noconvert())
+      .def("reset_environments",
+           &godfield_sim::CurseDynamicsBatch::reset_environments,
+           nb::arg("environments").noconvert())
+      .def("snapshot", &godfield_sim::CurseDynamicsBatch::snapshot)
+      .def("transition_snapshot",
+           &godfield_sim::CurseDynamicsBatch::transition_snapshot)
+      .def_prop_ro("illness_count",
+                   &godfield_sim::CurseDynamicsBatch::illness_count)
+      .def_prop_ro("curse_count",
+                   &godfield_sim::CurseDynamicsBatch::curse_count)
+      .def_prop_ro("cure_count", &godfield_sim::CurseDynamicsBatch::cure_count)
+      .def_prop_ro("tick_count", &godfield_sim::CurseDynamicsBatch::tick_count)
+      .def_prop_ro("death_count",
+                   &godfield_sim::CurseDynamicsBatch::death_count);
 
   module.attr("ORDERED_INVENTORY_REPLAY_SCHEMA_VERSION") =
       godfield_sim::kOrderedInventoryReplaySchemaVersion;

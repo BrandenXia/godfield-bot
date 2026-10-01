@@ -92,6 +92,18 @@ def test_workflow_gaps_are_explicit_and_duel_subset_is_not_full_game(report):
     assert all(Path(file).is_file() for gap in report.workflow_gaps for file in gap.source_files)
 
 
+def test_portable_curse_component_is_not_counted_as_inventory_integration(report):
+    curses = next(gap for gap in report.workflow_gaps if gap.workflow_id == "curse-turn-dynamics")
+    assert curses.status == "partial"
+    assert "not integrated" in curses.current_behavior
+    assert "native/godfield_sim/src/curse_dynamics_batch.cpp" in curses.source_files
+    assert "src/godfield_bot/curse_dynamics.py" in curses.source_files
+    by_model = {item.model_id: item for item in report.artifacts}
+    assert all(by_model[model].integration == "not-integrated" for model in (199, 200, 237, 238))
+    assert report.inventory_model_count == 102
+    assert not report.full_game_training_ready
+
+
 @pytest.mark.parametrize(
     "change",
     [

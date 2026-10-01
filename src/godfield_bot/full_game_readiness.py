@@ -127,10 +127,12 @@ def _guardian_workflow_gaps() -> tuple[FullGameWorkflowGap, ...]:
         (
             "curse-turn-dynamics",
             "partial",
-            "Caller-driven guardian effects set some curse bits.",
+            "Guardian effects set some curse bits; portable disease/cure kernel is not integrated.",
             "Integrated illness/hell, fog/flash, confusion, dream, redraw, cures and timing.",
             (
                 "native/godfield_sim/src/guardian_combat_batch.cpp",
+                "native/godfield_sim/src/curse_dynamics_batch.cpp",
+                "src/godfield_bot/curse_dynamics.py",
                 "src/godfield_bot/guardian_rollout.py",
             ),
         ),

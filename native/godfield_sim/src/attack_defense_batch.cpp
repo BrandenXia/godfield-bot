@@ -1,4 +1,5 @@
 #include "attack_defense_batch.h"
+#include "curse_rules.h"
 
 #include <algorithm>
 #include <array>
@@ -3096,17 +3097,16 @@ bool AttackDefenseBatch::apply_illness(std::size_t environment,
                                        std::size_t player,
                                        std::uint8_t stage) noexcept {
   auto &current = illness_stages_[environment * kPlayerCount + player];
-  if (current == 0U) {
-    current = stage;
-    return false;
+  auto &hp = hit_points_[environment * kPlayerCount + player];
+  const auto worsened_heaven = current == kHeavenIllnessStage;
+  const auto result = inflict_illness({hp, current}, stage);
+  hp = result.hp;
+  current = result.stage;
+  if (worsened_heaven) {
+    terminate_player(environment, player);
+    return true;
   }
-  if (current < kHeavenIllnessStage) {
-    ++current;
-    return false;
-  }
-  hit_points_[environment * kPlayerCount + player] = 0U;
-  terminate_player(environment, player);
-  return true;
+  return false;
 }
 
 void AttackDefenseBatch::finish_turn(std::size_t environment,
@@ -3120,28 +3120,20 @@ void AttackDefenseBatch::finish_turn(std::size_t environment,
     return;
   }
   auto &hp = hit_points_[environment * kPlayerCount + player];
-  if (stage == kHeavenIllnessStage) {
-    hp = static_cast<std::uint16_t>(std::min<unsigned int>(
-        kMaximumResource, static_cast<unsigned int>(hp) + 5U));
-  } else {
-    const std::uint16_t damage = stage == kColdIllnessStage
-                                     ? 1U
-                                     : (stage == kFeverIllnessStage ? 2U : 5U);
-    hp = damage >= hp ? 0U : static_cast<std::uint16_t>(hp - damage);
-    if (hp == 0U) {
-      terminate_player(environment, player);
-      return;
-    }
+  hp = periodic_illness_effect({hp, stage}).hp;
+  if (hp == 0U) {
+    terminate_player(environment, player);
+    return;
   }
   if (next_random(environment) % 100U >= 5U) {
     return;
   }
-  if (stage < kHeavenIllnessStage) {
-    ++stage;
-    return;
+  const auto result = worsen_illness({hp, stage});
+  hp = result.hp;
+  stage = result.stage;
+  if (hp == 0U) {
+    terminate_player(environment, player);
   }
-  hp = 0U;
-  terminate_player(environment, player);
 }
 
 void AttackDefenseBatch::resolve_defense(std::size_t environment,

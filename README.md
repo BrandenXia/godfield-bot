@@ -1598,6 +1598,17 @@ existing source pins. Full-game readiness remains false. See
 [ADR 0097](docs/architecture/0097-full-game-integration-audit-and-readiness-plan.md)
 for source freshness, the acceptance boundary, and the remaining work.
 
+Native 0.47.0 now provides a reusable 2–9-player disease/cure component with
+atomic operations, caller-supplied progression tickets, duplicate-tick
+protection, and copied diagnostic snapshots. It shares illness math with the
+legacy simulator without changing legacy trajectories or checkpoints. New
+mild cures use the documented Cold/Fever/Fog/Flash scope; legacy cure semantics
+remain unchanged. The source-pinned factory is
+`godfield_bot.curse_dynamics.create_provisional_curse_dynamics_batch`.
+This is not yet connected to inventory use or neural rollouts, so the full-game
+audit still marks the curse workflow partial and readiness false. See
+[ADR 0098](docs/architecture/0098-portable-native-curse-dynamics.md).
+
 A later private-room trace contains one self-targeted Nocturnal Broom-style
 `removeItems` event. Its explicit three selected cards disappear in the next
 inventory, and native 0.36.0/schema 3 can reproduce that narrow operation with

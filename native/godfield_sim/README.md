@@ -211,3 +211,14 @@ targets, determine whether fewer than two can be removed, simulate the card's
 cost or replacement gifts, or assert official fidelity. There is no `step` or
 training interface. The observed replay schema 3 and all existing curriculum
 identities remain unchanged. See root ADR 0076.
+
+Version 0.49.0 adds the isolated `DreamInventoryBatch` and source-pinned Python
+factory `create_provisional_dream_inventory_batch`. It stores all 237 held
+models (234 artifacts plus Exchange/Sell/Buy), separate actual/displayed
+identities, stable explicit consumption/removal, and provisional retained
+miracle ordering. Caller-selected Dream tickets and full-cure restoration are
+explicit; atomic overflow rejection never drops items. Copied actor hands
+contain only own displayed identities, whereas full snapshots are trusted
+diagnostics. There is no battle/turn/cost/training interface or implicit gift
+schedule. Existing replay allowlists, curricula, checkpoints and live controls
+remain unchanged. See [ADR 0100](../../docs/architecture/0100-portable-ordered-dream-inventory.md).

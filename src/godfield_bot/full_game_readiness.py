@@ -96,9 +96,14 @@ def _guardian_workflow_gaps() -> tuple[FullGameWorkflowGap, ...]:
         (
             "acquisition-overflow",
             "partial",
-            "Balanced synthetic nine-card deal and subset refill.",
+            "Synthetic nine-card subset deal/refill; portable ordered inventory is not integrated.",
             "Official initial distribution, gift timing, 18-slot overflow and compaction.",
-            ("src/godfield_bot/guardian_rollout.py", "src/godfield_bot/guardian_utility_refill.py"),
+            (
+                "src/godfield_bot/guardian_rollout.py",
+                "src/godfield_bot/guardian_utility_refill.py",
+                "native/godfield_sim/src/dream_inventory_batch.cpp",
+                "src/godfield_bot/dream_inventory.py",
+            ),
         ),
         (
             "offensive-combinations",
@@ -135,6 +140,8 @@ def _guardian_workflow_gaps() -> tuple[FullGameWorkflowGap, ...]:
                 "native/godfield_sim/src/curse_decisions.cpp",
                 "src/godfield_bot/curse_dynamics.py",
                 "src/godfield_bot/curse_decisions.py",
+                "native/godfield_sim/src/dream_inventory_batch.cpp",
+                "src/godfield_bot/dream_inventory.py",
                 "src/godfield_bot/guardian_rollout.py",
             ),
         ),
@@ -166,8 +173,8 @@ def _guardian_workflow_gaps() -> tuple[FullGameWorkflowGap, ...]:
             "economy",
             "absent",
             "CP is public state but has no legal economic actions.",
-            "Buy/sell, gifts/trades, HP/MP exchange, affordability and merchant responses.",
-            ("src/godfield_bot/guardian_rollout.py",),
+            "Held Exchange/Sell/Buy cards, CP, HP/MP exchange, affordability and responses.",
+            ("src/godfield_bot/guardian_rollout.py", "src/godfield_bot/dream_inventory.py"),
         ),
         (
             "removal-revival",

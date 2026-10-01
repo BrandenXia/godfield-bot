@@ -106,6 +106,22 @@ def test_portable_curse_component_is_not_counted_as_inventory_integration(report
     assert not report.full_game_training_ready
 
 
+def test_portable_dream_inventory_does_not_inflate_arena_coverage(report):
+    acquisition = next(
+        gap for gap in report.workflow_gaps if gap.workflow_id == "acquisition-overflow"
+    )
+    assert "not integrated" in acquisition.current_behavior
+    assert "src/godfield_bot/dream_inventory.py" in acquisition.source_files
+    assert "native/godfield_sim/src/dream_inventory_batch.cpp" in acquisition.source_files
+    assert report.inventory_model_count == 102
+    assert report.not_integrated_count == 150
+    assert report.artifact_count == 291  # Three held trade cards are not Bible artifacts.
+    economy = next(gap for gap in report.workflow_gaps if gap.workflow_id == "economy")
+    assert economy.status == "absent"
+    assert "Exchange/Sell/Buy" in economy.missing_behavior
+    assert not report.full_game_training_ready
+
+
 @pytest.mark.parametrize(
     "change",
     [

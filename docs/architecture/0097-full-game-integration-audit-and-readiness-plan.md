@@ -7,12 +7,12 @@ Audit the **actual integrated training environment**, not just the largest
 standalone native catalog or the latest candidate's win rate. This step adds
 no simulated mechanics and does not declare the full-game objective achieved.
 
-The overall architecture choice is awaiting user direction: a separate versioned
-full-game C++ environment reusing tested components is recommended; continuing
-isolated guardian-wrapper extensions is the alternative. Do not silently change
-old action/observation contracts, checkpoint compatibility, or live controls.
-The user's previous permission to layer labeled provisional rules and keep
-promotion gated remains applicable.
+The user approved a **separate versioned full-game C++ environment reusing tested
+components** on 2026-10-01. Preserve the current guardian arena rather than
+silently extending its action/observation contracts, checkpoint compatibility
+or live controls. The user's previous permission to layer labeled provisional
+rules and keep promotion gated remains applicable. This supersedes the initial
+pending architecture choice recorded when this audit was created.
 
 ## Current source freshness
 
@@ -22,6 +22,13 @@ the pinned pygodfield client on 2026-10-01 and saved separately to
 SHA-256 `df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249`,
 identical to the reviewed 2026-09-21 catalog. The 291 Bible artifacts exclude
 five non-artifact API records; these counts are not interchangeable.
+
+Clarification from ADR 0100: non-artifact does **not** mean non-held. Exchange,
+Sell and Buy (API 3–5) have gift weights and appear in captured owned hands.
+Only Discard and Sacrifice (1–2) are excluded virtual controls here. Thus future
+complete inventory storage needs 234 artifact models **plus three held trade
+models**. The existing 291-artifact accounting below remains unchanged; its
+separate economy gap must cover those trade actions.
 
 A read-only fetch of the public [official client](https://godfield.net/main.dart.js)
 also reproduced SHA-256

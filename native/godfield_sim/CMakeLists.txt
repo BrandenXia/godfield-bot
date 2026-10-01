@@ -20,6 +20,7 @@ nanobind_add_module(
   src/guardian_discard_turn_batch.cpp
   src/curse_dynamics_batch.cpp
   src/curse_decisions.cpp
+  src/dream_inventory_batch.cpp
 )
 target_compile_features(_native PRIVATE cxx_std_20)
 

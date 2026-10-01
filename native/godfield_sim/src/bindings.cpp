@@ -1,6 +1,7 @@
 #include "attack_defense_batch.h"
 #include "curse_dynamics_batch.h"
 #include "curse_rules.h"
+#include "dream_inventory_batch.h"
 #include "fixed_attack_batch.h"
 #include "guardian_combat_batch.h"
 #include "guardian_discard_turn_batch.h"
@@ -38,6 +39,7 @@ using godfield_sim::StochasticResourceAttackDefenseBatch;
 
 NB_MODULE(_native, module) {
   module.doc() = "Native batched God Field curriculum kernels";
+  godfield_sim::bind_dream_inventory(module);
   module.attr("KERNEL_SCHEMA_VERSION") = godfield_sim::kKernelSchemaVersion;
   module.attr("OBSERVATION_SCHEMA_VERSION") =
       godfield_sim::kObservationSchemaVersion;

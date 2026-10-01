@@ -10,6 +10,8 @@ CURSE_DYNAMICS_SCHEMA_VERSION: Final[int]
 CURSE_DYNAMICS_RULESET_ID: Final[str]
 CURSE_DECISION_SCHEMA_VERSION: Final[int]
 CURSE_DECISION_RULESET_ID: Final[str]
+DREAM_INVENTORY_SCHEMA_VERSION: Final[int]
+DREAM_INVENTORY_RULESET_ID: Final[str]
 CURSE_FOG_BIT: Final[int]
 CURSE_DREAM_BIT: Final[int]
 CURSE_FLASH_BIT: Final[int]
@@ -250,6 +252,47 @@ class CurseDynamicsBatch:
     def tick_count(self) -> int: ...
     @property
     def death_count(self) -> int: ...
+
+class DreamInventoryBatch:
+    def __init__(
+        self, batch_size: int, player_count: int, profiles: npt.NDArray[np.int64],
+        capacity: int = ...,
+    ) -> None: ...
+    def seed_hand(self, environment: int, owner: int, items: npt.NDArray[np.int64]) -> None: ...
+    def add_cards(
+        self, environments: npt.NDArray[np.int64], owners: npt.NDArray[np.int64],
+        instance_ids: npt.NDArray[np.int64], model_ids: npt.NDArray[np.int64],
+        curse_masks: npt.NDArray[np.int64], disguise_tickets: npt.NDArray[np.int64],
+        fake_tickets: npt.NDArray[np.int64],
+    ) -> None: ...
+    def use_cards(
+        self, environments: npt.NDArray[np.int64], owners: npt.NDArray[np.int64],
+        expected_items: npt.NDArray[np.int64],
+    ) -> None: ...
+    def remove_cards(
+        self, environments: npt.NDArray[np.int64], owners: npt.NDArray[np.int64],
+        expected_items: npt.NDArray[np.int64],
+    ) -> None: ...
+    def restore_displays(
+        self, environments: npt.NDArray[np.int64], owners: npt.NDArray[np.int64],
+    ) -> None: ...
+    def reset_environments(self, environments: npt.NDArray[np.int64]) -> None: ...
+    def snapshot(self) -> npt.NDArray[np.int64]: ...
+    def actor_hands(
+        self, environments: npt.NDArray[np.int64], actors: npt.NDArray[np.int64],
+    ) -> npt.NDArray[np.int64]: ...
+    @property
+    def capacity(self) -> int: ...
+    @property
+    def gift_count(self) -> int: ...
+    @property
+    def consumed_count(self) -> int: ...
+    @property
+    def miracle_use_count(self) -> int: ...
+    @property
+    def removal_count(self) -> int: ...
+    @property
+    def restored_count(self) -> int: ...
 
 class OrderedInventoryReplay:
     def __init__(

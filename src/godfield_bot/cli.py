@@ -2806,6 +2806,86 @@ def simulation_guardian_rollout(
     typer.echo(report.model_dump_json(indent=2))
 
 
+@simulation_app.command("guardian-create-league")
+def simulation_guardian_create_league(
+    reference_checkpoint: Annotated[Path, typer.Option(exists=True, file_okay=False)],
+    opponent_checkpoint: Annotated[
+        list[Path] | None,
+        typer.Option("--opponent-checkpoint", exists=True, file_okay=False),
+    ] = None,
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-21/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    league_directory: Annotated[Path, typer.Option(file_okay=False)] = Path(
+        "checkpoints/guardian-leagues"
+    ),
+    greedy_weight: Annotated[int, typer.Option(min=1, max=1000)] = 1,
+) -> None:
+    """Freeze a separate guardian roster; no training or live changes."""
+    try:
+        from godfield_bot.guardian_league import create_guardian_league
+
+        path, snapshot = create_guardian_league(
+            reference_checkpoint=reference_checkpoint,
+            opponent_checkpoints=tuple(opponent_checkpoint or ()),
+            catalog_path=catalog,
+            bible_path=bible,
+            league_directory=league_directory,
+            greedy_weight=greedy_weight,
+        )
+    except (ImportError, OSError, ValueError, RuntimeError) as error:
+        structlog.get_logger().error("guardian_league_failed", reason=str(error).splitlines()[0])
+        raise typer.Exit(code=1) from None
+    typer.echo(
+        json.dumps(
+            {
+                "league_path": str(path.resolve()),
+                "league_sha256": snapshot.sha256,
+                "league": snapshot.model_dump(mode="json"),
+            },
+            indent=2,
+        )
+    )
+
+
+@simulation_app.command("guardian-evaluate-league")
+def simulation_guardian_evaluate_league(
+    checkpoint: Annotated[Path, typer.Option(exists=True, file_okay=False)],
+    league: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-21/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    games: Annotated[int, typer.Option(min=2, max=256)] = 64,
+    seed: Annotated[int, typer.Option(min=0, max=2**32 - 1)] = 8_000_070,
+    cpu_threads: Annotated[int, typer.Option(min=1, max=16)] = 2,
+) -> None:
+    """Read-only paired diagnostics against every frozen guardian league member."""
+    try:
+        from godfield_bot.guardian_training import evaluate_guardian_league_checkpoint
+
+        result = evaluate_guardian_league_checkpoint(
+            checkpoint,
+            league_path=league,
+            catalog_path=catalog,
+            bible_path=bible,
+            games=games,
+            seed=seed,
+            cpu_threads=cpu_threads,
+        )
+    except (ImportError, OSError, ValueError, RuntimeError) as error:
+        structlog.get_logger().error(
+            "guardian_league_evaluation_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(result.model_dump_json(indent=2))
+
+
 @simulation_app.command("guardian-train")
 def simulation_guardian_train(
     catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False, readable=True)] = Path(
@@ -2818,6 +2898,14 @@ def simulation_guardian_train(
         "checkpoints/guardian-arena"
     ),
     resume: Annotated[Path | None, typer.Option(exists=True, file_okay=False)] = None,
+    league: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True,
+            dir_okay=False,
+            help="Opt-in frozen guardian roster; requires --resume and --teacher-updates 0.",
+        ),
+    ] = None,
     migrate_utilities_from: Annotated[
         Path | None,
         typer.Option(
@@ -2888,7 +2976,12 @@ def simulation_guardian_train(
             help="Use 48 actions; requires utilities and weighted-discard-consumption-v1."
         ),
     ] = False,
-    baseline_opponent_fraction: Annotated[float, typer.Option(min=0, max=1)] = 0.5,
+    baseline_opponent_fraction: Annotated[
+        float,
+        typer.Option(
+            min=0, max=1, help="Legacy greedy/self-play mix; leave at 0.5 when using --league."
+        ),
+    ] = 0.5,
     evaluation_games: Annotated[int, typer.Option(min=2, max=256)] = 32,
     cpu_threads: Annotated[int, typer.Option(min=1, max=16)] = 2,
     hidden_size: Annotated[int, typer.Option(min=16, max=256)] = 128,
@@ -2926,6 +3019,9 @@ def simulation_guardian_train(
                 if environment_minibatch_size is not None
                 else min(16, batch_size),
                 "baseline_opponent_fraction": baseline_opponent_fraction,
+                "opponent_mode": "frozen-guardian-league-v1"
+                if league is not None
+                else "greedy-selfplay-v1",
                 "evaluation_games": evaluation_games,
                 "cpu_threads": cpu_threads,
                 "hidden_size": hidden_size,
@@ -2941,6 +3037,7 @@ def simulation_guardian_train(
             migrate_utilities_from=migrate_utilities_from,
             migrate_discards_from=migrate_discards_from,
             migrate_horizon_from=migrate_horizon_from,
+            league_path=league,
         )
     except (
         ImportError,
@@ -2966,6 +3063,14 @@ def simulation_guardian_train(
 @simulation_app.command("guardian-evaluate")
 def simulation_guardian_evaluate(
     checkpoint: Annotated[Path, typer.Option(exists=True, file_okay=False)],
+    opponent_checkpoint: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True,
+            file_okay=False,
+            help="Read-only paired evaluation against a compatible frozen guardian checkpoint.",
+        ),
+    ] = None,
     catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False, readable=True)] = Path(
         "data", "snapshots", "2026-09-21", "api-catalog-en.json"
     ),
@@ -2991,6 +3096,7 @@ def simulation_guardian_evaluate(
             games=games,
             seed=seed,
             cpu_threads=cpu_threads,
+            opponent_checkpoint=opponent_checkpoint,
         )
     except (
         ImportError,

@@ -27,6 +27,14 @@ from godfield_bot.guardian_coverage import (
     count_guardian_window_outcomes,
 )
 from godfield_bot.guardian_discard_refill import GuardianDiscardRefillPlan
+from godfield_bot.guardian_league import (
+    FrozenGuardianLeague,
+    GuardianLeagueController,
+    GuardianLeagueCounts,
+    GuardianLeagueSnapshot,
+    guardian_arena_contract,
+    load_guardian_league,
+)
 from godfield_bot.guardian_neural import (
     GuardianArenaPolicy,
     GuardianPolicyArchitecture,
@@ -65,6 +73,9 @@ DEFENSE_FEEDBACK_ALGORITHM: Literal[
 READY_ACTIVITY_ALGORITHM: Literal["provisional-guardian-duel-recurrent-ppo-ready-activity-v1"] = (
     "provisional-guardian-duel-recurrent-ppo-ready-activity-v1"
 )
+LEAGUE_ALGORITHM: Literal["provisional-guardian-duel-frozen-league-ppo-v1"] = (
+    "provisional-guardian-duel-frozen-league-ppo-v1"
+)
 MANIFEST_FILE = "arena-manifest.json"
 WEIGHTS_FILE = "arena-weights.pt"
 
@@ -98,6 +109,7 @@ class GuardianTrainingConfig(BaseModel):
     entropy_weight: float = Field(default=0.01, ge=0, le=1, allow_inf_nan=False)
     max_gradient_norm: float = Field(default=0.5, gt=0, le=10, allow_inf_nan=False)
     baseline_opponent_fraction: float = Field(default=0.5, ge=0, le=1, allow_inf_nan=False)
+    opponent_mode: Literal["greedy-selfplay-v1", "frozen-guardian-league-v1"] = "greedy-selfplay-v1"
     hidden_size: int = Field(default=128, ge=16, le=256, strict=True)
     embedding_size: int = Field(default=32, ge=8, le=128, strict=True)
     evaluation_games: int = Field(default=32, ge=2, le=256, strict=True)
@@ -105,6 +117,13 @@ class GuardianTrainingConfig(BaseModel):
 
     @model_validator(mode="after")
     def bounded_duel(self) -> GuardianTrainingConfig:
+        if self.opponent_mode == "frozen-guardian-league-v1" and (
+            self.teacher_updates != 0 or self.baseline_opponent_fraction != 0.5
+        ):
+            raise ValueError(
+                "frozen league requires teacher_updates=0 and "
+                "baseline_opponent_fraction=0.5 (unused in league mode)"
+            )
         if self.updates == 0 and (
             self.teacher_updates == 0
             or self.defense_feedback_weight > 0
@@ -166,6 +185,7 @@ class GuardianLearningRollout:
     utility_statistics: GuardianUtilityStatistics | None = None
     discarded_cards: int | None = None
     outcome_coverage: GuardianWindowOutcomeCoverage | None = None
+    league_statistics: GuardianLeagueCounts | None = None
 
     @property
     def steps(self) -> int:
@@ -179,19 +199,47 @@ class GuardianLearningRollout:
 class GuardianDuelCollector:
     """Keep episodes and detached seat memories across update boundaries."""
 
-    def __init__(self, arena: GuardianRolloutArena, model: GuardianArenaPolicy):
+    def __init__(
+        self,
+        arena: GuardianRolloutArena,
+        model: GuardianArenaPolicy,
+        *,
+        league: FrozenGuardianLeague | None = None,
+    ):
         if arena.config.player_count != 2:
             raise GuardianTrainingError("signed arena learning requires exactly two players")
         self.arena = arena
         self.model = model
         self.states = torch.zeros((arena.config.batch_size, 2, model.hidden_size))
         self.previous_done = torch.ones(arena.config.batch_size, dtype=torch.bool)
+        if league is not None and (
+            league.snapshot.architecture != model.architecture
+            or guardian_arena_contract(league.snapshot.arena)
+            != guardian_arena_contract(arena.metadata)
+            or any(opponent is model for opponent in league.models)
+        ):
+            raise GuardianTrainingError(
+                "collector frozen league must match without learner aliasing"
+            )
+        self.league = (
+            GuardianLeagueController(
+                league, batch_size=arena.config.batch_size, seed=arena.config.seed
+            )
+            if league is not None
+            else None
+        )
 
     def collect(
         self, config: GuardianTrainingConfig, *, teacher: bool = False
     ) -> GuardianLearningRollout:
         if config.arena != self.arena.config:
             raise GuardianTrainingError("collector and training arena configurations differ")
+        if (self.league is not None) != (config.opponent_mode == "frozen-guardian-league-v1") or (
+            teacher and self.league is not None
+        ):
+            raise GuardianTrainingError(
+                "collector opponent mode differs or attempts league imitation"
+            )
         observations: list[list[Tensor]] = [[] for _ in range(7)]
         actors_history, actions_history, starts_history, trainable_history = [], [], [], []
         teacher_actions_history: list[Tensor] = []
@@ -203,7 +251,23 @@ class GuardianDuelCollector:
         initial_utilities = self.arena.utility_statistics
         initial_discards = self.arena.discarded_cards
         phase_counts = np.zeros(6, dtype=np.int64)
+        league_counts = (
+            {
+                field: np.zeros(len(self.league.league.snapshot.members), dtype=np.int64)
+                for field in (
+                    "episode_starts",
+                    "learner_decisions",
+                    "opponent_decisions",
+                    "completed_games",
+                    "truncated_games",
+                )
+            }
+            if self.league is not None
+            else {}
+        )
         digest = hashlib.sha256(self.arena.metadata.model_dump_json().encode())
+        if self.league is not None:
+            digest.update(bytes.fromhex(self.league.league.snapshot.sha256))
         envs = torch.arange(config.arena.batch_size)
         baseline_envs = envs < round(config.arena.batch_size * config.baseline_opponent_fraction)
         self.model.eval()
@@ -211,6 +275,12 @@ class GuardianDuelCollector:
             starts = self.previous_done.clone()
             self.states[self.previous_done] = 0
             obs = self.arena.reset_done()
+            if self.league is not None:
+                changed = self.league.begin(obs)
+                league_counts["episode_starts"] += np.bincount(
+                    self.league.assignments[changed],
+                    minlength=len(self.league.league.snapshot.members),
+                )
             features = guardian_feature_tensors(obs)
             actors = torch.from_numpy(obs.actors.copy())
             with torch.no_grad():
@@ -221,15 +291,23 @@ class GuardianDuelCollector:
                 actions = distribution.sample()  # type: ignore[no-untyped-call]
                 learner_seats = (envs + torch.from_numpy(obs.episode_ids.copy())) % 2
                 trainable = ~(baseline_envs & (actors != learner_seats))
+                if self.league is not None:
+                    trainable = actors == learner_seats
                 baseline = (
                     torch.from_numpy(greedy_guardian_actions(obs))
-                    if teacher or bool((~trainable).any()) or config.defense_feedback_weight > 0
+                    if teacher
+                    or (self.league is None and bool((~trainable).any()))
+                    or config.defense_feedback_weight > 0
                     else None
                 )
                 if teacher:
                     assert baseline is not None
                     actions = baseline
                     trainable = torch.ones_like(trainable)
+                elif self.league is not None:
+                    rows = np.flatnonzero(~trainable.numpy())
+                    frozen_actions = self.league.actions(obs, rows)
+                    actions = torch.where(trainable, actions, torch.from_numpy(frozen_actions))
                 elif bool((~trainable).any()):
                     assert baseline is not None
                     actions = torch.where(trainable, actions, baseline)
@@ -256,6 +334,18 @@ class GuardianDuelCollector:
             completed += int(np.count_nonzero(transition.newly_finished & transition.terminated))
             truncated += int(np.count_nonzero(transition.newly_finished & transition.truncated))
             phase_counts += np.bincount(obs.phases, minlength=6)
+            if self.league is not None:
+                for field, selected in (
+                    ("learner_decisions", trainable.numpy()),
+                    ("opponent_decisions", ~trainable.numpy()),
+                    ("completed_games", transition.newly_finished & transition.terminated),
+                    ("truncated_games", transition.newly_finished & transition.truncated),
+                ):
+                    league_counts[field] += np.bincount(
+                        self.league.assignments[selected],
+                        minlength=len(self.league.league.snapshot.members),
+                    )
+                digest.update(self.league.assignments.tobytes())
             for value in (
                 *features,
                 actors,
@@ -323,6 +413,20 @@ class GuardianDuelCollector:
             if config.arena.inventory_discards
             else None,
             coverage,
+            GuardianLeagueCounts.model_validate(
+                {
+                    "league_sha256": self.league.league.snapshot.sha256,
+                    "member_ids": tuple(
+                        member.opponent_id for member in self.league.league.snapshot.members
+                    ),
+                    **{
+                        field: tuple(int(value) for value in counts)
+                        for field, counts in league_counts.items()
+                    },
+                }
+            )
+            if self.league is not None
+            else None,
         )
 
 
@@ -680,11 +784,23 @@ class GuardianEvaluation(BaseModel):
         "greedy-smoke-baseline-v1",
         "greedy-utility-smoke-baseline-v2",
         "greedy-discard-smoke-baseline-v3",
+        "frozen-guardian-neural-v1",
     ] = "greedy-smoke-baseline-v1"
+    opponent_model_id: str | None = Field(default=None, min_length=1)
+    opponent_weights_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     promotion_eligible: Literal[False] = False
 
     @model_validator(mode="after")
     def all_attempts_counted(self) -> GuardianEvaluation:
+        if (self.opponent == "frozen-guardian-neural-v1") != (
+            self.opponent_model_id is not None and self.opponent_weights_sha256 is not None
+        ) or (
+            self.opponent != "frozen-guardian-neural-v1"
+            and (self.opponent_model_id is not None or self.opponent_weights_sha256 is not None)
+        ):
+            raise ValueError(
+                "evaluation frozen opponent requires its exact identity and weight hash"
+            )
         if self.games % 2 or self.wins + self.losses + self.truncations != self.games:
             raise ValueError("paired evaluation must account for every attempted game")
         for counts, total in (
@@ -721,6 +837,54 @@ class GuardianEvaluation(BaseModel):
         return self
 
 
+class GuardianLeagueEvaluation(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    schema_version: Literal[1] = 1
+    source_kind: Literal["verified-local-guardian-league-diagnostic-v1"] = (
+        "verified-local-guardian-league-diagnostic-v1"
+    )
+    candidate_model_id: str = Field(min_length=1)
+    candidate_weights_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    arena: GuardianRolloutMetadata
+    league: GuardianLeagueSnapshot
+    league_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    seed: int = Field(ge=0, le=2**32 - 1, strict=True)
+    games_per_member: int = Field(ge=2, le=256, strict=True)
+    matchups: tuple[GuardianEvaluation, ...]
+    weights_verified: Literal[True] = True
+    full_game_training_ready: Literal[False] = False
+    official_fidelity_verified: Literal[False] = False
+    live_checkpoint_compatible: Literal[False] = False
+    promotion_eligible: Literal[False] = False
+
+    @model_validator(mode="after")
+    def aligned_matchups(self) -> GuardianLeagueEvaluation:
+        if (
+            self.games_per_member % 2
+            or self.league_sha256 != self.league.sha256
+            or guardian_arena_contract(self.arena) != guardian_arena_contract(self.league.arena)
+            or len(self.matchups) != len(self.league.members)
+        ):
+            raise ValueError("guardian league diagnostic must match its exact roster and arena")
+        for member, result in zip(self.league.members, self.matchups, strict=True):
+            if (
+                result.seed != self.seed
+                or result.games != self.games_per_member
+                or result.policy_kind != "neural-greedy"
+                or (
+                    member.kind == "model"
+                    and (
+                        result.opponent != "frozen-guardian-neural-v1"
+                        or result.opponent_model_id != member.opponent_id
+                        or result.opponent_weights_sha256 != member.weights_sha256
+                    )
+                )
+                or (member.kind == "greedy" and result.opponent != member.opponent_id)
+            ):
+                raise ValueError("guardian league diagnostic opponent identity or pairing differs")
+        return self
+
+
 def evaluate_guardian_policy(
     model: GuardianArenaPolicy | None,
     *,
@@ -729,9 +893,22 @@ def evaluate_guardian_policy(
     config: GuardianRolloutConfig,
     games: int,
     seed: int,
+    opponent_model: GuardianArenaPolicy | None = None,
+    opponent_model_id: str | None = None,
+    opponent_weights_sha256: str | None = None,
 ) -> GuardianEvaluation:
     if config.player_count != 2 or type(games) is not int or not 2 <= games <= 256 or games % 2:
         raise GuardianTrainingError("evaluation requires 2..256 paired duel games")
+    if (
+        (opponent_model is None) != (opponent_model_id is None and opponent_weights_sha256 is None)
+        or (opponent_model is not None and (not opponent_model_id or not opponent_weights_sha256))
+        or (
+            model is not None
+            and opponent_model is not None
+            and model.architecture != opponent_model.architecture
+        )
+    ):
+        raise GuardianTrainingError("frozen evaluation opponent identity or architecture differs")
     wins, losses, truncations = [0, 0], [0, 0], [0, 0]
     causes = GuardianTruncationCounts().model_dump()
     replacement_gifts = 0
@@ -741,12 +918,17 @@ def evaluate_guardian_policy(
     play_statistics = []
     if model is not None:
         model.eval()
+    if opponent_model is not None:
+        opponent_model.eval()
     for learner_seat in (0, 1):
         arena_config = config.model_copy(update={"batch_size": games // 2, "seed": seed})
         arena = GuardianRolloutArena(
             catalog_path=catalog_path, bible_path=bible_path, config=arena_config
         )
         memory = torch.zeros((games // 2, model.hidden_size if model is not None else 0))
+        opponent_memory = torch.zeros(
+            (games // 2, opponent_model.hidden_size if opponent_model is not None else 0)
+        )
         tracker = _GuardianPlayTracker(games // 2)
         for _ in range(config.max_decisions):
             observation = arena.observe()
@@ -761,6 +943,17 @@ def evaluate_guardian_policy(
                     )
                 actions[rows] = logits.argmax(dim=-1).numpy()
                 memory[rows] = states
+            opponent_rows = np.flatnonzero(
+                observation.active & (observation.actors != learner_seat)
+            )
+            if len(opponent_rows) and opponent_model is not None:
+                with torch.no_grad():
+                    logits, _, states = opponent_model(
+                        *guardian_feature_tensors(observation, opponent_rows),
+                        recurrent_state=opponent_memory[opponent_rows],
+                    )
+                actions[opponent_rows] = logits.argmax(dim=-1).numpy()
+                opponent_memory[opponent_rows] = states
             defense_rows = np.flatnonzero(
                 observation.active & (observation.phases == 1) & (actions >= 1) & (actions <= 18)
             )
@@ -838,11 +1031,15 @@ def evaluate_guardian_policy(
                 stats.mutual_forced_pass_truncations for stats in play_statistics
             ),
         ),
-        opponent="greedy-discard-smoke-baseline-v3"
+        opponent="frozen-guardian-neural-v1"
+        if opponent_model is not None
+        else "greedy-discard-smoke-baseline-v3"
         if config.inventory_discards
         else "greedy-utility-smoke-baseline-v2"
         if config.inventory_utilities
         else "greedy-smoke-baseline-v1",
+        opponent_model_id=opponent_model_id,
+        opponent_weights_sha256=opponent_weights_sha256,
     )
 
 
@@ -853,11 +1050,13 @@ class GuardianUpdateMetrics(BaseModel):
     truncated_games: int = Field(ge=0, strict=True)
     learner_decisions: int = Field(ge=0, strict=True)
     baseline_decisions: int = Field(ge=0, strict=True)
+    frozen_opponent_decisions: int | None = Field(default=None, ge=0, strict=True)
     decisions_by_phase: tuple[int, ...]
     replacement_gifts: int | None = Field(default=None, ge=0, strict=True)
     utility_statistics: GuardianUtilityStatistics | None = None
     discarded_cards: int | None = Field(default=None, ge=0, strict=True)
     outcome_coverage: GuardianWindowOutcomeCoverage | None = None
+    league_statistics: GuardianLeagueCounts | None = None
 
 
 class GuardianUtilityMigration(BaseModel):
@@ -999,11 +1198,14 @@ class GuardianArenaManifest(BaseModel):
         "provisional-guardian-duel-recurrent-imitation-ppo-defense-feedback-v1",
         "provisional-guardian-duel-recurrent-imitation-only-v1",
         "provisional-guardian-duel-recurrent-ppo-ready-activity-v1",
+        "provisional-guardian-duel-frozen-league-ppo-v1",
     ] = ALGORITHM
     parent_weights_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     utility_migration: GuardianUtilityMigration | None = None
     discard_migration: GuardianDiscardMigration | None = None
     horizon_migration: GuardianHorizonMigration | None = None
+    league_snapshot: GuardianLeagueSnapshot | None = None
+    league_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     rollout_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     teacher_metrics: tuple[GuardianTeacherMetrics, ...]
     update_metrics: tuple[GuardianUpdateMetrics, ...]
@@ -1160,7 +1362,9 @@ class GuardianArenaManifest(BaseModel):
         ):
             raise ValueError("horizon migration may only extend bounds, not rules/sources/rewards")
         expected_algorithm = (
-            IMITATION_ALGORITHM
+            LEAGUE_ALGORITHM
+            if self.training.opponent_mode == "frozen-guardian-league-v1"
+            else IMITATION_ALGORITHM
             if self.training.updates == 0
             else READY_ACTIVITY_ALGORITHM
             if self.training.ready_activity_weight > 0
@@ -1170,6 +1374,21 @@ class GuardianArenaManifest(BaseModel):
         )
         if self.algorithm != expected_algorithm:
             raise ValueError("checkpoint learning algorithm differs from feedback configuration")
+        league = self.league_snapshot
+        if self.training.opponent_mode == "frozen-guardian-league-v1":
+            if (
+                league is None
+                or self.league_sha256 != league.sha256
+                or league.architecture != self.architecture
+                or league.reference_weights_sha256 != self.parent_weights_sha256
+                or guardian_arena_contract(league.arena) != guardian_arena_contract(self.arena)
+                or migration is not None
+                or transfer is not None
+                or horizon is not None
+            ):
+                raise ValueError("league checkpoint roster, parent, or contracts differ")
+        elif league is not None or self.league_sha256 is not None:
+            raise ValueError("legacy guardian training cannot claim a frozen league")
         if self.arena.config != self.training.arena:
             raise ValueError("checkpoint arena and training configurations differ")
         if (
@@ -1234,12 +1453,35 @@ class GuardianArenaManifest(BaseModel):
         for index, update in enumerate(self.update_metrics, 1):
             if (
                 update.update != index
-                or update.learner_decisions + update.baseline_decisions != decisions
+                or update.learner_decisions
+                + update.baseline_decisions
+                + (update.frozen_opponent_decisions or 0)
+                != decisions
                 or len(update.decisions_by_phase) != 6
                 or min(update.decisions_by_phase) < 0
                 or sum(update.decisions_by_phase) != decisions
             ):
                 raise ValueError("checkpoint update does not account for all decisions")
+            counts = update.league_statistics
+            if league is not None:
+                greedy_index = next(
+                    i for i, member in enumerate(league.members) if member.kind == "greedy"
+                )
+                if (
+                    counts is None
+                    or counts.league_sha256 != league.sha256
+                    or counts.member_ids != tuple(member.opponent_id for member in league.members)
+                    or sum(counts.learner_decisions) != update.learner_decisions
+                    or counts.opponent_decisions[greedy_index] != update.baseline_decisions
+                    or sum(counts.opponent_decisions) - counts.opponent_decisions[greedy_index]
+                    != update.frozen_opponent_decisions
+                    or sum(counts.completed_games) != update.completed_games
+                    or sum(counts.truncated_games) != update.truncated_games
+                    or sum(counts.episode_starts) > decisions
+                ):
+                    raise ValueError("league update counters differ from its roster/rollout")
+            elif counts is not None or update.frozen_opponent_decisions not in (None, 0):
+                raise ValueError("legacy guardian update cannot claim frozen opponent decisions")
             coverage = update.outcome_coverage
             if coverage is not None and (
                 coverage.decisions != decisions
@@ -1400,6 +1642,9 @@ class GuardianTrainingExposureReport(BaseModel):
     rollout_steps: int = Field(ge=2, le=256, strict=True)
     teacher: GuardianTrainingPhaseExposure
     ppo: GuardianTrainingPhaseExposure
+    opponent_mode: Literal["greedy-selfplay-v1", "frozen-guardian-league-v1"] = "greedy-selfplay-v1"
+    league_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    league_statistics: GuardianLeagueCounts | None = None
     evaluation_teacher: GuardianEvaluation | None = None
     evaluation_after: GuardianEvaluation
     checkpoint_weights_verified: Literal[True] = True
@@ -1412,6 +1657,18 @@ class GuardianTrainingExposureReport(BaseModel):
         expected = self.arena_config.batch_size * self.rollout_steps
         if any(phase.decisions_per_window != expected for phase in (self.teacher, self.ppo)):
             raise ValueError("report exposure differs from the recorded collection window")
+        counts = self.league_statistics
+        if self.opponent_mode == "frozen-guardian-league-v1":
+            if (
+                counts is None
+                or counts.league_sha256 != self.league_sha256
+                or sum(counts.learner_decisions) + sum(counts.opponent_decisions)
+                != self.ppo.decisions
+                or self.teacher.windows != 0
+            ):
+                raise ValueError("report frozen league must account for its complete PPO run")
+        elif counts is not None or self.league_sha256 is not None:
+            raise ValueError("legacy exposure report cannot claim frozen league statistics")
         return self
 
 
@@ -1462,6 +1719,34 @@ def report_guardian_training_exposure(directory: Path) -> GuardianTrainingExposu
         rollout_steps=manifest.training.rollout_steps,
         teacher=phase(manifest.teacher_metrics),
         ppo=phase(manifest.update_metrics),
+        opponent_mode=manifest.training.opponent_mode,
+        league_sha256=manifest.league_sha256,
+        league_statistics=GuardianLeagueCounts.model_validate(
+            {
+                "league_sha256": manifest.league_sha256,
+                "member_ids": tuple(
+                    member.opponent_id for member in manifest.league_snapshot.members
+                ),
+                **{
+                    field: tuple(
+                        sum(
+                            getattr(update.league_statistics, field)[i]
+                            for update in manifest.update_metrics
+                        )
+                        for i in range(len(manifest.league_snapshot.members))
+                    )
+                    for field in (
+                        "episode_starts",
+                        "learner_decisions",
+                        "opponent_decisions",
+                        "completed_games",
+                        "truncated_games",
+                    )
+                },
+            }
+        )
+        if manifest.league_snapshot is not None
+        else None,
         evaluation_teacher=manifest.evaluation_teacher,
         evaluation_after=manifest.evaluation_after,
     )
@@ -1528,6 +1813,7 @@ def evaluate_guardian_checkpoint(
     games: int,
     seed: int,
     cpu_threads: int = 2,
+    opponent_checkpoint: Path | None = None,
 ) -> GuardianEvaluation:
     """Read-only, source-pinned evaluation on separately specified local games."""
     with _runtime(seed, cpu_threads):
@@ -1538,6 +1824,11 @@ def evaluate_guardian_checkpoint(
             config=manifest.training.arena,
         )
         _compatible(manifest, fresh.metadata, model.architecture)
+        opponent_manifest = opponent_model = None
+        if opponent_checkpoint is not None:
+            opponent_manifest, opponent_model = load_guardian_checkpoint(opponent_checkpoint)
+            _compatible(opponent_manifest, fresh.metadata, model.architecture)
+            opponent_model.eval().requires_grad_(False)
         return evaluate_guardian_policy(
             model,
             catalog_path=catalog_path,
@@ -1545,6 +1836,68 @@ def evaluate_guardian_checkpoint(
             config=manifest.training.arena,
             games=games,
             seed=seed,
+            opponent_model=opponent_model,
+            opponent_model_id=opponent_manifest.model_id if opponent_manifest is not None else None,
+            opponent_weights_sha256=opponent_manifest.weights_sha256
+            if opponent_manifest is not None
+            else None,
+        )
+
+
+def evaluate_guardian_league_checkpoint(
+    directory: Path,
+    *,
+    league_path: Path,
+    catalog_path: Path,
+    bible_path: Path,
+    games: int,
+    seed: int,
+    cpu_threads: int = 2,
+) -> GuardianLeagueEvaluation:
+    """Read-only opponent-by-opponent diagnostics, never an automatic promotion."""
+    with _runtime(seed, cpu_threads):
+        manifest, model = load_guardian_checkpoint(directory)
+        snapshot = GuardianLeagueSnapshot.model_validate_json(
+            league_path.read_text(encoding="utf-8")
+        )
+        parent_member = next(
+            member
+            for member in snapshot.members
+            if member.kind == "model" and member.opponent_id == snapshot.reference_model_id
+        )
+        assert parent_member.checkpoint_directory is not None
+        reference, _ = load_guardian_checkpoint(Path(parent_member.checkpoint_directory))
+        fresh = GuardianRolloutArena(
+            catalog_path=catalog_path, bible_path=bible_path, config=manifest.training.arena
+        )
+        _compatible(manifest, fresh.metadata, snapshot.architecture)
+        if manifest.league_sha256 is not None and manifest.league_sha256 != snapshot.sha256:
+            raise GuardianTrainingError(
+                "evaluation roster differs from the candidate training league"
+            )
+        frozen = load_guardian_league(league_path, reference=reference, arena=fresh.metadata)
+        return GuardianLeagueEvaluation(
+            candidate_model_id=manifest.model_id,
+            candidate_weights_sha256=manifest.weights_sha256,
+            arena=fresh.metadata,
+            league=snapshot,
+            league_sha256=snapshot.sha256,
+            seed=seed,
+            games_per_member=games,
+            matchups=tuple(
+                evaluate_guardian_policy(
+                    model,
+                    catalog_path=catalog_path,
+                    bible_path=bible_path,
+                    config=manifest.training.arena,
+                    games=games,
+                    seed=seed,
+                    opponent_model=opponent,
+                    opponent_model_id=member.opponent_id if opponent is not None else None,
+                    opponent_weights_sha256=member.weights_sha256 if opponent is not None else None,
+                )
+                for member, opponent in zip(snapshot.members, frozen.models, strict=True)
+            ),
         )
 
 
@@ -1685,8 +2038,20 @@ def train_guardian_candidate(
     migrate_utilities_from: Path | None = None,
     migrate_discards_from: Path | None = None,
     migrate_horizon_from: Path | None = None,
+    league_path: Path | None = None,
 ) -> tuple[Path, GuardianArenaManifest]:
     """Create a new private local checkpoint; never overwrite a source model."""
+    if (league_path is not None) != (config.opponent_mode == "frozen-guardian-league-v1") or (
+        league_path is not None
+        and (
+            resume is None
+            or any(
+                path is not None
+                for path in (migrate_utilities_from, migrate_discards_from, migrate_horizon_from)
+            )
+        )
+    ):
+        raise GuardianTrainingError("frozen league requires an ordinary compatible --resume parent")
     if (
         sum(
             path is not None
@@ -1752,6 +2117,11 @@ def train_guardian_candidate(
             _compatible(parent, arena.metadata, architecture)
         else:
             model = GuardianArenaPolicy(architecture)
+        frozen_league = (
+            load_guardian_league(league_path, reference=parent, arena=arena.metadata)
+            if league_path is not None and parent is not None
+            else None
+        )
         evaluation_seed = (config.arena.seed + 1_000_003) % 2**32
         before = evaluate_guardian_policy(
             model,
@@ -1769,7 +2139,7 @@ def train_guardian_candidate(
             games=config.evaluation_games,
             seed=evaluation_seed,
         )
-        collector = GuardianDuelCollector(arena, model)
+        collector = GuardianDuelCollector(arena, model, league=frozen_league)
         digest = hashlib.sha256(config.model_dump_json().encode())
         teacher_metrics, update_metrics = [], []
         teacher_optimizer = torch.optim.Adam(model.parameters(), lr=config.teacher_learning_rate)
@@ -1816,12 +2186,28 @@ def train_guardian_candidate(
                     completed_games=rollout.completed_games,
                     truncated_games=rollout.truncated_games,
                     learner_decisions=int(rollout.policy_trainable.sum()),
-                    baseline_decisions=int((~rollout.policy_trainable).sum()),
+                    baseline_decisions=rollout.league_statistics.opponent_decisions[
+                        next(
+                            i
+                            for i, member in enumerate(frozen_league.snapshot.members)
+                            if member.kind == "greedy"
+                        )
+                    ]
+                    if frozen_league is not None and rollout.league_statistics is not None
+                    else int((~rollout.policy_trainable).sum()),
+                    frozen_opponent_decisions=sum(
+                        rollout.league_statistics.opponent_decisions[i]
+                        for i, member in enumerate(frozen_league.snapshot.members)
+                        if member.kind == "model"
+                    )
+                    if frozen_league is not None and rollout.league_statistics is not None
+                    else None,
                     decisions_by_phase=rollout.phase_counts,
                     replacement_gifts=rollout.replacement_gifts,
                     utility_statistics=rollout.utility_statistics,
                     discarded_cards=rollout.discarded_cards,
                     outcome_coverage=rollout.outcome_coverage,
+                    league_statistics=rollout.league_statistics,
                 )
             )
             digest.update(bytes.fromhex(rollout.digest))
@@ -1838,6 +2224,9 @@ def train_guardian_candidate(
                 ready_activity_loss=metrics.ready_activity_loss,
                 ready_pass_probability=metrics.ready_pass_probability,
                 ready_activity_samples=metrics.ready_activity_samples,
+                league_statistics=rollout.league_statistics.model_dump()
+                if rollout.league_statistics is not None
+                else None,
                 utility_statistics=rollout.utility_statistics.model_dump()
                 if rollout.utility_statistics is not None
                 else None,
@@ -1893,7 +2282,9 @@ def train_guardian_candidate(
             architecture=architecture,
             arena=arena.metadata,
             training=config,
-            algorithm=IMITATION_ALGORITHM
+            algorithm=LEAGUE_ALGORITHM
+            if config.opponent_mode == "frozen-guardian-league-v1"
+            else IMITATION_ALGORITHM
             if config.updates == 0
             else READY_ACTIVITY_ALGORITHM
             if config.ready_activity_weight > 0
@@ -1904,6 +2295,8 @@ def train_guardian_candidate(
             utility_migration=migration,
             discard_migration=discard_migration,
             horizon_migration=horizon_migration,
+            league_snapshot=frozen_league.snapshot if frozen_league is not None else None,
+            league_sha256=frozen_league.snapshot.sha256 if frozen_league is not None else None,
             rollout_sha256=digest.hexdigest(),
             teacher_metrics=tuple(teacher_metrics),
             update_metrics=tuple(update_metrics),

@@ -1563,6 +1563,24 @@ sets, without voluntary/forced passes or defense/decision-limit exits. A further
 64-update continuation did not improve that aggregate; it is not recommended
 over this parent. Neither is an accepted or live-ready baseline.
 
+The approved **opt-in frozen-opponent curriculum** is available through
+`simulation guardian-create-league`, `guardian-train --league FILE`, and
+`guardian-evaluate-league`. It pins compatible checkpoint manifest/weight hashes,
+keeps one greedy or frozen neural opponent per episode with private recurrent
+memory, and excludes opponent moves from learner policy gradients. Normal
+greedy/self-play training and live controls remain unchanged. League training
+requires its exact `--resume` reference and `--teacher-updates 0`; creating a
+new child does not update the frozen roster automatically. Training reports
+now include roster-ordered exposure counters.
+
+A matched 48-update experiment showed **no strength gain**: across two seed
+sets and four opponents, the league child won 255/512 diagnostic games versus
+277/512 for the retained reference and 273/512 for a greedy-only child. Keep
+the reference; neither new child is recommended or promoted. This adds local
+opponent diversity, not new C++ game mechanics or full-game readiness. See
+[ADR 0096](docs/architecture/0096-frozen-guardian-opponent-curriculum.md)
+for commands, source hashes, gradient boundaries, and per-opponent results.
+
 A later private-room trace contains one self-targeted Nocturnal Broom-style
 `removeItems` event. Its explicit three selected cards disappear in the next
 inventory, and native 0.36.0/schema 3 can reproduce that narrow operation with

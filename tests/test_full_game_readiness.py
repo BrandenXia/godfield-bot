@@ -98,6 +98,8 @@ def test_portable_curse_component_is_not_counted_as_inventory_integration(report
     assert "not integrated" in curses.current_behavior
     assert "native/godfield_sim/src/curse_dynamics_batch.cpp" in curses.source_files
     assert "src/godfield_bot/curse_dynamics.py" in curses.source_files
+    assert "native/godfield_sim/src/curse_decisions.cpp" in curses.source_files
+    assert "src/godfield_bot/curse_decisions.py" in curses.source_files
     by_model = {item.model_id: item for item in report.artifacts}
     assert all(by_model[model].integration == "not-integrated" for model in (199, 200, 237, 238))
     assert report.inventory_model_count == 102

@@ -342,6 +342,10 @@ NB_MODULE(_native, module) {
       godfield_sim::kCurseDynamicsSchemaVersion;
   module.attr("CURSE_DYNAMICS_RULESET_ID") =
       godfield_sim::kCurseDynamicsRulesetId;
+  module.attr("CURSE_DECISION_SCHEMA_VERSION") =
+      godfield_sim::kCurseDecisionSchemaVersion;
+  module.attr("CURSE_DECISION_RULESET_ID") =
+      godfield_sim::kCurseDecisionRulesetId;
   module.attr("CURSE_FOG_BIT") = godfield_sim::kCurseFogBit;
   module.attr("CURSE_DREAM_BIT") = godfield_sim::kCurseDreamBit;
   module.attr("CURSE_FLASH_BIT") = godfield_sim::kCurseFlashBit;
@@ -374,6 +378,21 @@ NB_MODULE(_native, module) {
       .def("snapshot", &godfield_sim::CurseDynamicsBatch::snapshot)
       .def("transition_snapshot",
            &godfield_sim::CurseDynamicsBatch::transition_snapshot)
+      .def("status_observations",
+           &godfield_sim::CurseDynamicsBatch::status_observations,
+           nb::arg("environments").noconvert(), nb::arg("actors").noconvert())
+      .def("defense_card_limits",
+           &godfield_sim::CurseDynamicsBatch::defense_card_limits,
+           nb::arg("environments").noconvert(), nb::arg("players").noconvert(),
+           nb::arg("ordinary_limits").noconvert())
+      .def("hit_decisions", &godfield_sim::CurseDynamicsBatch::hit_decisions,
+           nb::arg("environments").noconvert(), nb::arg("targets").noconvert(),
+           nb::arg("hit_rates").noconvert(), nb::arg("hit_tickets").noconvert())
+      .def("enemy_targets", &godfield_sim::CurseDynamicsBatch::enemy_targets,
+           nb::arg("environments").noconvert(), nb::arg("actors").noconvert(),
+           nb::arg("intended_targets").noconvert(),
+           nb::arg("eligible_enemies").noconvert(),
+           nb::arg("selection_tickets").noconvert())
       .def_prop_ro("illness_count",
                    &godfield_sim::CurseDynamicsBatch::illness_count)
       .def_prop_ro("curse_count",
@@ -405,7 +424,8 @@ NB_MODULE(_native, module) {
       godfield_sim::kGuardianCombatKernelSchemaVersion;
   module.attr("GUARDIAN_COMBAT_OBSERVATION_SCHEMA_VERSION") =
       godfield_sim::kGuardianCombatObservationSchemaVersion;
-  module.attr("GUARDIAN_COMBAT_RULESET_ID") = godfield_sim::kGuardianCombatRulesetId;
+  module.attr("GUARDIAN_COMBAT_RULESET_ID") =
+      godfield_sim::kGuardianCombatRulesetId;
   module.attr("GUARDIAN_TURN_KERNEL_SCHEMA_VERSION") =
       godfield_sim::kGuardianTurnKernelSchemaVersion;
   module.attr("GUARDIAN_TURN_OBSERVATION_SCHEMA_VERSION") =

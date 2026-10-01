@@ -8,6 +8,8 @@ OBSERVATION_SCHEMA_VERSION: Final[int]
 RULESET_ID: Final[str]
 CURSE_DYNAMICS_SCHEMA_VERSION: Final[int]
 CURSE_DYNAMICS_RULESET_ID: Final[str]
+CURSE_DECISION_SCHEMA_VERSION: Final[int]
+CURSE_DECISION_RULESET_ID: Final[str]
 CURSE_FOG_BIT: Final[int]
 CURSE_DREAM_BIT: Final[int]
 CURSE_FLASH_BIT: Final[int]
@@ -222,6 +224,22 @@ class CurseDynamicsBatch:
     def reset_environments(self, environments: npt.NDArray[np.int64]) -> None: ...
     def snapshot(self) -> npt.NDArray[np.int64]: ...
     def transition_snapshot(self) -> npt.NDArray[np.int64]: ...
+    def status_observations(
+        self, environments: npt.NDArray[np.int64], actors: npt.NDArray[np.int64],
+    ) -> npt.NDArray[np.int64]: ...
+    def defense_card_limits(
+        self, environments: npt.NDArray[np.int64], players: npt.NDArray[np.int64],
+        ordinary_limits: npt.NDArray[np.int64],
+    ) -> npt.NDArray[np.int64]: ...
+    def hit_decisions(
+        self, environments: npt.NDArray[np.int64], targets: npt.NDArray[np.int64],
+        hit_rates: npt.NDArray[np.int64], hit_tickets: npt.NDArray[np.int64],
+    ) -> npt.NDArray[np.int64]: ...
+    def enemy_targets(
+        self, environments: npt.NDArray[np.int64], actors: npt.NDArray[np.int64],
+        intended_targets: npt.NDArray[np.int64], eligible_enemies: npt.NDArray[np.int64],
+        selection_tickets: npt.NDArray[np.int64],
+    ) -> npt.NDArray[np.int64]: ...
     @property
     def illness_count(self) -> int: ...
     @property

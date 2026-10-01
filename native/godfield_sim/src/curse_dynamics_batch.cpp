@@ -50,8 +50,10 @@ void CurseDynamicsBatch::same_length(std::size_t expected, ActionInput input) {
   }
 }
 
-std::vector<std::size_t> CurseDynamicsBatch::checked_players(
-    ActionInput environments, ActionInput players, bool living_only) const {
+std::vector<std::size_t>
+CurseDynamicsBatch::checked_players(ActionInput environments,
+                                    ActionInput players, bool living_only,
+                                    bool require_unique) const {
   same_length(environments.shape(0), players);
   std::vector<std::size_t> indices;
   indices.reserve(environments.shape(0));
@@ -67,7 +69,7 @@ std::vector<std::size_t> CurseDynamicsBatch::checked_players(
     }
     const auto index = static_cast<std::size_t>(environment) * player_count_ +
                        static_cast<std::size_t>(player);
-    if (!unique.insert(index).second ||
+    if ((require_unique && !unique.insert(index).second) ||
         (living_only && states_[index][0] == 0)) {
       throw std::invalid_argument("curse dynamics player is duplicate or dead");
     }

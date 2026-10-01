@@ -1609,6 +1609,16 @@ This is not yet connected to inventory use or neural rollouts, so the full-game
 audit still marks the curse workflow partial and readiness false. See
 [ADR 0098](docs/architecture/0098-portable-native-curse-dynamics.md).
 
+Native 0.48.0 adds separately versioned status decisions on that same state:
+Fog-safe padded status views, Flash defense-card limits, Dark Cloud chance-hit
+decisions, and Fog recipient selection from caller-supplied enemy masks. The
+factory is `godfield_bot.curse_decisions.create_provisional_curse_decision_batch`.
+The view labels unknown data explicitly; hit/defense/target calculations are
+scheduler-only, not learner features. These are still shared components, not a
+complete policy observation or a full-game turn engine; no current checkpoint
+or live control is switched to them. See
+[ADR 0099](docs/architecture/0099-shared-fog-flash-darkcloud-decisions.md).
+
 A later private-room trace contains one self-targeted Nocturnal Broom-style
 `removeItems` event. Its explicit three selected cards disappear in the next
 inventory, and native 0.36.0/schema 3 can reproduce that narrow operation with

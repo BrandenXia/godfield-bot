@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 
 namespace godfield_sim {
@@ -22,6 +23,30 @@ inline constexpr std::uint8_t kCurseDarkCloudBit = 8;
 inline constexpr std::uint8_t kCurseMask = 15;
 inline constexpr std::uint8_t kDocumentedMildCurseMask =
     kCurseFogBit | kCurseFlashBit;
+
+[[nodiscard]] inline constexpr bool
+fog_hides_other_player(std::uint8_t actor_mask, bool self) noexcept {
+  return !self && (actor_mask & kCurseFogBit) != 0;
+}
+
+[[nodiscard]] inline constexpr bool
+flash_prevents_additional_defense(std::uint8_t defender_mask,
+                                  std::size_t selected_count) noexcept {
+  return (defender_mask & kCurseFlashBit) != 0 && selected_count != 0;
+}
+
+[[nodiscard]] inline constexpr bool
+percentage_hit_requires_ticket(std::uint8_t target_mask,
+                               std::uint8_t hit_rate) noexcept {
+  return hit_rate < 100 && (target_mask & kCurseDarkCloudBit) == 0;
+}
+
+[[nodiscard]] inline constexpr bool
+percentage_attack_hits(std::uint8_t target_mask, std::uint8_t hit_rate,
+                       std::uint8_t ticket) noexcept {
+  return !percentage_hit_requires_ticket(target_mask, hit_rate) ||
+         ticket < hit_rate;
+}
 
 [[nodiscard]] inline constexpr IllnessState
 worsen_illness(IllnessState state) noexcept {

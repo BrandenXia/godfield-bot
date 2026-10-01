@@ -3328,8 +3328,13 @@ void AttackDefenseBatch::step(ActionInput actions) {
               dark_cloud_curriculum_ &&
               dark_cloud_flags_[environment * kPlayerCount + (1U - actor)] !=
                   0U;
-          if (!target_has_dark_cloud && selected_hit_rate < 100U &&
-              next_random(environment) % 100U >= selected_hit_rate) {
+          const auto target_curse_mask =
+              target_has_dark_cloud ? kCurseDarkCloudBit : std::uint8_t{0};
+          if (percentage_hit_requires_ticket(target_curse_mask,
+                                             selected_hit_rate) &&
+              !percentage_attack_hits(
+                  target_curse_mask, selected_hit_rate,
+                  static_cast<std::uint8_t>(next_random(environment) % 100U))) {
             pending_attacks_[environment] = 0U;
             pending_elements_[environment] =
                 static_cast<std::uint8_t>(CombatElement::NonElement);
@@ -3667,9 +3672,13 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
   const std::size_t ordered_players[kPlayerCount] = {perspective, opponent};
   for (std::size_t row = 0; row < kPlayerCount; ++row) {
     const auto output = player_offset + row * kPlayerFeatureCount;
+    const auto actor_curse_mask =
+        fog_flash_curriculum_ &&
+                fog_flags_[environment * kPlayerCount + perspective] != 0U
+            ? kCurseFogBit
+            : std::uint8_t{0};
     const auto hidden_by_fog =
-        fog_flash_curriculum_ && row == 1U &&
-        fog_flags_[environment * kPlayerCount + perspective] != 0U;
+        fog_hides_other_player(actor_curse_mask, row == 0);
     player_features_[output] =
         hidden_by_fog ? 0.0F
                       : normalized(hit_points_[environment * kPlayerCount +
@@ -3787,6 +3796,9 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
         pending_base_kinds_[environment] == kDreamMiracleCardKind;
     const auto defender_flash =
         flash_flags_[environment * kPlayerCount + perspective] != 0U;
+    const auto additional_defense_allowed = !flash_prevents_additional_defense(
+        defender_flash ? kCurseFlashBit : std::uint8_t{0},
+        selected_counts_[environment]);
     const auto selected_reflection =
         selected_base_kinds_[environment] == kReflectionArmorCardKind ||
         selected_base_kinds_[environment] == kReflectionWeaponCardKind ||
@@ -3804,7 +3816,7 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
       const auto card_offset = hand_offset(environment, perspective, slot);
       const auto kind = displayed_hand_card_kinds_by_player_[card_offset];
       action_mask_[action_offset + slot + 1U] =
-          ((!defender_flash || !has_defense) &&
+          (additional_defense_allowed &&
            (!pending_direct_curse || kind == kMiracleBlockArmorCardKind) &&
            !selected_reflection && !selected_bounce &&
            (kind == kArmorCardKind || kind == kDualRoleCardKind ||
@@ -3827,11 +3839,11 @@ void AttackDefenseBatch::refresh_environment_views(std::size_t environment) {
             defense_element_is_compatible(
                 pending_elements_[environment],
                 displayed_hand_elements_by_player_[card_offset]))) ||
-          ((!defender_flash || !has_defense) && !selected_reflection &&
+          (additional_defense_allowed && !selected_reflection &&
            !selected_bounce && pending_miracle &&
            (kind == kMiracleBlockWeaponCardKind ||
             kind == kMiracleBlockBoosterCardKind)) ||
-          ((!defender_flash || !has_defense) && !has_defense &&
+          (additional_defense_allowed && !has_defense &&
            !pending_reflected_[environment] && !pending_bounced_[environment] &&
            pending_effects_[environment] != kSameDamageAttackEffect &&
            pending_effects_[environment] != kAttackTwiceEffect &&

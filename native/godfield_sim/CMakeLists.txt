@@ -19,6 +19,7 @@ nanobind_add_module(
   src/guardian_utility_turn_batch.cpp
   src/guardian_discard_turn_batch.cpp
   src/curse_dynamics_batch.cpp
+  src/curse_decisions.cpp
 )
 target_compile_features(_native PRIVATE cxx_std_20)
 

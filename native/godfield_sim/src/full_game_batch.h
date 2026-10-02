@@ -8,11 +8,11 @@
 
 namespace godfield_sim {
 
-inline constexpr std::uint32_t kFullGameKernelSchemaVersion = 2;
+inline constexpr std::uint32_t kFullGameKernelSchemaVersion = 3;
 inline constexpr std::uint32_t kFullGameCommandSchemaVersion = 1;
 inline constexpr std::uint32_t kFullGameMaxDefenseActions = 64;
 inline constexpr const char *kFullGameRulesetId =
-    "integrated-full-game-development-v2";
+    "integrated-full-game-development-v3";
 using FullGameCommandInput =
     nb::ndarray<const std::int64_t, nb::numpy, nb::shape<-1, 6>, nb::c_contig,
                 nb::device::cpu>;
@@ -30,7 +30,11 @@ public:
       std::uint16_t initial_hp = 40, std::uint16_t initial_mp = 10,
       std::uint16_t initial_cp = 0,
       std::optional<GuardianWeightInput> attack_profiles = std::nullopt,
-      std::optional<GuardianWeightInput> armor_profiles = std::nullopt);
+      std::optional<GuardianWeightInput> armor_profiles = std::nullopt,
+      std::optional<InventoryProfileInput> gift_profiles = std::nullopt,
+      std::size_t initial_cards = 0, bool refill_on_use = false,
+      bool prayer_gifts = false, std::size_t hand_limit = 0,
+      bool oldest_overflow = false);
   // Trusted setup only, rejected once started. These are not learner actions.
   void seed_players(ActionInput environments, ActionInput owners,
                     InventoryInput hp_mp_cp_illness, ActionInput curse_masks);
@@ -52,6 +56,17 @@ public:
   [[nodiscard]] Bool2D choice_masks() const;
   [[nodiscard]] Int64_2D pending_observations() const;
   [[nodiscard]] Bool2D selected_defenses() const;
+  [[nodiscard]] CurseStateSnapshot acquisition_snapshot() const;
+  [[nodiscard]] std::uint64_t automatic_gift_count() const noexcept {
+    return automatic_gifts_;
+  }
+  [[nodiscard]] std::uint64_t suppressed_gift_count() const noexcept {
+    return suppressed_gifts_;
+  }
+  [[nodiscard]] std::uint64_t overflow_count() const noexcept {
+    return overflow_;
+  }
+  [[nodiscard]] std::uint64_t prayer_count() const noexcept { return prayers_; }
   [[nodiscard]] std::uint64_t attack_count() const noexcept {
     return attacks_cast_;
   }
@@ -97,6 +112,11 @@ private:
     std::uint64_t illness_rng = 0;
     std::uint64_t gift_rng = 0;
     std::uint64_t combat_rng = 0;
+    std::uint64_t model_rng = 0;
+    std::int64_t next_instance = 1;
+    std::array<std::uint16_t, 9> gifts_due{};
+    std::array<std::int64_t, 9> gifts_given{};
+    std::array<std::int64_t, 9> evicted{};
     std::int64_t turn_owner = -1;
     std::int64_t attack_slot = -1;
     std::int64_t target = -1;
@@ -138,6 +158,11 @@ private:
     bool attack_resolved = false;
     bool defense_toggle = false;
     std::uint64_t damage = 0;
+    std::uint64_t gifts = 0;
+    std::uint64_t suppressed_gifts = 0;
+    std::uint64_t overflow = 0;
+    bool prayer = false;
+    bool accepted_command = false;
   };
   static std::size_t
   validate_dimensions(std::size_t batch_size, std::size_t player_count,
@@ -156,14 +181,18 @@ private:
   void advance_decision(Mutation &mutation, std::int64_t choice) const;
   void consume_slot(Mutation &mutation, std::size_t owner,
                     std::size_t slot) const;
+  [[nodiscard]] Mutation staged_episode(std::size_t environment) const;
+  [[nodiscard]] std::vector<DreamInventoryBatch::Item> &
+  stage_hand(Mutation &mutation, std::size_t owner) const;
+  void grant_gift(Mutation &mutation, std::size_t owner) const;
+  void grant_pending_gifts(Mutation &mutation) const;
+  void commit(const Mutation &mutation) noexcept;
+  [[nodiscard]] bool visible_weapon(std::size_t owner) const;
   [[nodiscard]] bool legal_choice(std::size_t environment,
                                   std::int64_t choice) const;
   [[nodiscard]] static bool compatible(std::int64_t attack,
                                        std::int64_t defense) noexcept;
   void decide_outcome(Mutation &mutation) const noexcept;
-  void decide_outcome(std::size_t environment, Episode &episode,
-                      std::size_t changed_owner,
-                      std::int64_t changed_hp) const noexcept;
   [[nodiscard]] Episode fresh_episode(std::size_t environment,
                                       std::int64_t epoch) const noexcept;
   const std::size_t batch_size_;
@@ -179,6 +208,13 @@ private:
   std::map<std::int64_t, Effect> effects_;
   std::map<std::int64_t, Attack> attacks_;
   std::map<std::int64_t, Armor> armor_;
+  std::vector<std::pair<std::int64_t, std::uint64_t>> gift_weights_;
+  std::uint64_t gift_total_ = 0;
+  std::size_t initial_cards_ = 0;
+  bool refill_on_use_ = false;
+  bool prayer_gifts_ = false;
+  std::size_t hand_limit_ = 0;
+  bool oldest_overflow_ = false;
   std::vector<std::uint8_t> selected_;
   std::vector<Resources> resources_;
   std::vector<Episode> episodes_;
@@ -190,6 +226,10 @@ private:
   std::uint64_t attacks_resolved_ = 0;
   std::uint64_t defense_toggles_ = 0;
   std::uint64_t hp_damage_ = 0;
+  std::uint64_t automatic_gifts_ = 0;
+  std::uint64_t suppressed_gifts_ = 0;
+  std::uint64_t overflow_ = 0;
+  std::uint64_t prayers_ = 0;
 };
 
 } // namespace godfield_sim

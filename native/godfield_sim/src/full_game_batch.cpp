@@ -53,16 +53,17 @@ FullGameBatch::validate_dimensions(std::size_t batch_size, std::size_t players,
   return batch_size;
 }
 
-FullGameBatch::FullGameBatch(std::size_t batch_size, std::size_t player_count,
-                             InventoryProfileInput inventory_profiles,
-                             InventoryInput utility_profiles,
-                             std::size_t capacity, std::uint64_t seed,
-                             std::uint64_t max_turns,
-                             std::uint64_t max_decisions,
-                             std::uint16_t initial_hp, std::uint16_t initial_mp,
-                             std::uint16_t initial_cp,
-                             std::optional<GuardianWeightInput> attack_profiles,
-                             std::optional<GuardianWeightInput> armor_profiles)
+FullGameBatch::FullGameBatch(
+    std::size_t batch_size, std::size_t player_count,
+    InventoryProfileInput inventory_profiles, InventoryInput utility_profiles,
+    std::size_t capacity, std::uint64_t seed, std::uint64_t max_turns,
+    std::uint64_t max_decisions, std::uint16_t initial_hp,
+    std::uint16_t initial_mp, std::uint16_t initial_cp,
+    std::optional<GuardianWeightInput> attack_profiles,
+    std::optional<GuardianWeightInput> armor_profiles,
+    std::optional<InventoryProfileInput> gift_profiles,
+    std::size_t initial_cards, bool refill_on_use, bool prayer_gifts,
+    std::size_t hand_limit, bool oldest_overflow)
     : batch_size_(validate_dimensions(batch_size, player_count, capacity,
                                       max_turns, max_decisions, initial_hp,
                                       initial_mp, initial_cp)),
@@ -129,6 +130,36 @@ FullGameBatch::FullGameBatch(std::size_t batch_size, std::size_t player_count,
             "full-game armor profile is invalid or duplicate");
     }
   }
+  initial_cards_ = initial_cards;
+  refill_on_use_ = refill_on_use;
+  prayer_gifts_ = prayer_gifts;
+  hand_limit_ = hand_limit == 0 ? capacity_ : hand_limit;
+  oldest_overflow_ = oldest_overflow;
+  if (hand_limit_ > capacity_ || initial_cards_ > hand_limit_ ||
+      ((initial_cards_ > 0 || refill_on_use_ || prayer_gifts_ ||
+        oldest_overflow_) &&
+       !gift_profiles))
+    throw std::invalid_argument(
+        "full-game acquisition configuration is invalid");
+  if (gift_profiles) {
+    const auto &profiles = *gift_profiles;
+    if (profiles.shape(0) == 0 || profiles.shape(0) > 237)
+      throw std::invalid_argument("full-game gift profile count is invalid");
+    std::set<std::int64_t> seen;
+    for (std::size_t row = 0; row < profiles.shape(0); ++row) {
+      const auto model = profiles(row, 0), weight = profiles(row, 1);
+      static_cast<void>(inventory_.category(model));
+      if (weight < 1 || weight > 500 || !seen.insert(model).second)
+        throw std::invalid_argument(
+            "full-game gift profile is invalid or duplicate");
+      gift_weights_.emplace_back(model, static_cast<std::uint64_t>(weight));
+    }
+    std::sort(gift_weights_.begin(), gift_weights_.end());
+    for (auto &profile : gift_weights_) {
+      gift_total_ += profile.second;
+      profile.second = gift_total_;
+    }
+  }
 }
 
 FullGameBatch::Episode
@@ -141,6 +172,7 @@ FullGameBatch::fresh_episode(std::size_t env,
       static_cast<std::uint64_t>(epoch) * 0xbf58476d1ce4e5b9ULL;
   episode.gift_rng = episode.illness_rng ^ 0x94d049bb133111ebULL;
   episode.combat_rng = episode.illness_rng ^ 0xd2b74407b1ce6e93ULL;
+  episode.model_rng = episode.illness_rng ^ 0xca5a826395121157ULL;
   return episode;
 }
 
@@ -205,6 +237,9 @@ void FullGameBatch::seed_hand(std::size_t env, std::size_t owner,
     throw std::invalid_argument("full-game environment is out of range");
   require_setup(env);
   inventory_.seed_hand(env, owner, items);
+  for (std::size_t row = 0; row < items.shape(0); ++row)
+    episodes_[env].next_instance =
+        std::max(episodes_[env].next_instance, items(row, 0) + 1);
 }
 
 void FullGameBatch::deal_cards(ActionInput envs, ActionInput owners,
@@ -221,8 +256,13 @@ void FullGameBatch::deal_cards(ActionInput envs, ActionInput owners,
     const auto env = indices[row] / player_count_;
     require_setup(env);
     const auto category = inventory_.category(models(row));
+    if (instances(row) < 1 || instances(row) > kMaximumCounter)
+      throw std::invalid_argument(
+          "full-game setup gift instance is out of range");
     auto [found, inserted] = staged.try_emplace(env, episodes_[env]);
     static_cast<void>(inserted);
+    found->second.next_instance =
+        std::max(found->second.next_instance, instances(row) + 1);
     masks[row] = statuses_.states_[indices[row]][2];
     if ((masks[row] & kCurseDreamBit) != 0) {
       disguise[row] =
@@ -245,44 +285,40 @@ void FullGameBatch::deal_cards(ActionInput envs, ActionInput owners,
     episodes_[env] = episode;
 }
 
-void FullGameBatch::decide_outcome(std::size_t env, Episode &episode,
-                                   std::size_t changed_owner,
-                                   std::int64_t changed_hp) const noexcept {
-  std::size_t living = 0;
-  std::int64_t survivor = -1;
-  for (std::size_t player = 0; player < player_count_; ++player) {
-    const auto index = env * player_count_ + player;
-    const auto hp =
-        index == changed_owner ? changed_hp : statuses_.states_[index][0];
-    if (hp > 0) {
-      ++living;
-      survivor = static_cast<std::int64_t>(player);
-    }
-  }
-  if (living < 2) {
-    episode.phase = 12;
-    episode.outcome = living == 1 ? 1 : 2;
-    episode.winner = survivor;
-  }
-}
-
 void FullGameBatch::start_environments(ActionInput environments) {
   const auto indices = checked_environments(environments);
-  for (const auto env : indices)
-    require_setup(env);
+  std::vector<Mutation> staged;
+  staged.reserve(indices.size());
   for (const auto env : indices) {
-    auto &episode = episodes_[env];
+    require_setup(env);
+    for (std::size_t seat = 0; seat < player_count_; ++seat) {
+      const auto owner = env * player_count_ + seat;
+      if (inventory_.sizes_[owner] > hand_limit_ ||
+          (initial_cards_ > 0 && statuses_.states_[owner][0] > 0 &&
+           inventory_.sizes_[owner] != 0))
+        throw std::invalid_argument("full-game automatic deal requires empty "
+                                    "living hands within the hand limit");
+    }
+    auto mutation = staged_episode(env);
+    auto &episode = mutation.episode;
     episode.phase = 1;
-    decide_outcome(env, episode, statuses_.states_.size(), 0);
+    decide_outcome(mutation);
     if (episode.phase == 1) {
       for (std::size_t player = 0; player < player_count_; ++player) {
-        if (statuses_.states_[env * player_count_ + player][0] > 0) {
+        if (mutation.statuses[player][0] > 0) {
           episode.actor = static_cast<std::int64_t>(player);
           break;
         }
       }
+      for (std::size_t player = 0; player < player_count_; ++player)
+        if (mutation.statuses[player][0] > 0)
+          for (std::size_t card = 0; card < initial_cards_; ++card)
+            grant_gift(mutation, player);
     }
+    staged.push_back(std::move(mutation));
   }
+  for (const auto &mutation : staged)
+    commit(mutation);
 }
 
 bool FullGameBatch::visible_utility_eligible(
@@ -305,6 +341,86 @@ bool FullGameBatch::compatible(std::int64_t attack,
   return armor_element_compatible(attack, defense);
 }
 
+FullGameBatch::Mutation FullGameBatch::staged_episode(std::size_t env) const {
+  Mutation mutation{};
+  mutation.environment = env;
+  mutation.episode = episodes_[env];
+  for (std::size_t seat = 0; seat < player_count_; ++seat) {
+    mutation.statuses[seat] = statuses_.states_[env * player_count_ + seat];
+    mutation.resources[seat] = resources_[env * player_count_ + seat];
+  }
+  std::copy_n(selected_.begin() + static_cast<std::ptrdiff_t>(env * capacity_),
+              capacity_, mutation.selected.begin());
+  return mutation;
+}
+
+std::vector<DreamInventoryBatch::Item> &
+FullGameBatch::stage_hand(Mutation &mutation, std::size_t seat) const {
+  auto [found, inserted] = mutation.hands.try_emplace(seat);
+  if (inserted) {
+    const auto owner = mutation.environment * player_count_ + seat;
+    const auto first = inventory_.items_.begin() +
+                       static_cast<std::ptrdiff_t>(owner * capacity_);
+    found->second.assign(
+        first, first + static_cast<std::ptrdiff_t>(inventory_.sizes_[owner]));
+  }
+  return found->second;
+}
+
+void FullGameBatch::grant_gift(Mutation &mutation, std::size_t seat) const {
+  if (mutation.episode.next_instance > kMaximumCounter)
+    throw std::invalid_argument("full-game native instance IDs are exhausted");
+  auto &hand = stage_hand(mutation, seat);
+  if (hand.size() >= hand_limit_) {
+    if (!oldest_overflow_)
+      throw std::invalid_argument(
+          "full-game provisional hand limit would overflow");
+    hand.erase(hand.begin()); // Approved provisional oldest-held eviction, not
+                              // official proof.
+    ++mutation.overflow;
+    ++mutation.episode.evicted[seat];
+  }
+  const auto ticket = random_rank(mutation.episode.model_rng, gift_total_);
+  const auto profile = std::upper_bound(
+      gift_weights_.begin(), gift_weights_.end(), ticket,
+      [](auto rank, const auto &row) { return rank < row.second; });
+  const auto model =
+      profile->first; // Positive bounded cumulative weights guarantee a match.
+  DreamInventoryBatch::Item item{mutation.episode.next_instance++, model, 0, 0};
+  if ((mutation.statuses[seat][2] & kCurseDreamBit) != 0 &&
+      random_rank(mutation.episode.gift_rng, 100) < 50) {
+    const auto category =
+        static_cast<std::size_t>(inventory_.category(model) - 1);
+    const auto &pool = inventory_.fake_pools_[category];
+    item[2] = pool[random_rank(mutation.episode.gift_rng, pool.size())];
+  }
+  hand.push_back(item);
+  ++mutation.gifts;
+  ++mutation.episode.gifts_given[seat];
+}
+
+void FullGameBatch::grant_pending_gifts(Mutation &mutation) const {
+  for (std::size_t seat = 0; seat < player_count_; ++seat) {
+    const auto count = mutation.episode.gifts_due[seat];
+    if (mutation.episode.phase != 1 || mutation.statuses[seat][0] == 0)
+      mutation.suppressed_gifts += count;
+    else
+      for (std::size_t item = 0; item < count; ++item)
+        grant_gift(mutation, seat);
+    mutation.episode.gifts_due[seat] = 0;
+  }
+}
+
+bool FullGameBatch::visible_weapon(std::size_t owner) const {
+  for (std::size_t slot = 0; slot < inventory_.sizes_[owner]; ++slot) {
+    const auto &item = inventory_.items_[owner * capacity_ + slot];
+    if (item[3] == 0 &&
+        inventory_.category(item[2] == 0 ? item[1] : item[2]) == 1)
+      return true;
+  }
+  return false;
+}
+
 bool FullGameBatch::legal_choice(std::size_t env, std::int64_t choice) const {
   const auto &episode = episodes_[env];
   if (choice < 0 || static_cast<std::uint64_t>(choice) > capacity_ + 9)
@@ -320,7 +436,7 @@ bool FullGameBatch::legal_choice(std::size_t env, std::int64_t choice) const {
            statuses_.states_[env * player_count_ + seat][0] > 0;
   }
   if (choice == 0)
-    return true;
+    return episode.phase == 4 || !prayer_gifts_ || !visible_weapon(owner);
   if (choice < 1 ||
       static_cast<std::uint64_t>(choice) > inventory_.sizes_[owner])
     return false;
@@ -366,6 +482,8 @@ void FullGameBatch::consume_slot(Mutation &mutation, std::size_t owner,
     ++mutation.miracles;
   } else
     ++mutation.consumed;
+  if (refill_on_use_)
+    ++mutation.episode.gifts_due[owner];
 }
 
 FullGameBatch::Mutation FullGameBatch::prepare(FullGameCommandInput commands,
@@ -390,18 +508,13 @@ FullGameBatch::Mutation FullGameBatch::prepare(FullGameCommandInput commands,
   if (!legal_choice(index, choice))
     throw std::invalid_argument(
         "full-game displayed utility choice or phase choice is unavailable");
-  Mutation mutation{};
-  mutation.environment = index;
-  mutation.episode = episode;
-  for (std::size_t seat = 0; seat < player_count_; ++seat) {
-    mutation.statuses[seat] = statuses_.states_[index * player_count_ + seat];
-    mutation.resources[seat] = resources_[index * player_count_ + seat];
-  }
-  std::copy_n(selected_.begin() +
-                  static_cast<std::ptrdiff_t>(index * capacity_),
-              capacity_, mutation.selected.begin());
+  auto mutation = staged_episode(index);
   if (episode.phase == 1 && choice == 0) {
     mutation.pass = true;
+    if (prayer_gifts_) {
+      mutation.prayer = true;
+      ++mutation.episode.gifts_due[actor];
+    }
     finish_turn(mutation, actor);
   } else if (episode.phase == 1) {
     const auto slot = static_cast<std::size_t>(choice - 1);
@@ -509,6 +622,8 @@ FullGameBatch::Mutation FullGameBatch::prepare(FullGameCommandInput commands,
             "full-game hidden actual defense element is incompatible");
       defense += actual->second.value;
       ++mutation.consumed;
+      if (refill_on_use_)
+        ++mutation.episode.gifts_due[actor];
     }
     if (episode.selected_count != 0)
       mutation.hands.emplace(actor, std::move(hand));
@@ -583,14 +698,16 @@ void FullGameBatch::advance_decision(Mutation &mutation,
   episode.last_choice = choice;
   ++episode.commands;
   ++episode.decision;
-  if (episode.phase == 12)
-    return;
-  if (static_cast<std::uint64_t>(episode.turns) >= max_turns_ ||
-      static_cast<std::uint64_t>(episode.commands) >= max_decisions_) {
+  mutation.accepted_command = true;
+  if (episode.phase != 12 &&
+      (static_cast<std::uint64_t>(episode.turns) >= max_turns_ ||
+       static_cast<std::uint64_t>(episode.commands) >= max_decisions_)) {
     episode.phase = 13;
     episode.outcome =
         static_cast<std::uint64_t>(episode.turns) >= max_turns_ ? 3 : 4;
   }
+  if (mutation.ticked_owner >= 0 || episode.phase == 12 || episode.phase == 13)
+    grant_pending_gifts(mutation);
 }
 
 void FullGameBatch::step(FullGameCommandInput commands) {
@@ -606,35 +723,43 @@ void FullGameBatch::step(FullGameCommandInput commands) {
     staged.push_back(std::move(mutation));
   }
   // Commit contains no validation, random draws, or allocation.
-  for (const auto &mutation : staged) {
-    for (std::size_t seat = 0; seat < player_count_; ++seat) {
-      const auto owner = mutation.environment * player_count_ + seat;
-      const auto before = statuses_.states_[owner];
-      statuses_.states_[owner] = mutation.statuses[seat];
-      if (before != mutation.statuses[seat])
-        statuses_.record(owner, 5, before);
-      resources_[owner] = mutation.resources[seat];
-    }
-    statuses_.tick_count_ += mutation.ticked_owner >= 0 ? 1 : 0;
-    statuses_.cure_count_ += mutation.cured_owner >= 0 ? 1 : 0;
-    for (const auto &[seat, hand] : mutation.hands)
-      inventory_.commit_hand(mutation.environment * player_count_ + seat, hand);
-    std::copy_n(mutation.selected.begin(), capacity_,
-                selected_.begin() + static_cast<std::ptrdiff_t>(
-                                        mutation.environment * capacity_));
-    inventory_.consumed_count_ += mutation.consumed;
-    inventory_.miracle_use_count_ += mutation.miracles;
-    inventory_.restored_count_ += mutation.restored;
-    episodes_[mutation.environment] = mutation.episode;
-    ++actions_;
-    passes_ += mutation.pass ? 1 : 0;
-    utilities_ += mutation.utility ? 1 : 0;
-    mp_spent_ += mutation.paid;
-    attacks_cast_ += mutation.attack_cast ? 1 : 0;
-    attacks_resolved_ += mutation.attack_resolved ? 1 : 0;
-    defense_toggles_ += mutation.defense_toggle ? 1 : 0;
-    hp_damage_ += mutation.damage;
+  for (const auto &mutation : staged)
+    commit(mutation);
+}
+
+void FullGameBatch::commit(const Mutation &mutation) noexcept {
+  for (std::size_t seat = 0; seat < player_count_; ++seat) {
+    const auto owner = mutation.environment * player_count_ + seat;
+    const auto before = statuses_.states_[owner];
+    statuses_.states_[owner] = mutation.statuses[seat];
+    if (before != mutation.statuses[seat])
+      statuses_.record(owner, 5, before);
+    resources_[owner] = mutation.resources[seat];
   }
+  statuses_.tick_count_ += mutation.ticked_owner >= 0 ? 1 : 0;
+  statuses_.cure_count_ += mutation.cured_owner >= 0 ? 1 : 0;
+  for (const auto &[seat, hand] : mutation.hands)
+    inventory_.commit_hand(mutation.environment * player_count_ + seat, hand);
+  std::copy_n(mutation.selected.begin(), capacity_,
+              selected_.begin() + static_cast<std::ptrdiff_t>(
+                                      mutation.environment * capacity_));
+  inventory_.consumed_count_ += mutation.consumed;
+  inventory_.miracle_use_count_ += mutation.miracles;
+  inventory_.restored_count_ += mutation.restored;
+  episodes_[mutation.environment] = mutation.episode;
+  actions_ += mutation.accepted_command ? 1 : 0;
+  passes_ += mutation.pass ? 1 : 0;
+  utilities_ += mutation.utility ? 1 : 0;
+  mp_spent_ += mutation.paid;
+  attacks_cast_ += mutation.attack_cast ? 1 : 0;
+  attacks_resolved_ += mutation.attack_resolved ? 1 : 0;
+  defense_toggles_ += mutation.defense_toggle ? 1 : 0;
+  hp_damage_ += mutation.damage;
+  inventory_.gift_count_ += mutation.gifts;
+  automatic_gifts_ += mutation.gifts;
+  suppressed_gifts_ += mutation.suppressed_gifts;
+  overflow_ += mutation.overflow;
+  prayers_ += mutation.prayer ? 1 : 0;
 }
 
 void FullGameBatch::reset_environments(ActionInput environments) {
@@ -689,6 +814,20 @@ CurseStateSnapshot FullGameBatch::diagnostic_players() const {
   }
   return owned_array<CurseStateSnapshot>(std::move(buffer),
                                          {batch_size_, player_count_, 6});
+}
+
+CurseStateSnapshot FullGameBatch::acquisition_snapshot() const {
+  auto buffer =
+      std::make_unique<std::int64_t[]>(batch_size_ * player_count_ * 3);
+  for (std::size_t env = 0; env < batch_size_; ++env)
+    for (std::size_t seat = 0; seat < player_count_; ++seat) {
+      const auto offset = (env * player_count_ + seat) * 3;
+      buffer[offset] = episodes_[env].gifts_due[seat];
+      buffer[offset + 1] = episodes_[env].gifts_given[seat];
+      buffer[offset + 2] = episodes_[env].evicted[seat];
+    }
+  return owned_array<CurseStateSnapshot>(std::move(buffer),
+                                         {batch_size_, player_count_, 3});
 }
 
 ActorInventorySnapshot FullGameBatch::actor_hands() const {
@@ -810,7 +949,9 @@ void bind_full_game(nb::module_ &module) {
                     InventoryInput, std::size_t, std::uint64_t, std::uint64_t,
                     std::uint64_t, std::uint16_t, std::uint16_t, std::uint16_t,
                     std::optional<GuardianWeightInput>,
-                    std::optional<GuardianWeightInput>>(),
+                    std::optional<GuardianWeightInput>,
+                    std::optional<InventoryProfileInput>, std::size_t, bool,
+                    bool, std::size_t, bool>(),
            nb::arg("batch_size"), nb::arg("player_count"),
            nb::arg("inventory_profiles").noconvert(),
            nb::arg("utility_profiles").noconvert(), nb::arg("capacity") = 512,
@@ -818,7 +959,11 @@ void bind_full_game(nb::module_ &module) {
            nb::arg("max_decisions") = 4000, nb::arg("initial_hp") = 40,
            nb::arg("initial_mp") = 10, nb::arg("initial_cp") = 0,
            nb::arg("attack_profiles").noconvert() = nb::none(),
-           nb::arg("armor_profiles").noconvert() = nb::none())
+           nb::arg("armor_profiles").noconvert() = nb::none(),
+           nb::arg("gift_profiles").noconvert() = nb::none(),
+           nb::arg("initial_cards") = 0, nb::arg("refill_on_use") = false,
+           nb::arg("prayer_gifts") = false, nb::arg("hand_limit") = 0,
+           nb::arg("oldest_overflow") = false)
       .def("seed_players", &FullGameBatch::seed_players,
            nb::arg("environments").noconvert(), nb::arg("owners").noconvert(),
            nb::arg("hp_mp_cp_illness").noconvert(),
@@ -842,6 +987,12 @@ void bind_full_game(nb::module_ &module) {
       .def("choice_masks", &FullGameBatch::choice_masks)
       .def("pending_observations", &FullGameBatch::pending_observations)
       .def("selected_defenses", &FullGameBatch::selected_defenses)
+      .def("acquisition_snapshot", &FullGameBatch::acquisition_snapshot)
+      .def_prop_ro("automatic_gift_count", &FullGameBatch::automatic_gift_count)
+      .def_prop_ro("suppressed_gift_count",
+                   &FullGameBatch::suppressed_gift_count)
+      .def_prop_ro("overflow_count", &FullGameBatch::overflow_count)
+      .def_prop_ro("prayer_count", &FullGameBatch::prayer_count)
       .def_prop_ro("attack_count", &FullGameBatch::attack_count)
       .def_prop_ro("resolved_attack_count",
                    &FullGameBatch::resolved_attack_count)

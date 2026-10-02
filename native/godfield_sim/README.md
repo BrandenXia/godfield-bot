@@ -255,3 +255,24 @@ test. Special combat effects, normal acquisition/overflow, events, teams and
 the complete learner are still missing. Full-game training/live promotion remain
 blocked; existing arenas and checkpoints are unchanged. See
 [ADR 0103](../../docs/architecture/0103-integrated-attack-target-and-armor-phases.md).
+
+Version 0.52.0 adds native acquisition to the same separate engine, with kernel
+and observation schema 3 / `integrated-full-game-development-v3`. The opt-in
+source-pinned `all-held-weighted` mode samples **all 237 held models**, including
+Exchange/Sell/Buy, from weights totaling 500. It deals nine cards per living
+seat and queues one replacement per used card, including every reuse of a
+retained miracle. Attack receipts wait for defense resolution; terminal,
+truncated and dead-owner receipts are suppressed. Prayer admits one gift only
+without a nonused displayed weapon. These scheduling rules remain provisional.
+The approved local 18-card cap automatically evicts the first card in current
+held order, not a player-selected victim or the lowest instance ID. Neither
+that cap nor the eviction algorithm is asserted as official server behavior.
+
+`godfield-bot simulation full-game-acquisition-smoke` checks complete-pool native
+startup draws and reports unsupported effects explicitly. The default draws
+41,472 cards and samples all 237 models; only 104 effects are currently joined
+to the separate turn engine. No gameplay, learning or strength conclusion is
+claimed. Acquisition counters are copied/read-only diagnostics; model draws,
+disguises, illness and Fog use independent native streams. Manual fixtures,
+legacy environments/checkpoints, live controls and promotion remain unchanged.
+See [ADR 0104](../../docs/architecture/0104-native-complete-pool-acquisition-and-provisional-overflow.md).

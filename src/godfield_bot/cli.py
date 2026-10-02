@@ -3246,6 +3246,37 @@ def simulation_full_game_combat_smoke(
     typer.echo(report.model_dump_json(indent=2))
 
 
+@simulation_app.command("full-game-acquisition-smoke")
+def simulation_full_game_acquisition_smoke(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    batch_size: Annotated[int, typer.Option(min=1, max=4096)] = 512,
+    players: Annotated[int, typer.Option(min=2, max=9)] = 9,
+    seed: Annotated[int, typer.Option(min=0)] = 67,
+) -> None:
+    """Probe native complete-pool startup draws; not gameplay or training readiness."""
+    try:
+        from godfield_bot.full_game_acquisition_smoke import run_full_game_acquisition_smoke
+
+        report = run_full_game_acquisition_smoke(
+            catalog_path=catalog,
+            bible_path=bible,
+            batch_size=batch_size,
+            player_count=players,
+            seed=seed,
+        )
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error(
+            "full_game_acquisition_smoke_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
 @simulation_app.command("trace-game")
 def simulation_trace_game(
     model: Annotated[Path, typer.Argument(exists=True, file_okay=False, readable=True)],

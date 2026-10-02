@@ -10,6 +10,12 @@ multi-card ordinary armor responses. Local full-game training, official
 fidelity and live promotion remain false. Existing arenas, checkpoint shapes,
 accounts, live controls and the pinned external API revision are unchanged.
 
+Follow-up: [ADR 0104](0104-native-complete-pool-acquisition-and-provisional-overflow.md)
+adds opt-in native complete-pool gifts and approved provisional overflow under
+native 0.52.0 / development v3. The v2 measurements below remain historical;
+manual replay arrays remain unchanged, but current metadata includes the new
+version/acquisition identity.
+
 This is still an incomplete development engine. It does not replace the
 established guardian learner. Ordinary combat is one integration step toward
 the full game, not a redefinition of the requested milestone.

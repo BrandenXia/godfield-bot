@@ -1619,6 +1619,33 @@ complete policy observation or a full-game turn engine; no current checkpoint
 or live control is switched to them. See
 [ADR 0099](docs/architecture/0099-shared-fog-flash-darkcloud-decisions.md).
 
+The approved **separate full-game development engine** is now native 0.52.0,
+`integrated-full-game-development-v3`. It joins authoritative inventory,
+HP/MP/CP, disease/cures, single-card attacks, target/ordinary-armor phases and
+opt-in native acquisition. All 237 held models have pinned draw weights
+totaling 500, but only 104 card effects execute in this engine. Its local
+nine-card deals, per-use receipts (including miracle reuse), Prayer timing and
+automatic oldest-held eviction at an 18-card cap are explicitly provisional.
+The cap and eviction rule are not established official server behavior.
+
+To check native complete-pool startup draws offline:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
+  godfield-bot simulation full-game-acquisition-smoke \
+  --batch-size 512 --players 9 --seed 67
+```
+
+This reports 41,472 diagnostic draws, all 237 models observed, 16,964 draws
+without implemented effects and 12 starting actors without an implemented
+choice. It runs **zero gameplay commands**; sampling a model does not implement
+its effect. Special combat, remaining utilities, economy, events, guardians,
+removal/revival, teams and complete neural interfaces still require integration.
+Existing training checkpoints and live controls are untouched; full-game
+training and live promotion remain blocked. See
+[ADR 0104](docs/architecture/0104-native-complete-pool-acquisition-and-provisional-overflow.md)
+for source pins, receipts, overflow and verification.
+
 A later private-room trace contains one self-targeted Nocturnal Broom-style
 `removeItems` event. Its explicit three selected cards disappear in the next
 inventory, and native 0.36.0/schema 3 can reproduce that narrow operation with

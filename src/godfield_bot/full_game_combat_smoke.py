@@ -20,8 +20,8 @@ class FullGameCombatSmokeReport(BaseModel):
     source_kind: Literal["integrated-development-combat-smoke-v1"] = (
         "integrated-development-combat-smoke-v1"
     )
-    ruleset_id: Literal["integrated-full-game-development-v2"] = (
-        "integrated-full-game-development-v2"
+    ruleset_id: Literal["integrated-full-game-development-v3"] = (
+        "integrated-full-game-development-v3"
     )
     scenario: Literal["fixed-known-hands-public-greedy-free-for-all-not-strength"] = (
         "fixed-known-hands-public-greedy-free-for-all-not-strength"

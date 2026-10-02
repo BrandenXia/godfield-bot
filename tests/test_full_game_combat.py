@@ -619,7 +619,7 @@ def test_combat_probe_cli_has_explicit_offline_scope(monkeypatch):
     result = CliRunner().invoke(app, ["simulation", "full-game-combat-smoke", "--batch-size", "4"])
     assert result.exit_code == 0, result.output
     report = json.loads(result.output)
-    assert report["ruleset_id"] == "integrated-full-game-development-v2"
+    assert report["ruleset_id"] == "integrated-full-game-development-v3"
     assert report["winners"] > 0 and report["attacks_resolved"] > 0
     assert not report["local_training_eligible"] and not report["promotion_eligible"]
 

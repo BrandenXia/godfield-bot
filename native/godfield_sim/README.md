@@ -297,3 +297,27 @@ are now integrated, while 106 remain unimplemented. The complete gift pool is
 unchanged. Current acquisition/combat smoke reports are schema 2; historical
 measurements above refer to their native versions. See
 [ADR 0105](../../docs/architecture/0105-native-ordered-attack-composition-and-darkness.md).
+
+Version 0.54.0 adds 23 special-defense profiles to this same engine, advancing
+kernel/observation/metadata schema to 5 and the development ruleset to v5.
+Numeric defense rows stay separate from exclusive block/reflect/bounce rows.
+Dual-role weapons and armor retain their attack/printed-DEF roles.
+Wall/Turbulence pay once per confirmed use, stay in inventory and move to its
+tail. Reflection transfers current source to the reflector; bounce samples
+any living seat including self from its own native RNG stream. Universal
+chain ownership, sampling and timing remain explicitly provisional.
+
+Each redirect offers fresh defense with its own 64-toggle bound. There is
+no silent one-hop mask; the actual episode decision limit truncates cycles
+without fake HP damage or owner ticks. Deferred gift counts are 64-bit so
+reusable chains cannot wrap a 16-bit queue. Cards, costs, pending sources,
+random states and counters participate in full-batch rollback.
+`special_defense_observations` is a copied five-column public view: active,
+current damage source, redirect count, displayed response kind and displayed
+MP cost. True identities remain diagnostic-only. The source-pinned factory
+always supplies complete defense profiles; raw narrow fixtures may omit
+them without receiving training metadata. There are 154 distinct integrated
+held models, not the sum of overlapping profile rows, and 83 still lack
+effects. Acquisition/combat reports are now schema 3; training/official/live
+promotion admission remains false. See
+[ADR 0106](../../docs/architecture/0106-native-special-defenses-and-bounded-redirect-chains.md).

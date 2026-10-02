@@ -1619,17 +1619,23 @@ complete policy observation or a full-game turn engine; no current checkpoint
 or live control is switched to them. See
 [ADR 0099](docs/architecture/0099-shared-fog-flash-darkcloud-decisions.md).
 
-The approved **separate full-game development engine** is now native 0.53.0,
-`integrated-full-game-development-v4`. It joins authoritative inventory,
-HP/MP/CP, disease/cures, ordered attack composition, target/ordinary-armor phases and
+The approved **separate full-game development engine** is now native 0.54.0,
+`integrated-full-game-development-v5`. It joins authoritative inventory,
+HP/MP/CP, disease/cures, ordered attack composition, targets/chained defenses and
 opt-in native acquisition. All 237 held models have pinned draw weights
-totaling 500, but only 131 card models execute in this engine. Attack additions
-include nineteen weapons, four dual-role Ogre armor, Strength Powder, Fireball,
+totaling 500, but only 154 card models execute in this engine. Attack additions
+include twenty-one weapons, four dual-role Ogre armor, Strength Powder, Fireball,
 Meteor and Aura. Selection order controls doubling and element setting, and
 positive Darkness damage correctly finishes the target. Its local
 nine-card deals, per-use receipts (including miracle reuse), Prayer timing and
 automatic oldest-held eviction at an 18-card cap are explicitly provisional.
 The cap and eviction rule are not established official server behavior.
+Twenty-three special defenses now block, reflect or bounce; numeric armor and
+special choices are exclusive. Wall/Turbulence pay MP and remain reusable.
+Reflections target the current source; bounce samples living seats including
+self from a separate native stream. Chained responses preserve the original
+turn owner and stop on resolution or explicit decision-limit truncation, not
+an invented one-hop rule. General chain timing/source/sampling remains provisional.
 
 To check native complete-pool startup draws offline:
 
@@ -1639,10 +1645,10 @@ UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
   --batch-size 512 --players 9 --seed 67
 ```
 
-This reports 41,472 diagnostic draws, all 237 models observed, 14,636 draws
-without implemented effects and six starting actors without an implemented
+This reports 41,472 diagnostic draws, all 237 models observed, 12,068 draws
+without implemented effects and four starting actors without an implemented
 choice. It runs **zero gameplay commands**; sampling a model does not implement
-its effect. Special combat, remaining utilities, economy, events, guardians,
+its effect. Remaining special combat, utilities, economy, events, guardians,
 removal/revival, teams and complete neural interfaces still require integration.
 Existing training checkpoints and live controls are untouched; full-game
 training and live promotion remain blocked. See
@@ -1652,6 +1658,8 @@ for acquisition, and
 for composition, dual roles, source pins and verification. The updated
 `simulation full-game-combat-smoke` command exercises fixed known combination
 hands offline; its outcomes are loop-liveness evidence, not bot strength.
+See [ADR 0106](docs/architecture/0106-native-special-defenses-and-bounded-redirect-chains.md)
+for special defenses, chain bounds and the unverified-mechanics boundary.
 
 A later private-room trace contains one self-targeted Nocturnal Broom-style
 `removeItems` event. Its explicit three selected cards disappear in the next

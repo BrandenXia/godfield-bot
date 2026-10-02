@@ -8,12 +8,12 @@
 
 namespace godfield_sim {
 
-inline constexpr std::uint32_t kFullGameKernelSchemaVersion = 4;
+inline constexpr std::uint32_t kFullGameKernelSchemaVersion = 5;
 inline constexpr std::uint32_t kFullGameCommandSchemaVersion = 1;
 inline constexpr std::uint32_t kFullGameMaxDefenseActions = 64;
 inline constexpr std::uint32_t kFullGameMaxAttackActions = 64;
 inline constexpr const char *kFullGameRulesetId =
-    "integrated-full-game-development-v4";
+    "integrated-full-game-development-v5";
 using FullGameBoostInput =
     nb::ndarray<const std::int64_t, nb::numpy, nb::shape<-1, 6>, nb::c_contig,
                 nb::device::cpu>;
@@ -39,7 +39,8 @@ public:
       std::size_t initial_cards = 0, bool refill_on_use = false,
       bool prayer_gifts = false, std::size_t hand_limit = 0,
       bool oldest_overflow = false,
-      std::optional<FullGameBoostInput> boost_profiles = std::nullopt);
+      std::optional<FullGameBoostInput> boost_profiles = std::nullopt,
+      std::optional<GuardianWeightInput> special_profiles = std::nullopt);
   // Trusted setup only, rejected once started. These are not learner actions.
   void seed_players(ActionInput environments, ActionInput owners,
                     InventoryInput hp_mp_cp_illness, ActionInput curse_masks);
@@ -60,6 +61,12 @@ public:
   [[nodiscard]] CurseStateSnapshot player_observations() const;
   [[nodiscard]] Bool2D choice_masks() const;
   [[nodiscard]] Int64_2D pending_observations() const;
+  [[nodiscard]] Int64_2D special_defense_observations() const;
+  [[nodiscard]] std::uint64_t block_count() const noexcept { return blocks_; }
+  [[nodiscard]] std::uint64_t reflection_count() const noexcept {
+    return reflections_;
+  }
+  [[nodiscard]] std::uint64_t bounce_count() const noexcept { return bounces_; }
   [[nodiscard]] Bool2D selected_defenses() const;
   [[nodiscard]] Int64_2D attack_selection_observations() const;
   [[nodiscard]] Int64_2D attack_order() const;
@@ -134,11 +141,14 @@ private:
     std::uint64_t gift_rng = 0;
     std::uint64_t combat_rng = 0;
     std::uint64_t model_rng = 0;
+    std::uint64_t bounce_rng = 0;
     std::int64_t next_instance = 1;
-    std::array<std::uint16_t, 9> gifts_due{};
+    std::array<std::int64_t, 9> gifts_due{};
     std::array<std::int64_t, 9> gifts_given{};
     std::array<std::int64_t, 9> evicted{};
     std::int64_t turn_owner = -1;
+    std::int64_t damage_source = -1;
+    std::int64_t redirects = 0;
     std::int64_t attack_slot = -1;
     std::int64_t target = -1;
     std::int64_t attack = 0;
@@ -168,6 +178,10 @@ private:
   struct Boost {
     std::int64_t value, element, cost, kind;
     bool can_lead;
+  };
+  struct Special {
+    std::int64_t kind, origin, cost; // block=1, reflect=2, bounce=3; any=-1.
+    bool neutral_only;
   };
   struct Composition {
     std::int64_t value, element, cost, origin;
@@ -202,6 +216,7 @@ private:
     bool attack_confirm = false;
     std::uint64_t attack_components = 0;
     bool darkness_finish = false;
+    std::int64_t special_kind = 0;
   };
   static std::size_t
   validate_dimensions(std::size_t batch_size, std::size_t player_count,
@@ -235,6 +250,8 @@ private:
   [[nodiscard]] bool visible_weapon(std::size_t owner) const;
   [[nodiscard]] bool legal_choice(std::size_t environment,
                                   std::int64_t choice) const;
+  [[nodiscard]] std::int64_t
+  special_kind(std::int64_t model, const Episode &episode) const noexcept;
   [[nodiscard]] static bool compatible(std::int64_t attack,
                                        std::int64_t defense) noexcept;
   void decide_outcome(Mutation &mutation) const noexcept;
@@ -254,6 +271,7 @@ private:
   std::map<std::int64_t, Attack> attacks_;
   std::map<std::int64_t, Armor> armor_;
   std::map<std::int64_t, Boost> boosts_;
+  std::map<std::int64_t, Special> specials_;
   std::vector<std::int64_t> attack_order_;
   std::vector<std::pair<std::int64_t, std::uint64_t>> gift_weights_;
   std::uint64_t gift_total_ = 0;
@@ -281,6 +299,7 @@ private:
   std::uint64_t attack_confirms_ = 0;
   std::uint64_t attack_components_ = 0;
   std::uint64_t darkness_finishes_ = 0;
+  std::uint64_t blocks_ = 0, reflections_ = 0, bounces_ = 0;
 };
 
 } // namespace godfield_sim

@@ -118,7 +118,7 @@ def begin(batch, model=35, *, armor=(), target=1, capacity=8):
     batch.start_environments(ids([0]))
     step(batch, [1])
     if batch.episode_snapshot()[0, 3] == 2:
-        step(batch, [0])  # Source-pinned v4 factory has explicit attack confirmation.
+        step(batch, [0])  # Source-pinned factory has explicit attack confirmation.
     step(batch, [capacity + 1 + target])
 
 
@@ -362,7 +362,7 @@ def test_unsupported_disguised_attack_fails_atomically_at_cast(true_model):
 @pytest.mark.parametrize(
     "true_model,display,attack,error",
     [
-        (114, 113, 35, "not implemented"),
+        (189, 113, 35, "not implemented"),
         (119, 115, 59, "incompatible"),
     ],
 )
@@ -491,7 +491,7 @@ def test_reset_pending_selection_views_copy_and_command_protocol_parity():
 )
 def test_combat_plan_cannot_forge_profile_coverage_or_fidelity(change):
     assert PLAN.combat.profile_sha256 == FULL_GAME_COMBAT_SHA256
-    assert PLAN.integrated_artifact_effect_count == 131
+    assert PLAN.integrated_artifact_effect_count == 154
     with pytest.raises(ValidationError):
         FullGameCombatPlan.model_validate({**PLAN.combat.model_dump(), **change})
 
@@ -622,7 +622,7 @@ def test_combat_probe_cli_has_explicit_offline_scope(monkeypatch):
     result = CliRunner().invoke(app, ["simulation", "full-game-combat-smoke", "--batch-size", "4"])
     assert result.exit_code == 0, result.output
     report = json.loads(result.output)
-    assert report["ruleset_id"] == "integrated-full-game-development-v4"
+    assert report["ruleset_id"] == "integrated-full-game-development-v5"
     assert report["winners"] > 0 and report["attacks_resolved"] > 0
     assert not report["local_training_eligible"] and not report["promotion_eligible"]
 

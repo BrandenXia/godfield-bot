@@ -64,7 +64,8 @@ FullGameBatch::FullGameBatch(
     std::optional<InventoryProfileInput> gift_profiles,
     std::size_t initial_cards, bool refill_on_use, bool prayer_gifts,
     std::size_t hand_limit, bool oldest_overflow,
-    std::optional<FullGameBoostInput> boost_profiles)
+    std::optional<FullGameBoostInput> boost_profiles,
+    std::optional<GuardianWeightInput> special_profiles)
     : batch_size_(validate_dimensions(batch_size, player_count, capacity,
                                       max_turns, max_decisions, initial_hp,
                                       initial_mp, initial_cp)),
@@ -189,6 +190,32 @@ FullGameBatch::FullGameBatch(
     }
     attack_order_.resize(batch_size_ * capacity_, 0);
   }
+  if (special_profiles) {
+    const auto &profiles = *special_profiles;
+    if (!attack_profiles || profiles.shape(1) != 5 || profiles.shape(0) == 0 ||
+        profiles.shape(0) > 237)
+      throw std::invalid_argument(
+          "full-game special defense profile dimensions are invalid");
+    for (std::size_t row = 0; row < profiles.shape(0); ++row) {
+      const auto model = profiles(row, 0),
+                 category = inventory_.category(model);
+      const Special effect{profiles(row, 1), profiles(row, 2), profiles(row, 4),
+                           profiles(row, 3) == 1};
+      if (category < 1 || category > 4 || category == 3 || effect.kind < 1 ||
+          effect.kind > 3 || effect.origin < -1 || effect.origin > 1 ||
+          profiles(row, 3) < 0 || profiles(row, 3) > 1 ||
+          (effect.neutral_only && effect.origin != 0) ||
+          (effect.origin == -1 && (effect.kind != 2 || category != 2)) ||
+          effect.cost < 0 || effect.cost > 100 ||
+          (category == 4 ? effect.cost == 0 : effect.cost != 0) ||
+          (category == 1 && !attacks_.contains(model) &&
+           !boosts_.contains(model)) ||
+          (category == 2 && effect.origin != -1 && !armor_.contains(model)) ||
+          effects_.contains(model) || !specials_.emplace(model, effect).second)
+        throw std::invalid_argument(
+            "full-game special defense profile is invalid or duplicate");
+    }
+  }
 }
 
 FullGameBatch::Episode
@@ -202,6 +229,7 @@ FullGameBatch::fresh_episode(std::size_t env,
   episode.gift_rng = episode.illness_rng ^ 0x94d049bb133111ebULL;
   episode.combat_rng = episode.illness_rng ^ 0xd2b74407b1ce6e93ULL;
   episode.model_rng = episode.illness_rng ^ 0xca5a826395121157ULL;
+  episode.bounce_rng = episode.illness_rng ^ 0x8cb92baa3f3d8dd7ULL;
   return episode;
 }
 
@@ -546,6 +574,19 @@ void FullGameBatch::consume_attack(Mutation &mutation, std::size_t seat) const {
   mutation.episode.attack_size = 0;
 }
 
+std::int64_t
+FullGameBatch::special_kind(std::int64_t model,
+                            const Episode &episode) const noexcept {
+  const auto found = specials_.find(model);
+  if (found == specials_.end())
+    return 0;
+  const auto &effect = found->second;
+  return (effect.origin == -1 || effect.origin == episode.origin) &&
+                 (!effect.neutral_only || episode.element == 0)
+             ? effect.kind
+             : 0;
+}
+
 bool FullGameBatch::legal_choice(std::size_t env, std::int64_t choice) const {
   const auto &episode = episodes_[env];
   if (choice < 0 || static_cast<std::uint64_t>(choice) > capacity_ + 9)
@@ -603,12 +644,24 @@ bool FullGameBatch::legal_choice(std::size_t env, std::int64_t choice) const {
     return false;
   if (selected_[env * capacity_ + slot] != 0)
     return true; // Flash still allows undo.
+  if (flash_prevents_additional_defense(
+          static_cast<std::uint8_t>(statuses_.states_[owner][2]),
+          static_cast<std::size_t>(episode.selected_count)))
+    return false;
+  const auto kind = special_kind(display, episode);
+  if (kind != 0)
+    return episode.selected_count == 0 &&
+           resources_[owner][0] >= specials_.at(display).cost;
+  for (std::size_t other = 0; other < inventory_.sizes_[owner]; ++other) {
+    if (selected_[env * capacity_ + other] == 0)
+      continue;
+    const auto &held = inventory_.items_[owner * capacity_ + other];
+    if (special_kind(held[2] == 0 ? held[1] : held[2], episode) != 0)
+      return false;
+  }
   const auto defense = armor_.find(display);
   return defense != armor_.end() &&
-         compatible(episode.element, defense->second.element) &&
-         !flash_prevents_additional_defense(
-             static_cast<std::uint8_t>(statuses_.states_[owner][2]),
-             static_cast<std::size_t>(episode.selected_count));
+         compatible(episode.element, defense->second.element);
 }
 
 void FullGameBatch::consume_slot(Mutation &mutation, std::size_t owner,
@@ -788,6 +841,7 @@ FullGameBatch::Mutation FullGameBatch::prepare(FullGameCommandInput commands,
     mutation.resources[actor][0] -= attack.cost;
     mutation.paid = static_cast<std::uint64_t>(attack.cost);
     mutation.attack_cast = true;
+    mutation.episode.damage_source = episode.actor;
     mutation.episode.target = target;
     mutation.episode.actor = target;
     mutation.episode.attack = attack.value;
@@ -803,6 +857,7 @@ FullGameBatch::Mutation FullGameBatch::prepare(FullGameCommandInput commands,
   } else {
     std::int64_t defense = 0;
     std::vector<DreamInventoryBatch::Item> hand;
+    std::vector<DreamInventoryBatch::Item> reused;
     hand.reserve(inventory_.sizes_[owner]);
     for (std::size_t slot = 0; slot < inventory_.sizes_[owner]; ++slot) {
       const auto &item = inventory_.items_[owner * capacity_ + slot];
@@ -810,21 +865,66 @@ FullGameBatch::Mutation FullGameBatch::prepare(FullGameCommandInput commands,
         hand.push_back(item);
         continue;
       }
-      const auto actual = armor_.find(item[1]);
-      if (actual == armor_.end())
-        throw std::invalid_argument(
-            "full-game actual defense effect is not implemented yet");
-      if (!compatible(episode.element, actual->second.element))
-        throw std::invalid_argument(
-            "full-game hidden actual defense element is incompatible");
-      defense += actual->second.value;
-      ++mutation.consumed;
+      const auto kind = special_kind(item[1], episode);
+      if (kind != 0) {
+        if (episode.selected_count != 1)
+          throw std::invalid_argument(
+              "full-game hidden special defense must be exclusive");
+        const auto cost = specials_.at(item[1]).cost;
+        if (mutation.resources[actor][0] < cost)
+          throw std::invalid_argument(
+              "full-game hidden actual miracle cost is unaffordable");
+        mutation.resources[actor][0] -= cost;
+        mutation.paid += static_cast<std::uint64_t>(cost);
+        mutation.special_kind = kind;
+      } else {
+        const auto actual = armor_.find(item[1]);
+        if (actual == armor_.end())
+          throw std::invalid_argument(
+              "full-game actual defense effect is not implemented yet");
+        if (!compatible(episode.element, actual->second.element))
+          throw std::invalid_argument(
+              "full-game hidden actual defense element is incompatible");
+        defense += actual->second.value;
+      }
+      if (inventory_.category(item[1]) == 4) {
+        auto retained = item;
+        retained[3] = 1;
+        reused.push_back(retained);
+        ++mutation.miracles;
+      } else
+        ++mutation.consumed;
       if (refill_on_use_)
         ++mutation.episode.gifts_due[actor];
     }
+    hand.insert(hand.end(), reused.begin(), reused.end());
     if (episode.selected_count != 0)
       mutation.hands.emplace(actor, std::move(hand));
-    const auto damage = std::max<std::int64_t>(0, episode.attack - defense);
+    if (mutation.special_kind >= 2) {
+      auto target = episode.damage_source;
+      if (mutation.special_kind == 2)
+        mutation.episode.damage_source = episode.actor;
+      else {
+        // Provisional: any living seat, including the defender, preserving
+        // source.
+        std::array<std::int64_t, 9> eligible{};
+        std::size_t count = 0;
+        for (std::size_t seat = 0; seat < player_count_; ++seat)
+          if (mutation.statuses[seat][0] > 0)
+            eligible[count++] = static_cast<std::int64_t>(seat);
+        target = eligible[random_rank(mutation.episode.bounce_rng, count)];
+      }
+      mutation.episode.target = mutation.episode.actor = target;
+      ++mutation.episode.redirects;
+      mutation.episode.selected_count = mutation.episode.defense_actions = 0;
+      mutation.selected.fill(0);
+      advance_decision(mutation, choice);
+      return mutation; // Fresh response; no owner tick or gifts between hops.
+    }
+    const auto damage =
+        mutation.special_kind == 1
+            ? 0
+            : std::max<std::int64_t>(0, episode.attack - defense);
     mutation.damage = static_cast<std::uint64_t>(
         std::min(damage, mutation.statuses[actor][0]));
     mutation.statuses[actor][0] -= static_cast<std::int64_t>(mutation.damage);
@@ -875,6 +975,8 @@ void FullGameBatch::finish_turn(Mutation &mutation, std::size_t owner) const {
   ++episode.turns;
   episode.phase = 1;
   episode.turn_owner = -1;
+  episode.damage_source = -1;
+  episode.redirects = 0;
   episode.attack_slot = -1;
   episode.target = -1;
   episode.attack = 0;
@@ -974,6 +1076,9 @@ void FullGameBatch::commit(const Mutation &mutation) noexcept {
   attack_confirms_ += mutation.attack_confirm ? 1 : 0;
   attack_components_ += mutation.attack_components;
   darkness_finishes_ += mutation.darkness_finish ? 1 : 0;
+  blocks_ += mutation.special_kind == 1 ? 1 : 0;
+  reflections_ += mutation.special_kind == 2 ? 1 : 0;
+  bounces_ += mutation.special_kind == 3 ? 1 : 0;
 }
 
 void FullGameBatch::reset_environments(ActionInput environments) {
@@ -1146,7 +1251,9 @@ Int64_2D FullGameBatch::pending_observations() const {
         if (selected_[env * capacity_ + slot] == 0)
           continue;
         const auto &item = inventory_.items_[owner * capacity_ + slot];
-        defense += armor_.at(item[2] == 0 ? item[1] : item[2]).value;
+        const auto model = item[2] == 0 ? item[1] : item[2];
+        if (special_kind(model, episode) == 0)
+          defense += armor_.at(model).value;
       }
     }
     const std::array<std::int64_t, 10> row{
@@ -1165,6 +1272,33 @@ Int64_2D FullGameBatch::pending_observations() const {
     std::copy(row.begin(), row.end(), buffer.get() + env * 10);
   }
   return owned_array<Int64_2D>(std::move(buffer), {batch_size_, 10});
+}
+
+Int64_2D FullGameBatch::special_defense_observations() const {
+  auto buffer = std::make_unique<std::int64_t[]>(batch_size_ * 5);
+  for (std::size_t env = 0; env < batch_size_; ++env) {
+    const auto &episode = episodes_[env];
+    if (episode.phase != 4)
+      continue;
+    const auto owner =
+        env * player_count_ + static_cast<std::size_t>(episode.actor);
+    std::int64_t kind = 0, cost = 0;
+    for (std::size_t slot = 0; slot < inventory_.sizes_[owner]; ++slot) {
+      if (selected_[env * capacity_ + slot] == 0)
+        continue;
+      const auto &item = inventory_.items_[owner * capacity_ + slot];
+      const auto model = item[2] == 0 ? item[1] : item[2];
+      kind = special_kind(model, episode);
+      if (kind != 0) {
+        cost = specials_.at(model).cost;
+        break;
+      }
+    }
+    const std::array<std::int64_t, 5> row{1, episode.damage_source,
+                                          episode.redirects, kind, cost};
+    std::copy(row.begin(), row.end(), buffer.get() + env * 5);
+  }
+  return owned_array<Int64_2D>(std::move(buffer), {batch_size_, 5});
 }
 
 CurseStateSnapshot FullGameBatch::player_observations() const {
@@ -1214,8 +1348,8 @@ void bind_full_game(nb::module_ &module) {
                     std::optional<GuardianWeightInput>,
                     std::optional<GuardianWeightInput>,
                     std::optional<InventoryProfileInput>, std::size_t, bool,
-                    bool, std::size_t, bool,
-                    std::optional<FullGameBoostInput>>(),
+                    bool, std::size_t, bool, std::optional<FullGameBoostInput>,
+                    std::optional<GuardianWeightInput>>(),
            nb::arg("batch_size"), nb::arg("player_count"),
            nb::arg("inventory_profiles").noconvert(),
            nb::arg("utility_profiles").noconvert(), nb::arg("capacity") = 512,
@@ -1228,7 +1362,8 @@ void bind_full_game(nb::module_ &module) {
            nb::arg("initial_cards") = 0, nb::arg("refill_on_use") = false,
            nb::arg("prayer_gifts") = false, nb::arg("hand_limit") = 0,
            nb::arg("oldest_overflow") = false,
-           nb::arg("boost_profiles").noconvert() = nb::none())
+           nb::arg("boost_profiles").noconvert() = nb::none(),
+           nb::arg("special_profiles").noconvert() = nb::none())
       .def("seed_players", &FullGameBatch::seed_players,
            nb::arg("environments").noconvert(), nb::arg("owners").noconvert(),
            nb::arg("hp_mp_cp_illness").noconvert(),
@@ -1251,6 +1386,11 @@ void bind_full_game(nb::module_ &module) {
       .def("player_observations", &FullGameBatch::player_observations)
       .def("choice_masks", &FullGameBatch::choice_masks)
       .def("pending_observations", &FullGameBatch::pending_observations)
+      .def("special_defense_observations",
+           &FullGameBatch::special_defense_observations)
+      .def_prop_ro("block_count", &FullGameBatch::block_count)
+      .def_prop_ro("reflection_count", &FullGameBatch::reflection_count)
+      .def_prop_ro("bounce_count", &FullGameBatch::bounce_count)
       .def("selected_defenses", &FullGameBatch::selected_defenses)
       .def("selected_attacks", &FullGameBatch::selected_attacks)
       .def("attack_order", &FullGameBatch::attack_order)

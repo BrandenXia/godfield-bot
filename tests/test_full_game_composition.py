@@ -148,7 +148,7 @@ def element(first, added):
 
 
 @pytest.mark.parametrize("profile", PLAN.combat.boost_profiles)
-def test_all_27_additions_join_costs_order_consumption_retention_and_refill(profile):
+def test_all_additions_join_costs_order_consumption_retention_and_refill(profile):
     model, power, elem, cost, kind, _ = profile
     batch = game(refill=True)
     seed(batch, [(1, 35, 0, 0), (2, model, 0, 0), (3, 194, 0, 0)])
@@ -413,7 +413,7 @@ def test_true_identity_failure_is_atomic_after_public_confirmation_without_leaki
     for batch in (first, second):
         seed(batch, [(1, 35, 0, 0), (2, 210, 0, 0)])
     if failure == "unimplemented":
-        seed(second, [(1, 55, 35, 0), (2, 210, 0, 0)])
+        seed(second, [(1, 41, 35, 0), (2, 210, 0, 0)])
     elif failure == "hidden-cost":
         seed(second, [(1, 35, 0, 0), (2, 217, 210, 0)])
     else:

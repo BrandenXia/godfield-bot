@@ -15,6 +15,7 @@ from godfield_bot.api_catalog import ApiCatalogSnapshot, read_api_catalog_snapsh
 from godfield_bot.curse_dynamics import CurseDynamicsPlan, build_curse_dynamics_plan
 from godfield_bot.domain.reference import BibleSnapshot
 from godfield_bot.dream_inventory import DreamInventoryPlan, build_dream_inventory_plan
+from godfield_bot.full_game_combat_plan import FullGameCombatPlan, build_full_game_combat_plan
 from godfield_bot.full_game_protocol import (
     FullGameCommand,
     FullGameDecisionContext,
@@ -29,7 +30,7 @@ if TYPE_CHECKING:
     import numpy.typing as npt
     from godfield_sim import FullGameBatch
 
-FULL_GAME_RULESET_ID: Final = "integrated-full-game-development-v1"
+FULL_GAME_RULESET_ID: Final = "integrated-full-game-development-v2"
 FULL_GAME_EFFECT_SHA256: Final = "834c9fe8bce6185e2bb3729c64813e85ef84daf07c77fd7a8030b32362ccaae1"
 FULL_GAME_PHASES: Final[tuple[FullGamePhase, ...]] = get_args(FullGamePhase)
 COMMAND_FIELDS: Final = ("environment", "episode", "decision", "actor", "phase", "choice_id")
@@ -57,25 +58,39 @@ PLAYER_FIELDS: Final = (
 DIAGNOSTIC_FIELDS: Final = ("hp", "mp", "cp", "illness_stage", "curse_mask", "owner_turn_ticks")
 OUTCOMES: Final = ("none", "winner", "all-dead-draw", "turn-limit", "decision-limit")
 EFFECT_FIELDS: Final = ("model_id", "effect", "value", "mp_cost")
+PENDING_FIELDS: Final = (
+    "active",
+    "turn_owner",
+    "target",
+    "attack",
+    "element",
+    "origin",
+    "displayed_selected_defense",
+    "selected_count",
+    "defense_actions",
+    "reserved_attack_choice",
+)
 
 
 class FullGamePlan(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     inventory: DreamInventoryPlan
     curses: CurseDynamicsPlan
     utilities: GuardianUtilityPlan
+    combat: FullGameCombatPlan
     effect_sha256: Literal["834c9fe8bce6185e2bb3729c64813e85ef84daf07c77fd7a8030b32362ccaae1"] = (
         FULL_GAME_EFFECT_SHA256
     )
     effect_profiles: tuple[tuple[int, int, int, int], ...]
     effect_fields: tuple[str, ...] = EFFECT_FIELDS
     implemented_effect_count: Literal[12] = 12
-    implemented_phases: tuple[int, ...] = (0, 1, 12, 13)
+    implemented_phases: tuple[int, ...] = (0, 1, 3, 4, 12, 13)
+    integrated_artifact_effect_count: Literal[104] = 104
     effect_codes: tuple[str, ...] = ("unused-zero", "hp", "mp", "mild-cure", "full-cure")
-    scheduling: Literal["immediate-self-utility-then-owner-disease-tick-provisional"] = (
-        "immediate-self-utility-then-owner-disease-tick-provisional"
-    )
+    scheduling: Literal[
+        "utility-or-single-attack-target-multi-armor-then-owner-tick-provisional"
+    ] = "utility-or-single-attack-target-multi-armor-then-owner-tick-provisional"
     acquisition: Literal["explicit-setup-gifts-no-automatic-refill-or-official-deal"] = (
         "explicit-setup-gifts-no-automatic-refill-or-official-deal"
     )
@@ -111,7 +126,7 @@ class FullGamePlan(BaseModel):
             self.effect_profiles != expected
             or digest != self.effect_sha256
             or self.effect_fields != EFFECT_FIELDS
-            or self.implemented_phases != (0, 1, 12, 13)
+            or self.implemented_phases != (0, 1, 3, 4, 12, 13)
             or self.effect_codes != ("unused-zero", "hp", "mp", "mild-cure", "full-cure")
             or len(
                 {
@@ -148,16 +163,21 @@ def build_full_game_plan(catalog: ApiCatalogSnapshot, bible: BibleSnapshot) -> F
         )
     )
     return FullGamePlan(
-        inventory=inventory, curses=curses, utilities=utilities, effect_profiles=effects
+        inventory=inventory,
+        curses=curses,
+        utilities=utilities,
+        combat=build_full_game_combat_plan(catalog, bible),
+        effect_profiles=effects,
     )
 
 
 class FullGameMetadata(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    schema_version: Literal[1] = 1
-    ruleset_id: Literal["integrated-full-game-development-v1"] = FULL_GAME_RULESET_ID
+    schema_version: Literal[2] = 2
+    ruleset_id: Literal["integrated-full-game-development-v2"] = FULL_GAME_RULESET_ID
+    kernel_schema_version: Literal[2] = 2
     command_schema_version: Literal[1] = 1
-    observation_schema_version: Literal[1] = 1
+    observation_schema_version: Literal[2] = 2
     plan: FullGamePlan
     batch_size: int = Field(ge=1, le=1_000_000, strict=True)
     player_count: int = Field(ge=2, le=9, strict=True)
@@ -172,11 +192,19 @@ class FullGameMetadata(BaseModel):
     episode_fields: tuple[str, ...] = EPISODE_FIELDS
     player_observation_fields: tuple[str, ...] = PLAYER_FIELDS
     diagnostic_fields: tuple[str, ...] = DIAGNOSTIC_FIELDS
+    pending_observation_fields: tuple[str, ...] = PENDING_FIELDS
+    max_defense_actions: Literal[64] = 64
+    defense_limit: Literal["confirm-only-after-64-toggles-not-silent-auto-defense"] = (
+        "confirm-only-after-64-toggles-not-silent-auto-defense"
+    )
+    target_policy: Literal["living-enemies-seat-choice-fog-samples-endogenous-provisional"] = (
+        "living-enemies-seat-choice-fog-samples-endogenous-provisional"
+    )
     phase_names: tuple[str, ...] = FULL_GAME_PHASES
     outcome_names: tuple[str, ...] = OUTCOMES
     randomness: Literal[
-        "separate-native-splitmix-gift-and-illness-rejection-max-16-provisional"
-    ] = "separate-native-splitmix-gift-and-illness-rejection-max-16-provisional"
+        "separate-native-splitmix-gift-illness-combat-rejection-max-16-provisional"
+    ] = "separate-native-splitmix-gift-illness-combat-rejection-max-16-provisional"
     limits: Literal["terminal-before-turn-before-decision-limit-truncation-not-draw"] = (
         "terminal-before-turn-before-decision-limit-truncation-not-draw"
     )
@@ -187,8 +215,8 @@ class FullGameMetadata(BaseModel):
         "actor-cyclic-nine-seats-fog-hides-other-resources-status"
     )
     choice_boundary: Literal[
-        "pass-or-own-slot-plus-one-displayed-effect-and-self-affordability"
-    ] = "pass-or-own-slot-plus-one-displayed-effect-and-self-affordability"
+        "phase-zero-or-own-slot-plus-one-or-capacity-plus-one-plus-target-seat"
+    ] = "phase-zero-or-own-slot-plus-one-or-capacity-plus-one-plus-target-seat"
     setup_boundary: Literal["closed-on-start-until-reset-epoch-increases"] = (
         "closed-on-start-until-reset-epoch-increases"
     )
@@ -211,6 +239,7 @@ class FullGameMetadata(BaseModel):
             or self.episode_fields != EPISODE_FIELDS
             or self.player_observation_fields != PLAYER_FIELDS
             or self.diagnostic_fields != DIAGNOSTIC_FIELDS
+            or self.pending_observation_fields != PENDING_FIELDS
             or self.phase_names != FULL_GAME_PHASES
             or self.outcome_names != OUTCOMES
         ):
@@ -262,9 +291,10 @@ def create_development_full_game_batch(
             "full-game development engine requires simulation extra"
         ) from None
     if (
-        getattr(native, "FULL_GAME_KERNEL_SCHEMA_VERSION", None) != 1
+        getattr(native, "FULL_GAME_KERNEL_SCHEMA_VERSION", None) != 2
         or getattr(native, "FULL_GAME_COMMAND_SCHEMA_VERSION", None) != 1
-        or getattr(native, "FULL_GAME_OBSERVATION_SCHEMA_VERSION", None) != 1
+        or getattr(native, "FULL_GAME_OBSERVATION_SCHEMA_VERSION", None) != 2
+        or getattr(native, "FULL_GAME_MAX_DEFENSE_ACTIONS", None) != 64
         or getattr(native, "FULL_GAME_RULESET_ID", None) != FULL_GAME_RULESET_ID
         or not hasattr(native, "FullGameBatch")
     ):
@@ -282,6 +312,8 @@ def create_development_full_game_batch(
             initial_hp,
             initial_mp,
             initial_cp,
+            np.asarray(plan.combat.attack_profiles, dtype=np.int64),
+            np.asarray(plan.combat.armor_profiles, dtype=np.int64),
         ),
         metadata,
     )
@@ -344,7 +376,7 @@ class FullGameSmokeReport(BaseModel):
     source_kind: Literal["integrated-development-utility-cure-smoke-v1"] = (
         "integrated-development-utility-cure-smoke-v1"
     )
-    ruleset_id: Literal["integrated-full-game-development-v1"] = FULL_GAME_RULESET_ID
+    ruleset_id: Literal["integrated-full-game-development-v2"] = FULL_GAME_RULESET_ID
     scenario: Literal["fixed-own-utility-cure-hands-disease-not-combat-strength"] = (
         "fixed-own-utility-cure-hands-disease-not-combat-strength"
     )

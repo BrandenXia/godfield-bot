@@ -239,3 +239,19 @@ teams, events and the complete neural interface are still missing; the new
 engine remains training/promotion-ineligible. Old curricula, checkpoint shapes,
 official replay admission and live controls are unchanged. See
 [ADR 0102](../../docs/architecture/0102-integrated-native-full-game-state-and-transactions.md).
+
+Version 0.51.0 widens that separate engine to explicit single-attack target and
+ordinary multi-armor phases: 45 attacks, 47 armor models and the prior 12
+utility/cure effects. This is 104 integrated effects, not all 237 registered
+held models. Kernel/observation schema 2 and ruleset
+`integrated-full-game-development-v2` keep command schema 1. Native bounded
+selection, Fog targeting, costs, two-owner damage/disease and hand consumption
+share the same atomic transaction. After 64 armor toggles only confirmation is
+legal. True identities stay outside public masks and pending previews.
+
+`godfield-bot simulation full-game-combat-smoke` exercises complete provisional
+combat loops offline; it is not neural training or an official-bot strength
+test. Special combat effects, normal acquisition/overflow, events, teams and
+the complete learner are still missing. Full-game training/live promotion remain
+blocked; existing arenas and checkpoints are unchanged. See
+[ADR 0103](../../docs/architecture/0103-integrated-attack-target-and-armor-phases.md).

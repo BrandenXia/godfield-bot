@@ -171,3 +171,7 @@ removal/revival, apocalypse, teams and a complete neural adapter. Full-game loca
 training readiness, official fidelity, checkpoint compatibility, reward/teacher
 dataset eligibility and promotion remain false. This slice must not redefine
 the goal as a twelve-card utility curriculum.
+
+Follow-up: ADR 0103 adds native 0.51.0's version-2 attack/target/ordinary armor
+phases in the same engine. This document records the original version-1 slice
+and hashes, not a claim that combat remains absent from the later version.

@@ -1,4 +1,5 @@
 #include "guardian_combat_batch.h"
+#include "combat_rules.h"
 
 #include <algorithm>
 #include <memory>
@@ -22,17 +23,7 @@ Int64_2D copied_matrix(const std::int64_t *source, std::size_t rows,
 } // namespace
 
 bool GuardianCombatBatch::compatible(std::int64_t attack, std::int64_t defense) {
-  if (attack == 5)
-    return false;
-  if (attack == 1)
-    return defense == 2 || defense == 5;
-  if (attack == 2)
-    return defense == 1 || defense == 5;
-  if (attack == 3)
-    return defense == 4 || defense == 5;
-  if (attack == 4)
-    return defense == 3 || defense == 5;
-  return true;
+  return armor_element_compatible(attack, defense);
 }
 
 GuardianCombatBatch::GuardianCombatBatch(

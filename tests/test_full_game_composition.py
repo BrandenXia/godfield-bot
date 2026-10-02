@@ -55,7 +55,11 @@ def game(
         40,
         mp,
         0,
-        ids(PLAN.combat.attack_profiles if attacks is None else attacks),
+        ids(
+            [row for row in PLAN.combat.attack_profiles if row[1] > 0]
+            if attacks is None
+            else attacks
+        ),
         ids(
             [
                 row
@@ -421,7 +425,7 @@ def test_true_identity_failure_is_atomic_after_public_confirmation_without_leaki
     for batch in (first, second):
         seed(batch, [(1, 35, 0, 0), (2, 210, 0, 0)])
     if failure == "unimplemented":
-        seed(second, [(1, 41, 35, 0), (2, 210, 0, 0)])
+        seed(second, [(1, 46, 35, 0), (2, 210, 0, 0)])
     elif failure == "hidden-cost":
         seed(second, [(1, 35, 0, 0), (2, 217, 210, 0)])
     else:

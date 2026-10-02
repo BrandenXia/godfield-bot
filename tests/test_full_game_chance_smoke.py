@@ -27,18 +27,18 @@ def probe(**options):
 def test_default_probe_covers_all_plain_chance_models_but_not_full_matches():
     report = probe()
     assert report == probe()
-    assert report.observed_model_count == 21
+    assert report.observed_model_count == 24
     assert report.chance_casts == report.resolved_attacks == report.completed_turns == 504
-    assert report.hits == 309 and report.misses == 195 and report.actions == 1317
+    assert report.hits == 305 and report.misses == 199 and report.actions == 1313
     assert report.real_terminal_endings == 0 and report.ready_after_one_turn == 504
-    assert report.hp_damage == 2783 and report.mp_spent == 1440
-    assert report.consumed_cards == 360 and report.retained_miracle_uses == 144
+    assert report.hp_damage == 2654 and report.mp_spent == 1323
+    assert report.consumed_cards == 357 and report.retained_miracle_uses == 147
     assert (
-        report.metadata_sha256 == "160b6ece6d1875d802c7f0c3338954683341f88765fcf93312e7cb48a00ac367"
+        report.metadata_sha256 == "0b8bef30397954308874db3dcb583cbf02e80252b41f95e6a6a314565aab142a"
     )
     assert (
         report.diagnostic_replay_sha256
-        == "b8351112be01aee9dba2c26b3a9dc9e864914eef72fe56027ab9de6b03d51103"
+        == "3e8430dde07921af47204bc3b03b49b24bbe4eda6e3f5aa2ec8bd956a3e4c2c3"
     )
     assert not report.local_training_eligible and not report.teacher_or_reward_dataset_eligible
     assert not report.full_game_training_ready and not report.promotion_eligible
@@ -48,7 +48,7 @@ def test_default_probe_covers_all_plain_chance_models_but_not_full_matches():
 @pytest.mark.parametrize("size", [1, 21, 64])
 def test_small_probes_keep_unobserved_models_and_partial_episode_accounting(players, size):
     report = probe(batch_size=size, player_count=players)
-    assert report.observed_model_count == min(size, 21) and len(report.model_results) == 21
+    assert report.observed_model_count == min(size, 24) and len(report.model_results) == 24
     assert report.chance_casts == size and report.hits + report.misses == size
     assert report.real_terminal_endings + report.ready_after_one_turn == size
     if players > 2:

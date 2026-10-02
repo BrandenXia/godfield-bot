@@ -63,7 +63,7 @@ def game(
         40,
         80,
         0,
-        ids(PLAN.combat.attack_profiles),
+        ids([row for row in PLAN.combat.attack_profiles if row[1] > 0]),
         ids(PLAN.combat.armor_profiles),
         None if gifts is None else ids(gifts).reshape(-1, 2),
         initial,

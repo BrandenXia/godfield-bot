@@ -18,11 +18,11 @@ Positive = Annotated[int, Field(ge=1, strict=True)]
 
 class FullGameAcquisitionSmokeReport(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    schema_version: Literal[4] = 4
-    source_kind: Literal["integrated-development-all-held-acquisition-smoke-v4"] = (
-        "integrated-development-all-held-acquisition-smoke-v4"
+    schema_version: Literal[5] = 5
+    source_kind: Literal["integrated-development-all-held-acquisition-smoke-v5"] = (
+        "integrated-development-all-held-acquisition-smoke-v5"
     )
-    ruleset_id: Literal["integrated-full-game-development-v6"] = FULL_GAME_RULESET_ID
+    ruleset_id: Literal["integrated-full-game-development-v7"] = FULL_GAME_RULESET_ID
     scenario: Literal["native-nine-per-seat-complete-pool-startup-not-gameplay"] = (
         "native-nine-per-seat-complete-pool-startup-not-gameplay"
     )
@@ -38,8 +38,8 @@ class FullGameAcquisitionSmokeReport(BaseModel):
     local_hand_limit: Literal[18] = 18
     overflow_policy: Literal["oldest-held-provisional"] = "oldest-held-provisional"
     giftable_models: Literal[237] = 237
-    integrated_effect_models: Literal[175] = 175
-    giftable_without_integrated_effect: Literal[62] = 62
+    integrated_effect_models: Literal[195] = 195
+    giftable_without_integrated_effect: Literal[42] = 42
     total_weight: Literal[500] = 500
     model_distribution: tuple[tuple[Positive, Positive, Count], ...]
     observed_model_count: int = Field(ge=1, le=237, strict=True)
@@ -109,7 +109,7 @@ def run_full_game_acquisition_smoke(
         | {row[0] for row in plan.combat.boost_profiles}
         | {row[0] for row in plan.combat.special_profiles}
     )
-    if len(supported) != 175 or not histogram.keys() <= dict(plan.gifts.model_weights).keys():
+    if len(supported) != 195 or not histogram.keys() <= dict(plan.gifts.model_weights).keys():
         raise RuntimeError("acquisition smoke native inventory or integrated effect scope differs")
     digest = hashlib.sha256()
     for view in (

@@ -3277,6 +3277,37 @@ def simulation_full_game_chance_smoke(
     typer.echo(report.model_dump_json(indent=2))
 
 
+@simulation_app.command("full-game-attack-effect-smoke")
+def simulation_full_game_attack_effect_smoke(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    batch_size: Annotated[int, typer.Option(min=1, max=4096)] = 640,
+    players: Annotated[int, typer.Option(min=2, max=9)] = 3,
+    seed: Annotated[int, typer.Option(min=0)] = 67,
+) -> None:
+    """Probe one forced-hit effect turn per environment; not full games or learning."""
+    try:
+        from godfield_bot.full_game_attack_effect_smoke import run_full_game_attack_effect_smoke
+
+        report = run_full_game_attack_effect_smoke(
+            catalog_path=catalog,
+            bible_path=bible,
+            batch_size=batch_size,
+            player_count=players,
+            seed=seed,
+        )
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error(
+            "full_game_attack_effect_smoke_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
 @simulation_app.command("full-game-acquisition-smoke")
 def simulation_full_game_acquisition_smoke(
     catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(

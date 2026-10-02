@@ -56,7 +56,11 @@ def game(
         40,
         20,
         0,
-        ids(PLAN.combat.attack_profiles if attacks is None else attacks),
+        ids(
+            [row for row in PLAN.combat.attack_profiles if row[1] > 0]
+            if attacks is None
+            else attacks
+        ),
         ids(PLAN.combat.armor_profiles if armor is None else armor),
     )
 
@@ -122,7 +126,7 @@ def begin(batch, model=35, *, armor=(), target=1, capacity=8):
     step(batch, [capacity + 1 + target])
 
 
-@pytest.mark.parametrize("profile", PLAN.combat.attack_profiles)
+@pytest.mark.parametrize("profile", [row for row in PLAN.combat.attack_profiles if row[1] > 0])
 def test_all_attack_values_join_costs_inventory_and_turns_in_fixed_arithmetic_fixture(profile):
     model, attack, element, origin, cost = profile
     batch = game()
@@ -494,7 +498,7 @@ def test_reset_pending_selection_views_copy_and_command_protocol_parity():
 )
 def test_combat_plan_cannot_forge_profile_coverage_or_fidelity(change):
     assert PLAN.combat.profile_sha256 == FULL_GAME_COMBAT_SHA256
-    assert PLAN.integrated_artifact_effect_count == 175
+    assert PLAN.integrated_artifact_effect_count == 195
     with pytest.raises(ValidationError):
         FullGameCombatPlan.model_validate({**PLAN.combat.model_dump(), **change})
 
@@ -625,7 +629,7 @@ def test_combat_probe_cli_has_explicit_offline_scope(monkeypatch):
     result = CliRunner().invoke(app, ["simulation", "full-game-combat-smoke", "--batch-size", "4"])
     assert result.exit_code == 0, result.output
     report = json.loads(result.output)
-    assert report["ruleset_id"] == "integrated-full-game-development-v6"
+    assert report["ruleset_id"] == "integrated-full-game-development-v7"
     assert report["winners"] > 0 and report["attacks_resolved"] > 0
     assert not report["local_training_eligible"] and not report["promotion_eligible"]
 

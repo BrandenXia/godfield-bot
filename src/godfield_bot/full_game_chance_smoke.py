@@ -13,21 +13,21 @@ from godfield_bot.full_game import FULL_GAME_RULESET_ID, create_development_full
 
 Count = Annotated[int, Field(ge=0, strict=True)]
 Positive = Annotated[int, Field(ge=1, strict=True)]
-CHANCE_SHA256: Final = "c37e6b17aad95ba7cc59835c9f7bf3c1eb69d824cd58133891014696f4ecc096"
+CHANCE_SHA256: Final = "fed7e6d50a4761ffff8e81c338b42abb27e4423482c58dbd9395393028e8e3e1"
 
 
 class FullGameChanceSmokeReport(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    schema_version: Literal[1] = 1
-    source_kind: Literal["integrated-development-one-turn-chance-smoke-v1"] = (
-        "integrated-development-one-turn-chance-smoke-v1"
+    schema_version: Literal[2] = 2
+    source_kind: Literal["integrated-development-one-turn-chance-smoke-v2"] = (
+        "integrated-development-one-turn-chance-smoke-v2"
     )
-    ruleset_id: Literal["integrated-full-game-development-v6"] = FULL_GAME_RULESET_ID
+    ruleset_id: Literal["integrated-full-game-development-v7"] = FULL_GAME_RULESET_ID
     scenario: Literal["one-standalone-chance-per-environment-forgive-hits-not-full-matches"] = (
         "one-standalone-chance-per-environment-forgive-hits-not-full-matches"
     )
     chance_profile_sha256: Literal[
-        "c37e6b17aad95ba7cc59835c9f7bf3c1eb69d824cd58133891014696f4ecc096"
+        "fed7e6d50a4761ffff8e81c338b42abb27e4423482c58dbd9395393028e8e3e1"
     ] = CHANCE_SHA256
     metadata_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     diagnostic_replay_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
@@ -36,7 +36,7 @@ class FullGameChanceSmokeReport(BaseModel):
     seed: int = Field(ge=0, le=2**64 - 1, strict=True)
     result_fields: tuple[str, ...] = ("model", "hit_rate", "casts", "hits", "misses")
     model_results: tuple[tuple[Positive, Positive, Count, Count, Count], ...]
-    observed_model_count: int = Field(ge=1, le=21, strict=True)
+    observed_model_count: int = Field(ge=1, le=24, strict=True)
     chance_casts: Count
     hits: Count
     misses: Count
@@ -63,7 +63,7 @@ class FullGameChanceSmokeReport(BaseModel):
         ).hexdigest()
         if (
             profile_sha != self.chance_profile_sha256
-            or len(profiles) != 21
+            or len(profiles) != 24
             or self.result_fields != ("model", "hit_rate", "casts", "hits", "misses")
             or any(casts != hits + misses for _, _, casts, hits, misses in self.model_results)
             or sum(casts for _, _, casts, _, _ in self.model_results) != self.chance_casts
@@ -124,6 +124,8 @@ def run_full_game_chance_smoke(
             batch.pending_observations(),
             batch.chance_observations(),
             batch.chance_snapshot(),
+            batch.attack_effect_observations(),
+            batch.attack_effect_snapshot(),
         ):
             digest.update(view.astype("<i8", copy=False).tobytes())
 

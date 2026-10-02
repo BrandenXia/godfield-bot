@@ -346,3 +346,40 @@ held models and 62 unimplemented held effects. Existing acquisition/combat
 reports advance to schema 4; the new one-turn `full-game-chance-smoke` is schema
 1 and explicitly cannot admit learning, full-game readiness or promotion. See
 [ADR 0107](../../docs/architecture/0107-native-chance-attacks-and-automatic-targets.md).
+
+Version 0.56.0 adds 20 damage/direct effects to the separate engine, with
+kernel/observation/plan/metadata schema 7 and ruleset v7; command schema stays 1.
+Combat-plan schema 5 supplies 92 leaders, 64 numeric defenses, 29 ordered
+additions, 23 specials, 24 chance rows and 20 attack-effect rows. Distinct
+executable held models total 195 (42 still unimplemented), not the sum of
+overlapping roles. Optional `[model, kind, value]` effect rows use absorb=1,
+mask-on-damage=2, illness-on-damage=3, direct-mask=4 and direct-illness=5.
+Zero-ATK leaders require a corresponding direct miracle effect profile;
+omitting the map does not silently turn them into no-op attacks.
+
+Absorption heals the current living source by actual HP removed after defense,
+capped at 100. Reflect transfers healing ownership; bounce preserves it.
+Damage curses require positive actual HP loss, while direct curses require
+no damage, reject numeric armor and admit applicable special responses.
+Illness reuses the documented exclusive-stage kernel; Heaven worsening damage
+is separately accounted from attack HP loss. Effects precede the original
+owner's single tick and deferred gifts. Dead targets/sources are not afflicted
+or resurrected. Dream affects subsequent gifts, not existing disguises.
+Compound timing, dead-target treatment and self-bounce ordering remain
+provisional, with full-game learning and live promotion still blocked.
+
+v7 corrects v6's roll-before-target order: chance samples its living enemy
+first even on misses, checks that target's Dark Cloud, skips the hit ticket
+when guaranteed, and otherwise rolls. A successful attack is not rechecked
+after redirects. All random streams and effect counters stage transactionally.
+`attack_effect_observations[B,4]` is a public owned read-only copy of active,
+displayed/resolved kind, value and current source. The six-column
+`attack_effect_snapshot` holds per-epoch absorption events/HP, curse events,
+illness events, illness HP loss and forced Cloud hits, diagnostically only;
+reset clears it, while lifetime counters remain.
+
+The new `simulation full-game-attack-effect-smoke` reports bounded one-turn
+mechanics diagnostics with explicitly forced hits, not full-game outcomes or
+a training dataset. Chance smoke advances to schema 2 and acquisition/combat
+reports to schema 5. Existing arenas/checkpoints/live controls are unchanged.
+See [ADR 0108](../../docs/architecture/0108-native-attack-effects-and-target-first-chance.md).

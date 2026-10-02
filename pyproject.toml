@@ -20,7 +20,7 @@ dependencies = [
 
 [project.optional-dependencies]
 simulation = [
-  "godfield-sim==0.55.0",
+  "godfield-sim==0.56.0",
   "numpy>=2.2,<3",
 ]
 training = [

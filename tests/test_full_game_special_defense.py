@@ -42,7 +42,7 @@ def game(
     element=None,
     origin=0,
 ):
-    attacks = list(PLAN.combat.attack_profiles)
+    attacks = [row for row in PLAN.combat.attack_profiles if row[1] > 0]
     if element is not None:
         model = 6 if origin == 0 else 211
         # Deliberate arithmetic fixture, not new source-verified card claims.
@@ -476,7 +476,7 @@ def test_late_multibatch_invalid_redirect_rolls_back_native_rng_and_inventory():
         [(234, 3, 1, 0, 0)],
         [(234, 3, 1, 1, 5)],
         [(234, 3, 1, 0, 101)],
-        [(41, 2, 0, 1, 0)],
+        [(46, 2, 0, 1, 0)],
         [(189, 2, 1, 0, 0)],
     ],
 )
@@ -498,8 +498,8 @@ def test_factory_metadata_and_retained_public_snapshot_do_not_claim_full_readine
     batch.reset_environments(ids([0]))
     assert not np.any(batch.special_defense_observations())
     assert before.tolist() == [[1, 0, 0, 2, 0]] and batch.reflection_count == 1
-    assert configured.metadata.kernel_schema_version == 6
-    assert PLAN.integrated_artifact_effect_count == 175
+    assert configured.metadata.kernel_schema_version == 7
+    assert PLAN.integrated_artifact_effect_count == 195
     assert (
         not configured.metadata.full_game_training_ready
         and not configured.metadata.promotion_eligible

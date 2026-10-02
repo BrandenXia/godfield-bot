@@ -8,12 +8,15 @@
 
 namespace godfield_sim {
 
-inline constexpr std::uint32_t kFullGameKernelSchemaVersion = 6;
+inline constexpr std::uint32_t kFullGameKernelSchemaVersion = 7;
 inline constexpr std::uint32_t kFullGameCommandSchemaVersion = 1;
 inline constexpr std::uint32_t kFullGameMaxDefenseActions = 64;
 inline constexpr std::uint32_t kFullGameMaxAttackActions = 64;
 inline constexpr const char *kFullGameRulesetId =
-    "integrated-full-game-development-v6";
+    "integrated-full-game-development-v7";
+using FullGameAttackEffectInput =
+    nb::ndarray<const std::int64_t, nb::numpy, nb::shape<-1, 3>, nb::c_contig,
+                nb::device::cpu>;
 using FullGameBoostInput =
     nb::ndarray<const std::int64_t, nb::numpy, nb::shape<-1, 6>, nb::c_contig,
                 nb::device::cpu>;
@@ -41,7 +44,9 @@ public:
       bool oldest_overflow = false,
       std::optional<FullGameBoostInput> boost_profiles = std::nullopt,
       std::optional<GuardianWeightInput> special_profiles = std::nullopt,
-      std::optional<InventoryProfileInput> chance_profiles = std::nullopt);
+      std::optional<InventoryProfileInput> chance_profiles = std::nullopt,
+      std::optional<FullGameAttackEffectInput> attack_effect_profiles =
+          std::nullopt);
   // Trusted setup only, rejected once started. These are not learner actions.
   void seed_players(ActionInput environments, ActionInput owners,
                     InventoryInput hp_mp_cp_illness, ActionInput curse_masks);
@@ -65,6 +70,26 @@ public:
   [[nodiscard]] Int64_2D special_defense_observations() const;
   [[nodiscard]] Int64_2D chance_observations() const;
   [[nodiscard]] Int64_2D chance_snapshot() const;
+  [[nodiscard]] Int64_2D attack_effect_observations() const;
+  [[nodiscard]] Int64_2D attack_effect_snapshot() const;
+  [[nodiscard]] std::uint64_t absorbed_hp() const noexcept {
+    return absorbed_hp_;
+  }
+  [[nodiscard]] std::uint64_t absorption_count() const noexcept {
+    return absorptions_;
+  }
+  [[nodiscard]] std::uint64_t inflicted_curse_count() const noexcept {
+    return inflicted_curses_;
+  }
+  [[nodiscard]] std::uint64_t inflicted_illness_count() const noexcept {
+    return inflicted_illnesses_;
+  }
+  [[nodiscard]] std::uint64_t illness_effect_damage() const noexcept {
+    return illness_effect_damage_;
+  }
+  [[nodiscard]] std::uint64_t dark_cloud_hit_count() const noexcept {
+    return dark_cloud_hits_;
+  }
   [[nodiscard]] std::uint64_t chance_count() const noexcept {
     return chances_cast_;
   }
@@ -156,6 +181,9 @@ private:
     std::uint64_t bounce_rng = 0;
     std::uint64_t chance_rng = 0, chance_target_rng = 0;
     std::int64_t chance_casts = 0, chance_hits = 0, chance_misses = 0;
+    std::int64_t absorptions = 0, absorbed_hp = 0, inflicted_curses = 0;
+    std::int64_t inflicted_illnesses = 0, illness_effect_damage = 0,
+                 dark_cloud_hits = 0;
     std::int64_t next_instance = 1;
     std::array<std::int64_t, 9> gifts_due{};
     std::array<std::int64_t, 9> gifts_given{};
@@ -169,6 +197,7 @@ private:
     std::int64_t element = 0;
     std::int64_t origin = -1;
     std::int64_t hit_rate = 100;
+    std::int64_t effect_kind = 0, effect_value = 0;
     std::int64_t defense_actions = 0;
     std::int64_t selected_count = 0;
     std::int64_t attack_size = 0;
@@ -189,6 +218,11 @@ private:
   };
   struct Armor {
     std::int64_t value, element;
+  };
+  struct AttackEffect {
+    // Absorb=1, mask-on-damage=2, illness-on-damage=3, direct-mask=4,
+    // direct-illness=5.
+    std::int64_t kind, value;
   };
   struct Boost {
     std::int64_t value, element, cost, kind;
@@ -233,6 +267,9 @@ private:
     bool darkness_finish = false;
     std::int64_t special_kind = 0;
     std::int64_t chance_result = 0; // not sampled=0, hit=1, miss=-1.
+    std::uint64_t absorbed_hp = 0, illness_effect_damage = 0;
+    bool absorption = false, inflicted_curse = false, inflicted_illness = false;
+    bool dark_cloud_hit = false;
   };
   static std::size_t
   validate_dimensions(std::size_t batch_size, std::size_t player_count,
@@ -257,6 +294,7 @@ private:
   void consume_attack(Mutation &mutation, std::size_t owner) const;
   void cast_attack(Mutation &mutation, std::int64_t choice,
                    bool automatic) const;
+  void apply_attack_effect(Mutation &mutation) const noexcept;
   [[nodiscard]] std::int64_t hit_rate(std::int64_t model) const noexcept;
   [[nodiscard]] static std::int64_t mixed_element(std::int64_t existing,
                                                   std::int64_t added) noexcept;
@@ -292,6 +330,7 @@ private:
   std::map<std::int64_t, Boost> boosts_;
   std::map<std::int64_t, Special> specials_;
   std::map<std::int64_t, std::int64_t> chances_;
+  std::map<std::int64_t, AttackEffect> attack_effects_;
   std::vector<std::int64_t> attack_order_;
   std::vector<std::pair<std::int64_t, std::uint64_t>> gift_weights_;
   std::uint64_t gift_total_ = 0;
@@ -321,6 +360,9 @@ private:
   std::uint64_t darkness_finishes_ = 0;
   std::uint64_t blocks_ = 0, reflections_ = 0, bounces_ = 0;
   std::uint64_t chances_cast_ = 0, chance_hits_ = 0, chance_misses_ = 0;
+  std::uint64_t absorptions_ = 0, absorbed_hp_ = 0, inflicted_curses_ = 0;
+  std::uint64_t inflicted_illnesses_ = 0, illness_effect_damage_ = 0,
+                dark_cloud_hits_ = 0;
 };
 
 } // namespace godfield_sim

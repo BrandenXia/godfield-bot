@@ -61,6 +61,7 @@ def game(
             [row for row in PLAN.combat.special_profiles if boosts or row[0] not in (34, 56)]
         ),
         chance_profiles=ids(chances).reshape(-1, 2) if chances is not None else None,
+        attack_effect_profiles=ids(PLAN.combat.attack_effect_profiles),
         gift_profiles=ids([(191, 1)]) if refill else None,
         refill_on_use=refill,
         hand_limit=18,
@@ -115,6 +116,8 @@ def snapshot(batch):
                 "acquisition_snapshot",
                 "chance_observations",
                 "chance_snapshot",
+                "attack_effect_observations",
+                "attack_effect_snapshot",
             )
         ],
         [
@@ -137,6 +140,12 @@ def snapshot(batch):
                 "reflection_count",
                 "bounce_count",
                 "block_count",
+                "absorption_count",
+                "absorbed_hp",
+                "inflicted_curse_count",
+                "inflicted_illness_count",
+                "illness_effect_damage",
+                "dark_cloud_hit_count",
             )
         ],
     )
@@ -170,7 +179,7 @@ def rank(env, stream, bound, *, seed=67, epoch=1):
 
 
 @pytest.mark.parametrize("model,rate", CHANCES)
-def test_all_21_chance_cards_pay_use_once_and_resolve_exact_native_roll(model, rate):
+def test_all_24_chance_cards_pay_use_once_and_resolve_exact_native_roll(model, rate):
     batch = game(size=128, refill=True)
     attack, element, origin, cost = ATTACKS[model]
     for env in range(128):
@@ -401,7 +410,7 @@ def test_decision_limit_before_or_on_chance_confirmation_has_honest_receipts(lim
 @pytest.mark.parametrize(
     "true,display,error",
     [
-        (98, 95, "not implemented"),
+        (112, 95, "not implemented"),
         (35, 95, "targeting mode"),
         (95, 35, "targeting mode"),
         (230, 225, "unaffordable"),
@@ -474,7 +483,7 @@ def test_chance_reset_changes_epoch_streams_and_keeps_lifetime_counts():
         [(95, -1)],
         [(95, 75)] * 2,
         [(190, 75)],
-        [(97, 50)],
+        [(112, 25)],
         [(191, 75)],
         [(225, 75, 4)],
     ],
@@ -499,8 +508,8 @@ def test_factory_command_adapter_has_no_fabricated_target_and_metadata_stays_gat
             configured,
             [FullGameCommand(**context.model_dump(exclude={"legal_choice_ids"}), choice_id=choice)],
         )
-    assert batch.chance_count == 1 and configured.metadata.kernel_schema_version == 6
-    assert PLAN.integrated_artifact_effect_count == 175
+    assert batch.chance_count == 1 and configured.metadata.kernel_schema_version == 7
+    assert PLAN.integrated_artifact_effect_count == 195
     assert (
         not configured.metadata.local_training_eligible
         and not configured.metadata.promotion_eligible

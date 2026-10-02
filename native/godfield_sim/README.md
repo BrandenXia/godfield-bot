@@ -276,3 +276,24 @@ claimed. Acquisition counters are copied/read-only diagnostics; model draws,
 disguises, illness and Fog use independent native streams. Manual fixtures,
 legacy environments/checkpoints, live controls and promotion remain unchanged.
 See [ADR 0104](../../docs/architecture/0104-native-complete-pool-acquisition-and-provisional-overflow.md).
+
+Version 0.53.0 integrates ordered attack selection in the same engine: kernel
+and observation schema 4 / `integrated-full-game-development-v4`. The factory
+supplies 27 source-pinned additions: nineteen weapons, four Ogre armor with
+both ATK and DEF roles, Strength Powder and Fireball/Meteor/Aura. Additive
+weapons and positive-ATK miracles may lead alone; only an ordinary weapon leader
+admits further additions. Aura doubling and wand element setting use selection
+order. Costs, actual hidden effects, consumption, ordered miracle retention
+and one-per-used-card deferred receipts commit together at casting. Darkness
+now sets HP to zero after positive post-defense damage; full armor blocks do
+not trigger it.
+
+Attack selection exposes copied public order, flags and displayed ATK/element/
+MP previews. Undo recomputes that order; leader undo cancels it. After 64
+selection actions only confirmation is legal, and exact-integer overflow is
+rejected atomically. Existing legacy arenas, models and live controls remain
+untouched. Full-game training and promotion are still blocked: 131 held models
+are now integrated, while 106 remain unimplemented. The complete gift pool is
+unchanged. Current acquisition/combat smoke reports are schema 2; historical
+measurements above refer to their native versions. See
+[ADR 0105](../../docs/architecture/0105-native-ordered-attack-composition-and-darkness.md).

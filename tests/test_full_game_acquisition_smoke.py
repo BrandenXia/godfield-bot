@@ -27,14 +27,14 @@ def test_default_complete_pool_startup_is_reproducible_and_not_full_game_success
     assert report == probe()
     assert report.automatic_gifts == 41472
     assert report.observed_model_count == 237
-    assert report.unsupported_effect_draws == 16964
-    assert report.initial_actors_without_implemented_choice == 12
+    assert report.unsupported_effect_draws == 14636
+    assert report.initial_actors_without_implemented_choice == 6
     assert (
         report.diagnostic_replay_sha256
-        == "822adf9d6574278726852b54b4f973e10246866c5ca71cc7cc38276f71ccfbc1"
+        == "f74aa72ad268d52574aa13e81c3bba64b60cb5888aa6af6ce9cd43caeb4448f3"
     )
     assert (
-        report.metadata_sha256 == "d3e9d0e23b83d7b8922c52b356fb4cb278e01512f2d1e308292d35e88fc8c1f9"
+        report.metadata_sha256 == "3b38c73532c58d00054550949f89f898aea0dbbd7b3a89c6b1421818126e195b"
     )
     assert report.accepted_commands == report.games_completed == 0
     assert not report.local_training_eligible and not report.full_game_training_ready

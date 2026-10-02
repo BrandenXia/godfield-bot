@@ -15,6 +15,12 @@ All full-game readiness, training admission, official fidelity and live
 promotion flags remain false. Old environments, trained checkpoint layouts,
 account/session data, live controls and external API revision stay unchanged.
 
+Follow-up: [ADR 0105](0105-native-ordered-attack-composition-and-darkness.md)
+adds ordered additions and Darkness correction under native 0.53.0 / development
+v4. The v3 probe numbers/hashes in this document are historical. The unchanged
+237-model draw stream now reports 131 integrated models and six initial actors
+without an implemented choice; current report identity is schema 2.
+
 ## Source/evidence boundary
 
 The pinned Oct 1 API catalog has 296 records and SHA-256

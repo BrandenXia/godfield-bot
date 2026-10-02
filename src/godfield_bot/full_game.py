@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     import numpy.typing as npt
     from godfield_sim import FullGameBatch
 
-FULL_GAME_RULESET_ID: Final = "integrated-full-game-development-v3"
+FULL_GAME_RULESET_ID: Final = "integrated-full-game-development-v4"
 FULL_GAME_EFFECT_SHA256: Final = "834c9fe8bce6185e2bb3729c64813e85ef84daf07c77fd7a8030b32362ccaae1"
 FULL_GAME_PHASES: Final[tuple[FullGamePhase, ...]] = get_args(FullGamePhase)
 COMMAND_FIELDS: Final = ("environment", "episode", "decision", "actor", "phase", "choice_id")
@@ -71,16 +71,23 @@ PENDING_FIELDS: Final = (
     "origin",
     "displayed_selected_defense",
     "selected_count",
-    "defense_actions",
+    "selection_actions",
     "reserved_attack_choice",
 )
 ACQUISITION_FIELDS: Final = ("gifts_due", "automatic_receipts", "automatic_evictions")
+ATTACK_SELECTION_FIELDS: Final = (
+    "selected_count",
+    "displayed_attack",
+    "displayed_element",
+    "displayed_mp_cost",
+    "selection_actions",
+)
 AcquisitionMode = Literal["manual", "all-held-weighted"]
 
 
 class FullGamePlan(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    schema_version: Literal[3] = 3
+    schema_version: Literal[4] = 4
     inventory: DreamInventoryPlan
     curses: CurseDynamicsPlan
     utilities: GuardianUtilityPlan
@@ -92,12 +99,12 @@ class FullGamePlan(BaseModel):
     effect_profiles: tuple[tuple[int, int, int, int], ...]
     effect_fields: tuple[str, ...] = EFFECT_FIELDS
     implemented_effect_count: Literal[12] = 12
-    implemented_phases: tuple[int, ...] = (0, 1, 3, 4, 12, 13)
-    integrated_artifact_effect_count: Literal[104] = 104
+    implemented_phases: tuple[int, ...] = (0, 1, 2, 3, 4, 12, 13)
+    integrated_artifact_effect_count: Literal[131] = 131
     effect_codes: tuple[str, ...] = ("unused-zero", "hp", "mp", "mild-cure", "full-cure")
     scheduling: Literal[
-        "utility-or-single-attack-target-multi-armor-then-owner-tick-provisional"
-    ] = "utility-or-single-attack-target-multi-armor-then-owner-tick-provisional"
+        "utility-or-ordered-attack-target-multi-armor-then-owner-tick-provisional"
+    ] = "utility-or-ordered-attack-target-multi-armor-then-owner-tick-provisional"
     acquisition: Literal["opt-in-full-held-native-deal-and-per-use-gifts-provisional"] = (
         "opt-in-full-held-native-deal-and-per-use-gifts-provisional"
     )
@@ -133,7 +140,7 @@ class FullGamePlan(BaseModel):
             self.effect_profiles != expected
             or digest != self.effect_sha256
             or self.effect_fields != EFFECT_FIELDS
-            or self.implemented_phases != (0, 1, 3, 4, 12, 13)
+            or self.implemented_phases != (0, 1, 2, 3, 4, 12, 13)
             or self.effect_codes != ("unused-zero", "hp", "mp", "mild-cure", "full-cure")
             or len(
                 {
@@ -141,6 +148,7 @@ class FullGamePlan(BaseModel):
                     self.curses.catalog_sha256,
                     self.utilities.catalog_sha256,
                     self.gifts.catalog_sha256,
+                    self.combat.catalog_sha256,
                 }
             )
             != 1
@@ -150,6 +158,7 @@ class FullGamePlan(BaseModel):
                     self.curses.bible_client_sha256,
                     self.utilities.bible_client_sha256,
                     self.gifts.bible_client_sha256,
+                    self.combat.bible_client_sha256,
                 }
             )
             != 1
@@ -183,11 +192,11 @@ def build_full_game_plan(catalog: ApiCatalogSnapshot, bible: BibleSnapshot) -> F
 
 class FullGameMetadata(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    schema_version: Literal[3] = 3
-    ruleset_id: Literal["integrated-full-game-development-v3"] = FULL_GAME_RULESET_ID
-    kernel_schema_version: Literal[3] = 3
+    schema_version: Literal[4] = 4
+    ruleset_id: Literal["integrated-full-game-development-v4"] = FULL_GAME_RULESET_ID
+    kernel_schema_version: Literal[4] = 4
     command_schema_version: Literal[1] = 1
-    observation_schema_version: Literal[3] = 3
+    observation_schema_version: Literal[4] = 4
     plan: FullGamePlan
     batch_size: int = Field(ge=1, le=1_000_000, strict=True)
     player_count: int = Field(ge=2, le=9, strict=True)
@@ -216,6 +225,18 @@ class FullGameMetadata(BaseModel):
     player_observation_fields: tuple[str, ...] = PLAYER_FIELDS
     diagnostic_fields: tuple[str, ...] = DIAGNOSTIC_FIELDS
     pending_observation_fields: tuple[str, ...] = PENDING_FIELDS
+    attack_selection_fields: tuple[str, ...] = ATTACK_SELECTION_FIELDS
+    max_attack_actions: Literal[64] = 64
+    max_exact_attack: Literal[9007199254740991] = 9007199254740991
+    attack_composition: Literal["ordered-public-selection-fixed-weapon-additions-source-pinned"] = (
+        "ordered-public-selection-fixed-weapon-additions-source-pinned"
+    )
+    attack_limit: Literal["confirm-only-after-64-selections-toggles-provisional"] = (
+        "confirm-only-after-64-selections-toggles-provisional"
+    )
+    attack_undo: Literal["remove-addition-recompute-order-leader-undo-cancels-all-provisional"] = (
+        "remove-addition-recompute-order-leader-undo-cancels-all-provisional"
+    )
     max_defense_actions: Literal[64] = 64
     defense_limit: Literal["confirm-only-after-64-toggles-not-silent-auto-defense"] = (
         "confirm-only-after-64-toggles-not-silent-auto-defense"
@@ -263,6 +284,7 @@ class FullGameMetadata(BaseModel):
             or self.player_observation_fields != PLAYER_FIELDS
             or self.diagnostic_fields != DIAGNOSTIC_FIELDS
             or self.pending_observation_fields != PENDING_FIELDS
+            or self.attack_selection_fields != ATTACK_SELECTION_FIELDS
             or self.acquisition_snapshot_fields != ACQUISITION_FIELDS
             or self.phase_names != FULL_GAME_PHASES
             or self.outcome_names != OUTCOMES
@@ -337,10 +359,11 @@ def create_development_full_game_batch(
             "full-game development engine requires simulation extra"
         ) from None
     if (
-        getattr(native, "FULL_GAME_KERNEL_SCHEMA_VERSION", None) != 3
+        getattr(native, "FULL_GAME_KERNEL_SCHEMA_VERSION", None) != 4
         or getattr(native, "FULL_GAME_COMMAND_SCHEMA_VERSION", None) != 1
-        or getattr(native, "FULL_GAME_OBSERVATION_SCHEMA_VERSION", None) != 3
+        or getattr(native, "FULL_GAME_OBSERVATION_SCHEMA_VERSION", None) != 4
         or getattr(native, "FULL_GAME_MAX_DEFENSE_ACTIONS", None) != 64
+        or getattr(native, "FULL_GAME_MAX_ATTACK_ACTIONS", None) != 64
         or getattr(native, "FULL_GAME_RULESET_ID", None) != FULL_GAME_RULESET_ID
         or not hasattr(native, "FullGameBatch")
     ):
@@ -366,6 +389,7 @@ def create_development_full_game_batch(
             metadata.prayer_gifts,
             metadata.hand_limit,
             metadata.overflow_policy == "oldest-held-provisional",
+            np.asarray(plan.combat.boost_profiles, dtype=np.int64),
         ),
         metadata,
     )
@@ -428,7 +452,7 @@ class FullGameSmokeReport(BaseModel):
     source_kind: Literal["integrated-development-utility-cure-smoke-v1"] = (
         "integrated-development-utility-cure-smoke-v1"
     )
-    ruleset_id: Literal["integrated-full-game-development-v3"] = FULL_GAME_RULESET_ID
+    ruleset_id: Literal["integrated-full-game-development-v4"] = FULL_GAME_RULESET_ID
     scenario: Literal["fixed-own-utility-cure-hands-disease-not-combat-strength"] = (
         "fixed-own-utility-cure-hands-disease-not-combat-strength"
     )

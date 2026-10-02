@@ -16,12 +16,12 @@ Count = Annotated[int, Field(ge=0, strict=True)]
 
 class FullGameCombatSmokeReport(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    schema_version: Literal[1] = 1
-    source_kind: Literal["integrated-development-combat-smoke-v1"] = (
-        "integrated-development-combat-smoke-v1"
+    schema_version: Literal[2] = 2
+    source_kind: Literal["integrated-development-combat-smoke-v2"] = (
+        "integrated-development-combat-smoke-v2"
     )
-    ruleset_id: Literal["integrated-full-game-development-v3"] = (
-        "integrated-full-game-development-v3"
+    ruleset_id: Literal["integrated-full-game-development-v4"] = (
+        "integrated-full-game-development-v4"
     )
     scenario: Literal["fixed-known-hands-public-greedy-free-for-all-not-strength"] = (
         "fixed-known-hands-public-greedy-free-for-all-not-strength"
@@ -32,7 +32,7 @@ class FullGameCombatSmokeReport(BaseModel):
     player_count: int = Field(ge=2, le=9, strict=True)
     seed: int = Field(ge=0, le=2**64 - 1, strict=True)
     max_turns: int = Field(ge=1, le=4096, strict=True)
-    max_decisions: int = Field(ge=1, le=16384, strict=True)
+    max_decisions: int = Field(ge=1, le=32768, strict=True)
     winners: Count
     all_dead_draws: Count
     turn_limit_truncations: Count
@@ -43,6 +43,10 @@ class FullGameCombatSmokeReport(BaseModel):
     passes: Count
     utilities: Count
     attack_selections: Count
+    attack_toggles: Count
+    attack_confirms: Count
+    attack_components: Count
+    darkness_finishes: Count
     attacks_cast: Count
     attacks_resolved: Count
     defense_toggles: Count
@@ -68,6 +72,8 @@ class FullGameCombatSmokeReport(BaseModel):
             != self.passes
             + self.utilities
             + self.attack_selections
+            + self.attack_toggles
+            + self.attack_confirms
             + self.attacks_cast
             + self.attacks_resolved
             + self.defense_toggles
@@ -95,7 +101,7 @@ def run_full_game_combat_smoke(
         raise ValueError("combat smoke batch size must be 1 through 4096")
     if type(max_turns) is not int or not 1 <= max_turns <= 4096:
         raise ValueError("combat smoke turn bound must be 1 through 4096")
-    max_decisions = max_turns * 4
+    max_decisions = max_turns * 8
     configured = create_development_full_game_batch(
         catalog_path=catalog_path,
         bible_path=bible_path,
@@ -110,7 +116,7 @@ def run_full_game_combat_smoke(
     )
     batch = configured.batch
     # Fixture deal, NOT weighted acquisition or replacement cadence.
-    models = (57, 54, 35, 218, 130, 148, 194, 195, 237)
+    models = (57, 54, 35, 218, 130, 148, 194, 195, 237, 28, 66, 210)
     for env in range(batch_size):
         for owner in range(player_count):
             batch.seed_players(
@@ -134,6 +140,7 @@ def run_full_game_combat_smoke(
     attacks = {row[0]: row[1:] for row in configured.metadata.plan.combat.attack_profiles}
     armor = {row[0]: row[1] for row in configured.metadata.plan.combat.armor_profiles}
     utility = {row[0]: row[1:] for row in configured.metadata.plan.effect_profiles}
+    boosts = {row[0]: row[1:] for row in configured.metadata.plan.combat.boost_profiles}
     digest = hashlib.sha256()
     selections = 0
 
@@ -145,18 +152,22 @@ def run_full_game_combat_smoke(
             batch.diagnostic_inventory(),
             batch.pending_observations(),
             batch.selected_defenses(),
+            batch.selected_attacks(),
+            batch.attack_order(),
+            batch.attack_selection_observations(),
         ):
             digest.update(view.astype("<i8", copy=False).tobytes())
 
     fingerprint()
     for _ in range(max_decisions):
         episodes = batch.episode_snapshot()
-        active = np.flatnonzero(np.isin(episodes[:, 3], (1, 3, 4)))
+        active = np.flatnonzero(np.isin(episodes[:, 3], (1, 2, 3, 4)))
         if not len(active):
             break
         masks, hands = batch.choice_masks(), batch.actor_hands()
         pending, selected = batch.pending_observations(), batch.selected_defenses()
         players = batch.player_observations()
+        selected_attacks = batch.selected_attacks()
         commands = []
         for env_index in active:
             env = int(env_index)
@@ -165,6 +176,15 @@ def run_full_game_combat_smoke(
             choice = 0
             if phase == 3:
                 choice = legal[0]
+            elif phase == 2:
+                selected_attack = selected_attacks[env]
+                available = [
+                    slot for slot in legal if 1 <= slot <= 12 and not selected_attack[slot - 1]
+                ]
+                if available:
+                    choice = max(
+                        available, key=lambda slot: boosts[int(hands[env, slot - 1, 1])][0]
+                    )
             elif phase == 4:
                 available = [
                     slot for slot in legal if 1 <= slot <= 12 and not selected[env, slot - 1]
@@ -177,7 +197,7 @@ def run_full_game_combat_smoke(
                     if not 1 <= slot <= 12:
                         continue
                     model = int(hands[env, slot - 1, 1])
-                    if model in attacks:
+                    if model in attacks or model in boosts:
                         spells.append(slot)
                     elif model in utility:
                         kind, _, _ = utility[model]
@@ -190,7 +210,13 @@ def run_full_game_combat_smoke(
                 if benefits:
                     choice = benefits[0]
                 elif spells:
-                    choice = max(spells, key=lambda slot: attacks[int(hands[env, slot - 1, 1])][0])
+                    choice = max(
+                        spells,
+                        key=lambda slot: (
+                            attacks.get(int(hands[env, slot - 1, 1]))
+                            or boosts[int(hands[env, slot - 1, 1])]
+                        )[0],
+                    )
                     selections += 1
             commands.append([int(env), *episodes[env, :4].tolist(), choice])
         batch.step(np.asarray(commands, dtype=np.int64))
@@ -220,6 +246,10 @@ def run_full_game_combat_smoke(
         passes=batch.pass_count,
         utilities=batch.utility_count,
         attack_selections=selections,
+        attack_toggles=batch.attack_toggle_count,
+        attack_confirms=batch.attack_confirm_count,
+        attack_components=batch.attack_component_count,
+        darkness_finishes=batch.darkness_finish_count,
         attacks_cast=batch.attack_count,
         attacks_resolved=batch.resolved_attack_count,
         defense_toggles=batch.defense_toggle_count,

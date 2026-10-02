@@ -63,7 +63,8 @@ FullGameBatch::FullGameBatch(
     std::optional<GuardianWeightInput> armor_profiles,
     std::optional<InventoryProfileInput> gift_profiles,
     std::size_t initial_cards, bool refill_on_use, bool prayer_gifts,
-    std::size_t hand_limit, bool oldest_overflow)
+    std::size_t hand_limit, bool oldest_overflow,
+    std::optional<FullGameBoostInput> boost_profiles)
     : batch_size_(validate_dimensions(batch_size, player_count, capacity,
                                       max_turns, max_decisions, initial_hp,
                                       initial_mp, initial_cp)),
@@ -159,6 +160,34 @@ FullGameBatch::FullGameBatch(
       gift_total_ += profile.second;
       profile.second = gift_total_;
     }
+  }
+  if (boost_profiles) {
+    const auto &profiles = *boost_profiles;
+    if (!attack_profiles || profiles.shape(0) == 0 || profiles.shape(0) > 237)
+      throw std::invalid_argument(
+          "full-game attack composition profile count is invalid");
+    for (std::size_t row = 0; row < profiles.shape(0); ++row) {
+      const auto model = profiles(row, 0),
+                 category = inventory_.category(model);
+      const Boost boost{profiles(row, 1), profiles(row, 2), profiles(row, 3),
+                        profiles(row, 4), profiles(row, 5) == 1};
+      if (category < 1 || category > 4 || boost.kind < 0 || boost.kind > 2 ||
+          boost.value < (boost.kind == 2 ? 0 : 1) || boost.value > 65535 ||
+          (boost.kind == 2 &&
+           (boost.value != 0 || boost.can_lead || category != 4)) ||
+          boost.element < 0 || boost.element > 6 ||
+          (boost.kind == 1 &&
+           (boost.element < 1 || boost.element > 4 || category != 1)) ||
+          boost.cost < 0 || boost.cost > 100 ||
+          (category == 4 ? boost.cost == 0 : boost.cost != 0) ||
+          profiles(row, 5) < 0 || profiles(row, 5) > 1 ||
+          (boost.can_lead && category != 1 && category != 4) ||
+          attacks_.contains(model) || effects_.contains(model) ||
+          !boosts_.emplace(model, boost).second)
+        throw std::invalid_argument(
+            "full-game attack composition profile is invalid or duplicate");
+    }
+    attack_order_.resize(batch_size_ * capacity_, 0);
   }
 }
 
@@ -351,6 +380,10 @@ FullGameBatch::Mutation FullGameBatch::staged_episode(std::size_t env) const {
   }
   std::copy_n(selected_.begin() + static_cast<std::ptrdiff_t>(env * capacity_),
               capacity_, mutation.selected.begin());
+  if (!boosts_.empty())
+    std::copy_n(attack_order_.begin() +
+                    static_cast<std::ptrdiff_t>(env * capacity_),
+                capacity_, mutation.order.begin());
   return mutation;
 }
 
@@ -421,11 +454,104 @@ bool FullGameBatch::visible_weapon(std::size_t owner) const {
   return false;
 }
 
+std::int64_t FullGameBatch::mixed_element(std::int64_t first,
+                                          std::int64_t added) noexcept {
+  if (first == added)
+    return first;
+  if (first == 5 && added >= 1 && added <= 4)
+    return added;
+  if (added == 5 && first >= 1 && first <= 4)
+    return first;
+  return 0;
+}
+
+FullGameBatch::Composition FullGameBatch::compose(const Mutation &mutation,
+                                                  bool actual) const {
+  Composition result{};
+  const auto owner = mutation.environment * player_count_ +
+                     static_cast<std::size_t>(mutation.episode.actor);
+  for (std::int64_t index = 0; index < mutation.episode.attack_size; ++index) {
+    const auto &item =
+        inventory_.items_[owner * capacity_ +
+                          static_cast<std::size_t>(mutation.order[index] - 1)];
+    const auto model = actual || item[2] == 0 ? item[1] : item[2];
+    const auto category = inventory_.category(model);
+    const auto attack = attacks_.find(model);
+    const auto boost = boosts_.find(model);
+    if (index == 0) {
+      if (attack != attacks_.end())
+        result = {attack->second.value, attack->second.element,
+                  attack->second.cost, attack->second.origin, category == 1};
+      else if (boost != boosts_.end() && boost->second.can_lead)
+        result = {boost->second.value, boost->second.element,
+                  boost->second.cost, category == 4 ? 1 : 0, category == 1};
+      else
+        throw std::invalid_argument("full-game actual attack leader effect is "
+                                    "not implemented or cannot lead");
+      continue;
+    }
+    if (!result.weapon || boost == boosts_.end())
+      throw std::invalid_argument("full-game actual attack addition effect is "
+                                  "not implemented or incompatible");
+    const auto &effect = boost->second;
+    if (effect.kind == 2) {
+      if (result.value > kMaximumCounter / 2)
+        throw std::invalid_argument(
+            "full-game attack composition exceeds exact integer bound");
+      result.value *= 2;
+    } else {
+      if (result.value > kMaximumCounter - effect.value)
+        throw std::invalid_argument(
+            "full-game attack composition exceeds exact integer bound");
+      result.value += effect.value;
+    }
+    result.element = effect.kind == 1
+                         ? effect.element
+                         : mixed_element(result.element, effect.element);
+    result.cost += effect.cost;
+  }
+  return result;
+}
+
+void FullGameBatch::update_preview(Mutation &mutation) const {
+  const auto preview = compose(mutation, false);
+  mutation.episode.preview_attack = preview.value;
+  mutation.episode.preview_element = preview.element;
+  mutation.episode.preview_cost = preview.cost;
+}
+
+void FullGameBatch::consume_attack(Mutation &mutation, std::size_t seat) const {
+  const auto owner = mutation.environment * player_count_ + seat;
+  auto &hand = stage_hand(mutation, seat);
+  hand.clear();
+  for (std::size_t slot = 0; slot < inventory_.sizes_[owner]; ++slot)
+    if (mutation.selected[slot] == 0)
+      hand.push_back(inventory_.items_[owner * capacity_ + slot]);
+  for (std::int64_t index = 0; index < mutation.episode.attack_size; ++index) {
+    auto item =
+        inventory_.items_[owner * capacity_ +
+                          static_cast<std::size_t>(mutation.order[index] - 1)];
+    if (inventory_.category(item[1]) == 4) {
+      item[3] = 1;
+      hand.push_back(item);
+      ++mutation.miracles;
+    } else
+      ++mutation.consumed;
+    if (refill_on_use_)
+      ++mutation.episode.gifts_due[seat];
+    ++mutation.attack_components;
+  }
+  mutation.selected.fill(0);
+  mutation.order.fill(0);
+  mutation.episode.attack_size = 0;
+}
+
 bool FullGameBatch::legal_choice(std::size_t env, std::int64_t choice) const {
   const auto &episode = episodes_[env];
   if (choice < 0 || static_cast<std::uint64_t>(choice) > capacity_ + 9)
     return false;
-  if (episode.phase != 1 && episode.phase != 3 && episode.phase != 4)
+  if (episode.phase != 1 && episode.phase != 2 && episode.phase != 3 &&
+      episode.phase != 4)
     return false;
   const auto owner =
       env * player_count_ + static_cast<std::size_t>(episode.actor);
@@ -436,7 +562,8 @@ bool FullGameBatch::legal_choice(std::size_t env, std::int64_t choice) const {
            statuses_.states_[env * player_count_ + seat][0] > 0;
   }
   if (choice == 0)
-    return episode.phase == 4 || !prayer_gifts_ || !visible_weapon(owner);
+    return episode.phase == 2 || episode.phase == 4 || !prayer_gifts_ ||
+           !visible_weapon(owner);
   if (choice < 1 ||
       static_cast<std::uint64_t>(choice) > inventory_.sizes_[owner])
     return false;
@@ -448,8 +575,29 @@ bool FullGameBatch::legal_choice(std::size_t env, std::int64_t choice) const {
     if (utility != effects_.end())
       return visible_utility_eligible(owner, utility->second);
     const auto attack = attacks_.find(display);
-    return attack != attacks_.end() &&
-           resources_[owner][0] >= attack->second.cost;
+    const auto boost = boosts_.find(display);
+    return (attack != attacks_.end() &&
+            resources_[owner][0] >= attack->second.cost) ||
+           (boost != boosts_.end() && boost->second.can_lead &&
+            resources_[owner][0] >= boost->second.cost);
+  }
+  if (episode.phase == 2) {
+    if (episode.attack_actions >= kFullGameMaxAttackActions)
+      return false;
+    if (selected_[env * capacity_ + slot] != 0)
+      return true;
+    const auto boost = boosts_.find(display);
+    const auto &leader =
+        inventory_.items_[owner * capacity_ +
+                          static_cast<std::size_t>(episode.attack_slot)];
+    const auto leader_model = leader[2] == 0 ? leader[1] : leader[2];
+    if (inventory_.category(leader_model) != 1 || boost == boosts_.end())
+      return false;
+    const auto &effect = boost->second;
+    return resources_[owner][0] >= episode.preview_cost + effect.cost &&
+           episode.preview_attack <= (effect.kind == 2
+                                          ? kMaximumCounter / 2
+                                          : kMaximumCounter - effect.value);
   }
   if (episode.defense_actions >= kFullGameMaxDefenseActions)
     return false;
@@ -495,7 +643,8 @@ FullGameBatch::Mutation FullGameBatch::prepare(FullGameCommandInput commands,
   }
   const auto index = static_cast<std::size_t>(env);
   const auto &episode = episodes_[index];
-  if ((episode.phase != 1 && episode.phase != 3 && episode.phase != 4) ||
+  if ((episode.phase != 1 && episode.phase != 2 && episode.phase != 3 &&
+       episode.phase != 4) ||
       commands(row, 1) != episode.epoch ||
       commands(row, 2) != episode.decision ||
       commands(row, 3) != episode.actor || commands(row, 4) != episode.phase) {
@@ -526,7 +675,14 @@ FullGameBatch::Mutation FullGameBatch::prepare(FullGameCommandInput commands,
       // cast.
       mutation.episode.turn_owner = episode.actor;
       mutation.episode.attack_slot = static_cast<std::int64_t>(slot);
-      mutation.episode.phase = 3;
+      mutation.episode.phase = boosts_.empty() ? 3 : 2;
+      if (!boosts_.empty()) {
+        mutation.order[0] = choice;
+        mutation.selected[slot] = 1;
+        mutation.episode.attack_size = 1;
+        mutation.episode.attack_actions = 1;
+        update_preview(mutation);
+      }
       advance_decision(mutation, choice);
       return mutation;
     }
@@ -567,14 +723,51 @@ FullGameBatch::Mutation FullGameBatch::prepare(FullGameCommandInput commands,
     }
     mutation.utility = true;
     finish_turn(mutation, actor);
+  } else if (episode.phase == 2) {
+    if (choice == 0) {
+      mutation.episode.phase = 3;
+      mutation.attack_confirm = true;
+    } else {
+      const auto slot = static_cast<std::size_t>(choice - 1);
+      mutation.attack_toggle = true;
+      ++mutation.episode.attack_actions;
+      if (slot == static_cast<std::size_t>(episode.attack_slot)) {
+        // Provisional local cancel: undoing the leader clears all selections.
+        mutation.order.fill(0);
+        mutation.selected.fill(0);
+        mutation.episode.attack_size = 0;
+        mutation.episode.phase = 1;
+        mutation.episode.turn_owner = -1;
+        mutation.episode.attack_slot = -1;
+        mutation.episode.preview_attack = mutation.episode.preview_element =
+            mutation.episode.preview_cost = 0;
+      } else if (mutation.selected[slot] != 0) {
+        const auto end = mutation.order.begin() + episode.attack_size;
+        const auto position = std::find(mutation.order.begin(), end, choice);
+        std::move(position + 1, end, position);
+        mutation.order[--mutation.episode.attack_size] = 0;
+        mutation.selected[slot] = 0;
+        update_preview(mutation);
+      } else {
+        mutation.order[mutation.episode.attack_size++] = choice;
+        mutation.selected[slot] = 1;
+        update_preview(mutation);
+      }
+    }
   } else if (episode.phase == 3) {
     const auto slot = static_cast<std::size_t>(episode.attack_slot);
     const auto &item = inventory_.items_[owner * capacity_ + slot];
-    const auto actual = attacks_.find(item[1]);
-    if (actual == attacks_.end())
-      throw std::invalid_argument(
-          "full-game actual attack effect is not implemented yet");
-    const auto &attack = actual->second;
+    Composition attack{};
+    if (boosts_.empty()) {
+      const auto actual = attacks_.find(item[1]);
+      if (actual == attacks_.end())
+        throw std::invalid_argument(
+            "full-game actual attack effect is not implemented yet");
+      attack = {actual->second.value, actual->second.element,
+                actual->second.cost, actual->second.origin,
+                actual->second.origin == 0};
+    } else
+      attack = compose(mutation, true);
     if (mutation.resources[actor][0] < attack.cost)
       throw std::invalid_argument(
           "full-game hidden actual miracle cost is unaffordable");
@@ -587,7 +780,11 @@ FullGameBatch::Mutation FullGameBatch::prepare(FullGameCommandInput commands,
           eligible[count++] = static_cast<std::int64_t>(seat);
       target = eligible[random_rank(mutation.episode.combat_rng, count)];
     }
-    consume_slot(mutation, actor, slot);
+    if (boosts_.empty()) {
+      consume_slot(mutation, actor, slot);
+      ++mutation.attack_components;
+    } else
+      consume_attack(mutation, actor);
     mutation.resources[actor][0] -= attack.cost;
     mutation.paid = static_cast<std::uint64_t>(attack.cost);
     mutation.attack_cast = true;
@@ -631,6 +828,12 @@ FullGameBatch::Mutation FullGameBatch::prepare(FullGameCommandInput commands,
     mutation.damage = static_cast<std::uint64_t>(
         std::min(damage, mutation.statuses[actor][0]));
     mutation.statuses[actor][0] -= static_cast<std::int64_t>(mutation.damage);
+    if (episode.element == 6 && mutation.damage > 0) {
+      mutation.damage +=
+          static_cast<std::uint64_t>(mutation.statuses[actor][0]);
+      mutation.statuses[actor][0] = 0;
+      mutation.darkness_finish = true;
+    }
     mutation.attack_resolved = true;
     finish_turn(mutation, static_cast<std::size_t>(episode.turn_owner));
   }
@@ -679,7 +882,10 @@ void FullGameBatch::finish_turn(Mutation &mutation, std::size_t owner) const {
   episode.origin = -1;
   episode.defense_actions = 0;
   episode.selected_count = 0;
+  episode.attack_size = episode.attack_actions = 0;
+  episode.preview_attack = episode.preview_element = episode.preview_cost = 0;
   mutation.selected.fill(0);
+  mutation.order.fill(0);
   decide_outcome(mutation);
   if (episode.phase == 12)
     return; // Real endings take precedence over limits.
@@ -743,6 +949,10 @@ void FullGameBatch::commit(const Mutation &mutation) noexcept {
   std::copy_n(mutation.selected.begin(), capacity_,
               selected_.begin() + static_cast<std::ptrdiff_t>(
                                       mutation.environment * capacity_));
+  if (!boosts_.empty())
+    std::copy_n(mutation.order.begin(), capacity_,
+                attack_order_.begin() + static_cast<std::ptrdiff_t>(
+                                            mutation.environment * capacity_));
   inventory_.consumed_count_ += mutation.consumed;
   inventory_.miracle_use_count_ += mutation.miracles;
   inventory_.restored_count_ += mutation.restored;
@@ -760,6 +970,10 @@ void FullGameBatch::commit(const Mutation &mutation) noexcept {
   suppressed_gifts_ += mutation.suppressed_gifts;
   overflow_ += mutation.overflow;
   prayers_ += mutation.prayer ? 1 : 0;
+  attack_toggles_ += mutation.attack_toggle ? 1 : 0;
+  attack_confirms_ += mutation.attack_confirm ? 1 : 0;
+  attack_components_ += mutation.attack_components;
+  darkness_finishes_ += mutation.darkness_finish ? 1 : 0;
 }
 
 void FullGameBatch::reset_environments(ActionInput environments) {
@@ -784,6 +998,10 @@ void FullGameBatch::reset_environments(ActionInput environments) {
     std::fill_n(selected_.begin() +
                     static_cast<std::ptrdiff_t>(env * capacity_),
                 capacity_, 0);
+    if (!boosts_.empty())
+      std::fill_n(attack_order_.begin() +
+                      static_cast<std::ptrdiff_t>(env * capacity_),
+                  capacity_, 0);
   }
 }
 
@@ -860,25 +1078,67 @@ Bool2D FullGameBatch::selected_defenses() const {
   return owned_array<Bool2D>(std::move(buffer), {batch_size_, capacity_});
 }
 
+Bool2D FullGameBatch::selected_attacks() const {
+  auto buffer = std::make_unique<bool[]>(batch_size_ * capacity_);
+  for (std::size_t env = 0; env < batch_size_; ++env)
+    if (episodes_[env].phase == 2 || episodes_[env].phase == 3)
+      for (std::size_t slot = 0; slot < capacity_; ++slot)
+        buffer[env * capacity_ + slot] =
+            !boosts_.empty() && selected_[env * capacity_ + slot] != 0;
+  return owned_array<Bool2D>(std::move(buffer), {batch_size_, capacity_});
+}
+
+Int64_2D FullGameBatch::attack_order() const {
+  auto buffer = std::make_unique<std::int64_t[]>(batch_size_ * capacity_);
+  for (std::size_t env = 0; env < batch_size_; ++env)
+    if (!boosts_.empty() &&
+        (episodes_[env].phase == 2 || episodes_[env].phase == 3))
+      std::copy_n(attack_order_.begin() +
+                      static_cast<std::ptrdiff_t>(env * capacity_),
+                  capacity_, buffer.get() + env * capacity_);
+  return owned_array<Int64_2D>(std::move(buffer), {batch_size_, capacity_});
+}
+
+Int64_2D FullGameBatch::attack_selection_observations() const {
+  auto buffer = std::make_unique<std::int64_t[]>(batch_size_ * 5);
+  for (std::size_t env = 0; env < batch_size_; ++env) {
+    const auto &episode = episodes_[env];
+    if (boosts_.empty() || (episode.phase != 2 && episode.phase != 3))
+      continue;
+    const std::array<std::int64_t, 5> row{
+        episode.attack_size, episode.preview_attack, episode.preview_element,
+        episode.preview_cost, episode.attack_actions};
+    std::copy(row.begin(), row.end(), buffer.get() + env * 5);
+  }
+  return owned_array<Int64_2D>(std::move(buffer), {batch_size_, 5});
+}
+
 Int64_2D FullGameBatch::pending_observations() const {
   auto buffer = std::make_unique<std::int64_t[]>(batch_size_ * 10);
   for (std::size_t env = 0; env < batch_size_; ++env) {
     const auto &episode = episodes_[env];
-    if (episode.phase != 3 && episode.phase != 4)
+    if (episode.phase != 2 && episode.phase != 3 && episode.phase != 4)
       continue;
     auto value = episode.attack, element = episode.element,
          origin = episode.origin;
     std::int64_t defense = 0;
-    if (episode.phase == 3) {
+    if (episode.phase == 2 || episode.phase == 3) {
       const auto owner =
           env * player_count_ + static_cast<std::size_t>(episode.actor);
       const auto &item =
           inventory_.items_[owner * capacity_ +
                             static_cast<std::size_t>(episode.attack_slot)];
-      const auto &visible = attacks_.at(item[2] == 0 ? item[1] : item[2]);
-      value = visible.value;
-      element = visible.element;
-      origin = visible.origin;
+      const auto model = item[2] == 0 ? item[1] : item[2];
+      if (boosts_.empty()) {
+        const auto &visible = attacks_.at(model);
+        value = visible.value;
+        element = visible.element;
+        origin = visible.origin;
+      } else {
+        value = episode.preview_attack;
+        element = episode.preview_element;
+        origin = inventory_.category(model) == 4 ? 1 : 0;
+      }
     } else {
       const auto owner =
           env * player_count_ + static_cast<std::size_t>(episode.actor);
@@ -897,9 +1157,11 @@ Int64_2D FullGameBatch::pending_observations() const {
         element,
         origin,
         defense,
-        episode.selected_count,
-        episode.defense_actions,
-        episode.phase == 3 ? episode.attack_slot + 1 : 0};
+        episode.phase == 2 || episode.phase == 3 ? episode.attack_size
+                                                 : episode.selected_count,
+        episode.phase == 2 || episode.phase == 3 ? episode.attack_actions
+                                                 : episode.defense_actions,
+        episode.phase == 2 || episode.phase == 3 ? episode.attack_slot + 1 : 0};
     std::copy(row.begin(), row.end(), buffer.get() + env * 10);
   }
   return owned_array<Int64_2D>(std::move(buffer), {batch_size_, 10});
@@ -944,6 +1206,7 @@ void bind_full_game(nb::module_ &module) {
       kFullGameKernelSchemaVersion;
   module.attr("FULL_GAME_RULESET_ID") = kFullGameRulesetId;
   module.attr("FULL_GAME_MAX_DEFENSE_ACTIONS") = kFullGameMaxDefenseActions;
+  module.attr("FULL_GAME_MAX_ATTACK_ACTIONS") = kFullGameMaxAttackActions;
   nb::class_<FullGameBatch>(module, "FullGameBatch")
       .def(nb::init<std::size_t, std::size_t, InventoryProfileInput,
                     InventoryInput, std::size_t, std::uint64_t, std::uint64_t,
@@ -951,7 +1214,8 @@ void bind_full_game(nb::module_ &module) {
                     std::optional<GuardianWeightInput>,
                     std::optional<GuardianWeightInput>,
                     std::optional<InventoryProfileInput>, std::size_t, bool,
-                    bool, std::size_t, bool>(),
+                    bool, std::size_t, bool,
+                    std::optional<FullGameBoostInput>>(),
            nb::arg("batch_size"), nb::arg("player_count"),
            nb::arg("inventory_profiles").noconvert(),
            nb::arg("utility_profiles").noconvert(), nb::arg("capacity") = 512,
@@ -963,7 +1227,8 @@ void bind_full_game(nb::module_ &module) {
            nb::arg("gift_profiles").noconvert() = nb::none(),
            nb::arg("initial_cards") = 0, nb::arg("refill_on_use") = false,
            nb::arg("prayer_gifts") = false, nb::arg("hand_limit") = 0,
-           nb::arg("oldest_overflow") = false)
+           nb::arg("oldest_overflow") = false,
+           nb::arg("boost_profiles").noconvert() = nb::none())
       .def("seed_players", &FullGameBatch::seed_players,
            nb::arg("environments").noconvert(), nb::arg("owners").noconvert(),
            nb::arg("hp_mp_cp_illness").noconvert(),
@@ -987,6 +1252,16 @@ void bind_full_game(nb::module_ &module) {
       .def("choice_masks", &FullGameBatch::choice_masks)
       .def("pending_observations", &FullGameBatch::pending_observations)
       .def("selected_defenses", &FullGameBatch::selected_defenses)
+      .def("selected_attacks", &FullGameBatch::selected_attacks)
+      .def("attack_order", &FullGameBatch::attack_order)
+      .def("attack_selection_observations",
+           &FullGameBatch::attack_selection_observations)
+      .def_prop_ro("attack_toggle_count", &FullGameBatch::attack_toggle_count)
+      .def_prop_ro("attack_confirm_count", &FullGameBatch::attack_confirm_count)
+      .def_prop_ro("attack_component_count",
+                   &FullGameBatch::attack_component_count)
+      .def_prop_ro("darkness_finish_count",
+                   &FullGameBatch::darkness_finish_count)
       .def("acquisition_snapshot", &FullGameBatch::acquisition_snapshot)
       .def_prop_ro("automatic_gift_count", &FullGameBatch::automatic_gift_count)
       .def_prop_ro("suppressed_gift_count",

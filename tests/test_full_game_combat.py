@@ -117,6 +117,8 @@ def begin(batch, model=35, *, armor=(), target=1, capacity=8):
     seed(batch, [(10 + i, card, 0, 0) for i, card in enumerate(armor)], owner=target)
     batch.start_environments(ids([0]))
     step(batch, [1])
+    if batch.episode_snapshot()[0, 3] == 2:
+        step(batch, [0])  # Source-pinned v4 factory has explicit attack confirmation.
     step(batch, [capacity + 1 + target])
 
 
@@ -151,13 +153,14 @@ def test_all_source_pinned_attacks_join_costs_inventory_and_turns(profile):
         assert batch.diagnostic_inventory()[0, 0, 0].tolist() == [2, 191, 0, 0]
         assert batch.consumed_count == 1 and batch.miracle_use_count == 0
     step(batch, [0])
-    assert batch.diagnostic_players()[0, 1].tolist() == [40 - attack, 20, 0, 2, 0, 0]
+    actual_damage = 40 if element == 6 else attack
+    assert batch.diagnostic_players()[0, 1].tolist() == [40 - actual_damage, 20, 0, 2, 0, 0]
     assert batch.diagnostic_players()[0, 0, 0] == 39
     assert batch.diagnostic_players()[0, 0, 5] == 1
-    assert batch.episode_snapshot()[0, 2:5].tolist() == [1, 1, 1]
+    assert batch.episode_snapshot()[0, 2:5].tolist() == [2 if element == 6 else 1, 1, 1]
     assert batch.episode_snapshot()[0, 7] == 3
     assert batch.action_count == 3 and batch.pass_count == batch.utility_count == 0
-    assert batch.resolved_attack_count == 1 and batch.hp_damage == attack
+    assert batch.resolved_attack_count == 1 and batch.hp_damage == actual_damage
     assert not np.any(batch.pending_observations())
 
 
@@ -201,7 +204,7 @@ def test_element_compatibility_masks_are_rechecked_on_native_dispatch(
             step(batch, [1])
         same(batch, before)
     step(batch, [0])
-    assert batch.hp_damage == (6 if compatible else 10)
+    assert batch.hp_damage == (40 if attack_element == 6 else 6 if compatible else 10)
 
 
 def test_multicard_toggle_flash_undo_and_bounded_confirm_only_liveness():
@@ -488,7 +491,7 @@ def test_reset_pending_selection_views_copy_and_command_protocol_parity():
 )
 def test_combat_plan_cannot_forge_profile_coverage_or_fidelity(change):
     assert PLAN.combat.profile_sha256 == FULL_GAME_COMBAT_SHA256
-    assert PLAN.integrated_artifact_effect_count == 104
+    assert PLAN.integrated_artifact_effect_count == 131
     with pytest.raises(ValidationError):
         FullGameCombatPlan.model_validate({**PLAN.combat.model_dump(), **change})
 
@@ -545,7 +548,7 @@ def test_full_combat_smoke_finishes_or_explicitly_truncates_reproducibly(players
     )
     assert first.attacks_cast > 0 if turn_limit > 1 else first.utilities > 0
     assert first.defense_toggles > 0 if turn_limit > 1 else first.attacks_resolved == 0
-    assert first.unfinished == 0 and first.actions <= 16 * turn_limit * 4
+    assert first.unfinished == 0 and first.actions <= 16 * turn_limit * 8
     assert first.winners > 0 if turn_limit > 1 else first.turn_limit_truncations == 16
     assert not first.local_training_eligible and not first.full_game_training_ready
     assert not first.teacher_or_reward_dataset_eligible and not first.official_fidelity_verified
@@ -619,7 +622,7 @@ def test_combat_probe_cli_has_explicit_offline_scope(monkeypatch):
     result = CliRunner().invoke(app, ["simulation", "full-game-combat-smoke", "--batch-size", "4"])
     assert result.exit_code == 0, result.output
     report = json.loads(result.output)
-    assert report["ruleset_id"] == "integrated-full-game-development-v3"
+    assert report["ruleset_id"] == "integrated-full-game-development-v4"
     assert report["winners"] > 0 and report["attacks_resolved"] > 0
     assert not report["local_training_eligible"] and not report["promotion_eligible"]
 

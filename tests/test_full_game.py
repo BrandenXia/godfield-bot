@@ -594,7 +594,7 @@ def test_source_plan_metadata_pins_and_serialization():
     assert PLAN.effect_sha256 == FULL_GAME_EFFECT_SHA256
     assert len(PLAN.effect_profiles) == 12
     assert Counter(kind for _, kind, _, _ in PLAN.effect_profiles) == {1: 5, 2: 3, 3: 2, 4: 2}
-    assert native.FULL_GAME_KERNEL_SCHEMA_VERSION == 3
+    assert native.FULL_GAME_KERNEL_SCHEMA_VERSION == 4
     assert native.FULL_GAME_RULESET_ID == FULL_GAME_RULESET_ID
     assert FULL_GAME_PHASES[0] == "setup" and FULL_GAME_PHASES[12] == "terminal"
     configured = create_development_full_game_batch(

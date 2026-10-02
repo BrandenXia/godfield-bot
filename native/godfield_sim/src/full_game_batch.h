@@ -8,11 +8,15 @@
 
 namespace godfield_sim {
 
-inline constexpr std::uint32_t kFullGameKernelSchemaVersion = 3;
+inline constexpr std::uint32_t kFullGameKernelSchemaVersion = 4;
 inline constexpr std::uint32_t kFullGameCommandSchemaVersion = 1;
 inline constexpr std::uint32_t kFullGameMaxDefenseActions = 64;
+inline constexpr std::uint32_t kFullGameMaxAttackActions = 64;
 inline constexpr const char *kFullGameRulesetId =
-    "integrated-full-game-development-v3";
+    "integrated-full-game-development-v4";
+using FullGameBoostInput =
+    nb::ndarray<const std::int64_t, nb::numpy, nb::shape<-1, 6>, nb::c_contig,
+                nb::device::cpu>;
 using FullGameCommandInput =
     nb::ndarray<const std::int64_t, nb::numpy, nb::shape<-1, 6>, nb::c_contig,
                 nb::device::cpu>;
@@ -34,7 +38,8 @@ public:
       std::optional<InventoryProfileInput> gift_profiles = std::nullopt,
       std::size_t initial_cards = 0, bool refill_on_use = false,
       bool prayer_gifts = false, std::size_t hand_limit = 0,
-      bool oldest_overflow = false);
+      bool oldest_overflow = false,
+      std::optional<FullGameBoostInput> boost_profiles = std::nullopt);
   // Trusted setup only, rejected once started. These are not learner actions.
   void seed_players(ActionInput environments, ActionInput owners,
                     InventoryInput hp_mp_cp_illness, ActionInput curse_masks);
@@ -56,6 +61,21 @@ public:
   [[nodiscard]] Bool2D choice_masks() const;
   [[nodiscard]] Int64_2D pending_observations() const;
   [[nodiscard]] Bool2D selected_defenses() const;
+  [[nodiscard]] Int64_2D attack_selection_observations() const;
+  [[nodiscard]] Int64_2D attack_order() const;
+  [[nodiscard]] Bool2D selected_attacks() const;
+  [[nodiscard]] std::uint64_t attack_toggle_count() const noexcept {
+    return attack_toggles_;
+  }
+  [[nodiscard]] std::uint64_t attack_confirm_count() const noexcept {
+    return attack_confirms_;
+  }
+  [[nodiscard]] std::uint64_t attack_component_count() const noexcept {
+    return attack_components_;
+  }
+  [[nodiscard]] std::uint64_t darkness_finish_count() const noexcept {
+    return darkness_finishes_;
+  }
   [[nodiscard]] CurseStateSnapshot acquisition_snapshot() const;
   [[nodiscard]] std::uint64_t automatic_gift_count() const noexcept {
     return automatic_gifts_;
@@ -97,7 +117,8 @@ public:
   }
 
 private:
-  // setup=0, ready=1, target=3, defense=4, terminal=12, truncated=13.
+  // setup=0, ready=1, attack-selection=2, target=3, defense=4, terminal=12,
+  // truncated=13.
   struct Episode {
     std::int64_t epoch = 1;
     std::int64_t decision = 1;
@@ -125,6 +146,11 @@ private:
     std::int64_t origin = -1;
     std::int64_t defense_actions = 0;
     std::int64_t selected_count = 0;
+    std::int64_t attack_size = 0;
+    std::int64_t attack_actions = 0;
+    std::int64_t preview_attack = 0;
+    std::int64_t preview_element = 0;
+    std::int64_t preview_cost = 0;
   };
   struct Effect {
     std::int64_t kind; // HP=1, MP=2, mild-cure=3, full-cure=4.
@@ -139,6 +165,14 @@ private:
   struct Armor {
     std::int64_t value, element;
   };
+  struct Boost {
+    std::int64_t value, element, cost, kind;
+    bool can_lead;
+  };
+  struct Composition {
+    std::int64_t value, element, cost, origin;
+    bool weapon;
+  };
   struct Mutation {
     std::size_t environment;
     Episode episode;
@@ -146,6 +180,7 @@ private:
     std::array<Resources, 9> resources{};
     std::map<std::size_t, std::vector<DreamInventoryBatch::Item>> hands;
     std::array<std::uint8_t, 512> selected{};
+    std::array<std::int64_t, 512> order{};
     std::uint64_t consumed = 0;
     std::uint64_t miracles = 0;
     std::uint64_t restored = 0;
@@ -163,6 +198,10 @@ private:
     std::uint64_t overflow = 0;
     bool prayer = false;
     bool accepted_command = false;
+    bool attack_toggle = false;
+    bool attack_confirm = false;
+    std::uint64_t attack_components = 0;
+    bool darkness_finish = false;
   };
   static std::size_t
   validate_dimensions(std::size_t batch_size, std::size_t player_count,
@@ -181,6 +220,12 @@ private:
   void advance_decision(Mutation &mutation, std::int64_t choice) const;
   void consume_slot(Mutation &mutation, std::size_t owner,
                     std::size_t slot) const;
+  [[nodiscard]] Composition compose(const Mutation &mutation,
+                                    bool actual) const;
+  void update_preview(Mutation &mutation) const;
+  void consume_attack(Mutation &mutation, std::size_t owner) const;
+  [[nodiscard]] static std::int64_t mixed_element(std::int64_t existing,
+                                                  std::int64_t added) noexcept;
   [[nodiscard]] Mutation staged_episode(std::size_t environment) const;
   [[nodiscard]] std::vector<DreamInventoryBatch::Item> &
   stage_hand(Mutation &mutation, std::size_t owner) const;
@@ -208,6 +253,8 @@ private:
   std::map<std::int64_t, Effect> effects_;
   std::map<std::int64_t, Attack> attacks_;
   std::map<std::int64_t, Armor> armor_;
+  std::map<std::int64_t, Boost> boosts_;
+  std::vector<std::int64_t> attack_order_;
   std::vector<std::pair<std::int64_t, std::uint64_t>> gift_weights_;
   std::uint64_t gift_total_ = 0;
   std::size_t initial_cards_ = 0;
@@ -230,6 +277,10 @@ private:
   std::uint64_t suppressed_gifts_ = 0;
   std::uint64_t overflow_ = 0;
   std::uint64_t prayers_ = 0;
+  std::uint64_t attack_toggles_ = 0;
+  std::uint64_t attack_confirms_ = 0;
+  std::uint64_t attack_components_ = 0;
+  std::uint64_t darkness_finishes_ = 0;
 };
 
 } // namespace godfield_sim

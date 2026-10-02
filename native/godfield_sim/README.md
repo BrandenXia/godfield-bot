@@ -222,3 +222,20 @@ contain only own displayed identities, whereas full snapshots are trusted
 diagnostics. There is no battle/turn/cost/training interface or implicit gift
 schedule. Existing replay allowlists, curricula, checkpoints and live controls
 remain unchanged. See [ADR 0100](../../docs/architecture/0100-portable-ordered-dream-inventory.md).
+
+Version 0.50.0 starts the approved separate `FullGameBatch` engine. Its initial
+development slice joins resources, ordered inventory, 12 HP/MP utility/cure
+effects, owner disease ticks and bounded free-for-all turns in one authoritative
+state. Packed commands bind episode/decision/actor/phase; all rows are staged
+before resource/status/inventory/RNG commits. Trusted setup seals on start and
+reset changes the episode epoch. True inventory diagnostics stay separate from
+actor-visible hands and Fog-masked resources. Unsupported effects and hidden
+unaffordable costs fail atomically instead of silently succeeding.
+
+`godfield-bot simulation full-game-development-smoke` runs a reproducible offline
+utility/cure liveness probe, not combat evaluation or learning. It reports real
+endings separately from limit truncations. Combat, acquisition cadence, targets,
+teams, events and the complete neural interface are still missing; the new
+engine remains training/promotion-ineligible. Old curricula, checkpoint shapes,
+official replay admission and live controls are unchanged. See
+[ADR 0102](../../docs/architecture/0102-integrated-native-full-game-state-and-transactions.md).

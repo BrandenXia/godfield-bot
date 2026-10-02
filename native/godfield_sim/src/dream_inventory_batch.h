@@ -62,6 +62,7 @@ public:
   }
 
 private:
+  friend class FullGameBatch;
   using Item = std::array<std::int64_t, 4>;
   [[nodiscard]] std::size_t checked_owner(std::int64_t environment,
                                           std::int64_t owner) const;

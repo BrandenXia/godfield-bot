@@ -90,7 +90,7 @@ def test_late_invalid_row_and_duplicate_environments_fail_without_context_change
     assert {env: row.model_dump() for env, row in contexts.items()} == before
 
 
-@pytest.mark.parametrize("phase", ["automatic", "terminal", "truncated"])
+@pytest.mark.parametrize("phase", ["setup", "automatic", "terminal", "truncated"])
 def test_noninteractive_phases_have_no_choices_and_reject_policy_commands(phase):
     current = context(phase=phase, legal_choice_ids=())
     with pytest.raises(FullGameCommandError, match="illegal"):

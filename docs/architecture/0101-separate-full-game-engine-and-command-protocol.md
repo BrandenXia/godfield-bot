@@ -105,3 +105,7 @@ The full non-browser suite passes 2,135 tests; the two existing local browser
 fixtures also passed earlier in this work. Ruff/formatting, strict typing across
 85 source modules, offline lock consistency and whitespace checks pass. The
 native package stays 0.49.0 because this contract adds no compiled engine yet.
+
+Follow-up: ADR 0102 introduces native 0.50.0's first integrated state/transaction
+slice and adds explicit noninteractive setup phase 0. It does not complete the
+remaining engine design or change the current arena's training eligibility.

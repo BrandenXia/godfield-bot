@@ -127,6 +127,8 @@ def _guardian_workflow_gaps() -> tuple[FullGameWorkflowGap, ...]:
             (
                 "src/godfield_bot/guardian_utility.py",
                 "native/godfield_sim/src/guardian_utility_turn_batch.cpp",
+                "native/godfield_sim/src/full_game_batch.cpp",
+                "src/godfield_bot/full_game.py",
             ),
         ),
         (

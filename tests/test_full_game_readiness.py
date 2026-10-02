@@ -122,6 +122,18 @@ def test_portable_dream_inventory_does_not_inflate_arena_coverage(report):
     assert not report.full_game_training_ready
 
 
+def test_separate_development_engine_does_not_change_training_arena_buckets(report):
+    utilities = next(
+        gap for gap in report.workflow_gaps if gap.workflow_id == "utility-targeting-costs"
+    )
+    assert "native/godfield_sim/src/full_game_batch.cpp" in utilities.source_files
+    assert "src/godfield_bot/full_game.py" in utilities.source_files
+    assert report.inventory_model_count == 102
+    assert report.artifact_count == 291
+    assert report.not_integrated_count == 150
+    assert not report.full_game_training_ready
+
+
 @pytest.mark.parametrize(
     "change",
     [

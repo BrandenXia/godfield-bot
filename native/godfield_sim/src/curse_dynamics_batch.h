@@ -77,6 +77,7 @@ public:
   }
 
 private:
+  friend class FullGameBatch;
   // HP, exclusive illness stage, non-disease curse mask, completed turn ticks.
   using State = std::array<std::int64_t, 4>;
   // Operation: reset=0, load=1, illness=2, curse=3, cure=4, tick=5;

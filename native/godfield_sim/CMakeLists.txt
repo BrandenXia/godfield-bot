@@ -21,6 +21,7 @@ nanobind_add_module(
   src/curse_dynamics_batch.cpp
   src/curse_decisions.cpp
   src/dream_inventory_batch.cpp
+  src/full_game_batch.cpp
 )
 target_compile_features(_native PRIVATE cxx_std_20)
 

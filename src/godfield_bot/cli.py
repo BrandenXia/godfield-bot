@@ -3180,6 +3180,39 @@ def simulation_full_game_readiness(
     typer.echo(report.model_dump_json(indent=2))
 
 
+@simulation_app.command("full-game-development-smoke")
+def simulation_full_game_development_smoke(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    batch_size: Annotated[int, typer.Option(min=1, max=4096)] = 32,
+    players: Annotated[int, typer.Option(min=2, max=9)] = 3,
+    seed: Annotated[int, typer.Option(min=0)] = 67,
+    max_turns: Annotated[int, typer.Option(min=1, max=4096)] = 64,
+) -> None:
+    """Run the new native utility/cure development probe; not training or live play."""
+    try:
+        from godfield_bot.full_game import run_full_game_development_smoke
+
+        report = run_full_game_development_smoke(
+            catalog_path=catalog,
+            bible_path=bible,
+            batch_size=batch_size,
+            player_count=players,
+            seed=seed,
+            max_turns=max_turns,
+        )
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error(
+            "full_game_development_smoke_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
 @simulation_app.command("trace-game")
 def simulation_trace_game(
     model: Annotated[Path, typer.Argument(exists=True, file_okay=False, readable=True)],

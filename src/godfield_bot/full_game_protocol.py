@@ -13,6 +13,7 @@ EnvironmentId = Annotated[int, Field(strict=True, ge=0, le=999_999)]
 ActorId = Annotated[int, Field(strict=True, ge=0, le=8)]
 ChoiceId = Annotated[int, Field(strict=True, ge=0, le=2**53 - 1)]
 FullGamePhase = Literal[
+    "setup",
     "ready",
     "attack-selection",
     "target-selection",
@@ -60,7 +61,7 @@ class FullGameDecisionContext(BaseModel):
             self.legal_choice_ids
         ):
             raise ValueError("full-game choice IDs must be unique and bounded")
-        if self.phase in ("automatic", "terminal", "truncated"):
+        if self.phase in ("setup", "automatic", "terminal", "truncated"):
             if self.legal_choice_ids:
                 raise ValueError("noninteractive full-game phases cannot expose policy choices")
         elif not self.legal_choice_ids:

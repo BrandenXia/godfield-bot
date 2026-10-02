@@ -16,12 +16,12 @@ Count = Annotated[int, Field(ge=0, strict=True)]
 
 class FullGameCombatSmokeReport(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    schema_version: Literal[3] = 3
-    source_kind: Literal["integrated-development-combat-smoke-v3"] = (
-        "integrated-development-combat-smoke-v3"
+    schema_version: Literal[4] = 4
+    source_kind: Literal["integrated-development-combat-smoke-v4"] = (
+        "integrated-development-combat-smoke-v4"
     )
-    ruleset_id: Literal["integrated-full-game-development-v5"] = (
-        "integrated-full-game-development-v5"
+    ruleset_id: Literal["integrated-full-game-development-v6"] = (
+        "integrated-full-game-development-v6"
     )
     scenario: Literal["fixed-known-hands-public-greedy-free-for-all-not-strength"] = (
         "fixed-known-hands-public-greedy-free-for-all-not-strength"
@@ -152,6 +152,8 @@ def run_full_game_combat_smoke(
             batch.diagnostic_inventory(),
             batch.pending_observations(),
             batch.special_defense_observations(),
+            batch.chance_observations(),
+            batch.chance_snapshot(),
             batch.selected_defenses(),
             batch.selected_attacks(),
             batch.attack_order(),

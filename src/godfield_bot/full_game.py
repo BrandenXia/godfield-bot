@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     import numpy.typing as npt
     from godfield_sim import FullGameBatch
 
-FULL_GAME_RULESET_ID: Final = "integrated-full-game-development-v5"
+FULL_GAME_RULESET_ID: Final = "integrated-full-game-development-v6"
 FULL_GAME_EFFECT_SHA256: Final = "834c9fe8bce6185e2bb3729c64813e85ef84daf07c77fd7a8030b32362ccaae1"
 FULL_GAME_PHASES: Final[tuple[FullGamePhase, ...]] = get_args(FullGamePhase)
 COMMAND_FIELDS: Final = ("environment", "episode", "decision", "actor", "phase", "choice_id")
@@ -89,12 +89,14 @@ ATTACK_SELECTION_FIELDS: Final = (
     "displayed_mp_cost",
     "selection_actions",
 )
+CHANCE_FIELDS: Final = ("active", "displayed_hit_rate", "already_hit", "automatic_target")
+CHANCE_SNAPSHOT_FIELDS: Final = ("casts", "hits", "misses")
 AcquisitionMode = Literal["manual", "all-held-weighted"]
 
 
 class FullGamePlan(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    schema_version: Literal[5] = 5
+    schema_version: Literal[6] = 6
     inventory: DreamInventoryPlan
     curses: CurseDynamicsPlan
     utilities: GuardianUtilityPlan
@@ -107,7 +109,7 @@ class FullGamePlan(BaseModel):
     effect_fields: tuple[str, ...] = EFFECT_FIELDS
     implemented_effect_count: Literal[12] = 12
     implemented_phases: tuple[int, ...] = (0, 1, 2, 3, 4, 12, 13)
-    integrated_artifact_effect_count: Literal[154] = 154
+    integrated_artifact_effect_count: Literal[175] = 175
     effect_codes: tuple[str, ...] = ("unused-zero", "hp", "mp", "mild-cure", "full-cure")
     scheduling: Literal[
         "utility-or-ordered-attack-target-chained-defenses-then-owner-tick-provisional"
@@ -199,11 +201,11 @@ def build_full_game_plan(catalog: ApiCatalogSnapshot, bible: BibleSnapshot) -> F
 
 class FullGameMetadata(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    schema_version: Literal[5] = 5
-    ruleset_id: Literal["integrated-full-game-development-v5"] = FULL_GAME_RULESET_ID
-    kernel_schema_version: Literal[5] = 5
+    schema_version: Literal[6] = 6
+    ruleset_id: Literal["integrated-full-game-development-v6"] = FULL_GAME_RULESET_ID
+    kernel_schema_version: Literal[6] = 6
     command_schema_version: Literal[1] = 1
-    observation_schema_version: Literal[5] = 5
+    observation_schema_version: Literal[6] = 6
     plan: FullGamePlan
     batch_size: int = Field(ge=1, le=1_000_000, strict=True)
     player_count: int = Field(ge=2, le=9, strict=True)
@@ -233,6 +235,17 @@ class FullGameMetadata(BaseModel):
     diagnostic_fields: tuple[str, ...] = DIAGNOSTIC_FIELDS
     pending_observation_fields: tuple[str, ...] = PENDING_FIELDS
     special_defense_observation_fields: tuple[str, ...] = SPECIAL_DEFENSE_FIELDS
+    chance_observation_fields: tuple[str, ...] = CHANCE_FIELDS
+    chance_snapshot_fields: tuple[str, ...] = CHANCE_SNAPSHOT_FIELDS
+    chance_policy: Literal[
+        "standalone-no-additions-native-roll-on-confirm-no-defense-on-miss-provisional"
+    ] = "standalone-no-additions-native-roll-on-confirm-no-defense-on-miss-provisional"
+    chance_target: Literal[
+        "native-uniform-living-enemies-after-hit-no-player-choice-provisional"
+    ] = "native-uniform-living-enemies-after-hit-no-player-choice-provisional"
+    hidden_target_mode: Literal[
+        "mismatched-displayed-actual-target-mode-atomic-development-error"
+    ] = "mismatched-displayed-actual-target-mode-atomic-development-error"
     special_selection: Literal["exclusive-special-or-compatible-numeric-armor-source-pinned"] = (
         "exclusive-special-or-compatible-numeric-armor-source-pinned"
     )
@@ -267,8 +280,8 @@ class FullGameMetadata(BaseModel):
     phase_names: tuple[str, ...] = FULL_GAME_PHASES
     outcome_names: tuple[str, ...] = OUTCOMES
     randomness: Literal[
-        "separate-native-splitmix-model-disguise-illness-combat-bounce-rejection-max-16-provisional"
-    ] = "separate-native-splitmix-model-disguise-illness-combat-bounce-rejection-max-16-provisional"
+        "native-splitmix-model-disguise-illness-fog-bounce-chance-roll-target-max16-provisional"
+    ] = "native-splitmix-model-disguise-illness-fog-bounce-chance-roll-target-max16-provisional"
     limits: Literal["terminal-before-turn-before-decision-limit-truncation-not-draw"] = (
         "terminal-before-turn-before-decision-limit-truncation-not-draw"
     )
@@ -305,6 +318,8 @@ class FullGameMetadata(BaseModel):
             or self.diagnostic_fields != DIAGNOSTIC_FIELDS
             or self.pending_observation_fields != PENDING_FIELDS
             or self.special_defense_observation_fields != SPECIAL_DEFENSE_FIELDS
+            or self.chance_observation_fields != CHANCE_FIELDS
+            or self.chance_snapshot_fields != CHANCE_SNAPSHOT_FIELDS
             or self.attack_selection_fields != ATTACK_SELECTION_FIELDS
             or self.acquisition_snapshot_fields != ACQUISITION_FIELDS
             or self.phase_names != FULL_GAME_PHASES
@@ -380,9 +395,9 @@ def create_development_full_game_batch(
             "full-game development engine requires simulation extra"
         ) from None
     if (
-        getattr(native, "FULL_GAME_KERNEL_SCHEMA_VERSION", None) != 5
+        getattr(native, "FULL_GAME_KERNEL_SCHEMA_VERSION", None) != 6
         or getattr(native, "FULL_GAME_COMMAND_SCHEMA_VERSION", None) != 1
-        or getattr(native, "FULL_GAME_OBSERVATION_SCHEMA_VERSION", None) != 5
+        or getattr(native, "FULL_GAME_OBSERVATION_SCHEMA_VERSION", None) != 6
         or getattr(native, "FULL_GAME_MAX_DEFENSE_ACTIONS", None) != 64
         or getattr(native, "FULL_GAME_MAX_ATTACK_ACTIONS", None) != 64
         or getattr(native, "FULL_GAME_RULESET_ID", None) != FULL_GAME_RULESET_ID
@@ -412,6 +427,7 @@ def create_development_full_game_batch(
             metadata.overflow_policy == "oldest-held-provisional",
             np.asarray(plan.combat.boost_profiles, dtype=np.int64),
             np.asarray(plan.combat.special_profiles, dtype=np.int64),
+            np.asarray(plan.combat.chance_profiles, dtype=np.int64),
         ),
         metadata,
     )
@@ -474,7 +490,7 @@ class FullGameSmokeReport(BaseModel):
     source_kind: Literal["integrated-development-utility-cure-smoke-v1"] = (
         "integrated-development-utility-cure-smoke-v1"
     )
-    ruleset_id: Literal["integrated-full-game-development-v5"] = FULL_GAME_RULESET_ID
+    ruleset_id: Literal["integrated-full-game-development-v6"] = FULL_GAME_RULESET_ID
     scenario: Literal["fixed-own-utility-cure-hands-disease-not-combat-strength"] = (
         "fixed-own-utility-cure-hands-disease-not-combat-strength"
     )

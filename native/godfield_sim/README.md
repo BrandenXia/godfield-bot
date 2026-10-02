@@ -321,3 +321,28 @@ held models, not the sum of overlapping profile rows, and 83 still lack
 effects. Acquisition/combat reports are now schema 3; training/official/live
 promotion admission remains false. See
 [ADR 0106](../../docs/architecture/0106-native-special-defenses-and-bounded-redirect-chains.md).
+
+Version 0.55.0 integrates 21 plain chance attacks and Jinn's fixed defensive
+role into the same engine. Kernel/observation/metadata schema is 6, ruleset v6;
+command schema remains 1. Optional chance rows `[model, hit percent]` complement
+72 leader rows and 64 numeric-defense rows, not a caller roll or target ticket.
+The source factory always supplies these profiles. Raw arithmetic fixtures may
+omit probability maps but have no source-checked learning metadata.
+
+Chance selection permits cancel or confirmation, not additions or target
+choices, matching the pinned client's restrictions. Confirmation atomically
+pays MP, consumes/moves the used card, and rolls exactly once. Misses complete
+the original owner's turn without defense/damage. Hits provisionally sample a
+living enemy from their own native target stream, then enter the existing full
+defense/redirect chain without another hit check. Roll, target, Fog, bounce,
+illness and acquisition streams are separate. Displayed/actual target-mode
+mismatches remain explicit atomic development errors, not guessed Dream rules.
+
+Public copied `chance_observations[B,4]` exposes active, displayed hit rate,
+already-hit and automatic-target flags. `chance_snapshot[B,3]` reports per-epoch
+casts/hits/misses diagnostically, with lifetime totals as counters. Jinn's Wood
+DEF6 is fixed and never samples probability. There are now 175 distinct executable
+held models and 62 unimplemented held effects. Existing acquisition/combat
+reports advance to schema 4; the new one-turn `full-game-chance-smoke` is schema
+1 and explicitly cannot admit learning, full-game readiness or promotion. See
+[ADR 0107](../../docs/architecture/0107-native-chance-attacks-and-automatic-targets.md).

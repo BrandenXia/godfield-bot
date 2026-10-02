@@ -123,16 +123,19 @@ def begin(batch, model=35, *, armor=(), target=1, capacity=8):
 
 
 @pytest.mark.parametrize("profile", PLAN.combat.attack_profiles)
-def test_all_source_pinned_attacks_join_costs_inventory_and_turns(profile):
+def test_all_attack_values_join_costs_inventory_and_turns_in_fixed_arithmetic_fixture(profile):
     model, attack, element, origin, cost = profile
     batch = game()
     seed(batch, [(1, model, 0, 0), (2, 191, 0, 0)])
-    load(batch, illness=1)
+    # Raw fixture omits chance map deliberately; dedicated chance tests check
+    # all probabilistic leaders end-to-end through native rolls and targeting.
+    mp = max(20, cost)
+    load(batch, illness=1, mp=mp)
     load(batch, owner=1, illness=2)
     batch.start_environments(ids([0]))
     old = step(batch, [1])
     assert batch.episode_snapshot()[0, 2:5].tolist() == [0, 3, 0]
-    assert batch.diagnostic_players()[0, 0, :2].tolist() == [40, 20]
+    assert batch.diagnostic_players()[0, 0, :2].tolist() == [40, mp]
     assert batch.consumed_count == batch.miracle_use_count == batch.attack_count == 0
     assert batch.pending_observations()[0, :6].tolist() == [1, 0, -1, attack, element, origin]
     assert np.flatnonzero(batch.choice_masks()[0]).tolist() == [10, 11]
@@ -143,7 +146,7 @@ def test_all_source_pinned_attacks_join_costs_inventory_and_turns(profile):
     step(batch, [10])
     assert batch.episode_snapshot()[0, 2:5].tolist() == [1, 4, 0]
     assert batch.pending_observations()[0, :6].tolist() == [1, 0, 1, attack, element, origin]
-    assert batch.diagnostic_players()[0, 0, :2].tolist() == [40, 20 - cost]
+    assert batch.diagnostic_players()[0, 0, :2].tolist() == [40, mp - cost]
     assert batch.actor_hands()[0, 0].tolist() == [0, 0, 0]  # Defender's own hand.
     assert batch.attack_count == 1 and batch.mp_spent == cost
     if origin:
@@ -491,7 +494,7 @@ def test_reset_pending_selection_views_copy_and_command_protocol_parity():
 )
 def test_combat_plan_cannot_forge_profile_coverage_or_fidelity(change):
     assert PLAN.combat.profile_sha256 == FULL_GAME_COMBAT_SHA256
-    assert PLAN.integrated_artifact_effect_count == 154
+    assert PLAN.integrated_artifact_effect_count == 175
     with pytest.raises(ValidationError):
         FullGameCombatPlan.model_validate({**PLAN.combat.model_dump(), **change})
 
@@ -509,7 +512,7 @@ def test_combat_plan_cannot_forge_profile_coverage_or_fidelity(change):
         ([(6, 1, 7, 0, 0)], [(113, 1, 0, 0, 0)]),
         ([(6, 1, 0, 0, 0)], [(113, 1, 0, 1, 0)]),
         ([(6, 1, 0, 0, 0)], [(113, 1, 0, 0, 1)]),
-        ([(6, 1, 0, 0, 0)], [(6, 1, 0, 0, 0)]),
+        ([(6, 1, 0, 0, 0)], [(9, 1, 0, 0, 0)]),
     ],
 )
 def test_native_combat_profiles_reject_malformed_bounds_and_wrong_categories(attacks, armor):
@@ -622,7 +625,7 @@ def test_combat_probe_cli_has_explicit_offline_scope(monkeypatch):
     result = CliRunner().invoke(app, ["simulation", "full-game-combat-smoke", "--batch-size", "4"])
     assert result.exit_code == 0, result.output
     report = json.loads(result.output)
-    assert report["ruleset_id"] == "integrated-full-game-development-v5"
+    assert report["ruleset_id"] == "integrated-full-game-development-v6"
     assert report["winners"] > 0 and report["attacks_resolved"] > 0
     assert not report["local_training_eligible"] and not report["promotion_eligible"]
 

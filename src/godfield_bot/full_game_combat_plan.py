@@ -16,23 +16,38 @@ from godfield_bot.api_catalog import ApiCatalogSnapshot
 from godfield_bot.domain.reference import ArtifactRecord, BibleSnapshot
 from godfield_bot.elements import COMBAT_ELEMENT_IDS
 from godfield_bot.guardian_batch import _guardian_card_profiles
-from godfield_bot.reference import plain_attack_booster_cards
+from godfield_bot.reference import (
+    plain_attack_booster_cards,
+    plain_chance_dual_role_weapon_cards,
+    plain_chance_weapon_cards,
+    verified_chance_attack_miracle_cards,
+)
 
-FULL_GAME_COMBAT_SHA256: Final = "3fd5d21227b280d9a53405e0e41b1c9f8f0b37d7a08a39ad4a520f0037de1aff"
+FULL_GAME_COMBAT_SHA256: Final = "8c26c1430223f2034bdf09e464bad64765944e26ea3f1bf825ff6a81441d5f62"
 
 
 class FullGameCombatPlan(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    schema_version: Literal[3] = 3
+    schema_version: Literal[4] = 4
     catalog_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     bible_client_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-    profile_sha256: Literal["3fd5d21227b280d9a53405e0e41b1c9f8f0b37d7a08a39ad4a520f0037de1aff"] = (
+    profile_sha256: Literal["8c26c1430223f2034bdf09e464bad64765944e26ea3f1bf825ff6a81441d5f62"] = (
         FULL_GAME_COMBAT_SHA256
     )
     attack_profiles: tuple[tuple[int, int, int, int, int], ...]
     armor_profiles: tuple[tuple[int, int, int, int, int], ...]
     boost_profiles: tuple[tuple[int, int, int, int, int, int], ...]
     special_profiles: tuple[tuple[int, int, int, int, int], ...]
+    chance_profiles: tuple[tuple[int, int], ...]
+    chance_fields: tuple[str, ...] = ("model_id", "hit_rate")
+    chance_weapon_count: Literal[15] = 15
+    chance_miracle_count: Literal[6] = 6
+    dual_role_chance_defense_count: Literal[1] = 1
+    numeric_defense_count: Literal[64] = 64
+    excluded_chance_models: tuple[int, ...] = (97, 98, 112, 224)
+    chance_exclusion_reason: Literal[
+        "damage-status-absorption-and-ascension-variant-not-yet-integrated"
+    ] = "damage-status-absorption-and-ascension-variant-not-yet-integrated"
     special_fields: tuple[str, ...] = ("model_id", "kind", "origin", "neutral_only", "mp_cost")
     special_kinds: tuple[str, ...] = ("unused-zero", "block", "reflect", "bounce")
     special_defense_count: Literal[23] = 23
@@ -53,11 +68,11 @@ class FullGameCombatPlan(BaseModel):
     additive_armor_count: Literal[4] = 4
     additive_sundry_count: Literal[1] = 1
     additive_miracle_count: Literal[3] = 3
-    combat_effect_count: Literal[142] = 142
+    combat_effect_count: Literal[163] = 163
     composition_kinds: tuple[str, ...] = ("add", "set-element-and-add", "double-and-mix-element")
-    composition: Literal["ordered-fixed-weapon-additions-or-standalone-positive-weapon-miracle"] = (
-        "ordered-fixed-weapon-additions-or-standalone-positive-weapon-miracle"
-    )
+    composition: Literal[
+        "ordered-fixed-weapon-additions-or-standalone-positive-weapon-miracle-or-chance"
+    ] = "ordered-fixed-weapon-additions-or-standalone-positive-weapon-miracle-or-chance"
     excluded_additive_models: tuple[int, ...] = (232,)
     exclusion_reason: Literal["unimplemented-area-attack"] = "unimplemented-area-attack"
     darkness: Literal["positive-post-defense-damage-sets-target-hp-zero"] = (
@@ -74,6 +89,7 @@ class FullGameCombatPlan(BaseModel):
                     self.armor_profiles,
                     self.boost_profiles,
                     self.special_profiles,
+                    self.chance_profiles,
                 ),
                 separators=(",", ":"),
             ).encode()
@@ -90,6 +106,8 @@ class FullGameCombatPlan(BaseModel):
             or self.excluded_additive_models != (232,)
             or self.special_fields != ("model_id", "kind", "origin", "neutral_only", "mp_cost")
             or self.special_kinds != ("unused-zero", "block", "reflect", "bounce")
+            or self.chance_fields != ("model_id", "hit_rate")
+            or self.excluded_chance_models != (97, 98, 112, 224)
         ):
             raise ValueError(f"full-game combat profiles differ from pinned sources ({digest})")
         return self
@@ -196,6 +214,9 @@ def build_full_game_combat_plan(
             attacks.append((item.model_id, raw["atk"], 0, 0, 0))
         elif raw["category"] == "armor" and raw.get("def", 0) > 0:
             defenses.append((item.model_id, raw["def"], 0, 0, 0))
+    chances, chance_attacks, chance_defenses = _chance_profiles(catalog, bible, by_reference)
+    attacks.extend(chance_attacks)
+    defenses.extend(chance_defenses)
     return FullGameCombatPlan(
         catalog_sha256=catalog.content_sha256,
         bible_client_sha256=bible.client.sha256,
@@ -203,7 +224,64 @@ def build_full_game_combat_plan(
         armor_profiles=tuple(sorted(row for row in defenses if row[3] == 0)),
         boost_profiles=tuple(boosts),
         special_profiles=specials,
+        chance_profiles=chances,
     )
+
+
+def _chance_profiles(
+    catalog: ApiCatalogSnapshot,
+    bible: BibleSnapshot,
+    by_reference: dict[tuple[str, str], ArtifactRecord],
+) -> tuple[
+    tuple[tuple[int, int], ...],
+    list[tuple[int, int, int, int, int]],
+    list[tuple[int, int, int, int, int]],
+]:
+    weapons = plain_chance_weapon_cards(bible)
+    dual = plain_chance_dual_role_weapon_cards(bible)
+    miracles = verified_chance_attack_miracle_cards(bible)
+    if len(weapons) != 14 or len(dual) != 1 or len(miracles) != 6:
+        raise ValueError("pinned chance family is incomplete")
+    chances, attacks, defenses = [], [], []
+    for item in catalog.items:
+        raw = item.raw
+        category, asset = raw.get("category"), raw.get("imageName")
+        if category == "weapons" and asset in weapons:
+            rate, attack, element = weapons[asset]
+            defense, cost, origin = 0, 0, 0
+        elif category == "weapons" and asset in dual:
+            rate, attack, defense, element = dual[asset]
+            cost, origin = 0, 0
+            if item.model_id != 108:
+                raise ValueError("pinned chance dual-role weapon differs")
+        elif category == "miracles" and asset in miracles:
+            rate, attack, cost, element = miracles[asset]
+            defense, origin = 0, 1
+        else:
+            continue
+        reference = by_reference[(category, asset)]
+        numeric = (f"{rate}%ATK{attack}",) + ((f"DEF{defense}",) if defense else ())
+        tail = ("Cost", f"{cost}MP") if origin else (f"${raw.get('price')}",)
+        if (
+            raw.get("atk") != attack
+            or raw.get("def", 0) != defense
+            or raw.get("hitRate") != rate
+            or raw.get("cost", 0) != cost
+            or raw.get("element") != element
+            or raw.get("ability") is not None
+            or raw.get("isPlusAtk", False) is not False
+            or reference.element_image_paths != (f"/images/elements/{element}.webp",)
+            or reference.detail
+            != (raw.get("name"), *numeric, *tail, f"Gift Rate: {raw.get('giftRate')}/500")
+        ):
+            raise ValueError("chance API and Bible identity or numeric values differ")
+        chances.append((item.model_id, rate))
+        attacks.append((item.model_id, attack, COMBAT_ELEMENT_IDS[element], origin, cost))
+        if defense:
+            defenses.append((item.model_id, defense, COMBAT_ELEMENT_IDS[element], 0, 0))
+    if len(chances) != 21:
+        raise ValueError("pinned chance models are incomplete")
+    return tuple(chances), attacks, defenses
 
 
 def _special_profiles(

@@ -56,7 +56,15 @@ def game(
         mp,
         0,
         ids(PLAN.combat.attack_profiles if attacks is None else attacks),
-        ids(PLAN.combat.armor_profiles),
+        ids(
+            [
+                row
+                for row in PLAN.combat.armor_profiles
+                if attacks is None
+                or dict(PLAN.inventory.profiles)[row[0]] == 2
+                or row[0] in {attack[0] for attack in attacks}
+            ]
+        ),
         ids([[191, 1]]) if refill or prayer else None,
         0,
         refill,

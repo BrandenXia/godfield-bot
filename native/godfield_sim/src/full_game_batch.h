@@ -8,12 +8,12 @@
 
 namespace godfield_sim {
 
-inline constexpr std::uint32_t kFullGameKernelSchemaVersion = 5;
+inline constexpr std::uint32_t kFullGameKernelSchemaVersion = 6;
 inline constexpr std::uint32_t kFullGameCommandSchemaVersion = 1;
 inline constexpr std::uint32_t kFullGameMaxDefenseActions = 64;
 inline constexpr std::uint32_t kFullGameMaxAttackActions = 64;
 inline constexpr const char *kFullGameRulesetId =
-    "integrated-full-game-development-v5";
+    "integrated-full-game-development-v6";
 using FullGameBoostInput =
     nb::ndarray<const std::int64_t, nb::numpy, nb::shape<-1, 6>, nb::c_contig,
                 nb::device::cpu>;
@@ -40,7 +40,8 @@ public:
       bool prayer_gifts = false, std::size_t hand_limit = 0,
       bool oldest_overflow = false,
       std::optional<FullGameBoostInput> boost_profiles = std::nullopt,
-      std::optional<GuardianWeightInput> special_profiles = std::nullopt);
+      std::optional<GuardianWeightInput> special_profiles = std::nullopt,
+      std::optional<InventoryProfileInput> chance_profiles = std::nullopt);
   // Trusted setup only, rejected once started. These are not learner actions.
   void seed_players(ActionInput environments, ActionInput owners,
                     InventoryInput hp_mp_cp_illness, ActionInput curse_masks);
@@ -62,6 +63,17 @@ public:
   [[nodiscard]] Bool2D choice_masks() const;
   [[nodiscard]] Int64_2D pending_observations() const;
   [[nodiscard]] Int64_2D special_defense_observations() const;
+  [[nodiscard]] Int64_2D chance_observations() const;
+  [[nodiscard]] Int64_2D chance_snapshot() const;
+  [[nodiscard]] std::uint64_t chance_count() const noexcept {
+    return chances_cast_;
+  }
+  [[nodiscard]] std::uint64_t chance_hit_count() const noexcept {
+    return chance_hits_;
+  }
+  [[nodiscard]] std::uint64_t chance_miss_count() const noexcept {
+    return chance_misses_;
+  }
   [[nodiscard]] std::uint64_t block_count() const noexcept { return blocks_; }
   [[nodiscard]] std::uint64_t reflection_count() const noexcept {
     return reflections_;
@@ -142,6 +154,8 @@ private:
     std::uint64_t combat_rng = 0;
     std::uint64_t model_rng = 0;
     std::uint64_t bounce_rng = 0;
+    std::uint64_t chance_rng = 0, chance_target_rng = 0;
+    std::int64_t chance_casts = 0, chance_hits = 0, chance_misses = 0;
     std::int64_t next_instance = 1;
     std::array<std::int64_t, 9> gifts_due{};
     std::array<std::int64_t, 9> gifts_given{};
@@ -154,6 +168,7 @@ private:
     std::int64_t attack = 0;
     std::int64_t element = 0;
     std::int64_t origin = -1;
+    std::int64_t hit_rate = 100;
     std::int64_t defense_actions = 0;
     std::int64_t selected_count = 0;
     std::int64_t attack_size = 0;
@@ -217,6 +232,7 @@ private:
     std::uint64_t attack_components = 0;
     bool darkness_finish = false;
     std::int64_t special_kind = 0;
+    std::int64_t chance_result = 0; // not sampled=0, hit=1, miss=-1.
   };
   static std::size_t
   validate_dimensions(std::size_t batch_size, std::size_t player_count,
@@ -239,6 +255,9 @@ private:
                                     bool actual) const;
   void update_preview(Mutation &mutation) const;
   void consume_attack(Mutation &mutation, std::size_t owner) const;
+  void cast_attack(Mutation &mutation, std::int64_t choice,
+                   bool automatic) const;
+  [[nodiscard]] std::int64_t hit_rate(std::int64_t model) const noexcept;
   [[nodiscard]] static std::int64_t mixed_element(std::int64_t existing,
                                                   std::int64_t added) noexcept;
   [[nodiscard]] Mutation staged_episode(std::size_t environment) const;
@@ -272,6 +291,7 @@ private:
   std::map<std::int64_t, Armor> armor_;
   std::map<std::int64_t, Boost> boosts_;
   std::map<std::int64_t, Special> specials_;
+  std::map<std::int64_t, std::int64_t> chances_;
   std::vector<std::int64_t> attack_order_;
   std::vector<std::pair<std::int64_t, std::uint64_t>> gift_weights_;
   std::uint64_t gift_total_ = 0;
@@ -300,6 +320,7 @@ private:
   std::uint64_t attack_components_ = 0;
   std::uint64_t darkness_finishes_ = 0;
   std::uint64_t blocks_ = 0, reflections_ = 0, bounces_ = 0;
+  std::uint64_t chances_cast_ = 0, chance_hits_ = 0, chance_misses_ = 0;
 };
 
 } // namespace godfield_sim

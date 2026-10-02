@@ -498,8 +498,8 @@ def test_factory_metadata_and_retained_public_snapshot_do_not_claim_full_readine
     batch.reset_environments(ids([0]))
     assert not np.any(batch.special_defense_observations())
     assert before.tolist() == [[1, 0, 0, 2, 0]] and batch.reflection_count == 1
-    assert configured.metadata.kernel_schema_version == 5
-    assert PLAN.integrated_artifact_effect_count == 154
+    assert configured.metadata.kernel_schema_version == 6
+    assert PLAN.integrated_artifact_effect_count == 175
     assert (
         not configured.metadata.full_game_training_ready
         and not configured.metadata.promotion_eligible

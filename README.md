@@ -1619,11 +1619,11 @@ complete policy observation or a full-game turn engine; no current checkpoint
 or live control is switched to them. See
 [ADR 0099](docs/architecture/0099-shared-fog-flash-darkcloud-decisions.md).
 
-The approved **separate full-game development engine** is now native 0.54.0,
-`integrated-full-game-development-v5`. It joins authoritative inventory,
+The approved **separate full-game development engine** is now native 0.55.0,
+`integrated-full-game-development-v6`. It joins authoritative inventory,
 HP/MP/CP, disease/cures, ordered attack composition, targets/chained defenses and
 opt-in native acquisition. All 237 held models have pinned draw weights
-totaling 500, but only 154 card models execute in this engine. Attack additions
+totaling 500, but only 175 card models execute in this engine. Attack additions
 include twenty-one weapons, four dual-role Ogre armor, Strength Powder, Fireball,
 Meteor and Aura. Selection order controls doubling and element setting, and
 positive Darkness damage correctly finishes the target. Its local
@@ -1636,6 +1636,25 @@ Reflections target the current source; bounce samples living seats including
 self from a separate native stream. Chained responses preserve the original
 turn owner and stop on resolution or explicit decision-limit truncation, not
 an invented one-hop rule. General chain timing/source/sampling remains provisional.
+Fifteen plain chance weapons and six chance miracles now roll on native
+confirmation. The saved client disallows additions and player-chosen targets
+for chance cards. Successful rolls automatically choose a living enemy using
+a separate provisional stream; misses still use the card/pay MP, tick the
+original owner once, and skip defense. Chance hits do not reroll during
+reflection/bounce. Jinn's Rocking Horse also supplies fixed Wood DEF6.
+
+To check these chance transitions offline:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
+  godfield-bot simulation full-game-chance-smoke \
+  --batch-size 504 --players 3 --seed 67
+```
+
+This makes one chance cast per environment, then forgives successful attacks.
+The default yields 309 hits, 195 misses and 504 completed **turns**, not full
+games or learning evidence. Chance status/absorption/Ascension variants are
+still unsupported. See [ADR 0107](docs/architecture/0107-native-chance-attacks-and-automatic-targets.md).
 
 To check native complete-pool startup draws offline:
 
@@ -1645,8 +1664,8 @@ UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
   --batch-size 512 --players 9 --seed 67
 ```
 
-This reports 41,472 diagnostic draws, all 237 models observed, 12,068 draws
-without implemented effects and four starting actors without an implemented
+This reports 41,472 diagnostic draws, all 237 models observed, 10,348 draws
+without implemented effects and zero starting actors without an implemented
 choice. It runs **zero gameplay commands**; sampling a model does not implement
 its effect. Remaining special combat, utilities, economy, events, guardians,
 removal/revival, teams and complete neural interfaces still require integration.

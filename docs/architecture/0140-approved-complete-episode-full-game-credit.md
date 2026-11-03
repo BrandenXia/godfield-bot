@@ -2,7 +2,8 @@
 
 ## Decision
 
-User-approved2026-11-03; collection implemented in ADR0141, optimization pending.
+User-approved on 2026-11-03. ADR0141 implements collection and ADR0142 implements
+the first recurrent optimizer and held-out evaluation.
 The first full-game learner
 uses complete native episodes and undiscounted terminal faction outcomes.
 Every accepted decision by a present player gets that player's eventual

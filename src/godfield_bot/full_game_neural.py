@@ -185,17 +185,46 @@ class FullGamePolicyController:
     """
 
     def __init__(
-        self, configured: DevelopmentFullGameBatch, policy: FullGameActorCritic, *, seed: int = 67
+        self,
+        configured: DevelopmentFullGameBatch,
+        policy: FullGameActorCritic,
+        *,
+        seed: int = 67,
+        opponent: FullGameActorCritic | None = None,
+        opponent_seats: tuple[int, ...] = (),
     ) -> None:
         if type(seed) is not int or not 0 <= seed < 2**63:
             raise ValueError("full-game policy sampling seed is invalid")
         if any(p.device.type != "cpu" or p.dtype != torch.float32 for p in policy.parameters()):
             raise ValueError("full-game controller requires a float32 CPU policy")
+        if (
+            (opponent is None) != (not opponent_seats)
+            or len(set(opponent_seats)) != len(opponent_seats)
+            or any(
+                type(seat) is not int or not 0 <= seat < configured.metadata.player_count
+                for seat in opponent_seats
+            )
+            or (
+                opponent is not None
+                and (
+                    opponent.architecture != policy.architecture
+                    or any(
+                        p.device.type != "cpu" or p.dtype != torch.float32
+                        for p in opponent.parameters()
+                    )
+                )
+            )
+        ):
+            raise ValueError("full-game controller opponent architecture or seats differ")
         self.encoder = FullGameObservationEncoder(configured)
         self.rewards = FullGameRewardAdapter(configured)
         self.policy = policy
+        self._opponent = opponent
+        self._opponent_seats = opponent_seats
         self._states = torch.zeros(
-            (configured.metadata.batch_size, 9, policy.architecture.hidden_size)
+            (configured.metadata.batch_size, 9, policy.architecture.hidden_size),
+            dtype=torch.float32,
+            device="cpu",
         )
         self._epochs = self.encoder.encode().leases[:, 1].copy()
         self._rng = torch.Generator(device="cpu").manual_seed(seed)
@@ -205,6 +234,24 @@ class FullGamePolicyController:
 
     def sampling_state(self) -> Tensor:
         return self._rng.get_state().clone()
+
+    def _infer(
+        self, observation: FullGameObservation, previous: Tensor
+    ) -> tuple[Tensor, Tensor, Tensor]:
+        if self._opponent is None:
+            logits, values, memory = self.policy(full_game_policy_inputs(observation), previous)
+            return logits, values, memory
+        opponent_rows = np.isin(observation.leases[:, 3], self._opponent_seats)
+        logits = previous.new_empty((len(previous), CHOICES))
+        values = previous.new_empty(len(previous))
+        memory = torch.empty_like(previous)
+        for mask, policy in ((~opponent_rows, self.policy), (opponent_rows, self._opponent)):
+            rows = np.flatnonzero(mask).astype(np.int64)
+            if len(rows):
+                logits[rows], values[rows], memory[rows] = policy(
+                    full_game_policy_inputs(observation.take(rows)), previous[rows]
+                )
+        return logits, values, memory
 
     def step(self, environments: IntArray, *, deterministic: bool = False) -> FullGamePolicyStep:
         if type(deterministic) is not bool:
@@ -219,7 +266,7 @@ class FullGamePolicyController:
         actors = selected.leases[:, 3].copy()
         previous = self._states[envs, actors].clone()
         with torch.no_grad():
-            logits, values, proposed = self.policy(full_game_policy_inputs(selected), previous)
+            logits, values, proposed = self._infer(selected, previous)
             probabilities = torch.softmax(logits, dim=1)
             rng_before = self._rng.get_state()
             actions = (

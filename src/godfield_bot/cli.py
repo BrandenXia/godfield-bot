@@ -3742,6 +3742,111 @@ def simulation_full_game_episode_probe(
         raise typer.Exit(code=1)
 
 
+@simulation_app.command("full-game-train")
+def simulation_full_game_train(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    updates: Annotated[int, typer.Option(min=1, max=256)] = 4,
+    batch_size: Annotated[int, typer.Option(min=1, max=64)] = 8,
+    players: Annotated[int, typer.Option(min=2, max=9)] = 3,
+    teams: Annotated[str | None, typer.Option(help="Comma-separated team IDs per seat.")] = None,
+    seed: Annotated[int, typer.Option(min=0)] = 67,
+    max_turns: Annotated[int, typer.Option(min=1, max=1000)] = 256,
+    max_decisions: Annotated[int, typer.Option(min=1, max=8000)] = 2048,
+    apocalypse_after_turns: Annotated[int, typer.Option(min=0, max=1000)] = 64,
+    checkpoint_root: Annotated[Path | None, typer.Option(file_okay=False)] = None,
+) -> None:
+    """Train a local candidate on complete full-pool C++ episodes."""
+    try:
+        from godfield_bot.full_game_training import (
+            FullGameTrainingConfig,
+            FullGameTrainingUpdate,
+            save_full_game_candidate,
+            train_full_game,
+        )
+
+        config = FullGameTrainingConfig(
+            updates=updates,
+            batch_size=batch_size,
+            player_count=players,
+            teams=tuple(int(team.strip()) for team in teams.split(","))
+            if teams is not None
+            else (),
+            seed=seed,
+            max_turns=max_turns,
+            max_decisions=max_decisions,
+            apocalypse_after_turns=apocalypse_after_turns,
+        )
+
+        def progress(index: int, update: FullGameTrainingUpdate) -> None:
+            state = "updated weights" if update.metrics is not None else "skipped update"
+            typer.echo(
+                f"Batch {index}/{updates} {state} using {update.terminal_target_decisions} targets",
+                err=True,
+            )
+
+        report, policy = train_full_game(
+            catalog_path=catalog, bible_path=bible, config=config, on_update=progress
+        )
+        successful = report.updates[-1].collection_error is None and any(
+            update.metrics is not None for update in report.updates
+        )
+        directory = (
+            save_full_game_candidate(checkpoint_root, report, policy)
+            if successful and checkpoint_root is not None
+            else None
+        )
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error("full_game_training_failed", reason=str(error).splitlines()[0])
+        raise typer.Exit(code=1) from None
+    typer.echo(
+        json.dumps(
+            {
+                "checkpoint": str(directory) if directory is not None else None,
+                "training": report.model_dump(mode="json"),
+            },
+            indent=2,
+        )
+    )
+    if not successful:
+        raise typer.Exit(code=1)
+
+
+@simulation_app.command("full-game-evaluate")
+def simulation_full_game_evaluate(
+    checkpoint: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    seed: Annotated[int, typer.Option(min=0)] = 100_000,
+    games_per_faction: Annotated[int, typer.Option(min=1, max=64)] = 16,
+) -> None:
+    """Evaluate a local candidate against its frozen initial policy."""
+    try:
+        from godfield_bot.full_game_evaluation import evaluate_full_game_candidate
+
+        report = evaluate_full_game_candidate(
+            checkpoint,
+            catalog_path=catalog,
+            bible_path=bible,
+            seed=seed,
+            games_per_faction=games_per_faction,
+        )
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error(
+            "full_game_evaluation_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
 @simulation_app.command("full-game-resource-smoke")
 def simulation_full_game_resource_smoke(
     catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(

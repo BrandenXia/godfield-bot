@@ -1661,11 +1661,26 @@ collector now retains accepted observations/actions and assigns each acting
 seat its undiscounted terminal faction outcome. It excludes all samples from
 truncated or failed episodes and preserves rejected commands for diagnosis.
 In the32-game integration sweep all12,391 decisions receive valid terminal
-targets. Recurrent optimization, checkpoint and useful-learning validation
-remain next. See
+targets. The local recurrent PPO trainer now uses those complete episodes and
+saves an optional candidate for frozen evaluation. The 12-update and 32-update
+2v2 runs scored 62–66 and 68–60 against their initial weights on separate
+128-game held-out sets. Optimizer resume and the strength gate remain open. See
 [ADR 0139](docs/architecture/0139-public-full-game-encoding-and-transactional-seat-memory.md)
 and the approved
-[complete-episode collector](docs/architecture/0141-complete-terminal-episode-collection.md).
+[complete-episode collector](docs/architecture/0141-complete-terminal-episode-collection.md)
+and [local recurrent PPO](docs/architecture/0142-local-full-game-recurrent-ppo.md).
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation --extra training \
+  godfield-bot simulation full-game-train --updates 12 --batch-size 8 \
+  --players 4 --teams 1,1,2,2 --checkpoint-root runs/full-game-candidates
+
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation --extra training \
+  godfield-bot simulation full-game-evaluate '/path/from/training/report' \
+  --games-per-faction 32 --seed 100000
+```
+
+Use the `checkpoint` path from the training report as the evaluation directory.
 
 That is not full-game fidelity: unobserved combinations, hidden cross-role
 resolution, complete event/virtual commands and learning interfaces remain gated. Attack additions

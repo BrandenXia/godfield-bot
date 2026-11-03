@@ -50,7 +50,7 @@ pins arrays, role counts, source hashes, exclusions and effect descriptions.
 ## What the saved client establishes
 
 The saved client at
-`runs/experiments/official-client-2026-09-28.js` carries the pinned client
+`data/snapshots/2026-09-28/official-client.js` carries the pinned client
 fingerprint. Its `gkN` and `ev` logic permit an additive weapon to be the first
 attack card. Armor and additive sundries cannot lead. A positive-ATK additive
 miracle can lead, but a zero-ATK additive miracle cannot. Further additions

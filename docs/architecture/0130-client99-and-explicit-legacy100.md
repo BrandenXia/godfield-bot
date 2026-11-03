@@ -17,7 +17,7 @@ readonly native property and serialized metadata identify the selected rule.
 ## Evidence and compatibility boundary
 
 The pinned public client Exchange controls disable HP/MP/CP increases at99;
-see `runs/experiments/official-client-2026-09-28.js`, lines11883 and11890,
+see `data/snapshots/2026-09-28/official-client.js`, lines11883 and11890,
 SHA256 `764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd`.
 The public client was independently re-fetched on2026-10-18UTC with the same
 hash; provenance is in `data/snapshots/2026-10-17/i18n-en-provenance.json`.

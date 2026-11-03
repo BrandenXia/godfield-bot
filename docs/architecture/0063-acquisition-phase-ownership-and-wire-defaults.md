@@ -50,7 +50,7 @@ Full read-only input fingerprints remain unchanged:
 
 The decoder is pinned to official client SHA-256
 `764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd`.
-The reviewed local source is `runs/experiments/official-client-2026-09-28.js`.
+The reviewed local source is `data/snapshots/2026-09-28/official-client.js`.
 The catalog content fingerprint is
 `df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249`.
 

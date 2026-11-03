@@ -2,7 +2,8 @@
 
 ## Decision
 
-User-approved2026-11-03; implementation pending. The first full-game learner
+User-approved2026-11-03; collection implemented in ADR0141, optimization pending.
+The first full-game learner
 uses complete native episodes and undiscounted terminal faction outcomes.
 Every accepted decision by a present player gets that player's eventual
 ADR0136 outcome: winning faction+1 including eliminated teammates, other

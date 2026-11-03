@@ -1656,11 +1656,16 @@ restore the sampling generator. Explicit reset clears every seat's memory.
 The untrained policy completes32 local integration games across solo and team
 layouts with12,391 legal commands and no errors/limits. This is an interface
 check, not useful learning or a strength result. Current public views are
-encoded; an official event-history stream is not added. Complete episodic
-rollouts, optimization and checkpoint validation remain next. See
+encoded; an official event-history stream is not added. The complete-episode
+collector now retains accepted observations/actions and assigns each acting
+seat its undiscounted terminal faction outcome. It excludes all samples from
+truncated or failed episodes and preserves rejected commands for diagnosis.
+In the32-game integration sweep all12,391 decisions receive valid terminal
+targets. Recurrent optimization, checkpoint and useful-learning validation
+remain next. See
 [ADR 0139](docs/architecture/0139-public-full-game-encoding-and-transactional-seat-memory.md)
 and the approved
-[complete-episode credit rule](docs/architecture/0140-approved-complete-episode-full-game-credit.md).
+[complete-episode collector](docs/architecture/0141-complete-terminal-episode-collection.md).
 
 That is not full-game fidelity: unobserved combinations, hidden cross-role
 resolution, complete event/virtual commands and learning interfaces remain gated. Attack additions

@@ -39,7 +39,7 @@ def test_default_targeting_and_attraction_replay_is_not_full_matches():
     assert report.final_actor_deaths == report.final_other_deaths == 64
     assert report.real_terminal_endings == 0 and report.ready_after_one_turn == 512
     assert (
-        report.metadata_sha256 == "4fb9d062f597c9fde70601994f08eabfb1bf1074f810435773ddfbd5dc5acc9f"
+        report.metadata_sha256 == "a572fd04b18e6676f539d54b2ed5c59227d9e1094bb60782631779f33104b181"
     )
     assert (
         report.diagnostic_replay_sha256

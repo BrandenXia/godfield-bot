@@ -509,7 +509,7 @@ def test_factory_command_adapter_has_no_fabricated_target_and_metadata_stays_gat
             configured,
             [FullGameCommand(**context.model_dump(exclude={"legal_choice_ids"}), choice_id=choice)],
         )
-    assert batch.chance_count == 1 and configured.metadata.kernel_schema_version == 32
+    assert batch.chance_count == 1 and configured.metadata.kernel_schema_version == 33
     assert PLAN.integrated_artifact_effect_count == 237
     assert (
         not configured.metadata.local_training_eligible

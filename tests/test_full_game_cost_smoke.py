@@ -34,7 +34,7 @@ def test_default_native_zero_mp_waivers_accounting_and_replay_pins():
     assert report.utility_cp_gain == report.hp_damage == 2000
     assert report.consumed_cards == 800 and report.retained_miracle_uses == 600
     assert (
-        report.metadata_sha256 == "c9decca8fcd82a74e5fef837d216b15d5ff1c969eb2889fe1a4639261401930b"
+        report.metadata_sha256 == "6a616c908823e82e19a57918cb9771c994fcc9c70853a2868dc8797b5d3a0992"
     )
     assert (
         report.diagnostic_replay_sha256

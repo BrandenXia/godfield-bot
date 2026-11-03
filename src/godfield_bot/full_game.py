@@ -73,7 +73,19 @@ if TYPE_CHECKING:
     import numpy.typing as npt
     from godfield_sim import FullGameBatch
 
-FULL_GAME_RULESET_ID: Final = "integrated-full-game-development-v32"
+FULL_GAME_RULESET_ID: Final = "integrated-full-game-development-v33"
+HiddenCostPolicy = Literal["strict-error", "fizzle-provisional"]
+HIDDEN_COST_FIELDS: Final = (
+    "affected_attack_selections",
+    "affected_utility_selections",
+    "affected_defense_selections",
+    "selected_cards",
+    "consumed_nonmiracles",
+    "performed_miracles",
+    "requested_net_mp",
+    "paid_available_mp",
+    "unpaid_mp_deficit",
+)
 INEFFECTIVE_FIELDS: Final = (
     "affected_attack_uses",
     "affected_utility_uses",
@@ -426,7 +438,7 @@ PHENOMENON_SNAPSHOT_FIELDS: Final = (
 class FullGamePlan(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     teams: FullGameTeamPlan = FullGameTeamPlan()
-    schema_version: Literal[32] = 32
+    schema_version: Literal[33] = 33
     inventory: DreamInventoryPlan
     curses: CurseDynamicsPlan
     utilities: GuardianUtilityPlan
@@ -616,11 +628,11 @@ def build_full_game_plan(catalog: ApiCatalogSnapshot, bible: BibleSnapshot) -> F
 
 class FullGameMetadata(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    schema_version: Literal[32] = 32
-    ruleset_id: Literal["integrated-full-game-development-v32"] = FULL_GAME_RULESET_ID
-    kernel_schema_version: Literal[32] = 32
+    schema_version: Literal[33] = 33
+    ruleset_id: Literal["integrated-full-game-development-v33"] = FULL_GAME_RULESET_ID
+    kernel_schema_version: Literal[33] = 33
     command_schema_version: Literal[1] = 1
-    observation_schema_version: Literal[32] = 32
+    observation_schema_version: Literal[33] = 33
     plan: FullGamePlan
     roles: FullGameRoleManifest
     teams_enabled: Literal[True] = True
@@ -629,6 +641,15 @@ class FullGameMetadata(BaseModel):
     native_team_rules_implemented: Literal[True] = True
     native_team_victory_implemented: Literal[True] = True
     complete_team_rewards_implemented: Literal[False] = False
+    hidden_cost_policy: HiddenCostPolicy = "fizzle-provisional"
+    resolve_hidden_costs: bool = Field(default=True, strict=True)
+    hidden_cost_effects: Literal["whole-selection-no-effects-no-hp-debt-provisional"] = (
+        "whole-selection-no-effects-no-hp-debt-provisional"
+    )
+    hidden_cost_snapshot_fields: tuple[str, ...] = HIDDEN_COST_FIELDS
+    hidden_cost_snapshot_boundary: Literal["trusted-diagnostic-never-policy-input"] = (
+        "trusted-diagnostic-never-policy-input"
+    )
     resolve_hidden_removals: Literal[True] = True
     hidden_removals: Literal[
         "retain-protected-actuals-remove-eligible-only-empty-confirmation-ticks-provisional"
@@ -1016,6 +1037,8 @@ class FullGameMetadata(BaseModel):
             or self.ineffective_snapshot_fields != INEFFECTIVE_FIELDS
             or self.ineffective_model_ids != tuple(range(3, 240))
             or self.hidden_removal_snapshot_fields != HIDDEN_REMOVAL_FIELDS
+            or self.hidden_cost_snapshot_fields != HIDDEN_COST_FIELDS
+            or self.resolve_hidden_costs != (self.hidden_cost_policy == "fizzle-provisional")
             or self.team_observation_fields != TEAM_FIELDS
             or (self.initial_teams and len(self.initial_teams) != self.player_count)
             or self.command_fields != COMMAND_FIELDS
@@ -1119,6 +1142,7 @@ def create_development_full_game_batch(
     apocalypse_after_turns: int = 0,
     resource_cap: ResourceCap = 99,
     teams: Sequence[int] | None = None,
+    hidden_cost_policy: HiddenCostPolicy = "fizzle-provisional",
 ) -> DevelopmentFullGameBatch:
     if teams is not None and len(teams) != player_count:
         raise ValueError("full-game initial teams must match the player count")
@@ -1130,6 +1154,8 @@ def create_development_full_game_batch(
         plan=plan,
         roles=build_full_game_role_manifest(plan),
         initial_teams=tuple(teams) if teams is not None else (0,) * player_count,
+        hidden_cost_policy=hidden_cost_policy,
+        resolve_hidden_costs=hidden_cost_policy == "fizzle-provisional",
         batch_size=batch_size,
         player_count=player_count,
         capacity=capacity,
@@ -1158,10 +1184,10 @@ def create_development_full_game_batch(
             "full-game development engine requires simulation extra"
         ) from None
     if (
-        getattr(native, "FULL_GAME_KERNEL_SCHEMA_VERSION", None) != 32
+        getattr(native, "FULL_GAME_KERNEL_SCHEMA_VERSION", None) != 33
         or getattr(native, "FULL_GAME_COMMAND_SCHEMA_VERSION", None) != 1
         or getattr(native, "FULL_GAME_ATTACK_FAMILY_SCHEMA_VERSION", None) != 8
-        or getattr(native, "FULL_GAME_OBSERVATION_SCHEMA_VERSION", None) != 32
+        or getattr(native, "FULL_GAME_OBSERVATION_SCHEMA_VERSION", None) != 33
         or getattr(native, "FULL_GAME_MAX_DEFENSE_ACTIONS", None) != 64
         or getattr(native, "FULL_GAME_MAX_ATTACK_ACTIONS", None) != 64
         or getattr(native, "FULL_GAME_MAX_DISCARD_ACTIONS", None) != 64
@@ -1224,6 +1250,7 @@ def create_development_full_game_batch(
             np.asarray(metadata.roles.model_roles, dtype=np.int64),
             metadata.resolve_hidden_removals,
             metadata.teams_enabled,
+            metadata.resolve_hidden_costs,
         ),
         metadata,
     )
@@ -1313,7 +1340,7 @@ class FullGameSmokeReport(BaseModel):
     source_kind: Literal["integrated-development-utility-cure-smoke-v1"] = (
         "integrated-development-utility-cure-smoke-v1"
     )
-    ruleset_id: Literal["integrated-full-game-development-v32"] = FULL_GAME_RULESET_ID
+    ruleset_id: Literal["integrated-full-game-development-v33"] = FULL_GAME_RULESET_ID
     scenario: Literal["fixed-own-utility-cure-hands-disease-not-combat-strength"] = (
         "fixed-own-utility-cure-hands-disease-not-combat-strength"
     )

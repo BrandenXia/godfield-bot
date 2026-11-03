@@ -90,6 +90,35 @@ void FullGameBatch::record_ineffective(Mutation &mutation,
   }
 }
 
+bool FullGameBatch::fizzle_hidden_cost(Mutation &mutation, std::size_t count,
+                                       std::int64_t cost,
+                                       std::size_t kind) const {
+  auto &e = mutation.episode;
+  const auto actor = static_cast<std::size_t>(e.actor);
+  const auto available = mutation.resources[actor][0];
+  if (!resolve_hidden_costs_ || cost <= available ||
+      !hidden_selection(mutation, count))
+    return false;
+  // The whole selected action fails before any component, targeting draw or
+  // waiver credit. Custody/receipts and the normal scheduler belong to callers.
+  auto &stats = e.hidden_cost_stats;
+  ++stats[kind];
+  stats[3] += static_cast<std::int64_t>(count);
+  const auto owner = mutation.environment * player_count_ + actor;
+  for (std::size_t i = 0; i < count; ++i) {
+    const auto model =
+        inventory_.items_[owner * capacity_ +
+                          static_cast<std::size_t>(mutation.order[i] - 1)][1];
+    ++stats[inventory_.category(model) == 4 ? 5 : 4];
+  }
+  stats[6] += cost;
+  stats[7] += available;
+  stats[8] += cost - available;
+  mutation.resources[actor][0] = 0;
+  mutation.paid += static_cast<std::uint64_t>(available);
+  return true;
+}
+
 void FullGameBatch::resolve_ineffective_defenses(
     Mutation &mutation, std::int64_t &defense,
     std::vector<DefenseEffect> &counters,
@@ -104,6 +133,8 @@ void FullGameBatch::resolve_ineffective_defenses(
         inventory_.items_[owner * capacity_ +
                           static_cast<std::size_t>(mutation.order[i] - 1)][1];
   const auto cost = sequence_cost({models.data(), count}, CardSource::Held);
+  if (fizzle_hidden_cost(mutation, count, cost, 2))
+    return; // Selected cards are still used; incoming defense resolves as zero.
   if (mutation.resources[actor][0] < cost)
     throw std::invalid_argument(
         "full-game hidden actual miracle cost is unaffordable");

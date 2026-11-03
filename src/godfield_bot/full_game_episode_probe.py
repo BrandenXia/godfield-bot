@@ -12,10 +12,12 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
 
 from godfield_bot.full_game import (
     FULL_GAME_RULESET_ID,
+    HIDDEN_COST_FIELDS,
     HIDDEN_REMOVAL_FIELDS,
     HIDDEN_TARGETING_FIELDS,
     HIDDEN_TRADE_FIELDS,
     INEFFECTIVE_FIELDS,
+    HiddenCostPolicy,
     create_development_full_game_batch,
 )
 from godfield_bot.full_game_rewards import (
@@ -113,8 +115,8 @@ class FullGameEpisodeResult(BaseModel):
 
 class FullGameEpisodeProbeReport(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    schema_version: Literal[5] = 5
-    ruleset_id: Literal["integrated-full-game-development-v32"] = FULL_GAME_RULESET_ID
+    schema_version: Literal[6] = 6
+    ruleset_id: Literal["integrated-full-game-development-v33"] = FULL_GAME_RULESET_ID
     source_kind: Literal["complete-pool-unscripted-episode-diagnostic-v1"] = (
         "complete-pool-unscripted-episode-diagnostic-v1"
     )
@@ -153,6 +155,9 @@ class FullGameEpisodeProbeReport(BaseModel):
     ineffective_model_counts: tuple[Count, ...]
     hidden_removal_fields: tuple[str, ...] = HIDDEN_REMOVAL_FIELDS
     hidden_removal_totals: tuple[Count, ...]
+    hidden_cost_policy: HiddenCostPolicy = "fizzle-provisional"
+    hidden_cost_fields: tuple[str, ...] = HIDDEN_COST_FIELDS
+    hidden_cost_totals: tuple[Count, ...]
     terminal_rewards_tracked: bool = Field(default=False, strict=True)
     reward_schema_version: StrictInt | None = Field(default=None, ge=1, le=1)
     reward_metadata_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
@@ -225,8 +230,22 @@ class FullGameEpisodeProbeReport(BaseModel):
             or len(self.ineffective_model_counts) != 237
             or self.hidden_removal_fields != HIDDEN_REMOVAL_FIELDS
             or len(self.hidden_removal_totals) != 7
+            or self.hidden_cost_fields != HIDDEN_COST_FIELDS
+            or len(self.hidden_cost_totals) != 9
         ):
             raise ValueError("episode probe ending, command or diagnostic layout differs")
+        cost = self.hidden_cost_totals
+        if (
+            cost[3] != cost[4] + cost[5]
+            or cost[6] != cost[7] + cost[8]
+            or sum(cost[:3]) > cost[3]
+            or sum(cost[:3]) > cost[8]
+            or bool(sum(cost[:3])) != bool(cost[3])
+            or bool(sum(cost[:3])) != bool(cost[6])
+            or bool(sum(cost[:3])) != bool(cost[8])
+            or (self.hidden_cost_policy == "strict-error" and any(cost))
+        ):
+            raise ValueError("episode probe hidden-cost conservation differs")
         if (
             h[0] != h[1] + h[2]
             or h[3] > h[2]
@@ -265,7 +284,7 @@ class FullGameEpisodeProbeReport(BaseModel):
                 for seat in range(9)
             )
             reward_metadata = FullGameRewardMetadata(
-                environment_metadata_sha256=self.metadata_sha256
+                ruleset_id=self.ruleset_id, environment_metadata_sha256=self.metadata_sha256
             )
             expected_hash = hashlib.sha256(
                 json.dumps(
@@ -350,6 +369,7 @@ def run_full_game_episode_probe(
     apocalypse_after_turns: int = 64,
     teams: Sequence[int] | None = None,
     terminal_rewards: bool = False,
+    hidden_cost_policy: HiddenCostPolicy = "fizzle-provisional",
 ) -> FullGameEpisodeProbeReport:
     import numpy as np
 
@@ -374,12 +394,15 @@ def run_full_game_episode_probe(
         raise ValueError("episode probe teams must be one ID in 0..4 per seat")
     if type(terminal_rewards) is not bool:
         raise ValueError("episode probe terminal reward tracking must be boolean")
+    if hidden_cost_policy not in ("strict-error", "fizzle-provisional"):
+        raise ValueError("episode probe hidden cost policy differs")
     c = create_development_full_game_batch(
         catalog_path=catalog_path,
         bible_path=bible_path,
         batch_size=batch_size,
         player_count=player_count,
         teams=layout,
+        hidden_cost_policy=hidden_cost_policy,
         seed=seed,
         capacity=18,
         acquisition_mode="all-held-weighted",
@@ -523,6 +546,8 @@ def run_full_game_episode_probe(
         forced_commands=forced,
         accepted_commands_by_phase=tuple(phase_counts),
         automatic_gifts=b.automatic_gift_count,
+        hidden_cost_policy=hidden_cost_policy,
+        hidden_cost_totals=tuple(int(v) for v in b.hidden_cost_snapshot().sum(axis=0)),
         terminal_rewards_tracked=terminal_rewards,
         reward_schema_version=1 if terminal_rewards else None,
         reward_metadata_sha256=hashlib.sha256(

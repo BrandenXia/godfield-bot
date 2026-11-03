@@ -37,7 +37,7 @@ def test_default_discard_probe_is_reproducible_bounded_and_not_full_games():
     assert report.bow_recipients == report.family_enqueued == report.family_resolved == 170
     assert report.bow_hp_damage == 5100
     assert (
-        report.metadata_sha256 == "03152ee1fa746ed902ba3472464ea796315c0d3ead1940c17f53cf34f33dc45d"
+        report.metadata_sha256 == "537bcc6c8ddcfac1d11f311aa4ed8514d15aa20d741aead1d12e85f1a3245513"
     )
     assert (
         report.diagnostic_replay_sha256

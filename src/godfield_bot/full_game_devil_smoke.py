@@ -25,7 +25,7 @@ class FullGameDevilSmokeReport(BaseModel):
     source_kind: Literal["integrated-firstturn-apocalypse-gift-devils-smoke-v1"] = (
         "integrated-firstturn-apocalypse-gift-devils-smoke-v1"
     )
-    ruleset_id: Literal["integrated-full-game-development-v32"] = FULL_GAME_RULESET_ID
+    ruleset_id: Literal["integrated-full-game-development-v33"] = FULL_GAME_RULESET_ID
     queue_schema_version: Literal[8] = 8
     scenario: Literal[
         "nine-weighted-starting-cards-first-affordable-public-turn-forgive-responses-not-full-games"

@@ -34,7 +34,7 @@ def test_default_native_pool_and_sampling_accounting_not_full_game_validation():
     assert report.removed_cards == 700 and report.consumed_cards == 600
     assert report.original_owner_ticks == report.removal_resolutions == 600
     assert (
-        report.metadata_sha256 == "8922d83aa8e9c31a8cffe0999bb8b0e3beee7f8e18456f79518317ad0a085f94"
+        report.metadata_sha256 == "fd0450338844ce3bba42a271a8bc0475a159f7f05a9e5366448343ebfc773e8c"
     )
     assert (
         report.diagnostic_replay_sha256

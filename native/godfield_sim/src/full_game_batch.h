@@ -11,7 +11,7 @@
 
 namespace godfield_sim {
 
-inline constexpr std::uint32_t kFullGameKernelSchemaVersion = 32;
+inline constexpr std::uint32_t kFullGameKernelSchemaVersion = 33;
 inline constexpr std::uint32_t kFullGameTradeChoiceSchemaVersion = 2;
 inline constexpr std::uint32_t kFullGameMaxTradeActions = 64;
 inline constexpr std::uint32_t kFullGameAttackFamilySchemaVersion = 8;
@@ -21,7 +21,7 @@ inline constexpr std::uint32_t kFullGameMaxDefenseActions = 64;
 inline constexpr std::uint32_t kFullGameMaxAttackActions = 64;
 inline constexpr std::uint32_t kFullGameMaxDiscardActions = 64;
 inline constexpr const char *kFullGameRulesetId =
-    "integrated-full-game-development-v32";
+    "integrated-full-game-development-v33";
 using FullGamePhenomenonInput =
     nb::ndarray<const std::int64_t, nb::numpy, nb::shape<-1, 5>, nb::c_contig,
                 nb::device::cpu>;
@@ -86,7 +86,8 @@ public:
       bool resolve_hidden_targeting = false, bool resolve_hidden_trades = false,
       bool resolve_hidden_components = false,
       std::optional<InventoryProfileInput> role_profiles = std::nullopt,
-      bool resolve_hidden_removals = false, bool teams_enabled = false);
+      bool resolve_hidden_removals = false, bool teams_enabled = false,
+      bool resolve_hidden_costs = false);
   [[nodiscard]] std::int64_t resource_cap() const noexcept {
     return resource_cap_;
   }
@@ -108,6 +109,10 @@ public:
     return resolve_hidden_removals_;
   }
   [[nodiscard]] Int64_2D hidden_removal_snapshot() const;
+  [[nodiscard]] bool resolve_hidden_costs() const noexcept {
+    return resolve_hidden_costs_;
+  }
+  [[nodiscard]] Int64_2D hidden_cost_snapshot() const;
   [[nodiscard]] bool teams_enabled() const noexcept { return teams_enabled_; }
   void seed_teams(ActionInput environments, ActionInput owners,
                   ActionInput teams);
@@ -450,6 +455,7 @@ private:
     std::array<std::int64_t, 14> ineffective_stats{};
     std::array<std::int64_t, 237> ineffective_models{};
     std::array<std::int64_t, 7> hidden_removal_stats{};
+    std::array<std::int64_t, 9> hidden_cost_stats{};
     // Phase6: Exchange preview=1, Sell selection=2, current-source purchase=3.
     std::array<std::int64_t, 3> trade_wallet{}; // HP, MP, CP.
     std::int64_t trade_mode = 0, trade_actions = 0;
@@ -672,6 +678,9 @@ private:
   [[nodiscard]] std::int64_t registered_roles(std::int64_t model) const;
   [[nodiscard]] bool hidden_selection(const Mutation &mutation,
                                       std::size_t count) const;
+  [[nodiscard]] bool fizzle_hidden_cost(Mutation &mutation, std::size_t count,
+                                        std::int64_t cost,
+                                        std::size_t kind) const;
   void record_ineffective(Mutation &mutation, const std::bitset<512> &mask,
                           std::size_t count, std::size_t kind) const;
   void
@@ -836,6 +845,7 @@ private:
   bool resolve_hidden_trades_ = false;
   bool resolve_hidden_components_ = false;
   bool resolve_hidden_removals_ = false;
+  bool resolve_hidden_costs_ = false;
   bool teams_enabled_ = false;
   std::map<std::int64_t, std::int64_t> role_profiles_;
   std::uint64_t devils_ = 0, devil_damage_ = 0, devil_removed_ = 0;

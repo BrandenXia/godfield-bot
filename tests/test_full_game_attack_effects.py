@@ -584,7 +584,7 @@ def test_source_factory_gates_new_effects_and_cannot_relabel_metadata():
     configured = create_development_full_game_batch(
         resource_cap=100, catalog_path=CATALOG, bible_path=BIBLE, batch_size=1, capacity=18
     )
-    assert configured.metadata.kernel_schema_version == 32
+    assert configured.metadata.kernel_schema_version == 33
     assert len(EFFECTS) == 20 and PLAN.integrated_artifact_effect_count == 237
     assert (
         not configured.metadata.full_game_training_ready

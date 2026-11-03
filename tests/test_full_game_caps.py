@@ -66,7 +66,7 @@ def test_factory_defaults99_and_legacy100_requires_an_explicit_option():
     assert not c.metadata.full_game_training_ready and not c.metadata.promotion_eligible
     old = factory(resource_cap=100, initial_hp=100, initial_mp=100, initial_cp=100)
     assert old.metadata.resource_cap == old.batch.resource_cap == 100
-    assert old.metadata.ruleset_id == "integrated-full-game-development-v32"
+    assert old.metadata.ruleset_id == "integrated-full-game-development-v33"
     with pytest.raises(AttributeError):
         c.batch.resource_cap = 100
     with pytest.raises(ValueError):

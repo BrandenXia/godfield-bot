@@ -479,7 +479,7 @@ def test_adapter_exposes_native_control_but_not_full_training_readiness():
     configured = create_development_full_game_batch(
         resource_cap=100, catalog_path=CATALOG, bible_path=BIBLE, batch_size=1, capacity=18
     )
-    assert configured.metadata.kernel_schema_version == 32
+    assert configured.metadata.kernel_schema_version == 33
     assert configured.metadata.attack_family_schema_version == 8
     assert configured.metadata.plan.integrated_artifact_effect_count == 237
     assert not configured.metadata.full_game_training_ready

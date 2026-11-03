@@ -58,7 +58,7 @@ def test_default_mixed_trade_probe_is_reproducible_but_not_full_games():
     assert r.commands == 2560 and r.original_owner_ticks == 512
     assert r.sun_revivals == 102 and r.bow_shots == 102
     assert r.attack_hp_damage == 3060 and r.consumed_cards == 767
-    assert r.metadata_sha256 == "fc781f90a348851ed7433732f502b730e2502bc6a17f9aa9a64f11245fc60b84"
+    assert r.metadata_sha256 == "08abe76b9a5393b7dbdea7a2b667e92b1575b1912389f2bfa8f374bd9b56eede"
     assert (
         r.diagnostic_replay_sha256
         == "97f74a881777329a3f9bcd60ca1a8760037fe27cec8ce82a571aaa6d9d335aaa"

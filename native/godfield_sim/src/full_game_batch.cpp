@@ -78,7 +78,7 @@ FullGameBatch::FullGameBatch(
     bool resolve_hidden_targeting, bool resolve_hidden_trades,
     bool resolve_hidden_components,
     std::optional<InventoryProfileInput> role_profiles,
-    bool resolve_hidden_removals, bool teams_enabled)
+    bool resolve_hidden_removals, bool teams_enabled, bool resolve_hidden_costs)
     : batch_size_(validate_dimensions(batch_size, player_count, capacity,
                                       max_turns, max_decisions, initial_hp,
                                       initial_mp, initial_cp, resource_cap)),
@@ -95,6 +95,7 @@ FullGameBatch::FullGameBatch(
   resolve_hidden_trades_ = resolve_hidden_trades;
   resolve_hidden_components_ = resolve_hidden_components;
   resolve_hidden_removals_ = resolve_hidden_removals;
+  resolve_hidden_costs_ = resolve_hidden_costs;
   teams_enabled_ = teams_enabled;
   if (utility_profiles.shape(0) == 0 || utility_profiles.shape(0) > 237) {
     throw std::invalid_argument("full-game utility profile count is invalid");
@@ -730,6 +731,9 @@ FullGameBatch::FullGameBatch(
   if (resolve_hidden_components_ && !role_profiles)
     throw std::invalid_argument(
         "full-game hidden components require a complete role manifest");
+  if (resolve_hidden_costs_ && !resolve_hidden_components_)
+    throw std::invalid_argument("full-game hidden cost fizzle requires hidden "
+                                "components and role manifest");
   if (role_profiles) {
     const auto &rows = *role_profiles;
     if (rows.shape(0) != 237)
@@ -1501,6 +1505,13 @@ void FullGameBatch::cast_attack(Mutation &mutation, std::int64_t choice,
               actual->second.origin, actual->second.origin == 0};
   } else
     attack = compose(mutation, true);
+  if (fizzle_hidden_cost(mutation,
+                         static_cast<std::size_t>(episode.attack_size),
+                         attack.cost, 0)) {
+    consume_attack(mutation, actor, false);
+    finish_turn(mutation, actor);
+    return;
+  }
   if (attack.ineffective[0]) {
     if (mutation.resources[actor][0] < attack.cost)
       throw std::invalid_argument(
@@ -2548,6 +2559,13 @@ void FullGameBatch::execute_utility(Mutation &mutation, std::size_t slot,
       ordered ? compose(mutation, true)
               : Composition{0, 0, actual->second.cost, 0, false};
   const auto cost = composition.cost;
+  if (ordered &&
+      fizzle_hidden_cost(
+          mutation, static_cast<std::size_t>(episode.attack_size), cost, 1)) {
+    consume_attack(mutation, actor, false);
+    finish_turn(mutation, actor);
+    return;
+  }
   if (mutation.resources[actor][0] < cost) {
     throw std::invalid_argument(
         "full-game hidden actual miracle cost is unaffordable");
@@ -3784,6 +3802,14 @@ Int64_2D FullGameBatch::hidden_trade_snapshot() const {
   return owned_array<Int64_2D>(std::move(buffer), {batch_size_, 9});
 }
 
+Int64_2D FullGameBatch::hidden_cost_snapshot() const {
+  auto buffer = std::make_unique<std::int64_t[]>(batch_size_ * 9);
+  for (std::size_t env = 0; env < batch_size_; ++env)
+    std::copy(episodes_[env].hidden_cost_stats.begin(),
+              episodes_[env].hidden_cost_stats.end(), buffer.get() + env * 9);
+  return owned_array<Int64_2D>(std::move(buffer), {batch_size_, 9});
+}
+
 Int64_2D FullGameBatch::team_ids() const {
   auto buffer = std::make_unique<std::int64_t[]>(batch_size_ * 9);
   for (std::size_t env = 0; env < batch_size_; ++env)
@@ -4367,76 +4393,79 @@ void bind_full_game(nb::module_ &module) {
   module.attr("FULL_GAME_TRADE_CHOICE_SCHEMA_VERSION") =
       kFullGameTradeChoiceSchemaVersion;
   nb::class_<FullGameBatch>(module, "FullGameBatch")
-      .def(nb::init<
-               std::size_t, std::size_t, InventoryProfileInput, InventoryInput,
-               std::size_t, std::uint64_t, std::uint64_t, std::uint64_t,
-               std::uint16_t, std::uint16_t, std::uint16_t,
-               std::optional<GuardianWeightInput>,
-               std::optional<GuardianWeightInput>,
-               std::optional<InventoryProfileInput>, std::size_t, bool, bool,
-               std::size_t, bool, std::optional<FullGameBoostInput>,
-               std::optional<GuardianWeightInput>,
-               std::optional<InventoryProfileInput>,
-               std::optional<FullGameAttackEffectInput>,
-               std::optional<GuardianWeightInput>,
-               std::optional<InventoryProfileInput>,
-               std::optional<FullGameAttackEffectInput>,
-               std::optional<InventoryInput>, std::optional<InventoryInput>,
-               std::optional<InventoryInput>, std::optional<InventoryInput>,
-               std::optional<FullGameBoostInput>,
-               std::optional<InventoryProfileInput>, std::optional<ActionInput>,
-               std::optional<FullGameGuardianInput>,
-               std::optional<InventoryProfileInput>,
-               std::optional<InventoryInput>, std::uint64_t,
-               std::optional<FullGamePhenomenonInput>,
-               std::optional<ActionInput>, std::optional<ActionInput>,
-               std::optional<FullGameAttackEffectInput>,
-               std::optional<InventoryInput>,
-               std::optional<InventoryProfileInput>, bool, std::uint16_t, bool,
-               bool, bool, std::optional<InventoryProfileInput>, bool, bool>(),
-           nb::arg("batch_size"), nb::arg("player_count"),
-           nb::arg("inventory_profiles").noconvert(),
-           nb::arg("utility_profiles").noconvert(), nb::arg("capacity") = 512,
-           nb::arg("seed") = 67, nb::arg("max_turns") = 1000,
-           nb::arg("max_decisions") = 4000, nb::arg("initial_hp") = 40,
-           nb::arg("initial_mp") = 10, nb::arg("initial_cp") = 0,
-           nb::arg("attack_profiles").noconvert() = nb::none(),
-           nb::arg("armor_profiles").noconvert() = nb::none(),
-           nb::arg("gift_profiles").noconvert() = nb::none(),
-           nb::arg("initial_cards") = 0, nb::arg("refill_on_use") = false,
-           nb::arg("prayer_gifts") = false, nb::arg("hand_limit") = 0,
-           nb::arg("oldest_overflow") = false,
-           nb::arg("boost_profiles").noconvert() = nb::none(),
-           nb::arg("special_profiles").noconvert() = nb::none(),
-           nb::arg("chance_profiles").noconvert() = nb::none(),
-           nb::arg("attack_effect_profiles").noconvert() = nb::none(),
-           nb::arg("defense_effect_profiles").noconvert() = nb::none(),
-           nb::arg("passive_profiles").noconvert() = nb::none(),
-           nb::arg("removal_profiles").noconvert() = nb::none(),
-           nb::arg("cost_reducer_profiles").noconvert() = nb::none(),
-           nb::arg("complex_weapon_profiles").noconvert() = nb::none(),
-           nb::arg("danger_profiles").noconvert() = nb::none(),
-           nb::arg("dream_defense_profiles").noconvert() = nb::none(),
-           nb::arg("ascension_profiles").noconvert() = nb::none(),
-           nb::arg("area_profiles").noconvert() = nb::none(),
-           nb::arg("discard_model_ids").noconvert() = nb::none(),
-           nb::arg("guardian_profiles").noconvert() = nb::none(),
-           nb::arg("summon_profiles").noconvert() = nb::none(),
-           nb::arg("devil_profiles").noconvert() = nb::none(),
-           nb::arg("apocalypse_after_turns") = 0,
-           nb::arg("phenomenon_profiles").noconvert() = nb::none(),
-           nb::arg("fate_model_ids").noconvert() = nb::none(),
-           nb::arg("exchange_model_ids").noconvert() = nb::none(),
-           nb::arg("market_profiles").noconvert() = nb::none(),
-           nb::arg("guardian_generated_profiles").noconvert() = nb::none(),
-           nb::arg("guardian_action_profiles").noconvert() = nb::none(),
-           nb::arg("sacrifice_enabled") = false, nb::arg("resource_cap") = 100,
-           nb::arg("resolve_hidden_targeting") = false,
-           nb::arg("resolve_hidden_trades") = false,
-           nb::arg("resolve_hidden_components") = false,
-           nb::arg("role_profiles").noconvert() = nb::none(),
-           nb::arg("resolve_hidden_removals") = false,
-           nb::arg("teams_enabled") = false)
+      .def(
+          nb::init<std::size_t, std::size_t, InventoryProfileInput,
+                   InventoryInput, std::size_t, std::uint64_t, std::uint64_t,
+                   std::uint64_t, std::uint16_t, std::uint16_t, std::uint16_t,
+                   std::optional<GuardianWeightInput>,
+                   std::optional<GuardianWeightInput>,
+                   std::optional<InventoryProfileInput>, std::size_t, bool,
+                   bool, std::size_t, bool, std::optional<FullGameBoostInput>,
+                   std::optional<GuardianWeightInput>,
+                   std::optional<InventoryProfileInput>,
+                   std::optional<FullGameAttackEffectInput>,
+                   std::optional<GuardianWeightInput>,
+                   std::optional<InventoryProfileInput>,
+                   std::optional<FullGameAttackEffectInput>,
+                   std::optional<InventoryInput>, std::optional<InventoryInput>,
+                   std::optional<InventoryInput>, std::optional<InventoryInput>,
+                   std::optional<FullGameBoostInput>,
+                   std::optional<InventoryProfileInput>,
+                   std::optional<ActionInput>,
+                   std::optional<FullGameGuardianInput>,
+                   std::optional<InventoryProfileInput>,
+                   std::optional<InventoryInput>, std::uint64_t,
+                   std::optional<FullGamePhenomenonInput>,
+                   std::optional<ActionInput>, std::optional<ActionInput>,
+                   std::optional<FullGameAttackEffectInput>,
+                   std::optional<InventoryInput>,
+                   std::optional<InventoryProfileInput>, bool, std::uint16_t,
+                   bool, bool, bool, std::optional<InventoryProfileInput>, bool,
+                   bool, bool>(),
+          nb::arg("batch_size"), nb::arg("player_count"),
+          nb::arg("inventory_profiles").noconvert(),
+          nb::arg("utility_profiles").noconvert(), nb::arg("capacity") = 512,
+          nb::arg("seed") = 67, nb::arg("max_turns") = 1000,
+          nb::arg("max_decisions") = 4000, nb::arg("initial_hp") = 40,
+          nb::arg("initial_mp") = 10, nb::arg("initial_cp") = 0,
+          nb::arg("attack_profiles").noconvert() = nb::none(),
+          nb::arg("armor_profiles").noconvert() = nb::none(),
+          nb::arg("gift_profiles").noconvert() = nb::none(),
+          nb::arg("initial_cards") = 0, nb::arg("refill_on_use") = false,
+          nb::arg("prayer_gifts") = false, nb::arg("hand_limit") = 0,
+          nb::arg("oldest_overflow") = false,
+          nb::arg("boost_profiles").noconvert() = nb::none(),
+          nb::arg("special_profiles").noconvert() = nb::none(),
+          nb::arg("chance_profiles").noconvert() = nb::none(),
+          nb::arg("attack_effect_profiles").noconvert() = nb::none(),
+          nb::arg("defense_effect_profiles").noconvert() = nb::none(),
+          nb::arg("passive_profiles").noconvert() = nb::none(),
+          nb::arg("removal_profiles").noconvert() = nb::none(),
+          nb::arg("cost_reducer_profiles").noconvert() = nb::none(),
+          nb::arg("complex_weapon_profiles").noconvert() = nb::none(),
+          nb::arg("danger_profiles").noconvert() = nb::none(),
+          nb::arg("dream_defense_profiles").noconvert() = nb::none(),
+          nb::arg("ascension_profiles").noconvert() = nb::none(),
+          nb::arg("area_profiles").noconvert() = nb::none(),
+          nb::arg("discard_model_ids").noconvert() = nb::none(),
+          nb::arg("guardian_profiles").noconvert() = nb::none(),
+          nb::arg("summon_profiles").noconvert() = nb::none(),
+          nb::arg("devil_profiles").noconvert() = nb::none(),
+          nb::arg("apocalypse_after_turns") = 0,
+          nb::arg("phenomenon_profiles").noconvert() = nb::none(),
+          nb::arg("fate_model_ids").noconvert() = nb::none(),
+          nb::arg("exchange_model_ids").noconvert() = nb::none(),
+          nb::arg("market_profiles").noconvert() = nb::none(),
+          nb::arg("guardian_generated_profiles").noconvert() = nb::none(),
+          nb::arg("guardian_action_profiles").noconvert() = nb::none(),
+          nb::arg("sacrifice_enabled") = false, nb::arg("resource_cap") = 100,
+          nb::arg("resolve_hidden_targeting") = false,
+          nb::arg("resolve_hidden_trades") = false,
+          nb::arg("resolve_hidden_components") = false,
+          nb::arg("role_profiles").noconvert() = nb::none(),
+          nb::arg("resolve_hidden_removals") = false,
+          nb::arg("teams_enabled") = false,
+          nb::arg("resolve_hidden_costs") = false)
       .def_prop_ro("resource_cap", &FullGameBatch::resource_cap)
       .def_prop_ro("resolve_hidden_targeting",
                    &FullGameBatch::resolve_hidden_targeting)
@@ -4453,6 +4482,8 @@ void bind_full_game(nb::module_ &module) {
       .def_prop_ro("resolve_hidden_removals",
                    &FullGameBatch::resolve_hidden_removals)
       .def("hidden_removal_snapshot", &FullGameBatch::hidden_removal_snapshot)
+      .def_prop_ro("resolve_hidden_costs", &FullGameBatch::resolve_hidden_costs)
+      .def("hidden_cost_snapshot", &FullGameBatch::hidden_cost_snapshot)
       .def_prop_ro("teams_enabled", &FullGameBatch::teams_enabled)
       .def("seed_teams", &FullGameBatch::seed_teams,
            nb::arg("environments").noconvert(), nb::arg("owners").noconvert(),

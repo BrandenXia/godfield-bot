@@ -30,7 +30,7 @@ class FullGameGuardianSmokeReport(BaseModel):
     source_kind: Literal["integrated-standard-guardian-postturn-smoke-v1"] = (
         "integrated-standard-guardian-postturn-smoke-v1"
     )
-    ruleset_id: Literal["integrated-full-game-development-v32"] = FULL_GAME_RULESET_ID
+    ruleset_id: Literal["integrated-full-game-development-v33"] = FULL_GAME_RULESET_ID
     scenario: Literal["one-enemy-turn-all8-standard-groups-darkcloud-scripted-not-full-games"] = (
         "one-enemy-turn-all8-standard-groups-darkcloud-scripted-not-full-games"
     )

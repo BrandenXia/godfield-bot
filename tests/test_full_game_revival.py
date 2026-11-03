@@ -535,7 +535,7 @@ def test_source_builder_rechecks_unsafe_copies_and_factory_adds_new_profile():
         resource_cap=100, catalog_path=CATALOG, bible_path=BIBLE, batch_size=1
     )
     assert configured.metadata.plan.passives.profiles == ((208, 10),)
-    assert configured.metadata.observation_schema_version == 32
+    assert configured.metadata.observation_schema_version == 33
     assert (
         not configured.metadata.promotion_eligible
         and not configured.metadata.full_game_training_ready

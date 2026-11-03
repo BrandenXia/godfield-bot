@@ -35,7 +35,7 @@ def test_default_probe_keeps_all10_outcomes_including_generated_solar_actions():
     assert report.commands == 1141 and report.incoming_hp_damage == 4865
     assert report.generated_fate_uses == 0
     assert (
-        report.metadata_sha256 == "9f0238d6c7a2ff07d33cfe98a9a74af1829702b1f8c433aa19e4c23be26daf66"
+        report.metadata_sha256 == "5e49becf74a9f60bb33502581fbc49d09a8f4c868940cc5806bc1e79b184e479"
     )
     assert (
         report.diagnostic_replay_sha256
@@ -117,9 +117,13 @@ def test_failed_row_checks_do_not_copy_full_diagnostics_for_every_success(monkey
     constructor = native.FullGameBatch
 
     def incomplete_constructor(*args, **options):
-        # Omit action profiles, Sacrifice and cap arguments for a raw,
-        # incomplete configuration. The real source factory remains complete.
-        return constructor(*args[:-9], **options)
+        # Omit action profiles and all appended gameplay flags for a raw,
+        # incomplete configuration. Guard the positional boundary so future
+        # constructor extensions cannot silently turn this into a complete game.
+        from test_full_game_generated import PLAN
+
+        assert args[-10].tolist() == [list(row) for row in PLAN.guardians.action_profiles]
+        return constructor(*args[:-10], **options)
 
     def counted(batch):
         nonlocal calls

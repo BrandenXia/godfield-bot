@@ -36,7 +36,7 @@ def test_default_native_utility_accounting_and_hashes_not_trading_or_training():
     assert report.passes == 200 and report.mp_spent == 2700
     assert report.utility_cp_gain == 2500
     assert (
-        report.metadata_sha256 == "899871f2de1aa256b00f4a18fce80302235f7ced2c0dd55bd715eef3a5092d0b"
+        report.metadata_sha256 == "de5f9d8cd9ae92bb2d4b925da1aac487476706ece495ce7d12cab07911999e65"
     )
     assert (
         report.diagnostic_replay_sha256

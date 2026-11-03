@@ -1619,8 +1619,8 @@ complete policy observation or a full-game turn engine; no current checkpoint
 or live control is switched to them. See
 [ADR 0099](docs/architecture/0099-shared-fog-flash-darkcloud-decisions.md).
 
-The approved **separate full-game development engine** is now native 0.82.0,
-`integrated-full-game-development-v32`. It joins authoritative inventory,
+The approved **separate full-game development engine** is now native 0.83.0,
+`integrated-full-game-development-v33`. It joins authoritative inventory,
 HP/MP/CP, disease/cures, ordered attack composition, targets/chained defenses and
 opt-in native acquisition. All 237 held models have pinned draw weights
 totaling 500, and all 237 held-card abilities now have joined routes in this engine.
@@ -1631,11 +1631,20 @@ receive −1, and draws receive valid zeroes. Truncations and rejected commands
 never become synthetic losses. `FullGameRewardAdapter` records this credit once
 per adapter episode, captures the actor and forced-turn policy mask before each
 accepted command, and requires explicit reset after collecting an ending.
-The episode diagnostic accepts `--terminal-rewards`; its schema5 report includes
+The episode diagnostic accepts `--terminal-rewards`; its schema6 report includes
 validated reward totals and counts without changing gameplay or replay hashes.
 This supplies reward plumbing; the complete policy encoder, rollout learner and
 training/promotion gates remain unfinished. See
 [ADR 0136](docs/architecture/0136-terminal-faction-rewards-and-explicit-credit.md).
+
+For displayed-legal selections with insufficient MP for their actual hidden
+cost, the source factory now uses the approved provisional fizzle: spend the
+available MP, consume/mark the selected cards and apply none of their effects.
+An incoming attack still resolves against a failed defense. There is no HP
+debt. Raw native fixtures default off; `hidden_cost_policy="strict-error"`
+retains explicit diagnostic failures. Private `hidden_cost_snapshot` counters
+record requested/paid/unpaid MP and affected cards. See
+[ADR 0137](docs/architecture/0137-approved-insufficient-mp-fizzle.md).
 
 That is not full-game fidelity: unobserved combinations, hidden cross-role
 resolution, complete event/virtual commands and learning interfaces remain gated. Attack additions
@@ -2171,9 +2180,9 @@ or mark used the actual selected cards, and charge actual affordable costs.
 A checked237-card capability manifest prevents missing registrations from being
 silently treated as ineffective. Protected hidden Discard/Sacrifice selections
 remain owned; only actually removed cards receive Sacrifice replacements.
-Both new rules are labeled provisional and raw-default-off. Actual unaffordable
-miracle costs remain atomic errors; no MP→HP waterfall or free hidden effect is
-inferred. Private diagnostics do not enter policy inputs.
+These rules are labeled provisional and raw-default-off. Version33 adds the
+approved whole-selection insufficient-MP fizzle described above; strict mode
+still preserves atomic errors. Private diagnostics do not enter policy inputs.
 
 ```bash
 UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
@@ -2185,9 +2194,11 @@ This runs unscripted complete-pool native episodes with a weak public-only
 random policy, not learning or strength evaluation. The default now completes
 64/64 episodes without errors; two-player64-env and nine-player32-env seed67
 checks also finish. Across2–9 seats, seeds0/1/67 and32 environments per setting,
-759/768 episodes finish (749 winner endings/10 draws), with9 explicit hidden
-unaffordable-cost errors and no turn/decision truncations. These are not wins
-by a trained candidate. On engine errors the CLI exits1 with structured details.
+all768 solo episodes now finish. The expanded solo/team sweep completes3072/3072
+games (3050 winner endings/22 draws), with zero engine errors or turn/decision
+limits and1,066,610 accepted commands. It records26 insufficient-MP fizzles
+(24 attack/2 utility). These are not wins by a trained candidate. On engine
+errors the CLI exits1 with structured details.
 Failed environments stop without action
 substitution, while healthy environments continue. Wins/draws, native limits
 and errors stay separate. Training and promotion remain blocked. See
@@ -2202,19 +2213,21 @@ post-death Bows, generated guardians, trades, forced turns and Black Hole use
 the same enemy relation. Bounce, dangerous attraction, global effects and
 directed reactions retain their distinct target scopes. A provisional ending
 waits for the last living faction after queued work; terminal winner masks
-include eliminated shared teammates. This does not implement the learner's
-reward/credit-assignment contract or enable full-game training.
+include eliminated shared teammates. The separate reward adapter now supplies
+the approved terminal credit, while complete policy encoding and learning
+remain unfinished.
 
 ```bash
 UV_CACHE_DIR=.uv-cache uv run --offline --frozen --extra simulation \
   godfield-bot simulation full-game-episode-probe \
-  --batch-size 32 --players 4 --teams 1,1,2,2 --seed 67 --policy-seed 901
+  --batch-size 32 --players 4 --teams 1,1,2,2 --seed 67 --policy-seed 901 \
+  --terminal-rewards
 ```
 
 That diagnostic finishes32/32 default2v2 games with9111 accepted commands.
-Across2304 team episodes (2-9 seats, three roster patterns, seeds0/1/67),2287
-finish (2275 winner endings/12 draws);17 retain explicit unaffordable hidden
-cost errors, and none hits turn/decision limits. These are random-policy
+All2304 team episodes (2-9 seats, three roster patterns, seeds0/1/67) now finish,
+alongside768 solo episodes. To reproduce the old cost errors explicitly, add
+`--hidden-cost-policy strict-error`. These are random-policy
 integration results, not trained-candidate wins. Current public source was
 refreshed separately on2026-11-03; three names/assets changed but other raw item
 fields did not. Old engine/model pins were not silently repinned. See

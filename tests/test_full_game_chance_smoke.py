@@ -34,7 +34,7 @@ def test_default_probe_covers_all_plain_chance_models_but_not_full_matches():
     assert report.hp_damage == 2654 and report.mp_spent == 1323
     assert report.consumed_cards == 357 and report.retained_miracle_uses == 147
     assert (
-        report.metadata_sha256 == "90295f1399e35489ec59e2b85688ca068d18db162b72b14267c7a588c3185b9d"
+        report.metadata_sha256 == "4f34da992ae5a18c5d091cbb66ea200a14b4b4f78a10016a1f1b3afab0c9baa1"
     )
     assert (
         report.diagnostic_replay_sha256

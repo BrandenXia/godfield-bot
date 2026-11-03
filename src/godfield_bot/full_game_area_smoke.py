@@ -30,7 +30,7 @@ class FullGameAreaSmokeReport(BaseModel):
     source_kind: Literal["integrated-development-area-smoke-v1"] = (
         "integrated-development-area-smoke-v1"
     )
-    ruleset_id: Literal["integrated-full-game-development-v32"] = FULL_GAME_RULESET_ID
+    ruleset_id: Literal["integrated-full-game-development-v33"] = FULL_GAME_RULESET_ID
     queue_schema_version: Literal[8] = 8
     scenario: Literal["mirage-fog-repeat-dynamic-recoil-waiver-counter-scripted-not-full-games"] = (
         "mirage-fog-repeat-dynamic-recoil-waiver-counter-scripted-not-full-games"

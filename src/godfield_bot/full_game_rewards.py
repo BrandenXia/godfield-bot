@@ -24,7 +24,9 @@ class FullGameRewardMetadata(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     schema_version: int = Field(default=1, ge=1, le=1, strict=True)
     reward_schema_version: int = Field(default=1, ge=1, le=1, strict=True)
-    ruleset_id: Literal["integrated-full-game-development-v32"] = FULL_GAME_RULESET_ID
+    ruleset_id: Literal[
+        "integrated-full-game-development-v32", "integrated-full-game-development-v33"
+    ] = FULL_GAME_RULESET_ID
     environment_metadata_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     values: Literal["win-plus1-loss-minus1-draw0-each-present-seat"] = (
         "win-plus1-loss-minus1-draw0-each-present-seat"
@@ -103,13 +105,14 @@ class FullGameRewardAdapter:
         self.configured = configured
         FullGameMetadata.model_validate(configured.metadata.model_dump())
         self.metadata = FullGameRewardMetadata(
+            ruleset_id=configured.metadata.ruleset_id,
             environment_metadata_sha256=hashlib.sha256(
                 json.dumps(
                     configured.metadata.model_dump(mode="json"),
                     sort_keys=True,
                     separators=(",", ":"),
                 ).encode()
-            ).hexdigest()
+            ).hexdigest(),
         )
         self._size = configured.metadata.batch_size
         self._players = configured.metadata.player_count

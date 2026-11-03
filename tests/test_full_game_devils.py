@@ -397,7 +397,7 @@ def test_adapter_opt_in_and_gates():
         capacity=18,
         apocalypse_after_turns=20,
     )
-    assert configured.metadata.kernel_schema_version == 32
+    assert configured.metadata.kernel_schema_version == 33
     assert configured.metadata.attack_family_schema_version == 8
     assert configured.metadata.apocalypse_after_turns == 20
     assert not configured.metadata.full_game_training_ready

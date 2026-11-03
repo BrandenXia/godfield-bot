@@ -33,7 +33,7 @@ def report():
 
 @pytest.fixture(scope="module")
 def error_report():
-    return probe(player_count=2, batch_size=32, seed=0)
+    return probe(player_count=2, batch_size=32, seed=0, hidden_cost_policy="strict-error")
 
 
 def test_complete_pool_default_records_real_endings_and_remaining_errors_separately(report):
@@ -45,7 +45,7 @@ def test_complete_pool_default_records_real_endings_and_remaining_errors_separat
     )
     assert report.accepted_commands == 16015
     assert (
-        report.metadata_sha256 == "ca1e2342183a7ee65e249e67ec746035e44a10dac2f5b101000bd97599521c89"
+        report.metadata_sha256 == "179f633453c1f1629ed2e4467b146f28293223982157a1aa07798f25fec6605b"
     )
     assert (
         report.diagnostic_replay_sha256
@@ -381,7 +381,16 @@ def test_cli_returns_nonzero_for_engine_errors_but_keeps_structured_report(
     args = ["simulation", "full-game-episode-probe"]
     expected = report
     if errors:
-        args += ["--batch-size", "32", "--players", "2", "--seed", "0"]
+        args += [
+            "--batch-size",
+            "32",
+            "--players",
+            "2",
+            "--seed",
+            "0",
+            "--hidden-cost-policy",
+            "strict-error",
+        ]
         expected = error_report
     if not errors:
         args += [

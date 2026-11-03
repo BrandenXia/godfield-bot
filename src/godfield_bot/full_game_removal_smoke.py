@@ -26,7 +26,7 @@ class FullGameRemovalSmokeReport(BaseModel):
     source_kind: Literal["integrated-development-sundry-removal-smoke-v1"] = (
         "integrated-development-sundry-removal-smoke-v1"
     )
-    ruleset_id: Literal["integrated-full-game-development-v32"] = FULL_GAME_RULESET_ID
+    ruleset_id: Literal["integrated-full-game-development-v33"] = FULL_GAME_RULESET_ID
     scenario: Literal["broom-soap-large-singleton-empty-pools-scripted-not-full-games"] = (
         "broom-soap-large-singleton-empty-pools-scripted-not-full-games"
     )

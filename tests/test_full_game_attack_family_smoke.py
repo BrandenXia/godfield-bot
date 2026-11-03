@@ -53,7 +53,7 @@ def test_default_family_probe_is_deterministic_bounded_and_not_full_matches():
     assert report.revivals == 86 and report.redraws == 85 and report.redrawn_cards == 170
     assert report.consumed_cards == 1194
     assert (
-        report.metadata_sha256 == "a7e47e70bd06051f61a2ac295fb4597d2bf880ddc86d85dbbfb82a14ddb580c7"
+        report.metadata_sha256 == "d67ff24ca4d8290f2867b7e224317ea0d8cb4892ad3e0fa8f86d4f813500f4be"
     )
     assert (
         report.diagnostic_replay_sha256

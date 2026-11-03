@@ -22,3 +22,6 @@ models/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+
+# Finder metadata is not project data.
+.DS_Store

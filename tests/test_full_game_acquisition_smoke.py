@@ -35,7 +35,7 @@ def test_default_complete_pool_startup_is_reproducible_and_not_full_game_success
         == "57e82d47681177cff3a6f867d6f7c9c5bb0708f7cebbaec101488669ec45ce4e"
     )
     assert (
-        report.metadata_sha256 == "f464ea612dfd263a3dd11746438264e87c40d0607ddcdcba76f202e414c18d92"
+        report.metadata_sha256 == "5addac83043860a9060246cdf5e771aaafc9d589c16c81c14891efe099f47409"
     )
     assert report.accepted_commands == report.games_completed == 0
     assert not report.local_training_eligible and not report.full_game_training_ready

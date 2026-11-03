@@ -51,7 +51,7 @@ def test_default_probe_observes_all40_standard_effects_without_claiming_specials
     )
     assert r.actions == 4928 and r.completed_turns == r.original_owner_ticks == 4096
     assert r.revivals == r.consumed_cards == 106 and r.hp_absorbed == 102
-    assert r.metadata_sha256 == "3063d992fef14945612d35a251e8d59ee316eb3f928a3f080acc5149af125c08"
+    assert r.metadata_sha256 == "3067af7c25121b16ce85562b46b6c64b395eaacf817d017ae41cc14526c0bd4d"
     assert (
         r.diagnostic_replay_sha256
         == "62cc41d1964b18f5eef26631332f0d2c8b9b53b346e2cb857ad67c1afaa4ee4b"

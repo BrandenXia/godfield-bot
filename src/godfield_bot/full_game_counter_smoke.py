@@ -22,7 +22,7 @@ class FullGameCounterSmokeReport(BaseModel):
     source_kind: Literal["integrated-development-one-family-counter-smoke-v3"] = (
         "integrated-development-one-family-counter-smoke-v3"
     )
-    ruleset_id: Literal["integrated-full-game-development-v32"] = FULL_GAME_RULESET_ID
+    ruleset_id: Literal["integrated-full-game-development-v33"] = FULL_GAME_RULESET_ID
     scenario: Literal["one-ring-per-environment-cloud-forced-hit-forgiven-not-full-matches"] = (
         "one-ring-per-environment-cloud-forced-hit-forgiven-not-full-matches"
     )

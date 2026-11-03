@@ -29,7 +29,7 @@ class FullGameDangerSmokeReport(BaseModel):
     source_kind: Literal["integrated-development-danger-smoke-v1"] = (
         "integrated-development-danger-smoke-v1"
     )
-    ruleset_id: Literal["integrated-full-game-development-v32"] = FULL_GAME_RULESET_ID
+    ruleset_id: Literal["integrated-full-game-development-v33"] = FULL_GAME_RULESET_ID
     scenario: Literal["random-self-and-owned-mortar-revival-scripted-not-full-games"] = (
         "random-self-and-owned-mortar-revival-scripted-not-full-games"
     )

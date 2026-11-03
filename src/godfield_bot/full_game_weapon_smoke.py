@@ -26,7 +26,7 @@ class FullGameWeaponSmokeReport(BaseModel):
     source_kind: Literal["integrated-development-complex-weapon-smoke-v1"] = (
         "integrated-development-complex-weapon-smoke-v1"
     )
-    ruleset_id: Literal["integrated-full-game-development-v32"] = FULL_GAME_RULESET_ID
+    ruleset_id: Literal["integrated-full-game-development-v33"] = FULL_GAME_RULESET_ID
     scenario: Literal["twelve-scripted-mp-recoil-double-strike-cases-not-full-games"] = (
         "twelve-scripted-mp-recoil-double-strike-cases-not-full-games"
     )

@@ -61,7 +61,7 @@ def test_native_terminal_mapping_includes_every_dead_teammate_without_normalizat
     np.testing.assert_array_equal(b.terminal_rewards(), b.terminal_rewards())
     np.testing.assert_array_equal(before, b.episode_snapshot())
     assert native.FULL_GAME_REWARD_SCHEMA_VERSION == 1
-    assert native.FULL_GAME_KERNEL_SCHEMA_VERSION == 32
+    assert native.FULL_GAME_KERNEL_SCHEMA_VERSION == 33
 
 
 @pytest.mark.parametrize("players", range(2, 10))
@@ -206,7 +206,7 @@ def test_partial_steps_do_not_invent_other_actors_or_policy_samples():
 
 
 def test_hidden_unaffordable_batch_never_appends_a_rejected_action_or_credit():
-    c = configured(size=2, initial_mp=6)
+    c = configured(size=2, initial_mp=6, hidden_cost_policy="strict-error")
     b = c.batch
     for env, actual in enumerate((231, 235)):
         hand(b, [(actual, 228, 0)], env=env)
@@ -331,7 +331,21 @@ def test_command_interface_does_not_coerce_or_accept_bad_layouts(batch):
 def test_exported_reward_version_is_explicit_without_changing_gameplay_schema():
     assert "FULL_GAME_REWARD_SCHEMA_VERSION" in native.__all__
     assert native.FULL_GAME_REWARD_SCHEMA_VERSION == 1
-    assert native.FULL_GAME_RULESET_ID == "integrated-full-game-development-v32"
+    assert native.FULL_GAME_RULESET_ID == "integrated-full-game-development-v33"
+
+
+@pytest.mark.parametrize("version", [32, 33])
+def test_archived_reward_metadata_preserves_its_gameplay_ruleset_without_relabeling(version):
+    ruleset = f"integrated-full-game-development-v{version}"
+    record = FullGameRewardMetadata.model_validate(
+        {"environment_metadata_sha256": "a" * 64, "ruleset_id": ruleset}
+    )
+    restored = FullGameRewardMetadata.model_validate_json(record.model_dump_json())
+    assert restored.ruleset_id == ruleset and restored.reward_schema_version == 1
+    with pytest.raises(ValidationError):
+        FullGameRewardMetadata.model_validate(
+            record.model_dump() | {"ruleset_id": "integrated-full-game-development-v34"}
+        )
 
 
 @pytest.mark.parametrize("schema", [None, True, 0, 2, "1"])
@@ -394,7 +408,13 @@ def reward_probe(**options):
 def test_opt_in_credit_probe_preserves_all_gameplay_and_excludes_error_epochs(
     players, layout, seed
 ):
-    options = dict(batch_size=32, player_count=players, teams=layout, seed=seed)
+    options = dict(
+        batch_size=32,
+        player_count=players,
+        teams=layout,
+        seed=seed,
+        hidden_cost_policy="strict-error",
+    )
     native_report = reward_probe(**options)
     rewarded = reward_probe(**options, terminal_rewards=True)
     assert rewarded.outcomes == native_report.outcomes

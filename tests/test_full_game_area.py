@@ -619,7 +619,7 @@ def test_factory_and_pins_preserve_versioning_and_fail_closed_gates():
     assert configured.metadata.area_observation_fields == AREA_FIELDS
     assert configured.metadata.area_snapshot_fields == AREA_SNAPSHOT_FIELDS
     assert PLAN.integrated_artifact_effect_count == 237 and PLAN.area.profiles == ((232, 5),)
-    assert configured.metadata.kernel_schema_version == 32
+    assert configured.metadata.kernel_schema_version == 33
     assert configured.metadata.attack_family_schema_version == 8
     assert not configured.metadata.full_game_training_ready and not PLAN.area.promotion_eligible
     assert (

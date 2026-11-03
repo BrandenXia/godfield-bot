@@ -508,7 +508,7 @@ def test_factory_contract_declares_provisional_redraw_and_full_game_not_ready():
     configured = create_development_full_game_batch(
         resource_cap=100, catalog_path=CATALOG, bible_path=BIBLE, batch_size=1, capacity=18
     )
-    assert configured.metadata.kernel_schema_version == 32
+    assert configured.metadata.kernel_schema_version == 33
     assert PLAN.integrated_artifact_effect_count == 237
     assert configured.metadata.dream_defense_snapshot_fields == DREAM_DEFENSE_FIELDS
     assert (

@@ -324,7 +324,7 @@ def test_source_revalidation_and_factory_new_effect_does_not_mutate_guardian_pro
     assert len(PLAN.utilities.profiles) == 8
     assert configured.metadata.plan.economy.profiles == ((236, 5, 10, 5),)
     assert configured.metadata.cp_utility_snapshot_fields == CP_UTILITY_FIELDS
-    assert configured.metadata.kernel_schema_version == 32
+    assert configured.metadata.kernel_schema_version == 33
     assert PLAN.integrated_artifact_effect_count == 237
     seed(configured.batch)
     configured.batch.start_environments(ids([0]))

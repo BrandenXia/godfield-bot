@@ -37,7 +37,7 @@ def test_default_native_complex_weapon_turns_and_pinned_replay_are_not_full_matc
     assert report.retained_miracle_uses == report.waived_mp == 120
     assert report.cost_waivers == report.counters == report.reflections == 60
     assert (
-        report.metadata_sha256 == "9ee1eb9f5af6d639a4d41076e4a05048e72df00689240e405888c8b250382864"
+        report.metadata_sha256 == "f6ac8fb467ac749ea8331d9795ed40720234cb7737ef00426224e2fcf6809481"
     )
     assert (
         report.diagnostic_replay_sha256

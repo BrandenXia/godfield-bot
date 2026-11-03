@@ -39,3 +39,8 @@ space. The private temporary folder is not source/runtime data or a checkpoint.
 
 No training run, account or live game was changed. Post-cleanup verification
 uses pytest with its cache provider disabled so these caches stay absent.
+
+The subsequent reward/cost work moved a newly generated root `.DS_Store` to
+`root.DS_Store` and a formatting cache to `ruff-cache-after-reward-cost-format`
+inside the same recovery folder. Finder metadata is now ignored. Final
+verification uses Ruff's `--no-cache` too; no gameplay/training data was removed.

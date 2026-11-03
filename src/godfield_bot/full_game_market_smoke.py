@@ -21,7 +21,7 @@ class FullGameMarketSmokeReport(BaseModel):
     source_kind: Literal["scripted-sell-buy-custody-current-source-payment-v1"] = (
         "scripted-sell-buy-custody-current-source-payment-v1"
     )
-    ruleset_id: Literal["integrated-full-game-development-v32"] = FULL_GAME_RULESET_ID
+    ruleset_id: Literal["integrated-full-game-development-v33"] = FULL_GAME_RULESET_ID
     trade_choice_schema_version: Literal[2] = 2
     queue_schema_version: Literal[8] = 8
     metadata_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")

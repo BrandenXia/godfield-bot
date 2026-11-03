@@ -1,7 +1,7 @@
 # godfield-sim
 
 This optional native package contains the batched C++20 curriculum simulator.
-The separate full-game development engine is now native0.82.0/schema32. Its
+The separate full-game development engine is now native0.83.0/schema33. Its
 source factory defaults to99 HP/MP/CP, with an explicit legacy100 option;
 raw native fixtures retain100 by default. This does not change existing arenas
 or make full-game training/live promotion ready. See
@@ -17,10 +17,8 @@ The complete source factory enables both. A checked237-card native/Python role
 manifest distinguishes an incompatible context from a missing registration.
 `ineffective_snapshot`, `ineffective_model_counts` and `hidden_removal_snapshot`
 are owned readonly private diagnostics; no policy features are widened.
-Unaffordable actual costs still fail atomically. Default3-player64-env and
-9-player32-env seed67 episode probes now finish, but the broader2–9-seat sweep
-retains9 unaffordable-cost errors out of768 episodes. Full-game training and
-promotion remain blocked. See
+Version33 adds an independently approved insufficient-MP rule below. Full-game
+training and promotion remain blocked. See
 [ADR 0132](../../docs/architecture/0132-approved-ineffective-hidden-components.md) and
 [ADR 0133](../../docs/architecture/0133-approved-hidden-protected-removal-retention.md).
 Append raw `teams_enabled=false`; the complete factory enables team rules and
@@ -41,9 +39,21 @@ Reward schema1 adds owned readonly `terminal_rewards[B,9]` and
 teammates, −1 for other present players, valid0 for a draw, invalid0 otherwise.
 Reads are nondestructive and do not advance RNG. The separate Python
 `FullGameRewardAdapter` supplies once-per-epoch credit and explicit reset; it is
-not a complete learner. Gameplay schema32 and scripted replay hashes stay
-unchanged. See
+not a complete learner. Reward schema1 stays unchanged in gameplay version33.
+See
 [ADR 0136](../../docs/architecture/0136-terminal-faction-rewards-and-explicit-credit.md).
+Append raw `resolve_hidden_costs=false`, requiring the checked hidden-component
+resolver when enabled. The source factory defaults to
+`hidden_cost_policy="fizzle-provisional"`; `"strict-error"` preserves atomic
+errors. An unaffordable actual hidden selection consumes/marks all selected
+cards and spends available MP, with none of its selected effects or HP debt.
+Failed defense leaves the incoming family active. Owned readonly
+`hidden_cost_snapshot[B,9]` records affected attack/utility/defense counts,
+selected/nonmiracle/miracle counts and requested/paid/unpaid MP. It is private
+diagnostic data, cleared on reset. All24 reviewed replay pins stay unchanged;
+metadata changes explicitly. A3072-game solo/team sweep finishes without
+engine errors or limits; this is integration evidence, not policy strength.
+See [ADR 0137](../../docs/architecture/0137-approved-insufficient-mp-fizzle.md).
 It is built and installed from the repository root with:
 
 ```console

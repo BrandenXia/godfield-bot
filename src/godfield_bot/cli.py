@@ -3707,6 +3707,10 @@ def simulation_full_game_episode_probe(
             help="Validate the opt-in terminal faction reward adapter; not a training run."
         ),
     ] = False,
+    hidden_cost_policy: Annotated[
+        Literal["strict-error", "fizzle-provisional"],
+        typer.Option(help="Local hidden-cost rule; strict-error preserves diagnostic failures."),
+    ] = "fizzle-provisional",
 ) -> None:
     """Run complete-pool episodes offline; preserve errors, not training evidence."""
     try:
@@ -3726,6 +3730,7 @@ def simulation_full_game_episode_probe(
             if teams is not None
             else None,
             terminal_rewards=terminal_rewards,
+            hidden_cost_policy=hidden_cost_policy,
         )
     except (ImportError, OSError, RuntimeError, ValueError) as error:
         structlog.get_logger().error(

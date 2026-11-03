@@ -36,7 +36,7 @@ def test_default_probe_covers_all_20_effects_without_claiming_full_games():
     assert report.consumed_cards == 416 and report.retained_miracle_uses == 224
     assert report.ready_after_one_turn == 640 and report.real_terminal_endings == 0
     assert (
-        report.metadata_sha256 == "9c1357a591c2f13a7177a368a6551d8053d54d96e1f01d5684bf9fb5292db5ac"
+        report.metadata_sha256 == "74b8f803c38454c0c9e4f59655bc51fd1f7724bf673d5a7efcceafcca7b928c8"
     )
     assert (
         report.diagnostic_replay_sha256

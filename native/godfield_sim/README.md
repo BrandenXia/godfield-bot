@@ -1,7 +1,7 @@
 # godfield-sim
 
 This optional native package contains the batched C++20 curriculum simulator.
-The separate full-game development engine is now native0.81.0/schema32. Its
+The separate full-game development engine is now native0.82.0/schema32. Its
 source factory defaults to99 HP/MP/CP, with an explicit legacy100 option;
 raw native fixtures retain100 by default. This does not change existing arenas
 or make full-game training/live promotion ready. See
@@ -36,6 +36,14 @@ Winner masks include eliminated teammates, not a newly invented reward scale.
 Existing arenas/checkpoints/live controls are unchanged; training/promotion
 stay blocked. See
 [ADR 0135](../../docs/architecture/0135-approved-native-team-ownership-and-targeting.md).
+Reward schema1 adds owned readonly `terminal_rewards[B,9]` and
+`terminal_reward_masks[B,9]`: +1 for each winning faction member including dead
+teammates, −1 for other present players, valid0 for a draw, invalid0 otherwise.
+Reads are nondestructive and do not advance RNG. The separate Python
+`FullGameRewardAdapter` supplies once-per-epoch credit and explicit reset; it is
+not a complete learner. Gameplay schema32 and scripted replay hashes stay
+unchanged. See
+[ADR 0136](../../docs/architecture/0136-terminal-faction-rewards-and-explicit-credit.md).
 It is built and installed from the repository root with:
 
 ```console

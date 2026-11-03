@@ -1619,11 +1619,24 @@ complete policy observation or a full-game turn engine; no current checkpoint
 or live control is switched to them. See
 [ADR 0099](docs/architecture/0099-shared-fog-flash-darkcloud-decisions.md).
 
-The approved **separate full-game development engine** is now native 0.81.0,
+The approved **separate full-game development engine** is now native 0.82.0,
 `integrated-full-game-development-v32`. It joins authoritative inventory,
 HP/MP/CP, disease/cures, ordered attack composition, targets/chained defenses and
 opt-in native acquisition. All 237 held models have pinned draw weights
 totaling 500, and all 237 held-card abilities now have joined routes in this engine.
+
+The separate reward schema1 now exposes terminal faction credit: each winning
+team member receives +1, including eliminated teammates, other present seats
+receive −1, and draws receive valid zeroes. Truncations and rejected commands
+never become synthetic losses. `FullGameRewardAdapter` records this credit once
+per adapter episode, captures the actor and forced-turn policy mask before each
+accepted command, and requires explicit reset after collecting an ending.
+The episode diagnostic accepts `--terminal-rewards`; its schema5 report includes
+validated reward totals and counts without changing gameplay or replay hashes.
+This supplies reward plumbing; the complete policy encoder, rollout learner and
+training/promotion gates remain unfinished. See
+[ADR 0136](docs/architecture/0136-terminal-faction-rewards-and-explicit-credit.md).
+
 That is not full-game fidelity: unobserved combinations, hidden cross-role
 resolution, complete event/virtual commands and learning interfaces remain gated. Attack additions
 include twenty-one weapons, four dual-role Ogre armor, Strength Powder, Fireball,

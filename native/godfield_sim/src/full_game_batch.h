@@ -16,6 +16,7 @@ inline constexpr std::uint32_t kFullGameTradeChoiceSchemaVersion = 2;
 inline constexpr std::uint32_t kFullGameMaxTradeActions = 64;
 inline constexpr std::uint32_t kFullGameAttackFamilySchemaVersion = 8;
 inline constexpr std::uint32_t kFullGameCommandSchemaVersion = 1;
+inline constexpr std::uint32_t kFullGameRewardSchemaVersion = 1;
 inline constexpr std::uint32_t kFullGameMaxDefenseActions = 64;
 inline constexpr std::uint32_t kFullGameMaxAttackActions = 64;
 inline constexpr std::uint32_t kFullGameMaxDiscardActions = 64;
@@ -113,6 +114,8 @@ public:
   [[nodiscard]] Int64_2D team_ids() const;
   [[nodiscard]] CurseStateSnapshot team_observations() const;
   [[nodiscard]] Bool2D winning_seats() const;
+  [[nodiscard]] Int64_2D terminal_rewards() const;
+  [[nodiscard]] Bool2D terminal_reward_masks() const;
   // Trusted setup only, rejected once started. These are not learner actions.
   void seed_players(ActionInput environments, ActionInput owners,
                     InventoryInput hp_mp_cp_illness, ActionInput curse_masks);

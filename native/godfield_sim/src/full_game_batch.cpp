@@ -3827,6 +3827,29 @@ Bool2D FullGameBatch::winning_seats() const {
   return owned_array<Bool2D>(std::move(buffer), {batch_size_, 9});
 }
 
+Int64_2D FullGameBatch::terminal_rewards() const {
+  auto buffer = std::make_unique<std::int64_t[]>(batch_size_ * 9);
+  for (std::size_t env = 0; env < batch_size_; ++env) {
+    const auto &e = episodes_[env];
+    if (e.phase != 12 || e.outcome != 1)
+      continue;
+    for (std::size_t seat = 0; seat < player_count_; ++seat)
+      buffer[env * 9 + seat] =
+          are_enemies(e, static_cast<std::size_t>(e.winner), seat) ? -1 : 1;
+  }
+  return owned_array<Int64_2D>(std::move(buffer), {batch_size_, 9});
+}
+
+Bool2D FullGameBatch::terminal_reward_masks() const {
+  auto buffer = std::make_unique<bool[]>(batch_size_ * 9);
+  for (std::size_t env = 0; env < batch_size_; ++env) {
+    const auto &e = episodes_[env];
+    if (e.phase == 12 && (e.outcome == 1 || e.outcome == 2))
+      std::fill_n(buffer.get() + env * 9, player_count_, true);
+  }
+  return owned_array<Bool2D>(std::move(buffer), {batch_size_, 9});
+}
+
 Int64_2D FullGameBatch::hidden_removal_snapshot() const {
   auto buffer = std::make_unique<std::int64_t[]>(batch_size_ * 7);
   for (std::size_t env = 0; env < batch_size_; ++env)
@@ -4331,6 +4354,7 @@ void bind_full_game(nb::module_ &module) {
   module.attr("FULL_GAME_KERNEL_SCHEMA_VERSION") = kFullGameKernelSchemaVersion;
   module.attr("FULL_GAME_COMMAND_SCHEMA_VERSION") =
       kFullGameCommandSchemaVersion;
+  module.attr("FULL_GAME_REWARD_SCHEMA_VERSION") = kFullGameRewardSchemaVersion;
   module.attr("FULL_GAME_ATTACK_FAMILY_SCHEMA_VERSION") =
       kFullGameAttackFamilySchemaVersion;
   module.attr("FULL_GAME_OBSERVATION_SCHEMA_VERSION") =
@@ -4436,6 +4460,8 @@ void bind_full_game(nb::module_ &module) {
       .def("team_ids", &FullGameBatch::team_ids)
       .def("team_observations", &FullGameBatch::team_observations)
       .def("winning_seats", &FullGameBatch::winning_seats)
+      .def("terminal_rewards", &FullGameBatch::terminal_rewards)
+      .def("terminal_reward_masks", &FullGameBatch::terminal_reward_masks)
       .def("seed_confusion", &FullGameBatch::seed_confusion,
            nb::arg("environments").noconvert(), nb::arg("owners").noconvert(),
            nb::arg("remaining_turns").noconvert())

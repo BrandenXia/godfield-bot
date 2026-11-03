@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
 
 from godfield_bot.full_game import (
     FULL_GAME_RULESET_ID,
@@ -17,6 +17,11 @@ from godfield_bot.full_game import (
     HIDDEN_TRADE_FIELDS,
     INEFFECTIVE_FIELDS,
     create_development_full_game_batch,
+)
+from godfield_bot.full_game_rewards import (
+    FullGameRewardAdapter,
+    FullGameRewardBatch,
+    FullGameRewardMetadata,
 )
 from godfield_bot.full_game_teams import TeamId
 
@@ -108,7 +113,7 @@ class FullGameEpisodeResult(BaseModel):
 
 class FullGameEpisodeProbeReport(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    schema_version: Literal[4] = 4
+    schema_version: Literal[5] = 5
     ruleset_id: Literal["integrated-full-game-development-v32"] = FULL_GAME_RULESET_ID
     source_kind: Literal["complete-pool-unscripted-episode-diagnostic-v1"] = (
         "complete-pool-unscripted-episode-diagnostic-v1"
@@ -148,6 +153,11 @@ class FullGameEpisodeProbeReport(BaseModel):
     ineffective_model_counts: tuple[Count, ...]
     hidden_removal_fields: tuple[str, ...] = HIDDEN_REMOVAL_FIELDS
     hidden_removal_totals: tuple[Count, ...]
+    terminal_rewards_tracked: bool = Field(default=False, strict=True)
+    reward_schema_version: StrictInt | None = Field(default=None, ge=1, le=1)
+    reward_metadata_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    terminal_reward_totals: tuple[StrictInt, ...] | None = None
+    terminal_reward_valid_counts: tuple[Count, ...] | None = None
     error_recovery: Literal["stop-failed-environment-never-substitute-an-action"] = (
         "stop-failed-environment-never-substitute-an-action"
     )
@@ -243,6 +253,48 @@ class FullGameEpisodeProbeReport(BaseModel):
             or removal[4] > removal[0] + removal[1]
         ):
             raise ValueError("episode probe hidden-removal conservation differs")
+        if self.terminal_rewards_tracked:
+            expected_totals = tuple(
+                sum(
+                    1 if seat in row.winning_players else -1
+                    for row in self.outcomes
+                    if row.status == "winner"
+                )
+                if seat < self.player_count
+                else 0
+                for seat in range(9)
+            )
+            reward_metadata = FullGameRewardMetadata(
+                environment_metadata_sha256=self.metadata_sha256
+            )
+            expected_hash = hashlib.sha256(
+                json.dumps(
+                    reward_metadata.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
+                ).encode()
+            ).hexdigest()
+            if (
+                type(self.reward_schema_version) is not int
+                or self.reward_schema_version != 1
+                or self.reward_metadata_sha256 != expected_hash
+                or self.terminal_reward_totals != expected_totals
+                or self.terminal_reward_valid_counts
+                != tuple(
+                    self.games_completed if seat < self.player_count else 0 for seat in range(9)
+                )
+            ):
+                raise ValueError(
+                    "episode probe terminal rewards disagree with true faction endings"
+                )
+        elif any(
+            value is not None
+            for value in (
+                self.reward_schema_version,
+                self.reward_metadata_sha256,
+                self.terminal_reward_totals,
+                self.terminal_reward_valid_counts,
+            )
+        ):
+            raise ValueError("untracked terminal rewards must remain unknown, not invented zeros")
         return self
 
 
@@ -297,6 +349,7 @@ def run_full_game_episode_probe(
     max_decisions: int = 2048,
     apocalypse_after_turns: int = 64,
     teams: Sequence[int] | None = None,
+    terminal_rewards: bool = False,
 ) -> FullGameEpisodeProbeReport:
     import numpy as np
 
@@ -319,6 +372,8 @@ def run_full_game_episode_probe(
         type(team) is not int or not 0 <= team <= 4 for team in layout
     ):
         raise ValueError("episode probe teams must be one ID in 0..4 per seat")
+    if type(terminal_rewards) is not bool:
+        raise ValueError("episode probe terminal reward tracking must be boolean")
     c = create_development_full_game_batch(
         catalog_path=catalog_path,
         bible_path=bible_path,
@@ -334,6 +389,20 @@ def run_full_game_episode_probe(
     )
     b = c.batch
     b.start_environments(np.arange(batch_size, dtype=np.int64))
+    reward_adapter = FullGameRewardAdapter(c) if terminal_rewards else None
+    reward_totals = np.zeros(9, dtype=np.int64)
+    reward_counts = np.zeros(9, dtype=np.int64)
+
+    def capture_rewards(batch: FullGameRewardBatch) -> None:
+        reward_totals[:] += batch.values.sum(axis=0)
+        reward_counts[:] += batch.valid.sum(axis=0)
+
+    def execute(commands: npt.NDArray[np.int64]) -> None:
+        if reward_adapter is None:
+            b.step(commands)
+        else:
+            capture_rewards(reward_adapter.step(commands).rewards)
+
     policy = BoundedPublicRandomPolicy(batch_size, policy_seed)
     failures: dict[int, tuple[tuple[int, int, int, int, int, int], str]] = {}
     phase_counts = [0] * 14
@@ -356,7 +425,7 @@ def run_full_game_episode_probe(
         before = _state_digest(b)
         accepted: list[int] = []
         try:
-            b.step(rows)
+            execute(rows)
             accepted = envs
         except (ValueError, RuntimeError):
             if _state_digest(b) != before:
@@ -371,7 +440,7 @@ def run_full_game_episode_probe(
                 env = int(row[0])
                 row_before = _state_digest(b)
                 try:
-                    b.step(row.reshape(1, 6))
+                    execute(row.reshape(1, 6))
                     accepted.append(env)
                 except (ValueError, RuntimeError) as error:
                     if _state_digest(b) != row_before:
@@ -399,6 +468,8 @@ def run_full_game_episode_probe(
             forced += int(not gradient_masks[env, 0])
         replay.update(rows.astype("<i8", copy=False).tobytes())
         replay.update(_state_digest(b))
+    if reward_adapter is not None:
+        capture_rewards(reward_adapter.poll())
     state = b.episode_snapshot()
     outcomes = []
     statuses: dict[int, Status] = {1: "winner", 2: "draw", 3: "turn-limit", 4: "decision-limit"}
@@ -452,6 +523,23 @@ def run_full_game_episode_probe(
         forced_commands=forced,
         accepted_commands_by_phase=tuple(phase_counts),
         automatic_gifts=b.automatic_gift_count,
+        terminal_rewards_tracked=terminal_rewards,
+        reward_schema_version=1 if terminal_rewards else None,
+        reward_metadata_sha256=hashlib.sha256(
+            json.dumps(
+                reward_adapter.metadata.model_dump(mode="json"),
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest()
+        if reward_adapter is not None
+        else None,
+        terminal_reward_totals=tuple(int(value) for value in reward_totals)
+        if terminal_rewards
+        else None,
+        terminal_reward_valid_counts=tuple(int(value) for value in reward_counts)
+        if terminal_rewards
+        else None,
         hidden_targeting_totals=tuple(int(x) for x in b.hidden_targeting_snapshot().sum(axis=0)),
         hidden_trade_totals=tuple(int(x) for x in b.hidden_trade_snapshot().sum(axis=0)),
         ineffective_totals=tuple(int(x) for x in b.ineffective_snapshot().sum(axis=0)),

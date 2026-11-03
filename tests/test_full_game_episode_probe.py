@@ -273,6 +273,7 @@ def test_failed_environment_never_changes_other_environment_policy_or_results(mo
         {"schema_version": 1},
         {"schema_version": 2},
         {"schema_version": 3},
+        {"schema_version": 4},
         {"teams": (1, 1)},
         {"hidden_removal_fields": ()},
         {"hidden_removal_totals": (0, 0, 1, 0, 1, 0, 0)},

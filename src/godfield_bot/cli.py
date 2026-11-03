@@ -3701,6 +3701,12 @@ def simulation_full_game_episode_probe(
         str | None,
         typer.Option(help="Comma-separated team IDs per seat: 0 solo, 1-4 shared teams."),
     ] = None,
+    terminal_rewards: Annotated[
+        bool,
+        typer.Option(
+            help="Validate the opt-in terminal faction reward adapter; not a training run."
+        ),
+    ] = False,
 ) -> None:
     """Run complete-pool episodes offline; preserve errors, not training evidence."""
     try:
@@ -3719,6 +3725,7 @@ def simulation_full_game_episode_probe(
             teams=tuple(int(team.strip()) for team in teams.split(","))
             if teams is not None
             else None,
+            terminal_rewards=terminal_rewards,
         )
     except (ImportError, OSError, RuntimeError, ValueError) as error:
         structlog.get_logger().error(

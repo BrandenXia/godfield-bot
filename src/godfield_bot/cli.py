@@ -3743,12 +3743,22 @@ def simulation_full_game_episode_probe(
 
 
 if TYPE_CHECKING:
+    from godfield_bot.full_game_imitation import FullGameImitationUpdate
     from godfield_bot.full_game_training import FullGameTrainingRun, FullGameTrainingUpdate
 
 
 def _full_game_update_progress(index: int, update: "FullGameTrainingUpdate") -> None:
     state = "updated weights" if update.metrics is not None else "skipped update"
     typer.echo(f"Batch {index} {state} using {update.terminal_target_decisions} targets", err=True)
+
+
+def _full_game_imitation_progress(index: int, update: "FullGameImitationUpdate") -> None:
+    accuracy = f"{update.after.accuracy:.1%}" if update.after is not None else "skipped"
+    typer.echo(
+        f"Imitation batch {index} using {update.demonstration.actor_decisions} decisions, "
+        f"teacher agreement {accuracy}",
+        err=True,
+    )
 
 
 def _publish_full_game_run(run: "FullGameTrainingRun", checkpoint_root: Path | None) -> bool:
@@ -3796,9 +3806,18 @@ def simulation_full_game_train(
         bool, typer.Option(help="Use version 2 attack-history inputs.")
     ] = False,
     initialize_from: Annotated[Path | None, typer.Option(exists=True, file_okay=False)] = None,
+    imitation_batches: Annotated[
+        int,
+        typer.Option(
+            min=0, max=256, help="Public tactical warm-up batches before PPO. Zero disables it."
+        ),
+    ] = 0,
+    imitation_seed: Annotated[int, typer.Option(min=0)] = 1_000_000,
+    imitation_epochs: Annotated[int, typer.Option(min=1, max=64)] = 8,
 ) -> None:
     """Train a local candidate on complete full-pool C++ episodes."""
     try:
+        from godfield_bot.full_game_imitation import FullGameImitationConfig
         from godfield_bot.full_game_neural import FullGamePolicyArchitecture
         from godfield_bot.full_game_observation import ATTACK_HISTORY_OBSERVATION_ID
         from godfield_bot.full_game_training import (
@@ -3829,6 +3848,14 @@ def simulation_full_game_train(
             bible_path=bible,
             config=config,
             initialize_from=initialize_from,
+            imitation=FullGameImitationConfig(
+                batches=imitation_batches,
+                seed=imitation_seed,
+                epochs=imitation_epochs,
+            )
+            if imitation_batches
+            else None,
+            on_imitation_update=_full_game_imitation_progress,
             on_update=_full_game_update_progress,
         )
         successful = _publish_full_game_run(run, checkpoint_root)

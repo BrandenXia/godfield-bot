@@ -128,9 +128,12 @@ def evaluate_full_game_candidate(
         ):
             raise ValueError("full-game evaluation baseline architecture or ruleset differs")
         used_seeds.update(baseline_training.used_seeds())
-    elif training.initialization is not None and not greedy_baseline:
+    elif (
+        training.initialization is not None or training.imitation is not None
+    ) and not greedy_baseline:
         raise ValueError(
-            "full-game transferred candidate requires an explicit --baseline checkpoint"
+            "full-game initialized candidate requires an explicit --baseline checkpoint "
+            "or --greedy-baseline"
         )
     if used_seeds.intersection((seed, seed + 1)):
         raise ValueError("full-game frozen evaluation requires held-out seeds")

@@ -19,7 +19,13 @@ import torch
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from torch import Tensor, nn
 
-from godfield_bot.full_game import create_development_full_game_batch
+from godfield_bot.full_game import DevelopmentFullGameBatch, create_development_full_game_batch
+from godfield_bot.full_game_imitation import (
+    FullGameImitationConfig,
+    FullGameImitationReport,
+    FullGameImitationUpdate,
+    warm_start_full_game,
+)
 from godfield_bot.full_game_neural import (
     FullGameActorCritic,
     FullGamePolicyArchitecture,
@@ -281,6 +287,7 @@ class FullGameTrainingReport(BaseModel):
     )
     config: FullGameTrainingConfig
     initialization: FullGameHistoryInitialization | None = None
+    imitation: FullGameImitationReport | None = None
     initial_collection: FullGameCollectionMetadata
     updates: tuple[FullGameTrainingUpdate, ...]
     final_policy_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
@@ -292,6 +299,8 @@ class FullGameTrainingReport(BaseModel):
         result = set(range(self.config.seed, self.config.seed + 2 * len(self.updates)))
         if self.initialization is not None:
             result.update(self.initialization.source_seeds())
+        if self.imitation is not None:
+            result.update(self.imitation.config.seeds())
         return result
 
     @model_validator(mode="after")
@@ -326,6 +335,19 @@ class FullGameTrainingReport(BaseModel):
         ):
             raise ValueError("full-game training report contract differs")
         previous = initial.behavior_policy_sha256
+        if self.imitation is not None:
+            warmup = self.imitation
+            if (
+                self.initialization is not None
+                or warmup.after_policy_sha256 != previous
+                or warmup.observation_id != self.config.architecture.observation_id
+                or warmup.environment.model_dump(exclude={"seed"})
+                != initial.environment.model_dump(exclude={"seed"})
+                or not set(warmup.config.seeds()).isdisjoint(
+                    range(self.config.seed, self.config.seed + 2 * self.config.updates)
+                )
+            ):
+                raise ValueError("full-game imitation initialization or seed range differs")
         if self.initialization is not None:
             source = self.initialization
             if (
@@ -407,11 +429,19 @@ def run_full_game_training(
     bible_path: Path,
     config: FullGameTrainingConfig,
     initialize_from: Path | None = None,
+    imitation: FullGameImitationConfig | None = None,
+    on_imitation_update: Callable[[int, FullGameImitationUpdate], None] | None = None,
     on_update: Callable[[int, FullGameTrainingUpdate], None] | None = None,
 ) -> FullGameTrainingRun:
     """Fresh local full-pool self-play with one frozen behavior batch per update."""
     return _run_training(
-        catalog_path, bible_path, config, initialize_from=initialize_from, on_update=on_update
+        catalog_path,
+        bible_path,
+        config,
+        initialize_from=initialize_from,
+        imitation=imitation,
+        on_imitation_update=on_imitation_update,
+        on_update=on_update,
     )
 
 
@@ -435,11 +465,19 @@ def _run_training(
     *,
     parent: FullGameTrainingRun | None = None,
     initialize_from: Path | None = None,
+    imitation: FullGameImitationConfig | None = None,
+    on_imitation_update: Callable[[int, FullGameImitationUpdate], None] | None = None,
     on_update: Callable[[int, FullGameTrainingUpdate], None] | None = None,
 ) -> FullGameTrainingRun:
     config = FullGameTrainingConfig.model_validate(config.model_dump())
     initialization = parent.report.initialization if parent is not None else None
     scheduled_seeds = range(config.seed, config.seed + 2 * config.updates)
+    if imitation is not None and (parent is not None or initialize_from is not None):
+        raise ValueError("imitation requires a fresh policy without history transfer or resume")
+    warmup_report = parent.report.imitation if parent is not None else None
+    warmup_config = imitation or (warmup_report.config if warmup_report is not None else None)
+    if warmup_config is not None and not set(warmup_config.seeds()).isdisjoint(scheduled_seeds):
+        raise ValueError("full-game imitation requires seeds disjoint from PPO training")
     if initialization is not None and not set(initialization.source_seeds()).isdisjoint(
         scheduled_seeds
     ):
@@ -449,6 +487,8 @@ def _run_training(
     source, source_policy = None, None
     if initialize_from is not None:
         source, source_policy = load_full_game_candidate(initialize_from)
+        if source.training.imitation is not None:
+            raise ValueError("history transfer from imitation checkpoints is not yet supported")
         if config.architecture.schema_version != 2:
             raise ValueError("full-game history initialization requires an attack-history policy")
         if not source.training.used_seeds().isdisjoint(scheduled_seeds):
@@ -476,6 +516,26 @@ def _run_training(
                         source_seed=source.training.config.seed,
                         source_updates=len(source.training.updates),
                     )
+                if imitation is not None:
+
+                    def create_imitation_batch(seed: int) -> DevelopmentFullGameBatch:
+                        return create_development_full_game_batch(
+                            catalog_path=catalog_path,
+                            bible_path=bible_path,
+                            batch_size=config.batch_size,
+                            player_count=config.player_count,
+                            teams=config.teams or None,
+                            capacity=18,
+                            acquisition_mode="all-held-weighted",
+                            seed=seed,
+                            max_turns=config.max_turns,
+                            max_decisions=config.max_decisions,
+                            apocalypse_after_turns=config.apocalypse_after_turns,
+                        )
+
+                    warmup_report = warm_start_full_game(
+                        policy, imitation, create_imitation_batch, on_imitation_update
+                    )
                 optimizer = _adam(policy, config.ppo)
                 initial = None
                 updates = []
@@ -500,6 +560,10 @@ def _run_training(
                     max_decisions=config.max_decisions,
                     apocalypse_after_turns=config.apocalypse_after_turns,
                 )
+                if warmup_report is not None and configured.metadata.model_dump(
+                    exclude={"seed"}
+                ) != warmup_report.environment.model_dump(exclude={"seed"}):
+                    raise ValueError("full-game imitation and PPO environment contracts differ")
                 if initial is not None and configured.metadata.model_dump(
                     exclude={"seed"}
                 ) != initial.environment.model_dump(exclude={"seed"}):
@@ -549,6 +613,7 @@ def _run_training(
             report = FullGameTrainingReport(
                 config=config,
                 initialization=initialization,
+                imitation=warmup_report,
                 initial_collection=initial,
                 updates=tuple(updates),
                 final_policy_sha256=full_game_policy_sha256(policy),

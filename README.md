@@ -1728,6 +1728,24 @@ with `--baseline '/path/to/version-1-policy-checkpoint'` for a frozen
 comparison. The evaluation seed pair must also be outside the source run's
 training seeds. [History and transfer contract](docs/architecture/0144-native-attack-announcement-history.md)
 
+Use an optional tactical imitation warm start before terminal-reward PPO:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation --extra training \
+  godfield-bot simulation full-game-train --attack-history \
+  --players 4 --teams 1,1,2,2 --batch-size 8 --updates 16 --seed 1130000 \
+  --imitation-batches 32 --imitation-seed 1140000 --imitation-epochs 16 \
+  --checkpoint-root runs/full-game-imitation-candidates
+```
+
+This learns legal choices from completed public tactical demonstrations, then
+uses the existing terminal faction rewards for PPO. The report records both
+stages. Resume uses `full-game-resume` without repeating imitation. Evaluate
+with `--greedy-baseline` or a compatible `--baseline`, using seeds outside both
+training stages. Imitation starts from fresh weights and cannot be combined
+with `--initialize-from`. Local strength and official fidelity remain gated.
+[Imitation contract](docs/architecture/0146-approved-tactical-imitation-warm-start.md)
+
 That is not full-game fidelity: unobserved combinations, hidden cross-role
 resolution, complete event/virtual commands and learning interfaces remain gated. Attack additions
 include twenty-one weapons, four dual-role Ogre armor, Strength Powder, Fireball,

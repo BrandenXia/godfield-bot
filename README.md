@@ -1633,8 +1633,8 @@ per adapter episode, captures the actor and forced-turn policy mask before each
 accepted command, and requires explicit reset after collecting an ending.
 The episode diagnostic accepts `--terminal-rewards`; its schema6 report includes
 validated reward totals and counts without changing gameplay or replay hashes.
-This supplies reward plumbing; the complete policy encoder, rollout learner and
-training/promotion gates remain unfinished. See
+This supplies reward plumbing; complete rollout learning and its acceptance
+checks remain unfinished. See
 [ADR 0136](docs/architecture/0136-terminal-faction-rewards-and-explicit-credit.md).
 
 For displayed-legal selections with insufficient MP for their actual hidden
@@ -1645,6 +1645,22 @@ debt. Raw native fixtures default off; `hidden_cost_policy="strict-error"`
 retains explicit diagnostic failures. Private `hidden_cost_snapshot` counters
 record requested/paid/unpaid MP and affected cards. See
 [ADR 0137](docs/architecture/0137-approved-insufficient-mp-fizzle.md).
+
+The approved separate18-slot policy now has a versioned public observation
+encoder and a recurrent inference controller with28 native numeric choices.
+It supports2–9 players/teams, displayed own cards, Fog-safe resources/status,
+ordered selections and public trade/reaction/event views. Command identities
+remain separate from learned features. Memory belongs to each player in each
+environment and updates only after accepted commands; failed commands also
+restore the sampling generator. Explicit reset clears every seat's memory.
+The untrained policy completes32 local integration games across solo and team
+layouts with12,391 legal commands and no errors/limits. This is an interface
+check, not useful learning or a strength result. Current public views are
+encoded; an official event-history stream is not added. Complete episodic
+rollouts, optimization and checkpoint validation remain next. See
+[ADR 0139](docs/architecture/0139-public-full-game-encoding-and-transactional-seat-memory.md)
+and the approved
+[complete-episode credit rule](docs/architecture/0140-approved-complete-episode-full-game-credit.md).
 
 That is not full-game fidelity: unobserved combinations, hidden cross-role
 resolution, complete event/virtual commands and learning interfaces remain gated. Attack additions

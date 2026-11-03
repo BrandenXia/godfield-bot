@@ -2,7 +2,8 @@
 
 ## Decision
 
-User-approved2026-11-03; implementation pending. Build a separate recurrent
+User-approved2026-11-03; observation encoding, recurrent inference and per-seat
+memory implemented in ADR0139; complete rollout/learning still pending. Build a separate recurrent
 policy for the full-game environment with18 padded hand slots, all28 native
 phase-specific choices and independent memory for each player in each episode.
 Use the approved terminal faction rewards (ADR0136). Preserve existing arenas,

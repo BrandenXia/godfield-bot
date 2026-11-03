@@ -54,6 +54,11 @@ diagnostic data, cleared on reset. All24 reviewed replay pins stay unchanged;
 metadata changes explicitly. A3072-game solo/team sweep finishes without
 engine errors or limits; this is integration evidence, not policy strength.
 See [ADR 0137](../../docs/architecture/0137-approved-insufficient-mp-fizzle.md).
+The separate Python public encoder/recurrent controller now supports the18-slot,
+28-choice full-game policy and independent accepted-command memory for2–9
+players. It reads reviewed public views only and does not change native schema33
+or old checkpoints. Complete episodic learning remains unfinished. See
+[ADR 0139](../../docs/architecture/0139-public-full-game-encoding-and-transactional-seat-memory.md).
 It is built and installed from the repository root with:
 
 ```console

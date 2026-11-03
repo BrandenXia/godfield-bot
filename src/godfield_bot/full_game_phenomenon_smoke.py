@@ -25,7 +25,7 @@ class FullGamePhenomenonSmokeReport(BaseModel):
     source_kind: Literal["uniform-fate-firstturn-with-generated-events-v2"] = (
         "uniform-fate-firstturn-with-generated-events-v2"
     )
-    ruleset_id: Literal["integrated-full-game-development-v31"] = FULL_GAME_RULESET_ID
+    ruleset_id: Literal["integrated-full-game-development-v32"] = FULL_GAME_RULESET_ID
     queue_schema_version: Literal[8] = 8
     scenario: Literal[
         "controlled-fate-hands-unforced-all10-models-forgiven-responses-not-full-games"

@@ -26,7 +26,7 @@ class FullGameCompoundUtilitySmokeReport(BaseModel):
     source_kind: Literal["integrated-development-compound-utility-smoke-v1"] = (
         "integrated-development-compound-utility-smoke-v1"
     )
-    ruleset_id: Literal["integrated-full-game-development-v31"] = FULL_GAME_RULESET_ID
+    ruleset_id: Literal["integrated-full-game-development-v32"] = FULL_GAME_RULESET_ID
     scenario: Literal["illness-cap-stochastic-self-damage-revival-scripted-not-full-games"] = (
         "illness-cap-stochastic-self-damage-revival-scripted-not-full-games"
     )

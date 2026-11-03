@@ -87,7 +87,8 @@ bool FullGameBatch::enqueue_phenomenon(Mutation &mutation,
   std::array<std::int64_t, 9> living{};
   std::size_t count = 0;
   for (std::size_t seat = 0; seat < player_count_; ++seat)
-    if (mutation.statuses[seat][0] > 0 && (effect.kind != 6 || seat != owner))
+    if (mutation.statuses[seat][0] > 0 &&
+        (effect.kind != 6 || are_enemies(e, owner, seat)))
       living[count++] = static_cast<std::int64_t>(seat);
   auto target = static_cast<std::int64_t>(owner);
   if (effect.kind == 6 && count == 0) {
@@ -259,7 +260,7 @@ void FullGameBatch::execute_confused_turn(Mutation &mutation) const {
     }
     std::int64_t target = -1;
     for (std::size_t seat = 0; seat < player_count_; ++seat)
-      if (seat != actor && mutation.statuses[seat][0] > 0) {
+      if (are_enemies(e, actor, seat) && mutation.statuses[seat][0] > 0) {
         target = static_cast<std::int64_t>(seat);
         break;
       }
@@ -276,7 +277,7 @@ void FullGameBatch::execute_confused_turn(Mutation &mutation) const {
   std::array<std::int64_t, 8> enemies{};
   std::size_t count = 0;
   for (std::size_t seat = 0; seat < player_count_; ++seat)
-    if (seat != actor && mutation.statuses[seat][0] > 0)
+    if (are_enemies(e, actor, seat) && mutation.statuses[seat][0] > 0)
       enemies[count++] = static_cast<std::int64_t>(seat);
   auto target = enemies[0];
   if (rate == 100 && (mutation.statuses[actor][2] & kCurseFogBit) == 0) {

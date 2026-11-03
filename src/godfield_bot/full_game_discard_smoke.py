@@ -30,7 +30,7 @@ class FullGameDiscardSmokeReport(BaseModel):
     source_kind: Literal["integrated-development-multi-discard-smoke-v1"] = (
         "integrated-development-multi-discard-smoke-v1"
     )
-    ruleset_id: Literal["integrated-full-game-development-v31"] = FULL_GAME_RULESET_ID
+    ruleset_id: Literal["integrated-full-game-development-v32"] = FULL_GAME_RULESET_ID
     scenario: Literal["ordinary-used-multi-periodic-sun-bow-cancel-scripted-not-full-games"] = (
         "ordinary-used-multi-periodic-sun-bow-cancel-scripted-not-full-games"
     )

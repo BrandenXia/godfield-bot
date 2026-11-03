@@ -52,7 +52,7 @@ def test_default_native_tickets_and_receipts_are_reproducible_not_full_matches()
     assert report.commands == 4930 and report.original_owner_ticks == 4096
     assert report.observed_models == 194
     assert (
-        report.metadata_sha256 == "e83dc27e753d56aa0999a5b00832c0b51439b1ec5be61cd32d6f8a95dcbcedad"
+        report.metadata_sha256 == "64c2bc603039d00a6954cf1cf1d6f1fc32d8a49190a4122a024b9564ef52aca0"
     )
     assert (
         report.diagnostic_replay_sha256

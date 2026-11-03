@@ -434,7 +434,7 @@ def test_factory_joins_new_profiles_and_preserves_training_and_live_gates():
         resource_cap=100, catalog_path=CATALOG, bible_path=BIBLE, batch_size=1, capacity=8
     )
     assert PLAN.compound_utilities.profiles == ((198, 6, 20, 0), (202, 7, 10, 0))
-    assert configured.metadata.kernel_schema_version == 31
+    assert configured.metadata.kernel_schema_version == 32
     assert configured.metadata.compound_utility_snapshot_fields == COMPOUND_UTILITY_FIELDS
     assert PLAN.integrated_artifact_effect_count == 237
     assert (

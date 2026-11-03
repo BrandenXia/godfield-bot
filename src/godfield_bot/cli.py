@@ -3697,6 +3697,10 @@ def simulation_full_game_episode_probe(
     max_turns: Annotated[int, typer.Option(min=1, max=10000)] = 256,
     max_decisions: Annotated[int, typer.Option(min=1, max=40000)] = 2048,
     apocalypse_after_turns: Annotated[int, typer.Option(min=0, max=10000)] = 64,
+    teams: Annotated[
+        str | None,
+        typer.Option(help="Comma-separated team IDs per seat: 0 solo, 1-4 shared teams."),
+    ] = None,
 ) -> None:
     """Run complete-pool episodes offline; preserve errors, not training evidence."""
     try:
@@ -3712,6 +3716,9 @@ def simulation_full_game_episode_probe(
             max_turns=max_turns,
             max_decisions=max_decisions,
             apocalypse_after_turns=apocalypse_after_turns,
+            teams=tuple(int(team.strip()) for team in teams.split(","))
+            if teams is not None
+            else None,
         )
     except (ImportError, OSError, RuntimeError, ValueError) as error:
         structlog.get_logger().error(

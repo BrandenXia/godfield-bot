@@ -269,7 +269,7 @@ def test_source_factory_pins_rule_and_manifest_but_never_claims_training_readine
     )
     assert engine.batch.resolve_hidden_components
     assert engine.metadata.roles == ROLES
-    assert engine.metadata.schema_version == 31
+    assert engine.metadata.schema_version == 32
     assert not engine.metadata.local_training_eligible and not engine.metadata.promotion_eligible
     data = engine.metadata.model_dump()
     data["resolve_hidden_components"] = False

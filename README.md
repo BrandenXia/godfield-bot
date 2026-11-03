@@ -1619,8 +1619,8 @@ complete policy observation or a full-game turn engine; no current checkpoint
 or live control is switched to them. See
 [ADR 0099](docs/architecture/0099-shared-fog-flash-darkcloud-decisions.md).
 
-The approved **separate full-game development engine** is now native 0.80.0,
-`integrated-full-game-development-v31`. It joins authoritative inventory,
+The approved **separate full-game development engine** is now native 0.81.0,
+`integrated-full-game-development-v32`. It joins authoritative inventory,
 HP/MP/CP, disease/cures, ordered attack composition, targets/chained defenses and
 opt-in native acquisition. All 237 held models have pinned draw weights
 totaling 500, and all 237 held-card abilities now have joined routes in this engine.
@@ -2181,6 +2181,32 @@ and errors stay separate. Training and promotion remain blocked. See
 [ADR 0131](docs/architecture/0131-private-dream-targeting-trades-and-episode-diagnostics.md),
 [ADR 0132](docs/architecture/0132-approved-ineffective-hidden-components.md) and
 [ADR 0133](docs/architecture/0133-approved-hidden-protected-removal-retention.md).
+
+The separate engine now also has native team ownership and shared enemy
+selection:0 means independent solo,1-4 identify shared teams. Guardians trigger
+only after enemy turns; fixed/chance/Fog/private targets, area attacks,
+post-death Bows, generated guardians, trades, forced turns and Black Hole use
+the same enemy relation. Bounce, dangerous attraction, global effects and
+directed reactions retain their distinct target scopes. A provisional ending
+waits for the last living faction after queued work; terminal winner masks
+include eliminated shared teammates. This does not implement the learner's
+reward/credit-assignment contract or enable full-game training.
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --offline --frozen --extra simulation \
+  godfield-bot simulation full-game-episode-probe \
+  --batch-size 32 --players 4 --teams 1,1,2,2 --seed 67 --policy-seed 901
+```
+
+That diagnostic finishes32/32 default2v2 games with9111 accepted commands.
+Across2304 team episodes (2-9 seats, three roster patterns, seeds0/1/67),2287
+finish (2275 winner endings/12 draws);17 retain explicit unaffordable hidden
+cost errors, and none hits turn/decision limits. These are random-policy
+integration results, not trained-candidate wins. Current public source was
+refreshed separately on2026-11-03; three names/assets changed but other raw item
+fields did not. Old engine/model pins were not silently repinned. See
+[ADR 0134](docs/architecture/0134-public-source-refresh-and-team-audit.md) and
+[ADR 0135](docs/architecture/0135-approved-native-team-ownership-and-targeting.md).
 
 Earth/Moon now use the approved **direct actions with virtual fallbacks**.
 Category-filtered gift weights retain all207 Earth models (weight470) and all30

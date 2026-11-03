@@ -35,7 +35,7 @@ def test_default_probe_pins_all_five_causes_with_native_not_forced_worsening():
     assert report.consumed_cards == 705 and report.retained_miracle_uses == 100
     assert report.counter_resolutions == 100 and report.original_owner_ticks == 500
     assert (
-        report.metadata_sha256 == "f432cf0f544c9a7810c04045e7fc55634269a66c51d944a55f5b114b627525a4"
+        report.metadata_sha256 == "b8503b0821b591f7678db398fcbb7ace0ca6852ae095335ae01e3fb7d190da59"
     )
     assert (
         report.diagnostic_replay_sha256

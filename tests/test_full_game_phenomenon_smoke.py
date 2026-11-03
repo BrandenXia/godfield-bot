@@ -35,7 +35,7 @@ def test_default_probe_keeps_all10_outcomes_including_generated_solar_actions():
     assert report.commands == 1141 and report.incoming_hp_damage == 4865
     assert report.generated_fate_uses == 0
     assert (
-        report.metadata_sha256 == "6b6bd4bdf3015dd3eca553ba86b94e17ea8547d3a914443a18d5a69d213da02d"
+        report.metadata_sha256 == "9f0238d6c7a2ff07d33cfe98a9a74af1829702b1f8c433aa19e4c23be26daf66"
     )
     assert (
         report.diagnostic_replay_sha256
@@ -119,7 +119,7 @@ def test_failed_row_checks_do_not_copy_full_diagnostics_for_every_success(monkey
     def incomplete_constructor(*args, **options):
         # Omit action profiles, Sacrifice and cap arguments for a raw,
         # incomplete configuration. The real source factory remains complete.
-        return constructor(*args[:-8], **options)
+        return constructor(*args[:-9], **options)
 
     def counted(batch):
         nonlocal calls

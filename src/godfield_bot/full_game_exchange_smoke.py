@@ -25,7 +25,7 @@ class FullGameExchangeSmokeReport(BaseModel):
     source_kind: Literal["scripted-exchange-amounts-and-zero-hp-v1"] = (
         "scripted-exchange-amounts-and-zero-hp-v1"
     )
-    ruleset_id: Literal["integrated-full-game-development-v31"] = FULL_GAME_RULESET_ID
+    ruleset_id: Literal["integrated-full-game-development-v32"] = FULL_GAME_RULESET_ID
     trade_choice_schema_version: Literal[2] = 2
     metadata_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     diagnostic_replay_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")

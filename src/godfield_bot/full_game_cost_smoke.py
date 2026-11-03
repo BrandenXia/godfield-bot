@@ -26,7 +26,7 @@ class FullGameCostSmokeReport(BaseModel):
     source_kind: Literal["integrated-development-adjacent-cost-waiver-smoke-v1"] = (
         "integrated-development-adjacent-cost-waiver-smoke-v1"
     )
-    ruleset_id: Literal["integrated-full-game-development-v31"] = FULL_GAME_RULESET_ID
+    ruleset_id: Literal["integrated-full-game-development-v32"] = FULL_GAME_RULESET_ID
     scenario: Literal["five-reducers-utility-attack-defense-zero-mp-scripted-not-full-games"] = (
         "five-reducers-utility-attack-defense-zero-mp-scripted-not-full-games"
     )

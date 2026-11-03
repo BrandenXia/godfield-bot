@@ -11,7 +11,7 @@
 
 namespace godfield_sim {
 
-inline constexpr std::uint32_t kFullGameKernelSchemaVersion = 31;
+inline constexpr std::uint32_t kFullGameKernelSchemaVersion = 32;
 inline constexpr std::uint32_t kFullGameTradeChoiceSchemaVersion = 2;
 inline constexpr std::uint32_t kFullGameMaxTradeActions = 64;
 inline constexpr std::uint32_t kFullGameAttackFamilySchemaVersion = 8;
@@ -20,7 +20,7 @@ inline constexpr std::uint32_t kFullGameMaxDefenseActions = 64;
 inline constexpr std::uint32_t kFullGameMaxAttackActions = 64;
 inline constexpr std::uint32_t kFullGameMaxDiscardActions = 64;
 inline constexpr const char *kFullGameRulesetId =
-    "integrated-full-game-development-v31";
+    "integrated-full-game-development-v32";
 using FullGamePhenomenonInput =
     nb::ndarray<const std::int64_t, nb::numpy, nb::shape<-1, 5>, nb::c_contig,
                 nb::device::cpu>;
@@ -85,7 +85,7 @@ public:
       bool resolve_hidden_targeting = false, bool resolve_hidden_trades = false,
       bool resolve_hidden_components = false,
       std::optional<InventoryProfileInput> role_profiles = std::nullopt,
-      bool resolve_hidden_removals = false);
+      bool resolve_hidden_removals = false, bool teams_enabled = false);
   [[nodiscard]] std::int64_t resource_cap() const noexcept {
     return resource_cap_;
   }
@@ -107,6 +107,12 @@ public:
     return resolve_hidden_removals_;
   }
   [[nodiscard]] Int64_2D hidden_removal_snapshot() const;
+  [[nodiscard]] bool teams_enabled() const noexcept { return teams_enabled_; }
+  void seed_teams(ActionInput environments, ActionInput owners,
+                  ActionInput teams);
+  [[nodiscard]] Int64_2D team_ids() const;
+  [[nodiscard]] CurseStateSnapshot team_observations() const;
+  [[nodiscard]] Bool2D winning_seats() const;
   // Trusted setup only, rejected once started. These are not learner actions.
   void seed_players(ActionInput environments, ActionInput owners,
                     InventoryInput hp_mp_cp_illness, ActionInput curse_masks);
@@ -376,6 +382,7 @@ private:
     // none=0, winner=1, all-dead-draw=2, turn-limit=3, decision-limit=4.
     std::int64_t outcome = 0;
     std::int64_t winner = -1;
+    std::array<std::int64_t, 9> teams{};
     std::int64_t commands = 0;
     std::int64_t last_choice = -1;
     std::uint64_t illness_rng = 0;
@@ -777,6 +784,11 @@ private:
   [[nodiscard]] static bool compatible(std::int64_t attack,
                                        std::int64_t defense) noexcept;
   void decide_outcome(Mutation &mutation) const noexcept;
+  [[nodiscard]] static bool are_enemies(const Episode &episode,
+                                        std::size_t source,
+                                        std::size_t target) noexcept;
+  [[nodiscard]] std::size_t
+  living_factions(const Mutation &mutation) const noexcept;
   [[nodiscard]] Episode fresh_episode(std::size_t environment,
                                       std::int64_t epoch) const noexcept;
   const std::size_t batch_size_;
@@ -821,6 +833,7 @@ private:
   bool resolve_hidden_trades_ = false;
   bool resolve_hidden_components_ = false;
   bool resolve_hidden_removals_ = false;
+  bool teams_enabled_ = false;
   std::map<std::int64_t, std::int64_t> role_profiles_;
   std::uint64_t devils_ = 0, devil_damage_ = 0, devil_removed_ = 0;
   std::map<std::int64_t, Phenomenon> phenomena_;

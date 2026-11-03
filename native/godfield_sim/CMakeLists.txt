@@ -27,6 +27,7 @@ nanobind_add_module(
   src/full_game_effects.cpp
   src/full_game_composition.cpp
   src/full_game_ineffective.cpp
+  src/full_game_teams.cpp
   src/full_game_generated.cpp
 )
 target_compile_features(_native PRIVATE cxx_std_20)

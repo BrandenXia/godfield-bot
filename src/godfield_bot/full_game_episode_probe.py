@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Literal
 
@@ -17,6 +18,7 @@ from godfield_bot.full_game import (
     INEFFECTIVE_FIELDS,
     create_development_full_game_batch,
 )
+from godfield_bot.full_game_teams import TeamId
 
 if TYPE_CHECKING:
     import numpy as np
@@ -43,6 +45,8 @@ FINGERPRINT_VIEWS = (
     "ineffective_snapshot",
     "ineffective_model_counts",
     "hidden_removal_snapshot",
+    "team_ids",
+    "winning_seats",
     "acquisition_snapshot",
 )
 
@@ -56,6 +60,7 @@ class FullGameEpisodeResult(BaseModel):
     native_phase: int = Field(ge=0, le=13, strict=True)
     native_outcome: int = Field(ge=0, le=4, strict=True)
     winner: int = Field(ge=-1, le=8, strict=True)
+    winning_players: tuple[Annotated[int, Field(ge=0, le=8, strict=True)], ...] = ()
     completed_turns: Count
     accepted_commands: Count
     status: Status
@@ -64,6 +69,12 @@ class FullGameEpisodeResult(BaseModel):
 
     @model_validator(mode="after")
     def terminal_or_error(self) -> FullGameEpisodeResult:
+        if (
+            tuple(sorted(set(self.winning_players))) != self.winning_players
+            or (bool(self.winning_players) != (self.status == "winner"))
+            or (self.status == "winner" and self.winner not in self.winning_players)
+        ):
+            raise ValueError("episode winning players must match the terminal faction")
         if self.status == "engine-error":
             if (
                 self.native_phase not in (1, 2, 3, 4, 6, 7)
@@ -97,8 +108,8 @@ class FullGameEpisodeResult(BaseModel):
 
 class FullGameEpisodeProbeReport(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    schema_version: Literal[3] = 3
-    ruleset_id: Literal["integrated-full-game-development-v31"] = FULL_GAME_RULESET_ID
+    schema_version: Literal[4] = 4
+    ruleset_id: Literal["integrated-full-game-development-v32"] = FULL_GAME_RULESET_ID
     source_kind: Literal["complete-pool-unscripted-episode-diagnostic-v1"] = (
         "complete-pool-unscripted-episode-diagnostic-v1"
     )
@@ -110,6 +121,7 @@ class FullGameEpisodeProbeReport(BaseModel):
     fingerprint_views: tuple[str, ...] = FINGERPRINT_VIEWS
     batch_size: int = Field(ge=1, le=4096, strict=True)
     player_count: int = Field(ge=2, le=9, strict=True)
+    teams: tuple[TeamId, ...]
     seed: int = Field(ge=0, le=2**64 - 1, strict=True)
     policy_seed: int = Field(ge=0, le=2**64 - 1, strict=True)
     max_turns: int = Field(ge=1, le=10000, strict=True)
@@ -153,7 +165,24 @@ class FullGameEpisodeProbeReport(BaseModel):
         }
         h, t = self.hidden_targeting_totals, self.hidden_trade_totals
         if (
-            tuple(r.environment for r in self.outcomes) != tuple(range(self.batch_size))
+            len(self.teams) != self.player_count
+            or any(
+                row.winner >= self.player_count
+                or row.winning_players
+                != (
+                    tuple(
+                        seat
+                        for seat in range(self.player_count)
+                        if self.teams[row.winner] != 0
+                        and self.teams[seat] == self.teams[row.winner]
+                    )
+                    if self.teams[row.winner] != 0
+                    else (row.winner,)
+                )
+                for row in self.outcomes
+                if row.status == "winner"
+            )
+            or tuple(r.environment for r in self.outcomes) != tuple(range(self.batch_size))
             or any(
                 r.winner >= self.player_count
                 or r.actor >= self.player_count
@@ -267,6 +296,7 @@ def run_full_game_episode_probe(
     max_turns: int = 256,
     max_decisions: int = 2048,
     apocalypse_after_turns: int = 64,
+    teams: Sequence[int] | None = None,
 ) -> FullGameEpisodeProbeReport:
     import numpy as np
 
@@ -281,11 +311,20 @@ def run_full_game_episode_probe(
     ):
         if type(value) is not int or not low <= value <= high:
             raise ValueError("episode probe configuration is outside its bounded contract")
+    try:
+        layout = tuple(teams) if teams is not None else (0,) * player_count
+    except TypeError:
+        raise ValueError("episode probe teams must be one ID per seat") from None
+    if len(layout) != player_count or any(
+        type(team) is not int or not 0 <= team <= 4 for team in layout
+    ):
+        raise ValueError("episode probe teams must be one ID in 0..4 per seat")
     c = create_development_full_game_batch(
         catalog_path=catalog_path,
         bible_path=bible_path,
         batch_size=batch_size,
         player_count=player_count,
+        teams=layout,
         seed=seed,
         capacity=18,
         acquisition_mode="all-held-weighted",
@@ -363,6 +402,7 @@ def run_full_game_episode_probe(
     state = b.episode_snapshot()
     outcomes = []
     statuses: dict[int, Status] = {1: "winner", 2: "draw", 3: "turn-limit", 4: "decision-limit"}
+    winning = b.winning_seats()
     for env, row in enumerate(state):
         if env not in failures and int(row[5]) not in statuses:
             raise RuntimeError("episode probe exhausted its bound without a native ending or error")
@@ -376,6 +416,7 @@ def run_full_game_episode_probe(
                 native_phase=int(row[3]),
                 native_outcome=int(row[5]),
                 winner=int(row[6]),
+                winning_players=tuple(int(seat) for seat in np.flatnonzero(winning[env])),
                 completed_turns=int(row[4]),
                 accepted_commands=int(row[7]),
                 status="engine-error" if env in failures else statuses[int(row[5])],
@@ -393,6 +434,7 @@ def run_full_game_episode_probe(
         diagnostic_replay_sha256=replay.hexdigest(),
         batch_size=batch_size,
         player_count=player_count,
+        teams=layout,
         seed=seed,
         policy_seed=policy_seed,
         max_turns=max_turns,

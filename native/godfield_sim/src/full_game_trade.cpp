@@ -98,7 +98,7 @@ bool FullGameBatch::resolve_hidden_trade(Mutation &mutation,
     std::array<std::int64_t, 8> candidates{};
     std::size_t count = 0;
     for (std::size_t seat = 0; seat < player_count_; ++seat)
-      if (seat != actor && mutation.statuses[seat][0] > 0)
+      if (are_enemies(e, actor, seat) && mutation.statuses[seat][0] > 0)
         candidates[count++] = static_cast<std::int64_t>(seat);
     target = candidates[full_game_random::random_rank(
         e.hidden_market_target_rng, count)];
@@ -143,7 +143,7 @@ void FullGameBatch::cast_market(Mutation &mutation, std::int64_t choice,
     std::array<std::int64_t, 8> enemies{};
     std::size_t count = 0;
     for (std::size_t seat = 0; seat < player_count_; ++seat)
-      if (seat != actor && mutation.statuses[seat][0] > 0)
+      if (are_enemies(e, actor, seat) && mutation.statuses[seat][0] > 0)
         enemies[count++] = static_cast<std::int64_t>(seat);
     if (count == 0)
       throw std::invalid_argument("full-game market has no living enemy");
@@ -151,7 +151,8 @@ void FullGameBatch::cast_market(Mutation &mutation, std::int64_t choice,
     ++e.market_stats[5];
   }
   if (target < 0 || static_cast<std::uint64_t>(target) >= player_count_ ||
-      target == e.actor || mutation.statuses[target][0] <= 0)
+      !are_enemies(e, actor, static_cast<std::size_t>(target)) ||
+      mutation.statuses[target][0] <= 0)
     throw std::invalid_argument("full-game market target is unavailable");
   consume_slot(mutation, actor, slot);
   if (sale[0] != 0) {

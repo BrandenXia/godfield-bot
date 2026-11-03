@@ -23,7 +23,7 @@ class FullGameAcquisitionSmokeReport(BaseModel):
     source_kind: Literal["integrated-development-all-held-acquisition-smoke-v8"] = (
         "integrated-development-all-held-acquisition-smoke-v8"
     )
-    ruleset_id: Literal["integrated-full-game-development-v31"] = FULL_GAME_RULESET_ID
+    ruleset_id: Literal["integrated-full-game-development-v32"] = FULL_GAME_RULESET_ID
     scenario: Literal["native-nine-per-seat-complete-pool-startup-not-gameplay"] = (
         "native-nine-per-seat-complete-pool-startup-not-gameplay"
     )

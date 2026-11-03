@@ -603,7 +603,7 @@ def test_source_plan_metadata_pins_and_serialization():
         6: 1,
         7: 1,
     }
-    assert native.FULL_GAME_KERNEL_SCHEMA_VERSION == 31
+    assert native.FULL_GAME_KERNEL_SCHEMA_VERSION == 32
     assert native.FULL_GAME_RULESET_ID == FULL_GAME_RULESET_ID
     assert FULL_GAME_PHASES[0] == "setup" and FULL_GAME_PHASES[12] == "terminal"
     configured = create_development_full_game_batch(

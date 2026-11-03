@@ -78,7 +78,7 @@ FullGameBatch::FullGameBatch(
     bool resolve_hidden_targeting, bool resolve_hidden_trades,
     bool resolve_hidden_components,
     std::optional<InventoryProfileInput> role_profiles,
-    bool resolve_hidden_removals)
+    bool resolve_hidden_removals, bool teams_enabled)
     : batch_size_(validate_dimensions(batch_size, player_count, capacity,
                                       max_turns, max_decisions, initial_hp,
                                       initial_mp, initial_cp, resource_cap)),
@@ -95,6 +95,7 @@ FullGameBatch::FullGameBatch(
   resolve_hidden_trades_ = resolve_hidden_trades;
   resolve_hidden_components_ = resolve_hidden_components;
   resolve_hidden_removals_ = resolve_hidden_removals;
+  teams_enabled_ = teams_enabled;
   if (utility_profiles.shape(0) == 0 || utility_profiles.shape(0) > 237) {
     throw std::invalid_argument("full-game utility profile count is invalid");
   }
@@ -928,7 +929,8 @@ void FullGameBatch::schedule_guardians(Mutation &mutation,
   std::vector<QueuedAttack> shots;
   for (std::size_t owner = 0; owner < player_count_; ++owner) {
     const auto group = e.guardians[owner][0];
-    if (owner == turn_owner || mutation.statuses[owner][0] <= 0 || group == 0)
+    if (!are_enemies(e, owner, turn_owner) ||
+        mutation.statuses[owner][0] <= 0 || group == 0)
       continue;
     ++e.guardian_stats[2];
     if (random_rank(e.guardian_trigger_rng, 100) >= 25)
@@ -975,7 +977,7 @@ void FullGameBatch::schedule_guardians(Mutation &mutation,
       std::array<std::int64_t, 8> enemies{};
       std::size_t count = 0;
       for (std::size_t seat = 0; seat < player_count_; ++seat)
-        if (seat != owner && mutation.statuses[seat][0] > 0)
+        if (are_enemies(e, owner, seat) && mutation.statuses[seat][0] > 0)
           enemies[count++] = static_cast<std::int64_t>(seat);
       target = static_cast<std::int64_t>(turn_owner);
       if (count != 0) {
@@ -1262,11 +1264,9 @@ bool FullGameBatch::schedule_receipts(Mutation &mutation) const {
     e.apocalypse = true;
     ++e.devil_stats[0];
   }
-  std::size_t living = 0;
-  for (std::size_t seat = 0; seat < player_count_; ++seat)
-    living += mutation.statuses[seat][0] > 0 ? 1 : 0;
   const bool ended =
-      living < 2 || static_cast<std::uint64_t>(e.turns) >= max_turns_ ||
+      living_factions(mutation) < 2 ||
+      static_cast<std::uint64_t>(e.turns) >= max_turns_ ||
       static_cast<std::uint64_t>(e.commands + 1) >= max_decisions_;
   if (ended) {
     for (std::size_t seat = 0; seat < player_count_; ++seat) {
@@ -1580,7 +1580,7 @@ void FullGameBatch::cast_attack(Mutation &mutation, std::int64_t choice,
     std::array<std::int64_t, 8> eligible{};
     std::size_t count = 0;
     for (std::size_t seat = 0; seat < player_count_; ++seat)
-      if (seat != actor && mutation.statuses[seat][0] > 0)
+      if (are_enemies(episode, actor, seat) && mutation.statuses[seat][0] > 0)
         eligible[count++] = static_cast<std::int64_t>(seat);
     auto &rng = actual_chance ? mutation.episode.chance_target_rng
                 : automatic   ? mutation.episode.hidden_targeting_rng
@@ -1609,7 +1609,7 @@ void FullGameBatch::cast_attack(Mutation &mutation, std::int64_t choice,
   std::size_t count = 0;
   if (mutation.episode.area_family) {
     for (std::size_t seat = 0; seat < player_count_; ++seat)
-      if (seat != actor && mutation.statuses[seat][0] > 0)
+      if (are_enemies(episode, actor, seat) && mutation.statuses[seat][0] > 0)
         recipients[count++] = static_cast<std::int64_t>(seat);
     mutation.episode.area_stats[2] += static_cast<std::int64_t>(count);
   } else
@@ -1938,7 +1938,7 @@ void FullGameBatch::enqueue_ascension(Mutation &mutation,
   // multiplayer order, multiplicity, or per-recipient independent timing.
   for (auto bow = bows.rbegin(); bow != bows.rend(); ++bow)
     for (std::size_t seat = player_count_; seat-- > 0;)
-      if (seat != owner && mutation.statuses[seat][0] > 0) {
+      if (are_enemies(episode, owner, seat) && mutation.statuses[seat][0] > 0) {
         enqueue_attack(mutation,
                        {3, static_cast<std::int64_t>(owner),
                         static_cast<std::int64_t>(seat), bow->dying_attack,
@@ -2409,7 +2409,8 @@ bool FullGameBatch::legal_choice(std::size_t env, std::int64_t choice) const {
   if (episode.phase == 3) {
     const auto seat = choice - static_cast<std::int64_t>(capacity_) - 1;
     return seat >= 0 && static_cast<std::uint64_t>(seat) < player_count_ &&
-           seat != episode.actor &&
+           are_enemies(episode, static_cast<std::size_t>(episode.actor),
+                       static_cast<std::size_t>(seat)) &&
            statuses_.states_[env * player_count_ + seat][0] > 0;
   }
   if (choice == 0) {
@@ -3072,12 +3073,12 @@ FullGameBatch::Mutation FullGameBatch::prepare(FullGameCommandInput commands,
 }
 
 void FullGameBatch::decide_outcome(Mutation &mutation) const noexcept {
-  std::size_t count = 0;
+  const auto count = living_factions(mutation);
   std::int64_t winner = -1;
   for (std::size_t seat = 0; seat < player_count_; ++seat)
     if (mutation.statuses[seat][0] > 0) {
-      ++count;
-      winner = static_cast<std::int64_t>(seat);
+      if (winner < 0)
+        winner = static_cast<std::int64_t>(seat);
     }
   if (count < 2) {
     mutation.episode.phase = 12;
@@ -3783,6 +3784,49 @@ Int64_2D FullGameBatch::hidden_trade_snapshot() const {
   return owned_array<Int64_2D>(std::move(buffer), {batch_size_, 9});
 }
 
+Int64_2D FullGameBatch::team_ids() const {
+  auto buffer = std::make_unique<std::int64_t[]>(batch_size_ * 9);
+  for (std::size_t env = 0; env < batch_size_; ++env)
+    for (std::size_t seat = 0; seat < 9; ++seat)
+      buffer[env * 9 + seat] =
+          seat < player_count_ ? episodes_[env].teams[seat] : -1;
+  return owned_array<Int64_2D>(std::move(buffer), {batch_size_, 9});
+}
+
+CurseStateSnapshot FullGameBatch::team_observations() const {
+  auto buffer = std::make_unique<std::int64_t[]>(batch_size_ * 9 * 4);
+  for (std::size_t env = 0; env < batch_size_; ++env) {
+    const auto &e = episodes_[env];
+    const auto actor = static_cast<std::size_t>(e.actor);
+    for (std::size_t offset = 0; offset < 9; ++offset) {
+      const auto out = (env * 9 + offset) * 4;
+      buffer[out] = buffer[out + 2] = -1;
+      if (offset >= player_count_)
+        continue;
+      const auto seat = (actor + offset) % player_count_;
+      buffer[out] = static_cast<std::int64_t>(seat);
+      buffer[out + 1] = 1;
+      buffer[out + 2] = e.teams[seat];
+      buffer[out + 3] = seat == actor ? 1 : are_enemies(e, actor, seat) ? 3 : 2;
+    }
+  }
+  return owned_array<CurseStateSnapshot>(std::move(buffer),
+                                         {batch_size_, 9, 4});
+}
+
+Bool2D FullGameBatch::winning_seats() const {
+  auto buffer = std::make_unique<bool[]>(batch_size_ * 9);
+  for (std::size_t env = 0; env < batch_size_; ++env) {
+    const auto &e = episodes_[env];
+    if (e.phase != 12 || e.outcome != 1)
+      continue;
+    for (std::size_t seat = 0; seat < player_count_; ++seat)
+      buffer[env * 9 + seat] =
+          !are_enemies(e, static_cast<std::size_t>(e.winner), seat);
+  }
+  return owned_array<Bool2D>(std::move(buffer), {batch_size_, 9});
+}
+
 Int64_2D FullGameBatch::hidden_removal_snapshot() const {
   auto buffer = std::make_unique<std::int64_t[]>(batch_size_ * 7);
   for (std::size_t env = 0; env < batch_size_; ++env)
@@ -4325,7 +4369,7 @@ void bind_full_game(nb::module_ &module) {
                std::optional<FullGameAttackEffectInput>,
                std::optional<InventoryInput>,
                std::optional<InventoryProfileInput>, bool, std::uint16_t, bool,
-               bool, bool, std::optional<InventoryProfileInput>, bool>(),
+               bool, bool, std::optional<InventoryProfileInput>, bool, bool>(),
            nb::arg("batch_size"), nb::arg("player_count"),
            nb::arg("inventory_profiles").noconvert(),
            nb::arg("utility_profiles").noconvert(), nb::arg("capacity") = 512,
@@ -4367,7 +4411,8 @@ void bind_full_game(nb::module_ &module) {
            nb::arg("resolve_hidden_trades") = false,
            nb::arg("resolve_hidden_components") = false,
            nb::arg("role_profiles").noconvert() = nb::none(),
-           nb::arg("resolve_hidden_removals") = false)
+           nb::arg("resolve_hidden_removals") = false,
+           nb::arg("teams_enabled") = false)
       .def_prop_ro("resource_cap", &FullGameBatch::resource_cap)
       .def_prop_ro("resolve_hidden_targeting",
                    &FullGameBatch::resolve_hidden_targeting)
@@ -4384,6 +4429,13 @@ void bind_full_game(nb::module_ &module) {
       .def_prop_ro("resolve_hidden_removals",
                    &FullGameBatch::resolve_hidden_removals)
       .def("hidden_removal_snapshot", &FullGameBatch::hidden_removal_snapshot)
+      .def_prop_ro("teams_enabled", &FullGameBatch::teams_enabled)
+      .def("seed_teams", &FullGameBatch::seed_teams,
+           nb::arg("environments").noconvert(), nb::arg("owners").noconvert(),
+           nb::arg("teams").noconvert())
+      .def("team_ids", &FullGameBatch::team_ids)
+      .def("team_observations", &FullGameBatch::team_observations)
+      .def("winning_seats", &FullGameBatch::winning_seats)
       .def("seed_confusion", &FullGameBatch::seed_confusion,
            nb::arg("environments").noconvert(), nb::arg("owners").noconvert(),
            nb::arg("remaining_turns").noconvert())

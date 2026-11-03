@@ -23,7 +23,7 @@ class FullGameChanceSmokeReport(BaseModel):
     source_kind: Literal["integrated-development-one-turn-chance-smoke-v5"] = (
         "integrated-development-one-turn-chance-smoke-v5"
     )
-    ruleset_id: Literal["integrated-full-game-development-v31"] = FULL_GAME_RULESET_ID
+    ruleset_id: Literal["integrated-full-game-development-v32"] = FULL_GAME_RULESET_ID
     scenario: Literal["one-standalone-chance-per-environment-forgive-hits-not-full-matches"] = (
         "one-standalone-chance-per-environment-forgive-hits-not-full-matches"
     )

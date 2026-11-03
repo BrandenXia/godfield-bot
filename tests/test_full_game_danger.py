@@ -515,7 +515,7 @@ def test_factory_metadata_new_danger_contract_does_not_claim_complete_readiness(
     configured = create_development_full_game_batch(
         resource_cap=100, catalog_path=CATALOG, bible_path=BIBLE, batch_size=1, capacity=18
     )
-    assert configured.metadata.kernel_schema_version == 31
+    assert configured.metadata.kernel_schema_version == 32
     assert configured.metadata.danger_observation_fields == DANGER_FIELDS
     assert configured.metadata.danger_snapshot_fields == DANGER_SNAPSHOT_FIELDS
     assert PLAN.integrated_artifact_effect_count == 237

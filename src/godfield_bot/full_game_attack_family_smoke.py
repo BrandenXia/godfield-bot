@@ -30,7 +30,7 @@ class FullGameAttackFamilySmokeReport(BaseModel):
     source_kind: Literal["integrated-development-attack-family-smoke-v1"] = (
         "integrated-development-attack-family-smoke-v1"
     )
-    ruleset_id: Literal["integrated-full-game-development-v31"] = FULL_GAME_RULESET_ID
+    ruleset_id: Literal["integrated-full-game-development-v32"] = FULL_GAME_RULESET_ID
     queue_schema_version: Literal[8] = 8
     scenario: Literal["owned-bow-sun-periodic-chain-hat-repeat-scripted-not-full-games"] = (
         "owned-bow-sun-periodic-chain-hat-repeat-scripted-not-full-games"

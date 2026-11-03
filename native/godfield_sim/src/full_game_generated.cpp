@@ -84,7 +84,7 @@ void FullGameBatch::execute_generated_guardian(
   std::size_t count = 0;
   if (composition.area_count > 0) {
     for (std::size_t seat = 0; seat < player_count_; ++seat)
-      if (seat != owner && mutation.statuses[seat][0] > 0)
+      if (are_enemies(e, owner, seat) && mutation.statuses[seat][0] > 0)
         recipients[count++] = static_cast<std::int64_t>(seat);
     mutation.area_cast = true;
     ++e.area_stats[0];
@@ -100,7 +100,7 @@ void FullGameBatch::execute_generated_guardian(
     std::array<std::int64_t, 8> enemies{};
     std::size_t enemies_count = 0;
     for (std::size_t seat = 0; seat < player_count_; ++seat)
-      if (seat != owner && mutation.statuses[seat][0] > 0)
+      if (are_enemies(e, owner, seat) && mutation.statuses[seat][0] > 0)
         enemies[enemies_count++] = static_cast<std::int64_t>(seat);
     if (enemies_count == 0) {
       ++stats[6];

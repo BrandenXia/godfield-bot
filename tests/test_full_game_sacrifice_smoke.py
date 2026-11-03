@@ -34,7 +34,7 @@ def test_default_report_pins_all237_receipt_models_and_five_devils_without_claim
     assert r.commands == 24576 and r.observed_models == 237
     assert r.observed_devil_models == 5 and r.devil_totals[2] == 3027
     assert r.devil_removed_cards == 1234 and r.devil_hp_damage == 30850
-    assert r.metadata_sha256 == "8d22e33d4e1267a7b2aa651a9ac06ee1049cd8b11b9af13250f407a6a470a299"
+    assert r.metadata_sha256 == "41487b3a30fee864778cb5ef14815701e1b4f6d5ecd4d189c7374a808c038ec0"
     assert r.diagnostic_replay_sha256 == (
         "dd223f0a0cfef038cae1e0bbdf47600f1f551e3f1a129366b0c5ef7d59801a4e"
     )

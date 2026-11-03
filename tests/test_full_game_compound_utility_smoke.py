@@ -37,7 +37,7 @@ def test_default_compound_utility_accounting_and_replay_are_not_full_matches():
     assert report.utility_hp_damage == 855 and report.incoming_attack_hp_damage == 0
     assert report.final_actor_deaths == 113 and report.real_terminal_endings == 0
     assert (
-        report.metadata_sha256 == "b7630436bb6c0514bbf72d206dfe6a42e342b26126008b0eb14cace562c4a3b1"
+        report.metadata_sha256 == "29f092cb03652f7a20dc76cc0a6e5f1a13da20e428c6392d2c5a4464b5015553"
     )
     assert (
         report.diagnostic_replay_sha256

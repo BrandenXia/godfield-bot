@@ -45,11 +45,11 @@ def test_complete_pool_default_records_real_endings_and_remaining_errors_separat
     )
     assert report.accepted_commands == 16015
     assert (
-        report.metadata_sha256 == "2c0230e82480057661b7444af0d9e003cc2f657add6184d74599d315f88520d2"
+        report.metadata_sha256 == "ca1e2342183a7ee65e249e67ec746035e44a10dac2f5b101000bd97599521c89"
     )
     assert (
         report.diagnostic_replay_sha256
-        == "97f7aafe112bc0e4e906590cf17a4f3d2f4281b9b7f14f5e8e554096e23da826"
+        == "3ed252f8d840d0d05bd86297d7bac6ece53ff58ce955388f38a7d1d2e1393693"
     )
     assert not any(r.error_reason for r in report.outcomes)
     assert report.hidden_targeting_totals == (2, 0, 2, 2)
@@ -57,6 +57,77 @@ def test_complete_pool_default_records_real_endings_and_remaining_errors_separat
     assert report.ineffective_totals == (2, 0, 4, 1, 1, 6, 7, 1, 6, 1, 1, 2, 0, 2)
     assert not report.local_training_eligible and not report.full_game_training_ready
     assert report == FullGameEpisodeProbeReport.model_validate_json(report.model_dump_json())
+
+
+@pytest.mark.parametrize("players", range(2, 10))
+@pytest.mark.parametrize("kind", ["pairs", "mixed", "four-teams"])
+def test_complete_team_episodes_account_for_factions_not_just_one_living_seat(players, kind):
+    layout = {
+        "pairs": tuple(1 + i % 2 for i in range(players)),
+        "mixed": tuple(0 if i % 2 else 1 for i in range(players)),
+        "four-teams": tuple(1 + i % 4 for i in range(players)),
+    }[kind]
+    r = probe(batch_size=8, player_count=players, teams=layout)
+    assert r.teams == layout
+    assert r.games_completed + r.engine_errors + r.turn_limit_games + r.decision_limit_games == 8
+    assert r == FullGameEpisodeProbeReport.model_validate_json(r.model_dump_json())
+    assert all(
+        row.error_reason == "full-game hidden actual miracle cost is unaffordable"
+        for row in r.outcomes
+        if row.error_reason
+    )
+    assert not r.local_training_eligible
+
+
+def test_one_faction_setup_is_an_explicit_zero_command_terminal_not_training_evidence():
+    r = probe(batch_size=2, player_count=3, teams=(1, 1, 1))
+    assert r.games_completed == 2 and r.accepted_commands == 0
+    assert all(row.winning_players == (0, 1, 2) for row in r.outcomes)
+    assert not r.teacher_or_reward_dataset_eligible
+
+
+@pytest.mark.parametrize("teams", [(1, 2), (True, 1, 2), (-1, 1, 2), (5, 1, 2), (1.0, 1, 2), "123"])
+def test_team_configuration_fails_before_native_allocation(monkeypatch, teams):
+    def forbidden(**_):
+        raise AssertionError("must validate teams before allocation")
+
+    monkeypatch.setattr(
+        "godfield_bot.full_game_episode_probe.create_development_full_game_batch", forbidden
+    )
+    with pytest.raises(ValueError, match="teams"):
+        probe(teams=teams)
+
+
+def test_team_cli_preserves_layout_and_rejects_wrong_roster_length(monkeypatch):
+    import structlog
+
+    from godfield_bot.cli import app
+
+    # Captured CLI stderr is closed on exit. Do not leave process-global
+    # structured logging bound to that stream for later training tests.
+    monkeypatch.setattr("godfield_bot.cli.configure_logging", lambda **_: None)
+    original_factory = structlog.get_config()["logger_factory"]
+    args = [
+        "simulation",
+        "full-game-episode-probe",
+        "--batch-size",
+        "2",
+        "--players",
+        "4",
+        "--teams",
+        "1,1,2,2",
+        "--max-turns",
+        "1",
+        "--max-decisions",
+        "100",
+    ]
+    result = CliRunner().invoke(app, args)
+    assert result.exit_code == 0, result.output
+    r = FullGameEpisodeProbeReport.model_validate_json(result.output)
+    assert r.teams == (1, 1, 2, 2) and r.batch_size == 2
+    args[args.index("1,1,2,2")] = "1,1"
+    assert CliRunner().invoke(app, args).exit_code == 1
+    assert structlog.get_config()["logger_factory"] is original_factory
 
 
 @pytest.mark.parametrize("players", [2, 3, 9])
@@ -201,6 +272,8 @@ def test_failed_environment_never_changes_other_environment_policy_or_results(mo
         {"acquisition_mode": "manual"},
         {"schema_version": 1},
         {"schema_version": 2},
+        {"schema_version": 3},
+        {"teams": (1, 1)},
         {"hidden_removal_fields": ()},
         {"hidden_removal_totals": (0, 0, 1, 0, 1, 0, 0)},
         {"ineffective_fields": ()},
@@ -238,6 +311,7 @@ def test_result_contract_distinguishes_all_native_endings(status, phase, outcome
         native_phase=phase,
         native_outcome=outcome,
         winner=winner,
+        winning_players=(winner,) if status == "winner" else (),
         completed_turns=1,
         accepted_commands=2,
         status=status,

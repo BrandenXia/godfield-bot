@@ -34,7 +34,7 @@ def test_default_area_probe_is_deterministic_bounded_and_not_full_matches():
     assert report.consumed_cards == 682 and report.miracle_uses == 512
     assert report.family_enqueued == report.family_resolved == 1281 and report.counter_casts == 85
     assert (
-        report.metadata_sha256 == "5c45c09197ab843f5511f7ad4ec3fe3a88bd71c1413cc6d179dfbcbd4cbbb984"
+        report.metadata_sha256 == "03152ee1fa746ed902ba3472464ea796315c0d3ead1940c17f53cf34f33dc45d"
     )
     assert (
         report.diagnostic_replay_sha256

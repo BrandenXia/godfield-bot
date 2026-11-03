@@ -161,7 +161,7 @@ def test_factory_pins_new_rule_and_diagnostic_boundary_without_enabling_learning
         capacity=18,
     )
     assert c.batch.resolve_hidden_removals and c.metadata.resolve_hidden_removals
-    assert c.metadata.kernel_schema_version == 31
+    assert c.metadata.kernel_schema_version == 32
     assert not c.metadata.local_training_eligible and not c.metadata.promotion_eligible
     for change in ({"resolve_hidden_removals": False}, {"hidden_removal_snapshot_fields": ()}):
         with pytest.raises(ValidationError):

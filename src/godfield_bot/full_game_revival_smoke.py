@@ -22,7 +22,7 @@ class FullGameRevivalSmokeReport(BaseModel):
     source_kind: Literal["integrated-development-passive-revival-smoke-v2"] = (
         "integrated-development-passive-revival-smoke-v2"
     )
-    ruleset_id: Literal["integrated-full-game-development-v31"] = FULL_GAME_RULESET_ID
+    ruleset_id: Literal["integrated-full-game-development-v32"] = FULL_GAME_RULESET_ID
     scenario: Literal["scripted-hp-zero-edges-native-illness-tickets-not-full-games"] = (
         "scripted-hp-zero-edges-native-illness-tickets-not-full-games"
     )

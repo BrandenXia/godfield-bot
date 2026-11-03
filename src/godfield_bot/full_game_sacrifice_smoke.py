@@ -22,7 +22,7 @@ Count = Annotated[int, Field(ge=0, strict=True)]
 class FullGameSacrificeSmokeReport(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     schema_version: Literal[1] = 1
-    ruleset_id: Literal["integrated-full-game-development-v31"] = FULL_GAME_RULESET_ID
+    ruleset_id: Literal["integrated-full-game-development-v32"] = FULL_GAME_RULESET_ID
     queue_schema_version: Literal[8] = 8
     resource_cap: Literal[99] = 99
     source_kind: Literal["three-card-sacrifice-complete-pool-devil-firstturn-probe-v1"] = (

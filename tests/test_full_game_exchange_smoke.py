@@ -33,7 +33,7 @@ def test_default_report_is_exactly_reproducible_and_not_full_games():
     assert report.sun_revivals == 51 and report.bow_shots == 102
     assert report.attack_hp_damage == 3060 and report.consumed_cards == 614
     assert (
-        report.metadata_sha256 == "b7a693d3fcbe04fab75d309e093f59b46f7bb7f0080fe87a9e9575141d22b485"
+        report.metadata_sha256 == "48d093ae4ec459d67a806d908a48664dc4ae818784e9fb3d320f6c673266c170"
     )
     assert (
         report.diagnostic_replay_sha256

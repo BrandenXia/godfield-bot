@@ -550,7 +550,7 @@ def test_factory_metadata_exports_queue_version_without_declaring_full_game_read
         resource_cap=100, catalog_path=CATALOG, bible_path=BIBLE, batch_size=1, capacity=18
     )
     assert native.FULL_GAME_ATTACK_FAMILY_SCHEMA_VERSION == 8
-    assert configured.metadata.kernel_schema_version == 31
+    assert configured.metadata.kernel_schema_version == 32
     assert configured.metadata.attack_family_snapshot_fields == ATTACK_FAMILY_FIELDS
     assert PLAN.integrated_artifact_effect_count == 237
     assert (

@@ -23,7 +23,7 @@ class FullGameAttackEffectSmokeReport(BaseModel):
     source_kind: Literal["integrated-development-one-turn-attack-effect-smoke-v4"] = (
         "integrated-development-one-turn-attack-effect-smoke-v4"
     )
-    ruleset_id: Literal["integrated-full-game-development-v31"] = FULL_GAME_RULESET_ID
+    ruleset_id: Literal["integrated-full-game-development-v32"] = FULL_GAME_RULESET_ID
     scenario: Literal["one-effect-per-environment-cloud-forced-hits-forgiven-not-full-matches"] = (
         "one-effect-per-environment-cloud-forced-hits-forgiven-not-full-matches"
     )

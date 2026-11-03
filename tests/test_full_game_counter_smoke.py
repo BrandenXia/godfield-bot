@@ -34,7 +34,7 @@ def test_default_probe_all_eight_rings_reproducible_and_not_training_ready():
     assert report.mp_gained == 1280 and report.cp_credited == 640
     assert report.consumed_cards == 1024 and report.final_queued_counters == 0
     assert (
-        report.metadata_sha256 == "9099e104a19d1ff3b5248b7b23a63c18b01e84d20ed977fd16f6cce504eef7f0"
+        report.metadata_sha256 == "2fced29344c6431edd0f92897da63c005304d35ff49284bf123c6dabed0469a2"
     )
     assert (
         report.diagnostic_replay_sha256

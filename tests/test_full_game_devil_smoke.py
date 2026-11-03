@@ -49,7 +49,7 @@ def test_default_dealt_hand_probe_observes_all5_without_claiming_full_matches():
     assert report.commands == 14644
     assert report.completed_turns == report.original_owner_ticks == 4096
     assert (
-        report.metadata_sha256 == "9ece7f6c6f2d59bd0761f82e3b4521530a84733635ddf226dc5df22994681fd8"
+        report.metadata_sha256 == "eff1eb101497837f382455f61888432e3fd97b8e5517b9f050eeacd1aa88bf89"
     )
     assert (
         report.diagnostic_replay_sha256

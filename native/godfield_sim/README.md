@@ -1,7 +1,7 @@
 # godfield-sim
 
 This optional native package contains the batched C++20 curriculum simulator.
-The separate full-game development engine is now native0.80.0/schema31. Its
+The separate full-game development engine is now native0.81.0/schema32. Its
 source factory defaults to99 HP/MP/CP, with an explicit legacy100 option;
 raw native fixtures retain100 by default. This does not change existing arenas
 or make full-game training/live promotion ready. See
@@ -23,6 +23,19 @@ retains9 unaffordable-cost errors out of768 episodes. Full-game training and
 promotion remain blocked. See
 [ADR 0132](../../docs/architecture/0132-approved-ineffective-hidden-components.md) and
 [ADR 0133](../../docs/architecture/0133-approved-hidden-protected-removal-retention.md).
+Append raw `teams_enabled=false`; the complete factory enables team rules and
+accepts an initial `teams` layout. `seed_teams(environments, owners, teams)` is
+atomic trusted pre-start setup, with0 solo and1-4 shared teams. Reset clears
+episode team seeds to solo, so callers must explicitly reseed new episodes.
+`team_ids[B,9]`, actor-cyclic `team_observations[B,9,4]` (seat/present/team/relation)
+and terminal-only `winning_seats[B,9]` are owned readonly arrays. Relations have
+no hidden HP/inventory/liveness and are not existing-checkpoint compatible.
+Native enemy selection/guardian triggers and last-living-faction endings share
+one relation; special bounce/danger/global/reaction scopes remain distinct.
+Winner masks include eliminated teammates, not a newly invented reward scale.
+Existing arenas/checkpoints/live controls are unchanged; training/promotion
+stay blocked. See
+[ADR 0135](../../docs/architecture/0135-approved-native-team-ownership-and-targeting.md).
 It is built and installed from the repository root with:
 
 ```console

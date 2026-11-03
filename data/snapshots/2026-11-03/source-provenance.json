@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-11-03T06:22:51.725178+00:00",
+  "sources": [
+    {
+      "source_url": "https://godfield.net/main.dart.js",
+      "snapshot_file": "data/snapshots/2026-11-03/official-client.js",
+      "body_sha256": "5ece06c224b6a7a5d877eb45d22ea18b82a03aaf1b7161cbbdf6a1e23ceab2cd",
+      "archive_sha256": "5ece06c224b6a7a5d877eb45d22ea18b82a03aaf1b7161cbbdf6a1e23ceab2cd",
+      "last_modified": "Tue, 03 Nov 2026 05:01:41 GMT",
+      "bytes": 440420
+    },
+    {
+      "source_url": "https://godfield.net/i18n/en.json",
+      "snapshot_file": "data/snapshots/2026-11-03/i18n-en.json",
+      "body_sha256": "23fbf5e637b8f3f628d78e5de14f3ce2b65442066c6f94820d8f0d517c6fbd00",
+      "archive_sha256": "bcefbb97f8926955755c675b3356d51fc1ba2656882645f100ea9206e67d1ae1",
+      "last_modified": "Tue, 03 Nov 2026 05:01:41 GMT",
+      "bytes": 46842
+    }
+  ],
+  "catalog_model_count": 296,
+  "catalog_content_sha256": "cf011ec0874c8ee7e9403d2559d4d60380d0347e99a38a5db06a63a619f3170d",
+  "previous_client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+  "previous_catalog_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+  "freshness_scope": "public-client-and-English-catalog-only-not-server-behavior",
+  "engine_pins_changed": false,
+  "official_fidelity_verified": false,
+  "promotion_eligible": false
+}

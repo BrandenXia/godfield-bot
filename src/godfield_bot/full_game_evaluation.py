@@ -10,6 +10,10 @@ import torch
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from godfield_bot.full_game import create_development_full_game_batch
+from godfield_bot.full_game_diagnostics import (
+    FullGameDiagnosticCollector,
+    FullGameEvaluationDiagnostics,
+)
 from godfield_bot.full_game_greedy import GREEDY_POLICY_SHA256, FullGameGreedyPolicy
 from godfield_bot.full_game_neural import (
     FullGameActorCritic,
@@ -31,6 +35,7 @@ class FullGameFactionEvaluation(BaseModel):
     turn_limits: Count
     decision_limits: Count
     accepted_decisions: Count
+    diagnostics: FullGameEvaluationDiagnostics | None = None
 
 
 class FullGameFrozenEvaluation(BaseModel):
@@ -68,6 +73,10 @@ class FullGameFrozenEvaluation(BaseModel):
             or any(
                 not faction.candidate_seats
                 or (
+                    faction.diagnostics is not None
+                    and faction.diagnostics.accepted_decisions != faction.accepted_decisions
+                )
+                or (
                     faction.wins
                     + faction.losses
                     + faction.draws
@@ -95,6 +104,7 @@ def evaluate_full_game_candidate(
     games_per_faction: int = 16,
     baseline_directory: Path | None = None,
     greedy_baseline: bool = False,
+    diagnostics: bool = False,
 ) -> FullGameFrozenEvaluation:
     if (
         type(seed) is not int
@@ -102,6 +112,7 @@ def evaluate_full_game_candidate(
         or type(games_per_faction) is not int
         or not 1 <= games_per_faction <= 64
         or type(greedy_baseline) is not bool
+        or type(diagnostics) is not bool
         or (greedy_baseline and baseline_directory is not None)
     ):
         raise ValueError(
@@ -189,13 +200,20 @@ def evaluate_full_game_candidate(
                     i for i in range(config.player_count) if i not in candidate_seats
                 ),
             )
+            collector = (
+                FullGameDiagnosticCollector(configured.metadata, tuple(candidate_seats))
+                if diagnostics
+                else None
+            )
             batch = configured.batch
             batch.start_environments(np.arange(games_per_faction, dtype=np.int64))
             for _ in range(config.max_decisions):
                 active = np.flatnonzero(batch.choice_masks().any(axis=1)).astype(np.int64)
                 if not len(active):
                     break
-                controller.step(active)
+                result = controller.step(active)
+                if collector is not None:
+                    collector.observe(result, candidate)
             controller.poll_rewards()
             state = batch.episode_snapshot()
             if not np.isin(state[:, 3], (12, 13)).all():
@@ -210,6 +228,7 @@ def evaluate_full_game_candidate(
                     turn_limits=int((state[:, 5] == 3).sum()),
                     decision_limits=int((state[:, 5] == 4).sum()),
                     accepted_decisions=int(state[:, 7].sum()),
+                    diagnostics=collector.finish(configured) if collector is not None else None,
                 )
             )
         candidate_hash = full_game_policy_sha256(candidate)

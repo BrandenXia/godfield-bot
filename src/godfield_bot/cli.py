@@ -3912,6 +3912,10 @@ def simulation_full_game_evaluate(
     greedy_baseline: Annotated[
         bool, typer.Option(help="Use the fixed local tactical opponent.")
     ] = False,
+    diagnostics: Annotated[
+        bool,
+        typer.Option(help="Record public decision agreement and final native mechanic statistics."),
+    ] = False,
 ) -> None:
     """Evaluate against initial weights, a compatible checkpoint or the tactical opponent."""
     try:
@@ -3925,6 +3929,7 @@ def simulation_full_game_evaluate(
             games_per_faction=games_per_faction,
             baseline_directory=baseline,
             greedy_baseline=greedy_baseline,
+            diagnostics=diagnostics,
         )
     except (ImportError, OSError, RuntimeError, ValueError) as error:
         structlog.get_logger().error(

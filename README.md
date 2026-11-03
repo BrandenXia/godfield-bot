@@ -1723,6 +1723,12 @@ uv run --extra simulation --extra training godfield-bot simulation full-game-eva
 The report evaluates each candidate faction and accounts for draws and
 truncations separately. [Tactical benchmark contract](docs/architecture/0145-fixed-local-tactical-benchmark.md)
 
+Add `--diagnostics` to an evaluation for candidate phase/choice statistics,
+public tactical-teacher agreement, displayed-card selection counts and final
+native mechanic statistics. It preserves the evaluated action sequence. Counts
+from truncated games remain diagnostic-only; card toggles do not prove effect
+execution. [Integrated diagnostic contract](docs/architecture/0147-integrated-evaluation-diagnostics.md)
+
 Resume the new checkpoint with `full-game-resume`. Use `full-game-evaluate`
 with `--baseline '/path/to/version-1-policy-checkpoint'` for a frozen
 comparison. The evaluation seed pair must also be outside the source run's

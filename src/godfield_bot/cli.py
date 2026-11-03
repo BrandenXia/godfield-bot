@@ -3882,8 +3882,11 @@ def simulation_full_game_evaluate(
     seed: Annotated[int, typer.Option(min=0)] = 100_000,
     games_per_faction: Annotated[int, typer.Option(min=1, max=64)] = 16,
     baseline: Annotated[Path | None, typer.Option(exists=True, file_okay=False)] = None,
+    greedy_baseline: Annotated[
+        bool, typer.Option(help="Use the fixed local tactical opponent.")
+    ] = False,
 ) -> None:
-    """Evaluate against the frozen initial policy or a compatible checkpoint."""
+    """Evaluate against initial weights, a compatible checkpoint or the tactical opponent."""
     try:
         from godfield_bot.full_game_evaluation import evaluate_full_game_candidate
 
@@ -3894,6 +3897,7 @@ def simulation_full_game_evaluate(
             seed=seed,
             games_per_faction=games_per_faction,
             baseline_directory=baseline,
+            greedy_baseline=greedy_baseline,
         )
     except (ImportError, OSError, RuntimeError, ValueError) as error:
         structlog.get_logger().error(

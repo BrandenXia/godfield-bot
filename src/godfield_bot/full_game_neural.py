@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from torch import Tensor, nn
 
 from godfield_bot.full_game import DevelopmentFullGameBatch
+from godfield_bot.full_game_greedy import FullGameGreedyPolicy
 from godfield_bot.full_game_observation import (
     ATTACK_HISTORY_OBSERVATION_ID,
     CHOICES,
@@ -232,7 +233,7 @@ class FullGamePolicyController:
         policy: FullGameActorCritic,
         *,
         seed: int = 67,
-        opponent: FullGameActorCritic | None = None,
+        opponent: FullGameActorCritic | FullGameGreedyPolicy | None = None,
         opponent_seats: tuple[int, ...] = (),
     ) -> None:
         if type(seed) is not int or not 0 <= seed < 2**63:
@@ -247,7 +248,7 @@ class FullGamePolicyController:
                 for seat in opponent_seats
             )
             or (
-                opponent is not None
+                isinstance(opponent, FullGameActorCritic)
                 and (
                     opponent.architecture != policy.architecture
                     or any(
@@ -290,9 +291,16 @@ class FullGamePolicyController:
         for mask, policy in ((~opponent_rows, self.policy), (opponent_rows, self._opponent)):
             rows = np.flatnonzero(mask).astype(np.int64)
             if len(rows):
-                logits[rows], values[rows], memory[rows] = policy(
-                    full_game_policy_inputs(observation.take(rows)), previous[rows]
-                )
+                subset = observation.take(rows)
+                if isinstance(policy, FullGameGreedyPolicy):
+                    logits[rows] = torch.finfo(logits.dtype).min
+                    logits[rows, policy.actions(subset)] = 0
+                    values[rows] = 0
+                    memory[rows] = previous[rows]
+                else:
+                    logits[rows], values[rows], memory[rows] = policy(
+                        full_game_policy_inputs(subset), previous[rows]
+                    )
         return logits, values, memory
 
     def step(self, environments: IntArray, *, deterministic: bool = False) -> FullGamePolicyStep:

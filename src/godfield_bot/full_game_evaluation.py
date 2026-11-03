@@ -10,6 +10,7 @@ import torch
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from godfield_bot.full_game import create_development_full_game_batch
+from godfield_bot.full_game_greedy import GREEDY_POLICY_SHA256, FullGameGreedyPolicy
 from godfield_bot.full_game_neural import (
     FullGameActorCritic,
     FullGamePolicyController,
@@ -38,6 +39,7 @@ class FullGameFrozenEvaluation(BaseModel):
     evaluation: Literal[
         "held-out-native-each-faction-vs-initial-policy-v1",
         "held-out-native-each-faction-vs-checkpoint-v1",
+        "held-out-native-each-faction-vs-public-greedy-v1",
     ] = "held-out-native-each-faction-vs-initial-policy-v1"
     candidate_policy_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     baseline_policy_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
@@ -58,6 +60,10 @@ class FullGameFrozenEvaluation(BaseModel):
         seats = [seat for faction in self.factions for seat in faction.candidate_seats]
         if (
             len(self.factions) < 2
+            or (
+                self.evaluation == "held-out-native-each-faction-vs-public-greedy-v1"
+                and self.baseline_policy_sha256 != GREEDY_POLICY_SHA256
+            )
             or sorted(seats) != list(range(len(seats)))
             or any(
                 not faction.candidate_seats
@@ -88,14 +94,19 @@ def evaluate_full_game_candidate(
     seed: int = 100_000,
     games_per_faction: int = 16,
     baseline_directory: Path | None = None,
+    greedy_baseline: bool = False,
 ) -> FullGameFrozenEvaluation:
     if (
         type(seed) is not int
         or not 0 <= seed < 2**63 - 1
         or type(games_per_faction) is not int
         or not 1 <= games_per_faction <= 64
+        or type(greedy_baseline) is not bool
+        or (greedy_baseline and baseline_directory is not None)
     ):
-        raise ValueError("full-game frozen evaluation seed or batch size differs")
+        raise ValueError(
+            "full-game frozen evaluation seed, batch size or baseline selection differs"
+        )
     manifest, candidate = load_full_game_candidate(directory)
     training = manifest.training
     config = training.config
@@ -117,7 +128,7 @@ def evaluate_full_game_candidate(
         ):
             raise ValueError("full-game evaluation baseline architecture or ruleset differs")
         used_seeds.update(baseline_training.used_seeds())
-    elif training.initialization is not None:
+    elif training.initialization is not None and not greedy_baseline:
         raise ValueError(
             "full-game transferred candidate requires an explicit --baseline checkpoint"
         )
@@ -134,7 +145,7 @@ def evaluate_full_game_candidate(
     results = []
     try:
         torch.set_num_threads(config.cpu_threads)
-        if baseline is None:
+        if baseline is None and not greedy_baseline:
             with torch.random.fork_rng(devices=[]):
                 torch.manual_seed(config.seed)
                 baseline = FullGameActorCritic(config.architecture).float().cpu().eval()
@@ -145,7 +156,9 @@ def evaluate_full_game_candidate(
                 raise ValueError(
                     "full-game evaluation could not reproduce the frozen initial weights"
                 )
-        baseline_hash = full_game_policy_sha256(baseline)
+        baseline_hash = (
+            full_game_policy_sha256(baseline) if baseline is not None else GREEDY_POLICY_SHA256
+        )
         for candidate_seats in factions.values():
             configured = create_development_full_game_batch(
                 catalog_path=catalog_path,
@@ -166,7 +179,9 @@ def evaluate_full_game_candidate(
                 configured,
                 candidate,
                 seed=seed + 1,
-                opponent=baseline,
+                opponent=baseline
+                if baseline is not None
+                else FullGameGreedyPolicy(configured.metadata),
                 opponent_seats=tuple(
                     i for i in range(config.player_count) if i not in candidate_seats
                 ),
@@ -195,16 +210,17 @@ def evaluate_full_game_candidate(
                 )
             )
         candidate_hash = full_game_policy_sha256(candidate)
-        if (
-            candidate_hash != training.final_policy_sha256
-            or full_game_policy_sha256(baseline) != baseline_hash
+        if candidate_hash != training.final_policy_sha256 or (
+            baseline is not None and full_game_policy_sha256(baseline) != baseline_hash
         ):
             raise RuntimeError("full-game evaluation changed a frozen policy")
     finally:
         torch.set_num_threads(previous_threads)
     return FullGameFrozenEvaluation(
         evaluation=(
-            "held-out-native-each-faction-vs-checkpoint-v1"
+            "held-out-native-each-faction-vs-public-greedy-v1"
+            if greedy_baseline
+            else "held-out-native-each-faction-vs-checkpoint-v1"
             if baseline_directory is not None
             else "held-out-native-each-faction-vs-initial-policy-v1"
         ),

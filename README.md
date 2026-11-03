@@ -1713,6 +1713,16 @@ UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation --extra training \
   --checkpoint-root runs/full-game-history-candidates
 ```
 
+A fixed public tactical benchmark is available for either observation version:
+
+```bash
+uv run --extra simulation --extra training godfield-bot simulation full-game-evaluate \
+  '/path/from/training/report' --greedy-baseline --seed 970000 --games-per-faction 32
+```
+
+The report evaluates each candidate faction and accounts for draws and
+truncations separately. [Tactical benchmark contract](docs/architecture/0145-fixed-local-tactical-benchmark.md)
+
 Resume the new checkpoint with `full-game-resume`. Use `full-game-evaluate`
 with `--baseline '/path/to/version-1-policy-checkpoint'` for a frozen
 comparison. The evaluation seed pair must also be outside the source run's

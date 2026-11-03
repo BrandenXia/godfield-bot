@@ -18,6 +18,7 @@ from test_full_game_rollout import terminal_team_setup  # noqa: E402
 
 from godfield_bot.cli import app  # noqa: E402
 from godfield_bot.full_game_evaluation import evaluate_full_game_candidate  # noqa: E402
+from godfield_bot.full_game_greedy import GREEDY_POLICY_SHA256  # noqa: E402
 from godfield_bot.full_game_neural import (  # noqa: E402
     FullGameActorCritic,
     FullGamePolicyController,
@@ -323,6 +324,31 @@ def test_frozen_evaluation_accepts_an_earlier_checkpoint(trained_candidate, resu
     assert result.baseline_policy_sha256 == baseline.final_policy_sha256
     assert result.candidate_policy_sha256 != result.baseline_policy_sha256
     assert result.wins + result.losses + result.draws + result.truncations == 2
+
+
+def test_cli_evaluates_each_faction_against_fixed_tactics(trained_candidate, monkeypatch):
+    _, _, _, path = trained_candidate
+    monkeypatch.setattr("godfield_bot.cli.configure_logging", lambda **_: None)
+    result = CliRunner().invoke(
+        app,
+        [
+            "simulation",
+            "full-game-evaluate",
+            str(path),
+            "--greedy-baseline",
+            "--games-per-faction",
+            "1",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    report = json.loads(result.stdout)
+    assert report["evaluation"] == "held-out-native-each-faction-vs-public-greedy-v1"
+    assert report["baseline_policy_sha256"] == GREEDY_POLICY_SHA256
+    assert [f["candidate_seats"] for f in report["factions"]] == [[0, 1], [2, 3]]
+    assert sum(report[name] for name in ("wins", "losses", "draws", "truncations")) == 2
+    assert not report["promotion_eligible"]
+    with pytest.raises(ValueError, match="baseline selection"):
+        evaluate_full_game_candidate(path, **PATHS, baseline_directory=path, greedy_baseline=True)
 
 
 def test_checksummed_adam_state_with_wrong_step_count_is_rejected(resumable_candidate, tmp_path):

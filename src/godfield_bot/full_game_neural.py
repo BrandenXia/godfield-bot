@@ -8,20 +8,24 @@ from typing import Literal
 import numpy as np
 import numpy.typing as npt
 import torch
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from torch import Tensor, nn
 
 from godfield_bot.full_game import DevelopmentFullGameBatch
 from godfield_bot.full_game_observation import (
+    ATTACK_HISTORY_OBSERVATION_ID,
     CHOICES,
     CONTEXT_MODELS,
     GLOBAL_FIELDS,
     HAND_FEATURES,
     HAND_SLOTS,
+    HISTORY_GLOBAL_FIELDS,
     MODEL_VOCABULARY,
+    OBSERVATION_ID,
     PLAYER_FEATURES,
     FullGameObservation,
     FullGameObservationEncoder,
+    FullGameObservationId,
 )
 from godfield_bot.full_game_rewards import (
     FullGameRewardAdapter,
@@ -34,8 +38,8 @@ IntArray = npt.NDArray[np.int64]
 
 class FullGamePolicyArchitecture(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    schema_version: int = Field(default=1, ge=1, le=1, strict=True)
-    observation_id: Literal["full-game-public-18-slot-v1"] = "full-game-public-18-slot-v1"
+    schema_version: int = Field(default=1, ge=1, le=2, strict=True)
+    observation_id: FullGameObservationId = OBSERVATION_ID
     hand_slots: Literal[18] = 18
     choices: Literal[28] = 28
     vocabulary_size: Literal[297] = 297
@@ -52,6 +56,12 @@ class FullGamePolicyArchitecture(BaseModel):
     local_training_eligible: Literal[False] = False
     full_game_training_ready: Literal[False] = False
     promotion_eligible: Literal[False] = False
+
+    @model_validator(mode="after")
+    def observation_contract(self) -> FullGamePolicyArchitecture:
+        if (self.schema_version == 2) != (self.observation_id == ATTACK_HISTORY_OBSERVATION_ID):
+            raise ValueError("full-game policy observation version differs")
+        return self
 
 
 @dataclass(frozen=True)
@@ -99,6 +109,12 @@ class FullGameActorCritic(nn.Module):
         self.memory = nn.GRUCell(h, h)
         self.action_head = nn.Linear(h, CHOICES)
         self.value_head = nn.Linear(h, 1)
+        self.history_encoder: nn.Linear | None = None
+        if self.architecture.observation_id == ATTACK_HISTORY_OBSERVATION_ID:
+            self.history_encoder = nn.Linear(
+                len(HISTORY_GLOBAL_FIELDS) - len(GLOBAL_FIELDS), h, bias=False
+            )
+            nn.init.zeros_(self.history_encoder.weight)
 
     def forward(
         self, inputs: FullGamePolicyInputs, recurrent_state: Tensor | None = None
@@ -114,7 +130,11 @@ class FullGameActorCritic(nn.Module):
             x.choices,
         )
         if (
-            x.global_features.shape != (n, len(GLOBAL_FIELDS))
+            x.global_features.shape
+            != (
+                n,
+                len(HISTORY_GLOBAL_FIELDS if self.history_encoder is not None else GLOBAL_FIELDS),
+            )
             or x.players.shape != (n, 9, len(PLAYER_FEATURES))
             or x.cards.shape != (n, 18)
             or x.hand_features.shape != (n, 18, len(HAND_FEATURES))
@@ -154,8 +174,16 @@ class FullGameActorCritic(nn.Module):
         cards = cards * (x.cards != 0).unsqueeze(-1)
         players = self.player_encoder(x.players) * (x.players[:, :, :1] != 0)
         context = self.context_encoder(
-            torch.cat((x.global_features, self.embedding(x.context_models).flatten(1)), dim=1)
+            torch.cat(
+                (
+                    x.global_features[:, : len(GLOBAL_FIELDS)],
+                    self.embedding(x.context_models).flatten(1),
+                ),
+                dim=1,
+            )
         )
+        if self.history_encoder is not None:
+            context = context + self.history_encoder(x.global_features[:, len(GLOBAL_FIELDS) :])
         encoded = self.observation_encoder(
             torch.cat((cards.flatten(1), players.flatten(1), context), dim=1)
         )
@@ -164,6 +192,20 @@ class FullGameActorCritic(nn.Module):
         if any(not bool(torch.isfinite(t).all()) for t in (state, logits, values)):
             raise ValueError("full-game policy produced non-finite outputs")
         return logits.masked_fill(~x.choices, torch.finfo(logits.dtype).min), values, state
+
+
+def transfer_full_game_attack_history(source: FullGameActorCritic) -> FullGameActorCritic:
+    """Keep the existing policy path and start the new history projection at zero."""
+    if source.architecture.observation_id != OBSERVATION_ID:
+        raise ValueError("attack-history transfer requires a version 1 policy")
+    architecture = FullGamePolicyArchitecture.model_validate(
+        source.architecture.model_dump()
+        | {"schema_version": 2, "observation_id": ATTACK_HISTORY_OBSERVATION_ID}
+    )
+    with torch.random.fork_rng(devices=[]):
+        target = FullGameActorCritic(architecture).float().cpu()
+    target.load_state_dict(target.state_dict() | source.state_dict(), strict=True)
+    return target.eval()
 
 
 @dataclass(frozen=True)
@@ -216,7 +258,7 @@ class FullGamePolicyController:
             )
         ):
             raise ValueError("full-game controller opponent architecture or seats differ")
-        self.encoder = FullGameObservationEncoder(configured)
+        self.encoder = FullGameObservationEncoder(configured, policy.architecture.observation_id)
         self.rewards = FullGameRewardAdapter(configured)
         self.policy = policy
         self._opponent = opponent

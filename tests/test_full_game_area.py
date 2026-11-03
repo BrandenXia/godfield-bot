@@ -528,6 +528,7 @@ def test_fog_response_observations_do_not_reveal_future_recipient_count():
         "area_observations",
         "complex_weapon_observations",
         "attack_effect_observations",
+        "attack_history_observations",
     ):
         np.testing.assert_array_equal(getattr(batches[0], name)(), getattr(batches[1], name)())
     assert batches[0].complex_weapon_observations().tolist() == [[1, 3, 3, 2]]

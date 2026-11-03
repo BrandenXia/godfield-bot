@@ -28,6 +28,21 @@ CHOICES: Final = 28
 MAX_PLAYERS: Final = 9
 MODEL_VOCABULARY: Final = 297  # 0 padding, pinned API model IDs through296.
 OBSERVATION_ID: Final = "full-game-public-18-slot-v1"
+ATTACK_HISTORY_OBSERVATION_ID: Final = "full-game-public-18-slot-attack-history-v2"
+FullGameObservationId = Literal[
+    "full-game-public-18-slot-v1", "full-game-public-18-slot-attack-history-v2"
+]
+ATTACK_HISTORY_LENGTH: Final = 8
+ATTACK_HISTORY_FIELDS: Final = (
+    "present",
+    *(f"source_relative_seat_{i}" for i in range(9)),
+    *(f"target_relative_seat_{i}" for i in range(9)),
+    "attack_log",
+    *(f"element_{i}" for i in range(7)),
+    *(f"origin_{i}" for i in range(6)),
+    "hit_rate_fraction",
+    "age_turns_log",
+)
 # Only these reviewed views enter numeric global features. Private snapshots,
 # escrow, future work and scheduler/RNG counters are intentionally absent.
 CONTEXT_VIEWS: Final = (
@@ -104,12 +119,21 @@ PUBLIC_GETTERS: Final = (
     "passive_observations",
     *(name for name, _ in CONTEXT_VIEWS),
 )
+HISTORY_GLOBAL_FIELDS: Final = (
+    *GLOBAL_FIELDS,
+    *(
+        f"attack_history_{i}.{field}"
+        for i in range(ATTACK_HISTORY_LENGTH)
+        for field in ATTACK_HISTORY_FIELDS
+    ),
+)
+HISTORY_PUBLIC_GETTERS: Final = (*PUBLIC_GETTERS, "attack_history_observations")
 
 
 class FullGameEncoderMetadata(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    schema_version: int = Field(default=1, ge=1, le=1, strict=True)
-    observation_id: Literal["full-game-public-18-slot-v1"] = OBSERVATION_ID
+    schema_version: int = Field(default=1, ge=1, le=2, strict=True)
+    observation_id: FullGameObservationId = OBSERVATION_ID
     ruleset_id: Literal["integrated-full-game-development-v33"] = game.FULL_GAME_RULESET_ID
     kernel_schema_version: Literal[33] = 33
     hand_slots: Literal[18] = 18
@@ -136,12 +160,14 @@ class FullGameEncoderMetadata(BaseModel):
 
     @model_validator(mode="after")
     def pinned_fields(self) -> FullGameEncoderMetadata:
+        history = self.observation_id == ATTACK_HISTORY_OBSERVATION_ID
         if (
-            self.global_fields != GLOBAL_FIELDS
+            self.schema_version != (2 if history else 1)
+            or self.global_fields != (HISTORY_GLOBAL_FIELDS if history else GLOBAL_FIELDS)
             or self.player_fields != PLAYER_FEATURES
             or self.hand_fields != HAND_FEATURES
             or self.context_model_columns != CONTEXT_MODELS
-            or self.public_getters != PUBLIC_GETTERS
+            or self.public_getters != (HISTORY_PUBLIC_GETTERS if history else PUBLIC_GETTERS)
         ):
             raise ValueError("full-game encoder feature contract differs")
         return self
@@ -184,27 +210,38 @@ class FullGameObservation:
 
 
 class FullGameObservationEncoder:
-    def __init__(self, configured: game.DevelopmentFullGameBatch) -> None:
+    def __init__(
+        self,
+        configured: game.DevelopmentFullGameBatch,
+        observation_id: FullGameObservationId = OBSERVATION_ID,
+    ) -> None:
         import godfield_sim as native
 
         game.FullGameMetadata.model_validate(configured.metadata.model_dump())
         if configured.metadata.capacity != HAND_SLOTS or configured.metadata.batch_size > 4096:
             raise ValueError("full-game encoder requires18 slots and at most4096 environments")
+        history = observation_id == ATTACK_HISTORY_OBSERVATION_ID
+        getters = HISTORY_PUBLIC_GETTERS if history else PUBLIC_GETTERS
         if (
             getattr(native, "FULL_GAME_KERNEL_SCHEMA_VERSION", None) != 33
             or getattr(native, "FULL_GAME_OBSERVATION_SCHEMA_VERSION", None) != 33
-            or any(not hasattr(configured.batch, name) for name in PUBLIC_GETTERS)
+            or (history and getattr(native, "FULL_GAME_ATTACK_HISTORY_SCHEMA_VERSION", None) != 1)
+            or any(not hasattr(configured.batch, name) for name in getters)
         ):
             raise ProvisionalRuleUnavailableError("native public observation interface differs")
         self.configured = configured
         self.metadata = FullGameEncoderMetadata(
+            schema_version=2 if history else 1,
+            observation_id=observation_id,
+            global_fields=HISTORY_GLOBAL_FIELDS if history else GLOBAL_FIELDS,
+            public_getters=getters,
             environment_metadata_sha256=hashlib.sha256(
                 json.dumps(
                     configured.metadata.model_dump(mode="json"),
                     sort_keys=True,
                     separators=(",", ":"),
                 ).encode()
-            ).hexdigest()
+            ).hexdigest(),
         )
 
     def encode(self) -> FullGameObservation:
@@ -267,6 +304,43 @@ class FullGameObservationEncoder:
             ),
             axis=1,
         )
+        if self.metadata.observation_id == ATTACK_HISTORY_OBSERVATION_ID:
+            announcements = read("attack_history_observations", (ATTACK_HISTORY_LENGTH, 8))
+            present = announcements[:, :, 0]
+            source, target, power, element, origin, rate, turn = (
+                announcements[:, :, i] for i in range(1, 8)
+            )
+            actor = state[:, 2:3]
+            age = state[:, 4:5] - turn
+            if (
+                np.any((present != 0) & (present != 1))
+                or np.any(announcements[present == 0])
+                or np.any(present[~active])
+                or np.any(np.diff(present, axis=1) < 0)
+                or np.any((np.diff(turn, axis=1) < 0) & (present[:, 1:] == 1))
+                or np.any((present == 1) & (source != actor) & (target != actor))
+                or np.any((source < 0) | (source >= m.player_count))
+                or np.any((target < 0) | (target >= m.player_count))
+                or np.any((power < 0) | (turn < 0) | (age < 0) | (rate < 0) | (rate > 100))
+            ):
+                raise RuntimeError("native attack history visibility, ordering or bounds differ")
+            history_features = np.concatenate(
+                (
+                    present[:, :, None].astype(np.float32),
+                    onehot((source - actor) % m.player_count, 9),
+                    onehot((target - actor) % m.player_count, 9),
+                    log(power[:, :, None]),
+                    onehot(element, 7),
+                    onehot(origin, 6),
+                    (rate[:, :, None] / 100).astype(np.float32),
+                    log(age[:, :, None]),
+                ),
+                axis=2,
+            )
+            history_features[present == 0] = 0
+            global_features = np.concatenate(
+                (global_features, history_features.reshape(size, -1)), axis=1
+            )
 
         p = read("player_observations", (9, 8))
         t = read("team_observations", (9, 4))

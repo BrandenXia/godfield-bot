@@ -1619,11 +1619,16 @@ complete policy observation or a full-game turn engine; no current checkpoint
 or live control is switched to them. See
 [ADR 0099](docs/architecture/0099-shared-fog-flash-darkcloud-decisions.md).
 
-The approved **separate full-game development engine** is now native 0.83.0,
+The approved **separate full-game development engine** is now native 0.84.0,
 `integrated-full-game-development-v33`. It joins authoritative inventory,
 HP/MP/CP, disease/cures, ordered attack composition, targets/chained defenses and
 opt-in native acquisition. All 237 held models have pinned draw weights
 totaling 500, and all 237 held-card abilities now have joined routes in this engine.
+
+Native attack history schema 1 retains the acting seat's last eight visible
+attack announcements for diagnostics and opt-in training. Participant and Fog
+visibility follow conservative local assumptions.
+[Attack history contract](docs/architecture/0144-native-attack-announcement-history.md)
 
 The separate reward schema1 now exposes terminal faction credit: each winning
 team member receives +1, including eliminated teammates, other present seats
@@ -1655,8 +1660,7 @@ environment and updates only after accepted commands; failed commands also
 restore the sampling generator. Explicit reset clears every seat's memory.
 The untrained policy completes32 local integration games across solo and team
 layouts with12,391 legal commands and no errors/limits. This is an interface
-check, not useful learning or a strength result. Current public views are
-encoded; an official event-history stream is not added. The complete-episode
+check, not useful learning or a strength result. The complete-episode
 collector now retains accepted observations/actions and assigns each acting
 seat its undiscounted terminal faction outcome. It excludes all samples from
 truncated or failed episodes and preserves rejected commands for diagnosis.
@@ -1694,6 +1698,25 @@ UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation --extra training \
 Add `--baseline '/path/to/earlier/checkpoint'` to evaluate against an earlier
 compatible policy. Use evaluation seeds outside both training runs. See
 [Adam resume and frozen checkpoint evaluation](docs/architecture/0143-full-game-adam-resume.md).
+
+Use `--attack-history` to train with observation version 2. Add
+`--initialize-from '/path/to/version-1-policy-checkpoint'` to copy a compatible
+policy into the history architecture. The new history weights start at zero
+and Adam starts fresh. Match the source's roster and environment options and
+choose a seed outside its training range.
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation --extra training \
+  godfield-bot simulation full-game-train --attack-history \
+  --initialize-from '/path/to/version-1-policy-checkpoint' \
+  --updates 16 --batch-size 8 --players 4 --teams 1,1,2,2 --seed 910000 \
+  --checkpoint-root runs/full-game-history-candidates
+```
+
+Resume the new checkpoint with `full-game-resume`. Use `full-game-evaluate`
+with `--baseline '/path/to/version-1-policy-checkpoint'` for a frozen
+comparison. The evaluation seed pair must also be outside the source run's
+training seeds. [History and transfer contract](docs/architecture/0144-native-attack-announcement-history.md)
 
 That is not full-game fidelity: unobserved combinations, hidden cross-role
 resolution, complete event/virtual commands and learning interfaces remain gated. Attack additions

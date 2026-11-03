@@ -25,6 +25,7 @@ from godfield_bot.full_game_neural import (
     FullGamePolicyArchitecture,
     FullGamePolicyInputs,
     full_game_policy_inputs,
+    transfer_full_game_attack_history,
 )
 from godfield_bot.full_game_observation import FullGameObservation
 from godfield_bot.full_game_replay import full_game_seat_sequences, verify_full_game_behavior
@@ -255,6 +256,20 @@ class FullGameTrainingUpdate(BaseModel):
     rejected_commands: tuple[tuple[int, ...], ...]
 
 
+class FullGameHistoryInitialization(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    method: Literal["copy-v1-policy-zero-history-projection-fresh-adam"] = (
+        "copy-v1-policy-zero-history-projection-fresh-adam"
+    )
+    source_policy_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    initialized_policy_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    source_seed: int = Field(ge=0, lt=2**63 - 1024, strict=True)
+    source_updates: int = Field(ge=1, le=256, strict=True)
+
+    def source_seeds(self) -> range:
+        return range(self.source_seed, self.source_seed + 2 * self.source_updates)
+
+
 class FullGameTrainingReport(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     schema_version: int = Field(default=1, ge=1, le=1, strict=True)
@@ -265,12 +280,19 @@ class FullGameTrainingReport(BaseModel):
         "same-seat-windows-starting-at-frozen-behavior-memory"
     )
     config: FullGameTrainingConfig
+    initialization: FullGameHistoryInitialization | None = None
     initial_collection: FullGameCollectionMetadata
     updates: tuple[FullGameTrainingUpdate, ...]
     final_policy_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     full_game_training_ready: Literal[False] = False
     official_fidelity_verified: Literal[False] = False
     promotion_eligible: Literal[False] = False
+
+    def used_seeds(self) -> set[int]:
+        result = set(range(self.config.seed, self.config.seed + 2 * len(self.updates)))
+        if self.initialization is not None:
+            result.update(self.initialization.source_seeds())
+        return result
 
     @model_validator(mode="after")
     def update_chain(self) -> FullGameTrainingReport:
@@ -304,6 +326,16 @@ class FullGameTrainingReport(BaseModel):
         ):
             raise ValueError("full-game training report contract differs")
         previous = initial.behavior_policy_sha256
+        if self.initialization is not None:
+            source = self.initialization
+            if (
+                self.config.architecture.schema_version != 2
+                or source.initialized_policy_sha256 != previous
+                or not set(source.source_seeds()).isdisjoint(
+                    range(self.config.seed, self.config.seed + 2 * self.config.updates)
+                )
+            ):
+                raise ValueError("full-game history initialization or seed range differs")
         for index, update in enumerate(self.updates):
             terminal = sum(
                 o.accepted_commands for o in update.outcomes if o.status in ("winner", "draw")
@@ -374,10 +406,13 @@ def run_full_game_training(
     catalog_path: Path,
     bible_path: Path,
     config: FullGameTrainingConfig,
+    initialize_from: Path | None = None,
     on_update: Callable[[int, FullGameTrainingUpdate], None] | None = None,
 ) -> FullGameTrainingRun:
     """Fresh local full-pool self-play with one frozen behavior batch per update."""
-    return _run_training(catalog_path, bible_path, config, on_update=on_update)
+    return _run_training(
+        catalog_path, bible_path, config, initialize_from=initialize_from, on_update=on_update
+    )
 
 
 def train_full_game(
@@ -399,9 +434,28 @@ def _run_training(
     config: FullGameTrainingConfig,
     *,
     parent: FullGameTrainingRun | None = None,
+    initialize_from: Path | None = None,
     on_update: Callable[[int, FullGameTrainingUpdate], None] | None = None,
 ) -> FullGameTrainingRun:
     config = FullGameTrainingConfig.model_validate(config.model_dump())
+    initialization = parent.report.initialization if parent is not None else None
+    scheduled_seeds = range(config.seed, config.seed + 2 * config.updates)
+    if initialization is not None and not set(initialization.source_seeds()).isdisjoint(
+        scheduled_seeds
+    ):
+        raise ValueError("full-game history resume overlaps the source training seeds")
+    source_environment = None
+    environment_exclude = {"seed", "batch_size"}
+    source, source_policy = None, None
+    if initialize_from is not None:
+        source, source_policy = load_full_game_candidate(initialize_from)
+        if config.architecture.schema_version != 2:
+            raise ValueError("full-game history initialization requires an attack-history policy")
+        if not source.training.used_seeds().isdisjoint(scheduled_seeds):
+            raise ValueError("full-game history initialization requires new training seeds")
+        source_environment = source.training.initial_collection.environment.model_dump(
+            exclude=environment_exclude
+        )
     runtime = _training_runtime()
     previous_threads = torch.get_num_threads()
     try:
@@ -409,7 +463,19 @@ def _run_training(
         with torch.random.fork_rng(devices=[]):
             torch.manual_seed(config.seed)
             if parent is None:
-                policy = FullGameActorCritic(config.architecture).float().cpu()
+                if source_policy is None:
+                    policy = FullGameActorCritic(config.architecture).float().cpu()
+                else:
+                    assert source is not None
+                    policy = transfer_full_game_attack_history(source_policy)
+                    if policy.architecture != config.architecture:
+                        raise ValueError("full-game history initialization architecture differs")
+                    initialization = FullGameHistoryInitialization(
+                        source_policy_sha256=source.training.final_policy_sha256,
+                        initialized_policy_sha256=full_game_policy_sha256(policy),
+                        source_seed=source.training.config.seed,
+                        source_updates=len(source.training.updates),
+                    )
                 optimizer = _adam(policy, config.ppo)
                 initial = None
                 updates = []
@@ -440,6 +506,12 @@ def _run_training(
                     raise RuntimeError(
                         "full-game training source or ruleset changed between updates"
                     )
+                if (
+                    source_environment is not None
+                    and configured.metadata.model_dump(exclude=environment_exclude)
+                    != source_environment
+                ):
+                    raise ValueError("full-game history initialization source or ruleset differs")
                 collection = collect_full_game_episodes(
                     configured, policy, sampling_seed=sampling_seed
                 )
@@ -476,6 +548,7 @@ def _run_training(
             assert initial is not None
             report = FullGameTrainingReport(
                 config=config,
+                initialization=initialization,
                 initial_collection=initial,
                 updates=tuple(updates),
                 final_policy_sha256=full_game_policy_sha256(policy),

@@ -21,7 +21,6 @@ from godfield_bot.full_game_neural import (
     FullGamePolicyStep,
 )
 from godfield_bot.full_game_observation import (
-    GLOBAL_FIELDS,
     HAND_FEATURES,
     PLAYER_FEATURES,
     FullGameEncoderMetadata,
@@ -460,7 +459,7 @@ def validate_full_game_collection(collection: FullGameEpisodeCollection) -> None
             (s.behavior_values, (n,), np.float32),
             (s.terminal_targets, (n,), np.float32),
             (s.observation.leases, (n, 5), np.int64),
-            (s.observation.global_features, (n, len(GLOBAL_FIELDS)), np.float32),
+            (s.observation.global_features, (n, len(metadata.encoder.global_fields)), np.float32),
             (s.observation.players, (n, 9, len(PLAYER_FEATURES)), np.float32),
             (s.observation.player_mask, (n, 9), np.bool_),
             (s.observation.card_model_ids, (n, 18), np.int64),

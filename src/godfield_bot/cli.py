@@ -3792,9 +3792,15 @@ def simulation_full_game_train(
     max_decisions: Annotated[int, typer.Option(min=1, max=8000)] = 2048,
     apocalypse_after_turns: Annotated[int, typer.Option(min=0, max=1000)] = 64,
     checkpoint_root: Annotated[Path | None, typer.Option(file_okay=False)] = None,
+    attack_history: Annotated[
+        bool, typer.Option(help="Use version 2 attack-history inputs.")
+    ] = False,
+    initialize_from: Annotated[Path | None, typer.Option(exists=True, file_okay=False)] = None,
 ) -> None:
     """Train a local candidate on complete full-pool C++ episodes."""
     try:
+        from godfield_bot.full_game_neural import FullGamePolicyArchitecture
+        from godfield_bot.full_game_observation import ATTACK_HISTORY_OBSERVATION_ID
         from godfield_bot.full_game_training import (
             FullGameTrainingConfig,
             run_full_game_training,
@@ -3811,12 +3817,18 @@ def simulation_full_game_train(
             max_turns=max_turns,
             max_decisions=max_decisions,
             apocalypse_after_turns=apocalypse_after_turns,
+            architecture=FullGamePolicyArchitecture(
+                schema_version=2, observation_id=ATTACK_HISTORY_OBSERVATION_ID
+            )
+            if attack_history
+            else FullGamePolicyArchitecture(),
         )
 
         run = run_full_game_training(
             catalog_path=catalog,
             bible_path=bible,
             config=config,
+            initialize_from=initialize_from,
             on_update=_full_game_update_progress,
         )
         successful = _publish_full_game_run(run, checkpoint_root)

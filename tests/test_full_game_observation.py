@@ -9,9 +9,12 @@ from test_full_game_generated import hand, ids, load, step
 
 from godfield_bot.full_game import create_development_full_game_batch
 from godfield_bot.full_game_observation import (
+    ATTACK_HISTORY_FIELDS,
+    ATTACK_HISTORY_OBSERVATION_ID,
     CONTEXT_VIEWS,
     GLOBAL_FIELDS,
     HAND_FEATURES,
+    HISTORY_GLOBAL_FIELDS,
     PLAYER_FEATURES,
     PUBLIC_GETTERS,
     FullGameEncoderMetadata,
@@ -119,6 +122,33 @@ def test_encoder_never_reads_private_getters_and_does_not_move_rng_or_gameplay()
     assert set(reads) == set(PUBLIC_GETTERS)
     np.testing.assert_array_equal(c.batch.episode_snapshot(), before[0])
     np.testing.assert_array_equal(c.batch.diagnostic_inventory(), before[1])
+
+
+def test_history_encoder_retains_announcements_without_exposing_fog_hidden_resources():
+    observations = []
+    for variant in (0, 1):
+        c = configured(player_count=3)
+        hand(c.batch, [35, 6 if variant else 230])
+        load(c.batch, owner=0, hp=90 if variant else 20, mp=15 if variant else 2)
+        load(c.batch, owner=1, hp=40, mask=1)
+        c.batch.start_environments(ids([0]))
+        for choice in (1, 0, 20, 0):
+            step(c.batch, [choice])
+        base = FullGameObservationEncoder(c).encode()
+        e = FullGameObservationEncoder(c, ATTACK_HISTORY_OBSERVATION_ID)
+        o = e.encode()
+        assert e.metadata.schema_version == 2 and e.metadata.global_fields == HISTORY_GLOBAL_FIELDS
+        np.testing.assert_array_equal(
+            o.global_features[:, : len(GLOBAL_FIELDS)], base.global_features
+        )
+        history = o.global_features[0, len(GLOBAL_FIELDS) :].reshape(8, -1)
+        assert not history[:-1].any()
+        assert history[-1, ATTACK_HISTORY_FIELDS.index("present")] == 1
+        assert history[-1, ATTACK_HISTORY_FIELDS.index("source_relative_seat_2")] == 1
+        assert history[-1, ATTACK_HISTORY_FIELDS.index("target_relative_seat_0")] == 1
+        assert history[-1, ATTACK_HISTORY_FIELDS.index("age_turns_log")] > 0
+        observations.append(o)
+    equal_features(*observations)
 
 
 def test_ordered_waiver_selections_are_visible_and_instance_and_epoch_ids_are_not():

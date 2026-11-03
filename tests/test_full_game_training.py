@@ -11,7 +11,7 @@ torch = pytest.importorskip("torch")
 pytest.importorskip("numpy")
 pytest.importorskip("godfield_sim")
 
-from test_full_game_generated import hand, ids, load  # noqa: E402
+from test_full_game_generated import hand, ids, load, step  # noqa: E402
 from test_full_game_neural import biased  # noqa: E402
 from test_full_game_observation import PATHS, configured  # noqa: E402
 from test_full_game_rollout import terminal_team_setup  # noqa: E402
@@ -21,6 +21,13 @@ from godfield_bot.full_game_evaluation import evaluate_full_game_candidate  # no
 from godfield_bot.full_game_neural import (  # noqa: E402
     FullGameActorCritic,
     FullGamePolicyController,
+    full_game_policy_inputs,
+    transfer_full_game_attack_history,
+)
+from godfield_bot.full_game_observation import (  # noqa: E402
+    ATTACK_HISTORY_OBSERVATION_ID,
+    GLOBAL_FIELDS,
+    FullGameObservationEncoder,
 )
 from godfield_bot.full_game_rollout import (  # noqa: E402
     collect_full_game_episodes,
@@ -226,6 +233,85 @@ def test_version_one_still_loads_for_evaluation_but_cannot_resume(trained_candid
     assert load_full_game_candidate(directory)[0].schema_version == 1
     with pytest.raises(ValueError, match="version 2 checkpoint"):
         resume_full_game_training(directory, **PATHS, additional_updates=1)
+
+
+def test_zero_history_transfer_keeps_logits_values_and_memory_exact(trained_candidate):
+    _, _, original, _ = trained_candidate
+    migrated = transfer_full_game_attack_history(original)
+    c = configured(player_count=4, teams=(1, 1, 2, 2))
+    hand(c.batch, [35])
+    c.batch.start_environments(ids([0]))
+    for choice in (1, 0, 21):
+        step(c.batch, [choice])
+    base = FullGameObservationEncoder(c).encode()
+    expanded = FullGameObservationEncoder(c, ATTACK_HISTORY_OBSERVATION_ID).encode()
+    assert expanded.global_features[:, len(GLOBAL_FIELDS) :].any()
+    previous = torch.linspace(-0.5, 0.5, original.architecture.hidden_size)[None, :]
+    with torch.no_grad():
+        before = original(full_game_policy_inputs(base), previous)
+        after = migrated(full_game_policy_inputs(expanded), previous)
+    assert all(torch.equal(a, b) for a, b in zip(before, after, strict=True))
+
+
+def test_cli_trains_and_resumes_transferred_history_policy(
+    trained_candidate, tmp_path, monkeypatch
+):
+    _, source, original, directory = trained_candidate
+    parent_bytes = (directory / "manifest.json").read_bytes()
+    monkeypatch.setattr("godfield_bot.cli.configure_logging", lambda **_: None)
+    result = CliRunner().invoke(
+        app,
+        [
+            "simulation",
+            "full-game-train",
+            "--attack-history",
+            "--initialize-from",
+            str(directory),
+            "--updates",
+            "1",
+            "--batch-size",
+            "2",
+            "--players",
+            "4",
+            "--teams",
+            "1,1,2,2",
+            "--seed",
+            "302",
+            "--checkpoint-root",
+            str(tmp_path),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    child = Path(json.loads(result.stdout)["checkpoint"])
+    manifest, policy = load_full_game_candidate(child)
+    initialization = manifest.training.initialization
+    assert initialization is not None
+    assert initialization.source_policy_sha256 == source.final_policy_sha256
+    assert initialization.initialized_policy_sha256 == full_game_policy_sha256(
+        transfer_full_game_attack_history(original)
+    )
+    assert policy.history_encoder is not None and torch.count_nonzero(policy.history_encoder.weight)
+    resumed = resume_full_game_training(child, **PATHS, additional_updates=1)
+    continuous = run_full_game_training(
+        **PATHS, config=resumed.report.config, initialize_from=directory
+    )
+    assert resumed.report == continuous.report
+    assert (directory / "manifest.json").read_bytes() == parent_bytes
+    with pytest.raises(ValueError, match="held-out"):
+        evaluate_full_game_candidate(
+            child,
+            **PATHS,
+            seed=source.config.seed,
+            games_per_faction=1,
+            baseline_directory=directory,
+        )
+    with pytest.raises(ValueError, match="explicit --baseline"):
+        evaluate_full_game_candidate(child, **PATHS, seed=303000, games_per_faction=1)
+    evaluated = evaluate_full_game_candidate(
+        child, **PATHS, seed=303000, games_per_faction=1, baseline_directory=directory
+    )
+    assert evaluated.baseline_policy_sha256 == source.final_policy_sha256
+    assert not evaluated.promotion_eligible
 
 
 def test_frozen_evaluation_accepts_an_earlier_checkpoint(trained_candidate, resumable_candidate):

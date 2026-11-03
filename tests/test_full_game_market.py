@@ -212,6 +212,7 @@ def test_sell_reflections_preserve_one_escrow_and_pay_current_source(mirror_coun
     b.start_environments(ids([0]))
     sell(b)
     assert b.market_escrow_snapshot()[0, 2] == 190
+    assert not b.attack_history_observations().any()
     for _ in range(mirror_count):
         step(b, 1)
         step(b, 0)

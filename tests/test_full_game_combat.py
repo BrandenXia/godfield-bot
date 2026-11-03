@@ -92,6 +92,7 @@ def state(batch):
         batch.player_observations(),
         batch.choice_masks(),
         batch.pending_observations(),
+        batch.attack_history_observations(),
         batch.selected_defenses(),
         (
             batch.action_count,
@@ -124,6 +125,67 @@ def begin(batch, model=35, *, armor=(), target=1, capacity=8):
     if batch.episode_snapshot()[0, 3] == 2:
         step(batch, [0])  # Source-pinned factory has explicit attack confirmation.
     step(batch, [capacity + 1 + target])
+
+
+def test_attack_history_follows_participants_and_excludes_private_selection():
+    batch = game(size=2)
+    for env in range(2):
+        seed(batch, [(1, 35, 0, 0)], env=env)
+        seed(batch, [(2, 119 + env, 113, 0)], env=env, owner=1)
+    batch.start_environments(ids([0, 1]))
+    step(batch, [1, 1])
+    assert not batch.attack_history_observations().any()
+    before = state(batch)
+    with pytest.raises(ValueError, match="unavailable"):
+        step(batch, [10, 0])  # Row 0 stages a reveal before row 1 fails.
+    same(batch, before)
+    step(batch, [10, 10])
+    history = batch.attack_history_observations()
+    assert history.shape == (2, 8, 8) and not history.flags.writeable
+    assert history[:, -1].tolist() == [[1, 0, 1, 10, 0, 0, 100, 0]] * 2
+    assert not history[:, :-1].any()
+    step(batch, [1, 1])
+    np.testing.assert_array_equal(batch.attack_history_observations(), history)
+    step(batch, [1, 1])
+    step(batch, [0, 0])  # Defender's own turn retains its view of the attack.
+    np.testing.assert_array_equal(batch.attack_history_observations(), history)
+    step(batch, [0, 0])
+    assert not batch.attack_history_observations().any()  # Uninvolved seat.
+    step(batch, [0, 0])
+    np.testing.assert_array_equal(batch.attack_history_observations(), history)
+    batch.reset_environments(ids([0]))
+    assert not batch.attack_history_observations()[0].any()
+    np.testing.assert_array_equal(batch.attack_history_observations()[1], history[1])
+    assert history[0, -1, 0] == 1  # Previously read arrays own their storage.
+
+
+def test_attack_history_keeps_incoming_view_under_fog_without_revealing_source_target():
+    batch = game(players=2)
+    load(batch, mask=1)
+    load(batch, owner=1, mask=1)
+    begin(batch)
+    assert batch.attack_history_observations()[0, -1].tolist() == [1, 0, 1, 10, 0, 0, 100, 0]
+    step(batch, [0])
+    step(batch, [0])
+    assert batch.episode_snapshot()[0, 2] == 0
+    assert not batch.attack_history_observations().any()
+
+
+def test_attack_history_wraps_at_eight_and_uses_completed_turn_order():
+    attacks = [
+        (35, 1, 0, 0, 0) if row[0] == 35 else row
+        for row in PLAN.combat.attack_profiles
+        if row[1] > 0
+    ]
+    batch = game(players=2, capacity=10, attacks=attacks)
+    seed(batch, [(i + 1, 35, 0, 0) for i in range(9)])
+    batch.start_environments(ids([0]))
+    for _ in range(9):
+        for choice in (1, 12, 0, 0):
+            step(batch, [choice])
+    history = batch.attack_history_observations()[0]
+    assert history[:, 0].tolist() == [1] * 8
+    assert history[:, 7].tolist() == list(range(2, 18, 2))
 
 
 @pytest.mark.parametrize("profile", [row for row in PLAN.combat.attack_profiles if row[1] > 0])

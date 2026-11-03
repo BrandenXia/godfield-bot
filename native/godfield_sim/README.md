@@ -1,7 +1,7 @@
 # godfield-sim
 
 This optional native package contains the batched C++20 curriculum simulator.
-The separate full-game development engine is now native0.83.0/schema33. Its
+The separate full-game development engine is now native 0.84.0/kernel 33. Its
 source factory defaults to99 HP/MP/CP, with an explicit legacy100 option;
 raw native fixtures retain100 by default. This does not change existing arenas
 or make full-game training/live promotion ready. See
@@ -59,6 +59,10 @@ The separate Python public encoder/recurrent controller now supports the18-slot,
 players. It reads reviewed public views only and does not change native schema33
 or old checkpoints. Complete episodic learning remains unfinished. See
 [ADR 0139](../../docs/architecture/0139-public-full-game-encoding-and-transactional-seat-memory.md).
+Native attack history schema 1 adds `attack_history_observations()` as an
+owned read-only copy of the current seat's last eight announced attacks.
+[ADR 0144](../../docs/architecture/0144-native-attack-announcement-history.md)
+describes visibility, event fields and transaction handling.
 It is built and installed from the repository root with:
 
 ```console

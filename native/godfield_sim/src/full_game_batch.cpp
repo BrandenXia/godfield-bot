@@ -89,7 +89,7 @@ FullGameBatch::FullGameBatch(
       inventory_(batch_size_, player_count, inventory_profiles, capacity),
       families_(batch_size_), selected_(batch_size_ * capacity, 0),
       resources_(batch_size_ * player_count, Resources{initial_mp, initial_cp}),
-      episodes_(batch_size_) {
+      episodes_(batch_size_), attack_histories_(batch_size_ * player_count) {
   resource_cap_ = resource_cap;
   resolve_hidden_targeting_ = resolve_hidden_targeting;
   resolve_hidden_trades_ = resolve_hidden_trades;
@@ -2283,6 +2283,7 @@ void FullGameBatch::resume_family(Mutation &mutation) const {
       episode.counter_kind = shot.counter_kind;
       episode.counter_damage_basis = shot.damage_basis;
       episode.redirects = 0;
+      mutation.opened_attack_response = true;
       return;
     }
     // A receipt can consume a Sun and owe another receipt. Process those waves
@@ -3020,7 +3021,8 @@ FullGameBatch::Mutation FullGameBatch::prepare(FullGameCommandInput commands,
         // resurrect it. The redirect use still consumes its normal receipt.
         complete_attack(mutation, 0);
         resume_family(mutation);
-      }
+      } else
+        mutation.opened_attack_response = true;
       advance_decision(mutation, choice);
       return mutation; // Fresh response; no owner tick or gifts between hops.
     }
@@ -3262,6 +3264,30 @@ void FullGameBatch::step(FullGameCommandInput commands) {
 }
 
 void FullGameBatch::commit(Mutation &mutation) noexcept {
+  const auto &episode = mutation.episode;
+  if (mutation.opened_attack_response && episode.phase == 4 &&
+      episode.active_family_kind != 7) {
+    const AttackAnnouncement event{1,
+                                   episode.damage_source,
+                                   episode.target,
+                                   episode.attack,
+                                   episode.element,
+                                   episode.origin,
+                                   episode.hit_rate,
+                                   episode.turns};
+    const auto first = mutation.environment * player_count_;
+    const auto append = [this, first, &event](std::size_t viewer) {
+      auto &history = attack_histories_[first + viewer];
+      history.entries[history.next] = event;
+      history.next = (history.next + 1) % kAttackHistoryLength;
+    };
+    const auto target = static_cast<std::size_t>(episode.target);
+    const auto source = static_cast<std::size_t>(episode.damage_source);
+    append(target); // The response view already reveals the incoming attack.
+    // Participant-only until we have spectator and Fog-source evidence.
+    if (source != target && (mutation.statuses[source][2] & kCurseFogBit) == 0)
+      append(source);
+  }
   for (std::size_t seat = 0; seat < player_count_; ++seat) {
     const auto owner = mutation.environment * player_count_ + seat;
     const auto before = statuses_.states_[owner];
@@ -3381,6 +3407,7 @@ void FullGameBatch::reset_environments(ActionInput environments) {
       statuses_.states_[index] = {statuses_.initial_hp_, 0, 0, 0};
       statuses_.transitions_[index] = {};
       resources_[index] = {initial_mp_, initial_cp_};
+      attack_histories_[index] = {};
       inventory_.sizes_[index] = 0;
       std::fill_n(inventory_.items_.begin() +
                       static_cast<std::ptrdiff_t>(index * capacity_),
@@ -3409,6 +3436,26 @@ Int64_2D FullGameBatch::episode_snapshot() const {
     std::copy(row.begin(), row.end(), buffer.get() + env * 9);
   }
   return owned_array<Int64_2D>(std::move(buffer), {batch_size_, 9});
+}
+
+CurseStateSnapshot FullGameBatch::attack_history_observations() const {
+  constexpr auto columns = AttackAnnouncement{}.size();
+  auto buffer = std::make_unique<std::int64_t[]>(
+      batch_size_ * kAttackHistoryLength * columns);
+  for (std::size_t env = 0; env < batch_size_; ++env) {
+    const auto &episode = episodes_[env];
+    if (episode.phase == 0 || episode.phase >= 12)
+      continue;
+    const auto actor = static_cast<std::size_t>(episode.actor);
+    const auto &history = attack_histories_[env * player_count_ + actor];
+    for (std::size_t i = 0; i < kAttackHistoryLength; ++i) {
+      const auto &entry = history.entries[(history.next + i) % kAttackHistoryLength];
+      std::copy(entry.begin(), entry.end(),
+                buffer.get() + (env * kAttackHistoryLength + i) * columns);
+    }
+  }
+  return owned_array<CurseStateSnapshot>(
+      std::move(buffer), {batch_size_, kAttackHistoryLength, columns});
 }
 
 CurseStateSnapshot FullGameBatch::diagnostic_players() const {
@@ -4381,6 +4428,8 @@ void bind_full_game(nb::module_ &module) {
   module.attr("FULL_GAME_COMMAND_SCHEMA_VERSION") =
       kFullGameCommandSchemaVersion;
   module.attr("FULL_GAME_REWARD_SCHEMA_VERSION") = kFullGameRewardSchemaVersion;
+  module.attr("FULL_GAME_ATTACK_HISTORY_SCHEMA_VERSION") =
+      kFullGameAttackHistorySchemaVersion;
   module.attr("FULL_GAME_ATTACK_FAMILY_SCHEMA_VERSION") =
       kFullGameAttackFamilySchemaVersion;
   module.attr("FULL_GAME_OBSERVATION_SCHEMA_VERSION") =
@@ -4538,6 +4587,7 @@ void bind_full_game(nb::module_ &module) {
       .def("market_snapshot", &FullGameBatch::market_snapshot)
       .def("market_escrow_snapshot", &FullGameBatch::market_escrow_snapshot)
       .def("pending_observations", &FullGameBatch::pending_observations)
+      .def("attack_history_observations", &FullGameBatch::attack_history_observations)
       .def("special_defense_observations",
            &FullGameBatch::special_defense_observations)
       .def("chance_observations", &FullGameBatch::chance_observations)

@@ -10,7 +10,11 @@ import torch
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from godfield_bot.full_game import create_development_full_game_batch
-from godfield_bot.full_game_neural import FullGameActorCritic, FullGamePolicyController
+from godfield_bot.full_game_neural import (
+    FullGameActorCritic,
+    FullGamePolicyController,
+    transfer_full_game_attack_history,
+)
 from godfield_bot.full_game_rollout import full_game_policy_sha256
 from godfield_bot.full_game_training import load_full_game_candidate
 
@@ -98,20 +102,25 @@ def evaluate_full_game_candidate(
     exclude = {"batch_size", "seed"}
     environment = training.initial_collection.environment.model_dump(exclude=exclude)
     baseline = None
-    histories = training.updates
+    baseline_source_hash = None
+    used_seeds = training.used_seeds()
     if baseline_directory is not None:
         baseline_manifest, baseline = load_full_game_candidate(baseline_directory)
         baseline_training = baseline_manifest.training
+        baseline_source_hash = baseline_training.final_policy_sha256
+        if candidate.architecture.schema_version == 2 and baseline.architecture.schema_version == 1:
+            baseline = transfer_full_game_attack_history(baseline)
         if (
             baseline.architecture != candidate.architecture
             or baseline_training.initial_collection.environment.model_dump(exclude=exclude)
             != environment
         ):
             raise ValueError("full-game evaluation baseline architecture or ruleset differs")
-        histories += baseline_training.updates
-    used_seeds = {
-        seed for update in histories for seed in (update.environment_seed, update.sampling_seed)
-    }
+        used_seeds.update(baseline_training.used_seeds())
+    elif training.initialization is not None:
+        raise ValueError(
+            "full-game transferred candidate requires an explicit --baseline checkpoint"
+        )
     if used_seeds.intersection((seed, seed + 1)):
         raise ValueError("full-game frozen evaluation requires held-out seeds")
     teams = config.teams or (0,) * config.player_count
@@ -200,7 +209,7 @@ def evaluate_full_game_candidate(
             else "held-out-native-each-faction-vs-initial-policy-v1"
         ),
         candidate_policy_sha256=candidate_hash,
-        baseline_policy_sha256=baseline_hash,
+        baseline_policy_sha256=baseline_source_hash or baseline_hash,
         training_environment_sha256=training.initial_collection.encoder.environment_metadata_sha256,
         environment_seed=seed,
         sampling_seed=seed + 1,

@@ -230,6 +230,7 @@ def test_multiple_reflections_transfer_current_source_and_tick_original_owner_on
         step(batch, [choice])
     assert batch.special_defense_observations()[0].tolist() == [1, 0, 2, 0, 0]
     assert batch.pending_observations()[0, :6].tolist() == [1, 0, 1, 10, 0, 0]
+    assert batch.attack_history_observations()[0, -3:, 1:3].tolist() == [[0, 1], [1, 0], [0, 1]]
     assert batch.diagnostic_players()[0, :, 0].tolist() == [40, 40, 40]
     assert batch.automatic_gift_count == 0
     step(batch, [0])

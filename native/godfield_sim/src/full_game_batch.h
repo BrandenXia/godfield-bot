@@ -17,6 +17,7 @@ inline constexpr std::uint32_t kFullGameMaxTradeActions = 64;
 inline constexpr std::uint32_t kFullGameAttackFamilySchemaVersion = 8;
 inline constexpr std::uint32_t kFullGameCommandSchemaVersion = 1;
 inline constexpr std::uint32_t kFullGameRewardSchemaVersion = 1;
+inline constexpr std::uint32_t kFullGameAttackHistorySchemaVersion = 1;
 inline constexpr std::uint32_t kFullGameMaxDefenseActions = 64;
 inline constexpr std::uint32_t kFullGameMaxAttackActions = 64;
 inline constexpr std::uint32_t kFullGameMaxDiscardActions = 64;
@@ -145,6 +146,7 @@ public:
   [[nodiscard]] CurseStateSnapshot player_observations() const;
   [[nodiscard]] Bool2D choice_masks() const;
   [[nodiscard]] Int64_2D pending_observations() const;
+  [[nodiscard]] CurseStateSnapshot attack_history_observations() const;
   [[nodiscard]] Int64_2D special_defense_observations() const;
   [[nodiscard]] Int64_2D chance_observations() const;
   [[nodiscard]] Int64_2D chance_snapshot() const;
@@ -379,6 +381,14 @@ public:
   }
 
 private:
+  static constexpr std::size_t kAttackHistoryLength = 8;
+  // Present, source, target, ATK, element, origin, hit rate, completed turns.
+  using AttackAnnouncement = std::array<std::int64_t, 8>;
+  struct AttackHistory {
+    std::array<AttackAnnouncement, kAttackHistoryLength> entries{};
+    std::size_t next = 0;
+  };
+
   // setup=0, ready=1, attack-selection=2, target=3, defense=4, trade=6,
   // discard=7, terminal=12, truncated=13.
   struct Episode {
@@ -615,6 +625,7 @@ private:
     std::uint64_t utility_hp_damage = 0;
     bool attack_cast = false;
     bool attack_resolved = false;
+    bool opened_attack_response = false;
     bool defense_toggle = false;
     std::uint64_t damage = 0;
     std::uint64_t gifts = 0;
@@ -864,6 +875,7 @@ private:
   std::vector<std::uint8_t> selected_;
   std::vector<Resources> resources_;
   std::vector<Episode> episodes_;
+  std::vector<AttackHistory> attack_histories_;
   std::uint64_t revivals_ = 0, revived_hp_ = 0;
   std::uint64_t removals_resolved_ = 0;
   std::uint64_t actions_ = 0;

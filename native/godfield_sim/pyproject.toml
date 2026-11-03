@@ -7,7 +7,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "godfield-sim"
-version = "0.56.0"
+version = "0.80.0"
 description = "Native batched curriculum simulator for the God Field bot"
 requires-python = ">=3.12,<3.14"
 dependencies = [
@@ -18,3 +18,15 @@ dependencies = [
 cmake.build-type = "Release"
 minimum-version = "build-system.requires"
 wheel.packages = ["src/godfield_sim"]
+
+[tool.uv]
+# Native sources, bindings and build configuration must invalidate a local wheel.
+cache-keys = [
+  { file = "pyproject.toml" },
+  { file = "CMakeLists.txt" },
+  { file = "src/**/*.cpp" },
+  { file = "src/**/*.h" },
+  { file = "src/godfield_sim/*.py" },
+  { file = "src/godfield_sim/*.pyi" },
+  { file = "src/godfield_sim/py.typed" },
+]

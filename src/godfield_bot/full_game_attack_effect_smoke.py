@@ -18,11 +18,12 @@ ATTACK_EFFECT_SHA256: Final = "643e097f239903060e7b022a5367467c03199de895fd4439c
 
 class FullGameAttackEffectSmokeReport(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    schema_version: Literal[1] = 1
-    source_kind: Literal["integrated-development-one-turn-attack-effect-smoke-v1"] = (
-        "integrated-development-one-turn-attack-effect-smoke-v1"
+    resource_cap: Literal[100] = 100
+    schema_version: Literal[18] = 18
+    source_kind: Literal["integrated-development-one-turn-attack-effect-smoke-v4"] = (
+        "integrated-development-one-turn-attack-effect-smoke-v4"
     )
-    ruleset_id: Literal["integrated-full-game-development-v7"] = FULL_GAME_RULESET_ID
+    ruleset_id: Literal["integrated-full-game-development-v31"] = FULL_GAME_RULESET_ID
     scenario: Literal["one-effect-per-environment-cloud-forced-hits-forgiven-not-full-matches"] = (
         "one-effect-per-environment-cloud-forced-hits-forgiven-not-full-matches"
     )
@@ -110,6 +111,7 @@ def run_full_game_attack_effect_smoke(
     if type(batch_size) is not int or not 1 <= batch_size <= 4096:
         raise ValueError("attack effect smoke batch size must be 1 through 4096")
     configured = create_development_full_game_batch(
+        resource_cap=100,
         catalog_path=catalog_path,
         bible_path=bible_path,
         batch_size=batch_size,

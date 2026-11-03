@@ -61,7 +61,7 @@ def game(
             if attacks is None
             else attacks
         ),
-        ids(PLAN.combat.armor_profiles if armor is None else armor),
+        ids([row for row in PLAN.combat.armor_profiles if row[1] > 0] if armor is None else armor),
     )
 
 
@@ -171,7 +171,7 @@ def test_all_attack_values_join_costs_inventory_and_turns_in_fixed_arithmetic_fi
     assert not np.any(batch.pending_observations())
 
 
-@pytest.mark.parametrize("profile", PLAN.combat.armor_profiles)
+@pytest.mark.parametrize("profile", [row for row in PLAN.combat.armor_profiles if row[1] > 0])
 def test_all_ordinary_armor_consumes_only_confirmed_owned_cards(profile):
     model, defense, _, _, _ = profile
     batch = game()
@@ -455,7 +455,7 @@ def test_mixed_phase_batch_rejection_preserves_all_owners_selection_ticks_and_rn
 
 def test_reset_pending_selection_views_copy_and_command_protocol_parity():
     configured = create_development_full_game_batch(
-        catalog_path=CATALOG, bible_path=BIBLE, batch_size=1, capacity=8
+        resource_cap=100, catalog_path=CATALOG, bible_path=BIBLE, batch_size=1, capacity=8
     )
     batch = configured.batch
     begin(batch, armor=(113,))
@@ -498,7 +498,7 @@ def test_reset_pending_selection_views_copy_and_command_protocol_parity():
 )
 def test_combat_plan_cannot_forge_profile_coverage_or_fidelity(change):
     assert PLAN.combat.profile_sha256 == FULL_GAME_COMBAT_SHA256
-    assert PLAN.integrated_artifact_effect_count == 195
+    assert PLAN.integrated_artifact_effect_count == 237
     with pytest.raises(ValidationError):
         FullGameCombatPlan.model_validate({**PLAN.combat.model_dump(), **change})
 
@@ -629,7 +629,7 @@ def test_combat_probe_cli_has_explicit_offline_scope(monkeypatch):
     result = CliRunner().invoke(app, ["simulation", "full-game-combat-smoke", "--batch-size", "4"])
     assert result.exit_code == 0, result.output
     report = json.loads(result.output)
-    assert report["ruleset_id"] == "integrated-full-game-development-v7"
+    assert report["ruleset_id"] == "integrated-full-game-development-v31"
     assert report["winners"] > 0 and report["attacks_resolved"] > 0
     assert not report["local_training_eligible"] and not report["promotion_eligible"]
 

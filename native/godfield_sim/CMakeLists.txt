@@ -22,6 +22,12 @@ nanobind_add_module(
   src/curse_decisions.cpp
   src/dream_inventory_batch.cpp
   src/full_game_batch.cpp
+  src/full_game_events.cpp
+  src/full_game_trade.cpp
+  src/full_game_effects.cpp
+  src/full_game_composition.cpp
+  src/full_game_ineffective.cpp
+  src/full_game_generated.cpp
 )
 target_compile_features(_native PRIVATE cxx_std_20)
 

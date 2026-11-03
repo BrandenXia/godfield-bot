@@ -18,11 +18,12 @@ Positive = Annotated[int, Field(ge=1, strict=True)]
 
 class FullGameAcquisitionSmokeReport(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    schema_version: Literal[5] = 5
-    source_kind: Literal["integrated-development-all-held-acquisition-smoke-v5"] = (
-        "integrated-development-all-held-acquisition-smoke-v5"
+    resource_cap: Literal[100] = 100
+    schema_version: Literal[22] = 22
+    source_kind: Literal["integrated-development-all-held-acquisition-smoke-v8"] = (
+        "integrated-development-all-held-acquisition-smoke-v8"
     )
-    ruleset_id: Literal["integrated-full-game-development-v7"] = FULL_GAME_RULESET_ID
+    ruleset_id: Literal["integrated-full-game-development-v31"] = FULL_GAME_RULESET_ID
     scenario: Literal["native-nine-per-seat-complete-pool-startup-not-gameplay"] = (
         "native-nine-per-seat-complete-pool-startup-not-gameplay"
     )
@@ -38,8 +39,8 @@ class FullGameAcquisitionSmokeReport(BaseModel):
     local_hand_limit: Literal[18] = 18
     overflow_policy: Literal["oldest-held-provisional"] = "oldest-held-provisional"
     giftable_models: Literal[237] = 237
-    integrated_effect_models: Literal[195] = 195
-    giftable_without_integrated_effect: Literal[42] = 42
+    integrated_effect_models: Literal[237] = 237
+    giftable_without_integrated_effect: Literal[0] = 0
     total_weight: Literal[500] = 500
     model_distribution: tuple[tuple[Positive, Positive, Count], ...]
     observed_model_count: int = Field(ge=1, le=237, strict=True)
@@ -87,6 +88,7 @@ def run_full_game_acquisition_smoke(
     if type(batch_size) is not int or not 1 <= batch_size <= 4096:
         raise ValueError("acquisition smoke batch size must be 1 through 4096")
     configured = create_development_full_game_batch(
+        resource_cap=100,
         catalog_path=catalog_path,
         bible_path=bible_path,
         batch_size=batch_size,
@@ -104,12 +106,24 @@ def run_full_game_acquisition_smoke(
     histogram = {int(model): int(count) for model, count in zip(model_ids, counts, strict=True)}
     supported = (
         {row[0] for row in plan.effect_profiles}
+        | {row[0] for row in plan.passives.profiles}
+        | {row[0] for row in plan.removal.profiles}
         | {row[0] for row in plan.combat.attack_profiles}
         | {row[0] for row in plan.combat.armor_profiles}
         | {row[0] for row in plan.combat.boost_profiles}
         | {row[0] for row in plan.combat.special_profiles}
     )
-    if len(supported) != 195 or not histogram.keys() <= dict(plan.gifts.model_weights).keys():
+    supported.update(model for model, *_ in plan.costs.profiles)
+    supported.update(model for model, *_ in plan.weapons.profiles)
+    supported.update(model for model, *_ in plan.dream_defense.profiles)
+    supported.update(model for model, *_ in plan.danger.profiles)
+    supported.update(model for model, *_ in plan.attack_family.profiles)
+    supported.update(model for model, *_ in plan.area.profiles)
+    supported.update(model for model, *_ in plan.guardians.summon_profiles)
+    supported.update(plan.phenomena.fate_model_ids)
+    supported.update(plan.trade.exchange_model_ids)
+    supported.update((4, 5))
+    if len(supported) != 237 or not histogram.keys() <= dict(plan.gifts.model_weights).keys():
         raise RuntimeError("acquisition smoke native inventory or integrated effect scope differs")
     digest = hashlib.sha256()
     for view in (

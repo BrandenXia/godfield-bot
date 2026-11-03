@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-10-18T00:26:06Z",
+  "source_url": "https://godfield.net/i18n/en.json",
+  "language": "en",
+  "snapshot_file": "i18n-en.json",
+  "body_sha256_excluding_archive_newline": "bb1b433ba6d336765589aec940cca0bac8b7c0bdcee33969c207a17365509188",
+  "catalog_model_count": 296,
+  "catalog_content_sha256": "df182c8a230876886f50ac83a79cf6aa7b737eec7b76279737e4cf6a1dcb6249",
+  "same_catalog_as": "../2026-10-01/api-catalog-en.json",
+  "removal_ability_notes_sha256": "aea0050ccb9c39ad3bde328857d8ed6c14011e33851e97bb7b660c5750941070",
+  "client_url": "https://godfield.net/main.dart.js",
+  "current_client_sha256": "764a50524e4b6b3f510415da7128abd8ad99dcb87b45b8572d98ddd96889cabd",
+  "client_verified_at": "2026-10-18T00:37:09Z",
+  "same_client_as": "../2026-09-28/official-client.js",
+  "freshness_scope": "public-English-catalog-translations-and-client-bytes-not-server-behavior-validation",
+  "official_sacrifice_cardinality_and_timing_verified": false,
+  "official_apocalypse_threshold_verified": false,
+  "promotion_eligible": false
+}

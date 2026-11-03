@@ -1619,26 +1619,31 @@ complete policy observation or a full-game turn engine; no current checkpoint
 or live control is switched to them. See
 [ADR 0099](docs/architecture/0099-shared-fog-flash-darkcloud-decisions.md).
 
-The approved **separate full-game development engine** is now native 0.56.0,
-`integrated-full-game-development-v7`. It joins authoritative inventory,
+The approved **separate full-game development engine** is now native 0.80.0,
+`integrated-full-game-development-v31`. It joins authoritative inventory,
 HP/MP/CP, disease/cures, ordered attack composition, targets/chained defenses and
 opt-in native acquisition. All 237 held models have pinned draw weights
-totaling 500, but only 195 card models execute in this engine. Attack additions
+totaling 500, and all 237 held-card abilities now have joined routes in this engine.
+That is not full-game fidelity: unobserved combinations, hidden cross-role
+resolution, complete event/virtual commands and learning interfaces remain gated. Attack additions
 include twenty-one weapons, four dual-role Ogre armor, Strength Powder, Fireball,
-Meteor and Aura. Selection order controls doubling and element setting, and
+Meteor, Aura and Mirage. Selection order controls doubling and element setting, and
 positive Darkness damage correctly finishes the target. Its local
 nine-card deals, per-use receipts (including miracle reuse), Prayer timing and
 automatic oldest-held eviction at an 18-card cap are explicitly provisional.
 The cap and eviction rule are not established official server behavior.
 Twenty-three special defenses now block, reflect or bounce; numeric armor and
-special choices are exclusive. Wall/Turbulence pay MP and remain reusable.
+special choices are exclusive after an optional Rainbow Curtain filter prefix.
+Wall/Turbulence have MP costs and remain reusable; adjacent reducers can waive
+those costs.
 Reflections target the current source; bounce samples living seats including
 self from a separate native stream. Chained responses preserve the original
 turn owner and stop on resolution or explicit decision-limit truncation, not
 an invented one-hop rule. General chain timing/source/sampling remains provisional.
-Seventeen chance weapons and seven chance miracles now resolve on native
-confirmation. The saved client disallows additions and player-chosen targets
-for chance cards. A living enemy is selected before rolling using a separate
+Eighteen chance weapons (including Ascension Bow's base cast) and seven chance miracles resolve on native
+confirmation. The saved client disallows attack-stat additions and player-chosen
+targets for chance cards; a miracle may still be followed by a cost reducer.
+A living enemy is selected before rolling using a separate
 provisional stream; a target's Dark Cloud guarantees the hit without consuming
 a roll ticket. Misses still use the card/pay MP, tick the
 original owner once, and skip defense. Chance hits do not reroll during
@@ -1648,6 +1653,203 @@ zero-ATK direct curse miracles. Healing follows the current source after
 reflection and is capped; direct curses admit special defenses, not numeric
 armor. Infliction affects the final living target; Dream alters new receipts,
 not existing disguises. General compound timing remains explicitly provisional.
+
+All eight counter rings now enter bounded native response families. They use
+actual positive HP loss, resolve in defense click order with nested counters
+first, and defer the original owner's single tick and all replacement gifts.
+Counter payloads retain armor origin, so only Super Mirror can reflect them;
+Mars uses a separate hit stream and target Dark Cloud skips its ticket.
+Neptune supplies twice the damage as MP to its owner. Venus shares the pinned
+client's CP → MP → HP payment arithmetic with future economy integration;
+crediting the requested amount up to the local 100 cap remains provisional.
+Rainbow Curtain clears the incoming element before defense and Darkness
+finishing; undo rebuilds and prunes incompatible selections. Fever Mask applies
+its self-illness after incoming effects, without ticking the defender.
+Seven ordinary ATK/DEF weapons now execute both roles.
+
+Treasure has a base cost of 5 MP and grants up to 10 CP through a shared
+capped-credit helper, also used by Venus Ring. The miracle remains reusable,
+is marked performed and moves to the hand's tail; each use completes the
+original owner's turn. CP below 100 determines displayed reservation availability;
+confirmation requires the displayed net MP cost after any adjacent waiver.
+Actual identity resolves the resource and cost. CP caps, self-targeting and
+compound timing remain explicitly provisional. No CP use charge is inferred
+from catalog price. Exchange, Sell and Buy are now joined below.
+
+Spiritual Staff, Socks, Hood, Sash and Doll now waive the cost of the
+**immediately preceding miracle**, in utility, attack and defense selections.
+They do not add attack strength or an attack element when attached; Wall and
+Turbulence retain their exclusive special response. Staff still supplies ATK12
+when used alone, and the three armor cards retain their standalone DEF6/9/12.
+All utility uses now reserve a displayed card, optionally select a reducer,
+then confirm; reservation alone never spends, consumes, ticks or grants a
+benefit. Unaffordable miracles may be reserved, but cannot be confirmed without
+covering their net cost. At the selection limit, unaffordable attacks/utilities
+can cancel and defenses can undo, so the policy never receives an empty legal
+mask. Existing arenas, checkpoints and live controls are unchanged.
+
+To check all five reducers across zero-MP utility, attack and special-defense
+turns offline:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
+  godfield-bot simulation full-game-cost-smoke \
+  --batch-size 600 --players 3 --seed 67
+```
+
+This completes 600 scripted **turns**, not full matches or training: 600 waivers
+save 3,200 MP, actual spending is zero, and 2,800 commands resolve 200 cases of
+each action family. It does not validate official compound timing. See
+[ADR 0114](docs/architecture/0114-native-adjacent-miracle-cost-waivers.md).
+
+Magical Stick now scales from MP **after** net selected miracle costs, applies
+later boosters in click order, then consumes all the user's MP. Evil Broadsword
+applies same-damage recoil only while the final target survives; Saw Boom Boom
+opens two independent defenses rather than approximating one ATK6 hit. Each
+strike uses the original composed payload and target, with queued counters
+resolved before the next strike. Costs and attack cards are used once, not
+once per strike. Recoil after redirects/revival, double-attack compound timing,
+and deferring gifts and the single owner tick until the family ends remain
+explicitly provisional. No existing learning checkpoint or live policy changes.
+
+To check these complex weapon turns offline:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
+  godfield-bot simulation full-game-weapon-smoke \
+  --batch-size 720 --players 3 --seed 67
+```
+
+This completes 720 scripted **turns**, not full matches or training: 1,200 MP
+spent, 1,440 recoil HP lost, 540 double-attack strikes resolved and 60 second
+strikes suppressed. It also checks 60 reflections and 60 counter responses.
+See [ADR 0115](docs/architecture/0115-native-complex-weapons-and-repeated-defenses.md).
+
+Heaven Herb now consumes its owned instance, gains up to 20 MP, then inflicts
+Heaven (or worsens an existing illness) before the original owner's final tick.
+Thump-thump Tear samples either HP+10 or 10 self-damage from a dedicated native
+stream. Both remain legal at full resources because their status/risk component
+still matters. Lethal effects use the shared owned Sun Amulet hook before
+ending checks. The Tear's local 50/50 distribution, compound timing and cap100
+remain explicitly provisional, not official validation. Utility damage is
+tracked separately from incoming attack damage.
+
+To check these compound utility turns offline:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
+  godfield-bot simulation full-game-compound-utility-smoke \
+  --batch-size 768 --players 3 --seed 67
+```
+
+This completes 768 scripted **turns**, not full matches or training: 512 Herb
+uses grant 8,000 MP, 256 Tear uses produce 123 healing and 133 damage outcomes,
+and 96 Amulets revive their owners. No learning checkpoint or live policy changes.
+See [ADR 0116](docs/architecture/0116-native-compound-utility-effects.md).
+
+Dangerous Pestle now chooses a living player, including its owner, inside the
+native cast; the requested target and Fog do not control that choice. Initial
+self-hits resolve without a defense phase. Other targets use normal Light
+defense, filters, reflections and counters. General ordered boosters and
+adjacent miracle waivers apply; ordinary casts sample one target, while the
+provisional Mirage combination reroutes each generated shot independently.
+An actual living Dangerous Mortar holder takes priority, consumes one real
+owned copy and loses up to 99 HP without opening a response. Uniform owner
+sampling, Mortar timing/direct damage and broader composition are explicitly
+provisional; they are not verified official multiplayer behavior. Owned Sun
+Amulets resolve before endings, and all family uses defer gifts and the one
+original-owner tick. Neither passive is a manual ready-phase action.
+
+To reproduce the bounded targeting probe offline:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
+  godfield-bot simulation full-game-danger-smoke \
+  --batch-size 512 --players 3 --seed 67
+```
+
+This completes 512 scripted **turns**, not full matches or training: 128 random
+target draws, 384 Mortar attractions, 145 revivals and 1,631 commands, with no
+extra owner ticks or limit truncations. Earth/Moon workflows and
+the complete learning interface still remain; live promotion is blocked. See
+[ADR 0117](docs/architecture/0117-native-pestle-mortar-targeting.md).
+
+To check fresh, capped, full-wallet, unaffordable, reused and disguised utility
+turns offline:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
+  godfield-bot simulation full-game-economy-smoke \
+  --batch-size 700 --players 3 --seed 67
+```
+
+This completes 700 scripted turns through 1,200 commands, not full matches or
+training: 400 actual Treasure uses credit 2,500 CP, 100 disguised Spring uses
+grant HP, and 200
+unavailable Treasure cases pass. Exact MP spending is 2,700; no full-game
+fidelity or strength is claimed. See
+[ADR 0113](docs/architecture/0113-native-treasure-and-shared-wallet-credit.md).
+
+Sun Amulet now automatically consumes a real owned copy when a living player's
+HP reaches zero, restoring 10 HP. It is **not** a manual action for reviving
+an eliminated player. Attack/Darkness damage, illness infliction, CP-payment
+spillover, periodic illness, Heaven worsening and direct utility self-damage
+all use the same staged hook.
+It retains other state and resolves before counter liveness and outcome checks.
+First-held selection, compound timing, retained statuses and deferred replacement
+gifts remain explicitly provisional; dealing an Amulet to an already dead seat
+does not revive it. The new actor projection uses displayed identities only.
+
+To check these five death sources offline:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
+  godfield-bot simulation full-game-revival-smoke \
+  --batch-size 500 --players 3 --seed 67
+```
+
+This completes 500 scripted **turns**, not full matches or learning: 405
+revivals supply 4,050 HP, including five native Heaven-worsening tickets. No
+ticket is forced and no official revival event is claimed. See
+[ADR 0111](docs/architecture/0111-native-passive-sun-amulet-lifecycle.md).
+
+Broom and Soap now join the target/defense scheduler as standalone sundries,
+not weapons or miracles: only Super Mirror can redirect them. Broom excludes
+performed miracles and provisionally includes other held cards, including
+trade cards; Soap removes only performed miracles. Native sampling uses actual
+owned identities without replacement, preserves survivor order and used/fake
+flags, and finishes normally on empty or short pools. Sampling, trade-card
+eligibility, short-pool behavior and receipt timing remain unverified. Removed
+victims receive no invented replacement gifts; the used sundry has its usual
+provisional deferred receipt. Their listed $10 is a price, not a use charge.
+
+To check removal offline:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
+  godfield-bot simulation full-game-removal-smoke \
+  --batch-size 600 --players 3 --seed 67
+```
+
+This completes 600 scripted **turns**, not matches or official validation:
+700 removed cards, 600 consumed sundries, 200 empty-pool resolutions and one
+original-owner tick per turn. No victim identities are learner choices. The
+captured Broom trace remains narrowly admitted and Soap still has no official
+event. See [ADR 0112](docs/architecture/0112-native-joined-broom-soap-removal.md).
+
+To check counter accounting offline:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
+  godfield-bot simulation full-game-counter-smoke \
+  --batch-size 512 --players 3 --seed 67
+```
+
+This checks 512 scripted **counter families**, not full matches: each ring
+receives 64 cases, Mars hits are deliberately forced, and all counters are
+forgiven. It reports one original-owner tick per family, no leftover queue,
+1,280 MP gained and 640 CP credited. It is not a training or promotion gate.
+See [ADR 0109](docs/architecture/0109-native-counter-families-and-payment-waterfall.md).
 
 To check these effects offline:
 
@@ -1673,8 +1875,10 @@ UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
 
 This makes one chance cast per environment, then forgives successful attacks.
 The default cycles all 24 models and yields 305 hits, 199 misses and 504
-completed **turns**, not full games or learning evidence. Ascension remains
-unsupported. [ADR 0107](docs/architecture/0107-native-chance-attacks-and-automatic-targets.md)
+completed **turns**, not full games or learning evidence. This historical
+24-model probe does not exercise Ascension Bow. Its base cast and post-death
+family are covered separately by ADR 0119.
+[ADR 0107](docs/architecture/0107-native-chance-attacks-and-automatic-targets.md)
 records the historical v6 probe; ADR 0108 records the v7 correction and evidence.
 
 To check native complete-pool startup draws offline:
@@ -1685,11 +1889,11 @@ UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
   --batch-size 512 --players 9 --seed 67
 ```
 
-This reports 41,472 diagnostic draws, all 237 models observed, 8,634 draws
+This reports 41,472 diagnostic draws, all 237 models observed, 5,091 draws
 without implemented effects and zero starting actors without an implemented
 choice. It runs **zero gameplay commands**; sampling a model does not implement
 its effect. Remaining special combat, utilities, economy, events, guardians,
-removal/revival, teams and complete neural interfaces still require integration.
+other inventory mechanics and passives, teams and complete neural interfaces still require integration.
 Existing training checkpoints and live controls are untouched; full-game
 training and live promotion remain blocked. See
 [ADR 0104](docs/architecture/0104-native-complete-pool-acquisition-and-provisional-overflow.md)
@@ -1700,6 +1904,311 @@ for composition, dual roles, source pins and verification. The updated
 hands offline; its outcomes are loop-liveness evidence, not bot strength.
 See [ADR 0106](docs/architecture/0106-native-special-defenses-and-bounded-redirect-chains.md)
 for special defenses, chain bounds and the unverified-mechanics boundary.
+
+Pre-Apocalypse Discard now supports selecting multiple own held cards, toggling,
+undoing, cancelling and confirming the complete removal once. It preserves
+survivor identities/order and performed-miracle flags, charges no price or MP,
+and generates no replacement receipt for discarded victims. The virtual control
+is not a held artifact; weapons, Sun Amulet and Dangerous Mortar stay protected.
+Displayed identities determine masks; actual eligibility is rechecked atomically
+at confirmation. Compound timing and no-replacement scheduling remain provisional.
+Sacrifice is now joined below, with provisional replacement timing; this does not increase the
+artifact-effect count by itself or make full-game training ready.
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
+  godfield-bot simulation full-game-discard-smoke \
+  --batch-size 512 --players 3 --seed 67
+```
+
+This completes 512 scripted **turns**, not matches or training: 767 discarded
+cards, 85 cancellations, 85 Sun revivals and 170 post-tick Bow responses. There
+are exactly 512 owner ticks and no discard replacement gifts or resource costs.
+See [ADR 0121](docs/architecture/0121-native-multi-card-discard.md).
+
+Dreaming Hat now joins DEF14/Wood, Dream and whole-hand redraw, including
+performed miracles. Fresh weighted models, instance IDs, disguise sampling
+and compound timing remain provisional. It uses displayed identity for legal
+selection and actual identity only at confirmation. See
+[ADR 0118](docs/architecture/0118-native-dreaming-hat-redraw.md).
+
+A shared version-3 attack-family queue now schedules original recipients,
+two-strike follow-ups, nested counters and Ascension Bow's post-death shots.
+Ending checks cannot skip a dead owner's pending Bow; the original owner ticks
+only once. A death during that tick drains its new family without ticking again.
+Owned Sun revival takes precedence. Broader recipient order, duplicate Bow
+behavior and event timing are provisional, not official fidelity claims.
+
+Mirage is an addition to a non-chance weapon, not a standalone miracle. It
+charges 5 MP per selected copy (or an adjacent waiver), preserves composed
+ATK/element, and excludes Fog retargeting. The provisional engine snapshots
+other living seats in ascending order, resolves repeated strikes per recipient,
+and completes nested counters/death shots before later recipients. Duplicate
+Mirages pay/perform each copy but produce one fanout. Later-dead recipients and
+ordinary shots whose source dies are suppressed. Per-shot Pestle/Mortar
+precedence, ordering and compound timing remain unverified. The response view
+does not expose future recipients or private queue length.
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
+  godfield-bot simulation full-game-area-smoke \
+  --batch-size 512 --players 3 --seed 67
+```
+
+This finishes 512 scripted **turns**, not matches or training: 1,196 original
+recipient shots, 85 nested counters, 13,632 original incoming HP loss, and
+exactly 512 owner ticks. See
+[ADR 0120](docs/architecture/0120-native-mirage-and-multi-recipient-families.md).
+Exchange, Sell and Buy are joined below; Earth/Moon now have provisional generated routes.
+Broader event interactions, teams/rewards, hidden-safe
+neural interfaces and complete mixed-episode learning gates are still required. No
+existing arena, checkpoint, live policy or credential is changed.
+
+Guardian Pot and Release now summon one owned guardian per seat, replacing any
+existing guardian. Release retains its miracle and pays 15 MP or an adjacent
+waiver; Guardian Pot's $10 is not a use charge. All ten ownership outcomes are
+preserved. Summon distribution/order remain provisional. Forty standard guardian
+effects—including Diamond Axe's weapon origin—join the shared version-7 queue.
+After an enemy's completed turn, an owned living guardian has the pinned 25%
+activation chance; positive HP debits use the pinned 10% departure chance.
+Compound order, targets, RNG, caps and Fine's shared payment rule are provisional.
+Post-turn reactions finish before gifts/endings without another owner tick or
+recursive guardian triggering. Earth/Moon use the direct-action and virtual-fallback
+paths below; all ten summon outcomes remain sampled. Full-game training and live
+promotion remain blocked.
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
+  godfield-bot simulation full-game-guardian-smoke \
+  --batch-size 4096 --players 3 --seed 67
+```
+
+This completes 4,096 scripted **turns**, not full matches or training: 1,045
+unforced standard activations cover all 40 effects, with 106 Sun revivals and
+exactly 4,096 original-owner ticks. Public guardian views respect Fog and reveal
+no future queue/model/RNG or diagnostic identities. See
+[ADR 0122](docs/architecture/0122-native-guardian-post-turn-lifecycle.md).
+
+All five devils now join the gift lifecycle behind an explicit local
+`apocalypse_after_turns` option (zero/disabled by default). The pinned appearance
+percentages are 7/5/3/5/5 per post-Apocalypse receipt, totaling 25%. Damage is
+automatic, with owned Sun revival, guardian departure and queued Ascension;
+Trickster removes up to two actual nonmiracles/performed miracles, and Charity
+chooses HP/MP/CP. Timing, theft sampling, caps and the configured Apocalypse
+threshold remain provisional. Initial deals never trigger devils. After this
+experimental Apocalypse, the same removal control now performs Sacrifice below.
+Gift waves are iterative and explicitly bounded; no extra owner tick is added.
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
+  godfield-bot simulation full-game-devil-smoke \
+  --batch-size 4096 --players 3 --seed 67
+```
+
+This starts with nine complete-pool weighted cards per seat, scripts one
+affordable public turn, and forgives responses. The default covers all five
+devils through 999 appearances and 4,096 owner ticks, with no pending family or
+limit exit. It is **not full matches or training data**. Existing arenas,
+checkpoints, live controls and credentials remain unchanged; readiness and live
+promotion remain blocked. See
+[ADR 0123](docs/architecture/0123-native-post-gift-devil-lifecycle.md).
+
+String of Fate now selects among all ten phenomena natively at confirmation.
+Global disease/Fog, confusion, HP assignment/healing, CP collection, inventory
+shuffle, guardian replacement and both generated attacks have joined routes.
+Unobserved selection/targets, shuffle ownership/IDs/used flags/disguises, caps
+and compound timing remain explicitly provisional. Solar Eclipse preserves all
+ten guardian outcomes, including the newly joined generated Earth/Moon routes.
+Having all ten handlers is not complete interaction or full-game readiness.
+
+Confusion uses the approved bounded native controller: ready phase exposes only
+choice0, and the engine chooses a single play, discard or Prayer without
+selection loops. Pre-step `policy_gradient_masks()` and the adapter's
+`full_game_policy_gradient_weights` exclude forced turns from policy learning;
+voluntary defense choices retain weight. These are training-interface components,
+not a complete training pipeline. Death clears confusion; Sun revival retains it.
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
+  godfield-bot simulation full-game-phenomenon-smoke \
+  --batch-size 512 --players 3 --seed 67
+```
+
+This is a uniform native first-turn probe, not full games or training. The
+default records all ten committed models and512 completed first turns; both
+Earth and Moon dependencies now resolve. The4096/nine-player/seed0 probe also
+records one nested generated Fate:4097 events but4096 owner ticks. Deliberately
+incomplete raw configurations still report atomic failures, never successful data.
+Full-game training and live promotion
+remain blocked. See
+[ADR 0124](docs/architecture/0124-native-phenomena-and-forced-control.md).
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
+  godfield-bot simulation full-game-attack-family-smoke \
+  --batch-size 512 --players 3 --seed 67
+```
+
+This checks 512 scripted **turns**, not full matches or learning: 1,449 queue
+entries, 937 post-death recipients, 86 Sun revivals and 85 Hat redraws. All
+queues drain, every original owner ticks once, and there are no extra-owner
+ticks or limit truncations. See
+[ADR 0119](docs/architecture/0119-shared-native-attack-family-queue.md).
+Broader Apocalypse/endgame interactions, teams/events/rewards, full hidden-family
+handling and complete neural learning interfaces remain. The cap99 transition
+is now implemented below, with explicit legacy100 diagnostics.
+Full-game readiness and live promotion
+stay blocked; existing checkpoints and live controls are unchanged.
+
+Exchange now uses the approved six-column commands with a separate versioned
+numeric menu in phase6: confirm, eight clipped MP/CP ±10/1 controls, and cancel.
+Amounts are an uncommitted preview until confirmation; cancel never consumes
+the card or advances its owner's turn. The legacy100 diagnostic cap and zero-HP Sun/Bow
+timing are provisional, not official-client99 parity. Edits are bounded at64,
+with confirm/cancel always available; confused turns resolve amounts natively.
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
+  godfield-bot simulation full-game-exchange-smoke \
+  --batch-size 512 --players 3 --seed 67
+```
+
+This checks512 scripted turns, not full matches/training:1,638 commands,
+51 Sun revivals and102 post-death Bow shots. Every original owner ticks once;
+no reactions remain pending. Exchange's local cap and timing remain provisional,
+and full-game learning/live promotion remain blocked. See
+[ADR 0125](docs/architecture/0125-native-numeric-exchange.md).
+
+Sell and Buy now join the native response queue with private owned-card custody.
+Sell selects one unused owned card; Buy reveals a native-selected eligible card
+after defense and asks the **current source**, including after Super Mirror
+reflection, to refuse or purchase. Payment uses CP→MP→HP. Transfers and refunds
+do not become artifact uses or replacement gifts. Offer sampling, timing,
+received-card disguises, IDs, payment credit and overflow remain provisional.
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
+  godfield-bot simulation full-game-market-smoke \
+  --batch-size 512 --players 3 --seed 67
+```
+
+This checks512 scripted turns, not full matches/training:2,560 commands,
+410 transfers,51 refunds,102 reflections and102 Sun revivals. The4096/nine-player
+probe also drains all custody/reactions with one original-owner tick per turn.
+The remaining full-game/training work is still required. See
+[ADR 0126](docs/architecture/0126-native-sell-buy-custody-and-responses.md).
+
+Sacrifice now replaces Discard after the opt-in local Apocalypse threshold.
+The current public translations confirm that Discard gives no replacements
+and Sacrifice does; the catalog and client still match the frozen source pins.
+Both share the128-model restrictions: no weapons, Sun Amulet or Dangerous
+Mortar. The existing bounded phase7 selection/cancel control now reveals
+virtual model1 (Discard) or2 (Sacrifice), without inspecting hidden actual roles
+in legal masks. Confirmation validates actual identities atomically.
+
+The local rule requests one complete-pool replacement per sacrificed card,
+after the original tick and guardian reactions. Cardinality and timing remain
+explicitly provisional. Tagged receipts preserve Dream/caps, devil effects,
+Sun/Bow reactions and dead/ended suppression without another owner tick.
+Sacrifice is removal, not an ordinary card use, miracle performance or MP cost.
+Forced confusion can choose it natively, outside learner policy gradients.
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
+  godfield-bot simulation full-game-sacrifice-smoke \
+  --batch-size 4096 --players 3 --seed 67
+```
+
+This runs4096 scripted Sacrifice turns plus4096 preparation turns, not full
+matches or training:12288 tagged replacements,24576 commands, all237 held
+receipt models and all five devils observed. Separate checks cover all128
+eligible models at2/3/9 seats, hidden protected-role rollback, limits, death,
+Sun/Bow and bounded self-renewing receipt loops. Full-game training, official
+fidelity and live promotion remain blocked. See
+[ADR 0129](docs/architecture/0129-native-sacrifice-and-tagged-replacements.md).
+
+The full-game factory now defaults to **99 HP/MP/CP**, with an explicit
+`resource_cap=100` compatibility option. Initial/seeded resources above the
+selected ceiling reject atomically rather than silently migrating fixtures.
+Healing, revival, wallet credits, guardian/generated actions, Heaven and
+Exchange all share the selected ceiling. Raw native fixtures keep their100
+default; previous probes are explicitly labeled legacy100. Existing arenas,
+checkpoints and live controls are unchanged.
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
+  godfield-bot simulation full-game-resource-smoke
+```
+
+Add `--resource-cap 100` for the legacy comparison. Each default probe checks
+4096 near-cap scripted turns,8192 commands and70 Heaven/Sun revivals, with no
+resource-bound violations. These are mechanics probes, not full matches or
+training. All22 legacy probe replays remain unchanged; the modern Sacrifice
+probe now runs at99. Readiness and live promotion stay false. See
+[ADR 0130](docs/architecture/0130-client99-and-explicit-legacy100.md).
+
+Dream now privately resolves fixed/chance targeting mismatches and all six
+Exchange/Sell/Buy disguise swaps, while retaining displayed controls and
+hidden-safe masks. Missing trade parameters use independent native streams;
+an empty hidden sale consumes its leader without a transfer/payment. These
+user-approved rules remain explicitly provisional; raw fixtures default off.
+Known hidden leader/addition/defense incompatibilities now resolve through the
+approved ineffective-component rule: apply compatible actual effects, consume
+or mark used the actual selected cards, and charge actual affordable costs.
+A checked237-card capability manifest prevents missing registrations from being
+silently treated as ineffective. Protected hidden Discard/Sacrifice selections
+remain owned; only actually removed cards receive Sacrifice replacements.
+Both new rules are labeled provisional and raw-default-off. Actual unaffordable
+miracle costs remain atomic errors; no MP→HP waterfall or free hidden effect is
+inferred. Private diagnostics do not enter policy inputs.
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
+  godfield-bot simulation full-game-episode-probe \
+  --batch-size 64 --players 3 --seed 67 --policy-seed 901
+```
+
+This runs unscripted complete-pool native episodes with a weak public-only
+random policy, not learning or strength evaluation. The default now completes
+64/64 episodes without errors; two-player64-env and nine-player32-env seed67
+checks also finish. Across2–9 seats, seeds0/1/67 and32 environments per setting,
+759/768 episodes finish (749 winner endings/10 draws), with9 explicit hidden
+unaffordable-cost errors and no turn/decision truncations. These are not wins
+by a trained candidate. On engine errors the CLI exits1 with structured details.
+Failed environments stop without action
+substitution, while healthy environments continue. Wins/draws, native limits
+and errors stay separate. Training and promotion remain blocked. See
+[ADR 0131](docs/architecture/0131-private-dream-targeting-trades-and-episode-diagnostics.md),
+[ADR 0132](docs/architecture/0132-approved-ineffective-hidden-components.md) and
+[ADR 0133](docs/architecture/0133-approved-hidden-protected-removal-retention.md).
+
+Earth/Moon now use the approved **direct actions with virtual fallbacks**.
+Category-filtered gift weights retain all207 Earth models (weight470) and all30
+Moon miracles (weight30). A sampled card that can lead an action executes its
+weapon, miracle, utility, Exchange, Sell or Buy route; otherwise Earth uses
+Drop and Moon uses Full Moon Blade. Aura doubles the Blade, Mirage fans out,
+and defensive additions retain its baseATK10. These are explicitly provisional
+server-construction and sampling rules, not official fidelity claims.
+Generated actions do not borrow or consume owned cards or pay ordinary miracle
+costs; Magical Stick still consumes its owner's MP. Defenders pay their own costs.
+Generated Sell holds a separate fresh parcel; generated Buy uses a native choice
+for the original buyer, while a reflected new buyer gets a voluntary choice.
+Shared responses, receipt-Dream/caps, Sun/Bow and nested reactions remain joined.
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
+  godfield-bot simulation full-game-generated-smoke \
+  --guardian mixed --batch-size 4096 --players 3 --seed 67
+```
+
+This runs4096 scripted turns, not full matches or training:1045 generated actions,
+840 attack entries,179 Drop receipts and4911 commands. It observes186 models;
+`--guardian moon` reaches all30 miracles. Separate tests exercise all237 routes
+at2/3/9 seats. Draw and execution histograms distinguish suppressed producers.
+The42/42 joined guardian-model ledger is not a full-game readiness score.
+`full-game-earth-smoke` remains an all-Earth compatibility entry point. Live
+controls, checkpoints and promotion gates remain unchanged. See
+[ADR 0128](docs/architecture/0128-native-generated-guardian-direct-actions.md).
 
 A later private-room trace contains one self-targeted Nocturnal Broom-style
 `removeItems` event. Its explicit three selected cards disappear in the next

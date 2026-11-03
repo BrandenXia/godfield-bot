@@ -16,12 +16,13 @@ Count = Annotated[int, Field(ge=0, strict=True)]
 
 class FullGameCombatSmokeReport(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    schema_version: Literal[5] = 5
-    source_kind: Literal["integrated-development-combat-smoke-v5"] = (
-        "integrated-development-combat-smoke-v5"
+    resource_cap: Literal[100] = 100
+    schema_version: Literal[22] = 22
+    source_kind: Literal["integrated-development-combat-smoke-v8"] = (
+        "integrated-development-combat-smoke-v8"
     )
-    ruleset_id: Literal["integrated-full-game-development-v7"] = (
-        "integrated-full-game-development-v7"
+    ruleset_id: Literal["integrated-full-game-development-v31"] = (
+        "integrated-full-game-development-v31"
     )
     scenario: Literal["fixed-known-hands-public-greedy-free-for-all-not-strength"] = (
         "fixed-known-hands-public-greedy-free-for-all-not-strength"
@@ -42,6 +43,7 @@ class FullGameCombatSmokeReport(BaseModel):
     actions: Count
     passes: Count
     utilities: Count
+    utility_selections: Count
     attack_selections: Count
     attack_toggles: Count
     attack_confirms: Count
@@ -71,6 +73,7 @@ class FullGameCombatSmokeReport(BaseModel):
             or self.actions
             != self.passes
             + self.utilities
+            + self.utility_selections
             + self.attack_selections
             + self.attack_toggles
             + self.attack_confirms
@@ -78,6 +81,7 @@ class FullGameCombatSmokeReport(BaseModel):
             + self.attacks_resolved
             + self.defense_toggles
             or self.attacks_resolved > self.attacks_cast
+            or self.utilities > self.utility_selections
             or self.attacks_cast > self.attack_selections
             or self.actions > self.batch_size * self.max_decisions
             or self.completed_turns > self.batch_size * self.max_turns
@@ -103,6 +107,7 @@ def run_full_game_combat_smoke(
         raise ValueError("combat smoke turn bound must be 1 through 4096")
     max_decisions = max_turns * 8
     configured = create_development_full_game_batch(
+        resource_cap=100,
         catalog_path=catalog_path,
         bible_path=bible_path,
         batch_size=batch_size,
@@ -143,6 +148,7 @@ def run_full_game_combat_smoke(
     boosts = {row[0]: row[1:] for row in configured.metadata.plan.combat.boost_profiles}
     digest = hashlib.sha256()
     selections = 0
+    utility_selections = 0
 
     def fingerprint() -> None:
         # Diagnostic proof only. These arrays are NEVER used to select an action.
@@ -158,6 +164,8 @@ def run_full_game_combat_smoke(
             batch.selected_attacks(),
             batch.attack_order(),
             batch.attack_selection_observations(),
+            batch.utility_selection_observations(),
+            batch.cost_snapshot(),
         ):
             digest.update(view.astype("<i8", copy=False).tobytes())
 
@@ -171,6 +179,8 @@ def run_full_game_combat_smoke(
         pending, selected = batch.pending_observations(), batch.selected_defenses()
         players = batch.player_observations()
         selected_attacks = batch.selected_attacks()
+        utility_selection = batch.utility_selection_observations()
+        previews = batch.attack_selection_observations()
         commands = []
         for env_index in active:
             env = int(env_index)
@@ -182,9 +192,17 @@ def run_full_game_combat_smoke(
             elif phase == 2:
                 selected_attack = selected_attacks[env]
                 available = [
-                    slot for slot in legal if 1 <= slot <= 12 and not selected_attack[slot - 1]
+                    slot
+                    for slot in legal
+                    if 1 <= slot <= 12
+                    and not selected_attack[slot - 1]
+                    and int(hands[env, slot - 1, 1]) in boosts
+                    and previews[env, 3] + boosts[int(hands[env, slot - 1, 1])][2]
+                    <= players[env, 0, 4]
                 ]
-                if available:
+                if utility_selection[env, 0]:
+                    choice = 0 if 0 in legal else int(batch.attack_order()[env, 0])
+                elif available:
                     choice = max(
                         available, key=lambda slot: boosts[int(hands[env, slot - 1, 1])][0]
                     )
@@ -201,17 +219,20 @@ def run_full_game_combat_smoke(
                         continue
                     model = int(hands[env, slot - 1, 1])
                     if model in attacks or model in boosts:
-                        spells.append(slot)
+                        cost = attacks[model][3] if model in attacks else boosts[model][2]
+                        if cost <= players[env, 0, 4]:
+                            spells.append(slot)
                     elif model in utility:
-                        kind, _, _ = utility[model]
+                        kind, _, cost = utility[model]
                         if (
                             kind >= 3
                             or (kind == 1 and players[env, 0, 3] <= 20)
                             or (kind == 2 and players[env, 0, 4] <= 15)
-                        ):
+                        ) and cost <= players[env, 0, 4]:
                             benefits.append(slot)
                 if benefits:
                     choice = benefits[0]
+                    utility_selections += 1
                 elif spells:
                     choice = max(
                         spells,
@@ -248,6 +269,7 @@ def run_full_game_combat_smoke(
         actions=batch.action_count,
         passes=batch.pass_count,
         utilities=batch.utility_count,
+        utility_selections=utility_selections,
         attack_selections=selections,
         attack_toggles=batch.attack_toggle_count,
         attack_confirms=batch.attack_confirm_count,

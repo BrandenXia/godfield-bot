@@ -36,11 +36,11 @@ def test_default_probe_covers_all_20_effects_without_claiming_full_games():
     assert report.consumed_cards == 416 and report.retained_miracle_uses == 224
     assert report.ready_after_one_turn == 640 and report.real_terminal_endings == 0
     assert (
-        report.metadata_sha256 == "1f6a7e864e5450cddbcf52a4b15b6f09be758728e8a16408dfeb94ec75d35040"
+        report.metadata_sha256 == "f5d01e6b29470e4c69a4d7c67c85a300aacab5e3e1a1ed8f50831d767b44be6d"
     )
     assert (
         report.diagnostic_replay_sha256
-        == "21fec423a2335216d8153abefc80c9c9c9155aae4c728c04f6d761f8350a3ec7"
+        == "8bc6626c25b078335ef74b19c029b36e4b804d7e8a13f2d14229322b0841d585"
     )
     assert not report.teacher_or_reward_dataset_eligible and not report.local_training_eligible
     assert not report.full_game_training_ready and not report.promotion_eligible

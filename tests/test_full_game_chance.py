@@ -62,6 +62,7 @@ def game(
         ),
         chance_profiles=ids(chances).reshape(-1, 2) if chances is not None else None,
         attack_effect_profiles=ids(PLAN.combat.attack_effect_profiles),
+        defense_effect_profiles=ids(PLAN.combat.defense_effect_profiles),
         gift_profiles=ids([(191, 1)]) if refill else None,
         refill_on_use=refill,
         hand_limit=18,
@@ -495,7 +496,7 @@ def test_invalid_native_chance_profiles_fail_closed(profiles):
 
 def test_factory_command_adapter_has_no_fabricated_target_and_metadata_stays_gated():
     configured = create_development_full_game_batch(
-        catalog_path=CATALOG, bible_path=BIBLE, batch_size=1, capacity=18
+        resource_cap=100, catalog_path=CATALOG, bible_path=BIBLE, batch_size=1, capacity=18
     )
     batch = configured.batch
     seed(batch, [95, 9])
@@ -508,8 +509,8 @@ def test_factory_command_adapter_has_no_fabricated_target_and_metadata_stays_gat
             configured,
             [FullGameCommand(**context.model_dump(exclude={"legal_choice_ids"}), choice_id=choice)],
         )
-    assert batch.chance_count == 1 and configured.metadata.kernel_schema_version == 7
-    assert PLAN.integrated_artifact_effect_count == 195
+    assert batch.chance_count == 1 and configured.metadata.kernel_schema_version == 31
+    assert PLAN.integrated_artifact_effect_count == 237
     assert (
         not configured.metadata.local_training_eligible
         and not configured.metadata.promotion_eligible

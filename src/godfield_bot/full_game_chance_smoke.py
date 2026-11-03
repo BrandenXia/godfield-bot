@@ -18,11 +18,12 @@ CHANCE_SHA256: Final = "fed7e6d50a4761ffff8e81c338b42abb27e4423482c58dbd93953930
 
 class FullGameChanceSmokeReport(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    schema_version: Literal[2] = 2
-    source_kind: Literal["integrated-development-one-turn-chance-smoke-v2"] = (
-        "integrated-development-one-turn-chance-smoke-v2"
+    resource_cap: Literal[100] = 100
+    schema_version: Literal[19] = 19
+    source_kind: Literal["integrated-development-one-turn-chance-smoke-v5"] = (
+        "integrated-development-one-turn-chance-smoke-v5"
     )
-    ruleset_id: Literal["integrated-full-game-development-v7"] = FULL_GAME_RULESET_ID
+    ruleset_id: Literal["integrated-full-game-development-v31"] = FULL_GAME_RULESET_ID
     scenario: Literal["one-standalone-chance-per-environment-forgive-hits-not-full-matches"] = (
         "one-standalone-chance-per-environment-forgive-hits-not-full-matches"
     )
@@ -96,6 +97,7 @@ def run_full_game_chance_smoke(
     if type(batch_size) is not int or not 1 <= batch_size <= 4096:
         raise ValueError("chance smoke batch size must be 1 through 4096")
     configured = create_development_full_game_batch(
+        resource_cap=100,
         catalog_path=catalog_path,
         bible_path=bible_path,
         batch_size=batch_size,

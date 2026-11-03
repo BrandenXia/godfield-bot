@@ -64,7 +64,7 @@ def game(
         80,
         0,
         ids([row for row in PLAN.combat.attack_profiles if row[1] > 0]),
-        ids(PLAN.combat.armor_profiles),
+        ids([row for row in PLAN.combat.armor_profiles if row[1] > 0]),
         None if gifts is None else ids(gifts).reshape(-1, 2),
         initial,
         refill,
@@ -267,7 +267,7 @@ def test_each_utility_use_receives_one_gift_including_first_and_reused_miracles(
     if not reusable:
         return
     step(batch, [0])  # Opponent Prayer, separately counted.
-    if kind >= 3:
+    if kind in (3, 4):
         # Reusing a cure without any affected state is correctly unavailable.
         assert not batch.choice_masks()[0, 1]
         return
@@ -602,6 +602,7 @@ def test_builder_checks_raw_weight_and_bible_details_in_addition_to_recorded_has
 
 def configured(**changes):
     return create_development_full_game_batch(
+        resource_cap=100,
         catalog_path=CATALOG,
         bible_path=BIBLE,
         batch_size=2,

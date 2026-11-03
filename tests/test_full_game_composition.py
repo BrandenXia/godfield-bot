@@ -64,9 +64,12 @@ def game(
             [
                 row
                 for row in PLAN.combat.armor_profiles
-                if attacks is None
-                or dict(PLAN.inventory.profiles)[row[0]] == 2
-                or row[0] in {attack[0] for attack in attacks}
+                if row[1] > 0
+                and (
+                    attacks is None
+                    or dict(PLAN.inventory.profiles)[row[0]] == 2
+                    or row[0] in {attack[0] for attack in attacks}
+                )
             ]
         ),
         ids([[191, 1]]) if refill or prayer else None,
@@ -504,7 +507,7 @@ def test_mixed_phase_late_error_rolls_back_order_cost_consumption_and_receipt_rn
 
 def test_public_order_snapshots_reset_and_native_command_protocol_recheck():
     configured = create_development_full_game_batch(
-        catalog_path=CATALOG, bible_path=BIBLE, batch_size=1, capacity=18
+        resource_cap=100, catalog_path=CATALOG, bible_path=BIBLE, batch_size=1, capacity=18
     )
     batch = configured.batch
     seed(batch, [(1, 35, 0, 0), (2, 9, 0, 0)])
@@ -583,6 +586,8 @@ def test_source_plan_rejects_restricted_forged_composition_contracts(changes):
     ],
 )
 def test_metadata_cannot_claim_old_versions_unbounded_selection_or_readiness(changes):
-    conf = create_development_full_game_batch(catalog_path=CATALOG, bible_path=BIBLE, batch_size=1)
+    conf = create_development_full_game_batch(
+        resource_cap=100, catalog_path=CATALOG, bible_path=BIBLE, batch_size=1
+    )
     with pytest.raises(ValidationError):
         FullGameMetadata.model_validate({**conf.metadata.model_dump(), **changes})

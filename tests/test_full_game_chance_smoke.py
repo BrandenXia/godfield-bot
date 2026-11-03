@@ -34,11 +34,11 @@ def test_default_probe_covers_all_plain_chance_models_but_not_full_matches():
     assert report.hp_damage == 2654 and report.mp_spent == 1323
     assert report.consumed_cards == 357 and report.retained_miracle_uses == 147
     assert (
-        report.metadata_sha256 == "0b8bef30397954308874db3dcb583cbf02e80252b41f95e6a6a314565aab142a"
+        report.metadata_sha256 == "62c84205140937dab1b1e73539c9fe55cf3bfe4c905fb33d2fdeebbb4cccf811"
     )
     assert (
         report.diagnostic_replay_sha256
-        == "3e8430dde07921af47204bc3b03b49b24bbe4eda6e3f5aa2ec8bd956a3e4c2c3"
+        == "c21cbd25164bbf8187b622c0dbecf6c9c527195f5364d185f8e857be8ce65878"
     )
     assert not report.local_training_eligible and not report.teacher_or_reward_dataset_eligible
     assert not report.full_game_training_ready and not report.promotion_eligible

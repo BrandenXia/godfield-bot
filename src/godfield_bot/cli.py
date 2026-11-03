@@ -3308,6 +3308,673 @@ def simulation_full_game_attack_effect_smoke(
     typer.echo(report.model_dump_json(indent=2))
 
 
+@simulation_app.command("full-game-counter-smoke")
+def simulation_full_game_counter_smoke(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    batch_size: Annotated[int, typer.Option(min=1, max=4096)] = 512,
+    players: Annotated[int, typer.Option(min=2, max=9)] = 3,
+    seed: Annotated[int, typer.Option(min=0)] = 67,
+) -> None:
+    """Probe one forced-hit counter family; not full games or learning."""
+    try:
+        from godfield_bot.full_game_counter_smoke import run_full_game_counter_smoke
+
+        report = run_full_game_counter_smoke(
+            catalog_path=catalog,
+            bible_path=bible,
+            batch_size=batch_size,
+            player_count=players,
+            seed=seed,
+        )
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error(
+            "full_game_counter_smoke_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
+@simulation_app.command("full-game-revival-smoke")
+def simulation_full_game_revival_smoke(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    batch_size: Annotated[int, typer.Option(min=1, max=4096)] = 500,
+    players: Annotated[int, typer.Option(min=2, max=9)] = 3,
+    seed: Annotated[int, typer.Option(min=0)] = 67,
+) -> None:
+    """Probe five passive revival causes offline; not full games or training."""
+    try:
+        from godfield_bot.full_game_revival_smoke import run_full_game_revival_smoke
+
+        report = run_full_game_revival_smoke(
+            catalog_path=catalog,
+            bible_path=bible,
+            batch_size=batch_size,
+            player_count=players,
+            seed=seed,
+        )
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error(
+            "full_game_revival_smoke_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
+@simulation_app.command("full-game-removal-smoke")
+def simulation_full_game_removal_smoke(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    batch_size: Annotated[int, typer.Option(min=1, max=4096)] = 600,
+    players: Annotated[int, typer.Option(min=2, max=9)] = 3,
+    seed: Annotated[int, typer.Option(min=0)] = 67,
+) -> None:
+    """Probe native Broom/Soap removal; not full games or official validation."""
+    try:
+        from godfield_bot.full_game_removal_smoke import run_full_game_removal_smoke
+
+        report = run_full_game_removal_smoke(
+            catalog_path=catalog,
+            bible_path=bible,
+            batch_size=batch_size,
+            player_count=players,
+            seed=seed,
+        )
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error(
+            "full_game_removal_smoke_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
+@simulation_app.command("full-game-economy-smoke")
+def simulation_full_game_economy_smoke(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    batch_size: Annotated[int, typer.Option(min=1, max=4096)] = 700,
+    players: Annotated[int, typer.Option(min=2, max=9)] = 3,
+    seed: Annotated[int, typer.Option(min=0)] = 67,
+) -> None:
+    """Probe Treasure's native CP credits offline; not trading or training."""
+    try:
+        from godfield_bot.full_game_economy_smoke import run_full_game_economy_smoke
+
+        report = run_full_game_economy_smoke(
+            catalog_path=catalog,
+            bible_path=bible,
+            batch_size=batch_size,
+            player_count=players,
+            seed=seed,
+        )
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error(
+            "full_game_economy_smoke_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
+@simulation_app.command("full-game-cost-smoke")
+def simulation_full_game_cost_smoke(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    batch_size: Annotated[int, typer.Option(min=1, max=4096)] = 600,
+    players: Annotated[int, typer.Option(min=2, max=9)] = 3,
+    seed: Annotated[int, typer.Option(min=0)] = 67,
+) -> None:
+    """Probe ordered miracle cost waivers offline; not full matches or training."""
+    try:
+        from godfield_bot.full_game_cost_smoke import run_full_game_cost_smoke
+
+        report = run_full_game_cost_smoke(
+            catalog_path=catalog,
+            bible_path=bible,
+            batch_size=batch_size,
+            player_count=players,
+            seed=seed,
+        )
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error(
+            "full_game_cost_smoke_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
+@simulation_app.command("full-game-weapon-smoke")
+def simulation_full_game_weapon_smoke(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    batch_size: Annotated[int, typer.Option(min=1, max=4096)] = 720,
+    players: Annotated[int, typer.Option(min=2, max=9)] = 3,
+    seed: Annotated[int, typer.Option(min=0)] = 67,
+) -> None:
+    """Probe MP, recoil and repeated strikes offline; not full matches or training."""
+    try:
+        from godfield_bot.full_game_weapon_smoke import run_full_game_weapon_smoke
+
+        report = run_full_game_weapon_smoke(
+            catalog_path=catalog,
+            bible_path=bible,
+            batch_size=batch_size,
+            player_count=players,
+            seed=seed,
+        )
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error(
+            "full_game_weapon_smoke_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
+@simulation_app.command("full-game-compound-utility-smoke")
+def simulation_full_game_compound_utility_smoke(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    batch_size: Annotated[int, typer.Option(min=1, max=4096)] = 768,
+    players: Annotated[int, typer.Option(min=2, max=9)] = 3,
+    seed: Annotated[int, typer.Option(min=0)] = 67,
+) -> None:
+    """Probe Heaven Herb and Thumptear offline; not full matches or training."""
+    try:
+        from godfield_bot.full_game_compound_utility_smoke import (
+            run_full_game_compound_utility_smoke,
+        )
+
+        report = run_full_game_compound_utility_smoke(
+            catalog_path=catalog,
+            bible_path=bible,
+            batch_size=batch_size,
+            player_count=players,
+            seed=seed,
+        )
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error(
+            "full_game_compound_utility_smoke_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
+@simulation_app.command("full-game-danger-smoke")
+def simulation_full_game_danger_smoke(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    batch_size: Annotated[int, typer.Option(min=1, max=4096)] = 512,
+    players: Annotated[int, typer.Option(min=2, max=9)] = 3,
+    seed: Annotated[int, typer.Option(min=0)] = 67,
+) -> None:
+    """Probe Pestle/Mortar targeting offline; not full matches or training."""
+    try:
+        from godfield_bot.full_game_danger_smoke import run_full_game_danger_smoke
+
+        report = run_full_game_danger_smoke(
+            catalog_path=catalog,
+            bible_path=bible,
+            batch_size=batch_size,
+            player_count=players,
+            seed=seed,
+        )
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error(
+            "full_game_danger_smoke_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
+@simulation_app.command("full-game-attack-family-smoke")
+def simulation_full_game_attack_family_smoke(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    batch_size: Annotated[int, typer.Option(min=1, max=4096)] = 512,
+    players: Annotated[int, typer.Option(min=2, max=9)] = 3,
+    seed: Annotated[int, typer.Option(min=0)] = 67,
+) -> None:
+    """Probe shared attack/death families offline; not full matches or training."""
+    try:
+        from godfield_bot.full_game_attack_family_smoke import run_full_game_attack_family_smoke
+
+        report = run_full_game_attack_family_smoke(
+            catalog_path=catalog,
+            bible_path=bible,
+            batch_size=batch_size,
+            player_count=players,
+            seed=seed,
+        )
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error(
+            "full_game_attack_family_smoke_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
+@simulation_app.command("full-game-area-smoke")
+def simulation_full_game_area_smoke(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    batch_size: Annotated[int, typer.Option(min=1, max=4096)] = 512,
+    players: Annotated[int, typer.Option(min=2, max=9)] = 3,
+    seed: Annotated[int, typer.Option(min=0)] = 67,
+) -> None:
+    """Probe Mirage fanout offline; not full matches or training."""
+    try:
+        from godfield_bot.full_game_area_smoke import run_full_game_area_smoke
+
+        report = run_full_game_area_smoke(
+            catalog_path=catalog,
+            bible_path=bible,
+            batch_size=batch_size,
+            player_count=players,
+            seed=seed,
+        )
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error(
+            "full_game_area_smoke_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
+@simulation_app.command("full-game-discard-smoke")
+def simulation_full_game_discard_smoke(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    batch_size: Annotated[int, typer.Option(min=1, max=4096)] = 512,
+    players: Annotated[int, typer.Option(min=2, max=9)] = 3,
+    seed: Annotated[int, typer.Option(min=0)] = 67,
+) -> None:
+    """Probe multi-card discard/cancel/death hooks offline; not full matches or training."""
+    try:
+        from godfield_bot.full_game_discard_smoke import run_full_game_discard_smoke
+
+        report = run_full_game_discard_smoke(
+            catalog_path=catalog,
+            bible_path=bible,
+            batch_size=batch_size,
+            player_count=players,
+            seed=seed,
+        )
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error(
+            "full_game_discard_smoke_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
+@simulation_app.command("full-game-guardian-smoke")
+def simulation_full_game_guardian_smoke(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    batch_size: Annotated[int, typer.Option(min=1, max=4096)] = 4096,
+    players: Annotated[int, typer.Option(min=2, max=9)] = 3,
+    seed: Annotated[int, typer.Option(min=0)] = 67,
+) -> None:
+    """Probe joined standard guardian effects offline; not full matches or training."""
+    try:
+        from godfield_bot.full_game_guardian_smoke import run_full_game_guardian_smoke
+
+        report = run_full_game_guardian_smoke(
+            catalog_path=catalog,
+            bible_path=bible,
+            batch_size=batch_size,
+            player_count=players,
+            seed=seed,
+        )
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error(
+            "full_game_guardian_smoke_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
+@simulation_app.command("full-game-episode-probe")
+def simulation_full_game_episode_probe(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    batch_size: Annotated[int, typer.Option(min=1, max=4096)] = 64,
+    players: Annotated[int, typer.Option(min=2, max=9)] = 3,
+    seed: Annotated[int, typer.Option(min=0)] = 67,
+    policy_seed: Annotated[int, typer.Option(min=0)] = 901,
+    max_turns: Annotated[int, typer.Option(min=1, max=10000)] = 256,
+    max_decisions: Annotated[int, typer.Option(min=1, max=40000)] = 2048,
+    apocalypse_after_turns: Annotated[int, typer.Option(min=0, max=10000)] = 64,
+) -> None:
+    """Run complete-pool episodes offline; preserve errors, not training evidence."""
+    try:
+        from godfield_bot.full_game_episode_probe import run_full_game_episode_probe
+
+        report = run_full_game_episode_probe(
+            catalog_path=catalog,
+            bible_path=bible,
+            batch_size=batch_size,
+            player_count=players,
+            seed=seed,
+            policy_seed=policy_seed,
+            max_turns=max_turns,
+            max_decisions=max_decisions,
+            apocalypse_after_turns=apocalypse_after_turns,
+        )
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error(
+            "full_game_episode_probe_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+    if report.engine_errors:
+        raise typer.Exit(code=1)
+
+
+@simulation_app.command("full-game-resource-smoke")
+def simulation_full_game_resource_smoke(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    batch_size: Annotated[int, typer.Option(min=1, max=4096)] = 4096,
+    players: Annotated[int, typer.Option(min=2, max=9)] = 3,
+    seed: Annotated[int, typer.Option(min=0)] = 67,
+    resource_cap: Annotated[int, typer.Option(min=99, max=100)] = 99,
+) -> None:
+    """Probe client99 or explicit legacy100 resource ceilings offline, not training."""
+    try:
+        from godfield_bot.full_game_resource_smoke import run_full_game_resource_smoke
+
+        report = run_full_game_resource_smoke(
+            catalog_path=catalog,
+            bible_path=bible,
+            batch_size=batch_size,
+            player_count=players,
+            seed=seed,
+            resource_cap=99 if resource_cap == 99 else 100,
+        )
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error(
+            "full_game_resource_smoke_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
+@simulation_app.command("full-game-sacrifice-smoke")
+def simulation_full_game_sacrifice_smoke(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    batch_size: Annotated[int, typer.Option(min=1, max=4096)] = 4096,
+    players: Annotated[int, typer.Option(min=2, max=9)] = 3,
+    seed: Annotated[int, typer.Option(min=0)] = 67,
+) -> None:
+    """Probe Sacrifice replacements and devils offline, not full matches/training."""
+    try:
+        from godfield_bot.full_game_sacrifice_smoke import run_full_game_sacrifice_smoke
+
+        report = run_full_game_sacrifice_smoke(
+            catalog_path=catalog,
+            bible_path=bible,
+            batch_size=batch_size,
+            player_count=players,
+            seed=seed,
+        )
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error(
+            "full_game_sacrifice_smoke_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
+@simulation_app.command("full-game-generated-smoke")
+def simulation_full_game_generated_smoke(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    batch_size: Annotated[int, typer.Option(min=1, max=4096)] = 4096,
+    players: Annotated[int, typer.Option(min=2, max=9)] = 3,
+    seed: Annotated[int, typer.Option(min=0)] = 67,
+    guardian: Annotated[str, typer.Option(help="earth, moon or mixed")] = "mixed",
+) -> None:
+    """Probe provisional generated guardian actions offline, not full matches/training."""
+    try:
+        from godfield_bot.full_game_generated_smoke import run_full_game_generated_smoke
+
+        report = run_full_game_generated_smoke(
+            catalog_path=catalog,
+            bible_path=bible,
+            batch_size=batch_size,
+            player_count=players,
+            seed=seed,
+            guardian_kind=guardian,
+        )
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error(
+            "full_game_generated_smoke_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
+@simulation_app.command("full-game-earth-smoke")
+def simulation_full_game_earth_smoke(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    batch_size: Annotated[int, typer.Option(min=1, max=4096)] = 4096,
+    players: Annotated[int, typer.Option(min=2, max=9)] = 3,
+    seed: Annotated[int, typer.Option(min=0)] = 67,
+) -> None:
+    """Probe provisional Earth direct/Drop actions offline, not full-game training."""
+    try:
+        from godfield_bot.full_game_earth_smoke import run_full_game_earth_smoke
+
+        report = run_full_game_earth_smoke(
+            catalog_path=catalog,
+            bible_path=bible,
+            batch_size=batch_size,
+            player_count=players,
+            seed=seed,
+        )
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error(
+            "full_game_earth_smoke_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
+@simulation_app.command("full-game-market-smoke")
+def simulation_full_game_market_smoke(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    batch_size: Annotated[int, typer.Option(min=1, max=4096)] = 512,
+    players: Annotated[int, typer.Option(min=2, max=9)] = 3,
+    seed: Annotated[int, typer.Option(min=0)] = 67,
+) -> None:
+    """Probe native Sell/Buy custody/payment offline; not full games or training."""
+    try:
+        from godfield_bot.full_game_market_smoke import run_full_game_market_smoke
+
+        report = run_full_game_market_smoke(
+            catalog_path=catalog,
+            bible_path=bible,
+            batch_size=batch_size,
+            player_count=players,
+            seed=seed,
+        )
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error(
+            "full_game_market_smoke_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
+@simulation_app.command("full-game-exchange-smoke")
+def simulation_full_game_exchange_smoke(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    batch_size: Annotated[int, typer.Option(min=1, max=4096)] = 512,
+    players: Annotated[int, typer.Option(min=2, max=9)] = 3,
+    seed: Annotated[int, typer.Option(min=0)] = 67,
+) -> None:
+    """Probe numeric Exchange controls offline; not full matches or training."""
+    try:
+        from godfield_bot.full_game_exchange_smoke import run_full_game_exchange_smoke
+
+        report = run_full_game_exchange_smoke(
+            catalog_path=catalog,
+            bible_path=bible,
+            batch_size=batch_size,
+            player_count=players,
+            seed=seed,
+        )
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error(
+            "full_game_exchange_smoke_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
+@simulation_app.command("full-game-phenomenon-smoke")
+def simulation_full_game_phenomenon_smoke(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    batch_size: Annotated[int, typer.Option(min=1, max=4096)] = 512,
+    players: Annotated[int, typer.Option(min=2, max=9)] = 3,
+    seed: Annotated[int, typer.Option(min=0)] = 67,
+) -> None:
+    """Probe uniform Fate outcomes, reporting incomplete guardian branches offline."""
+    try:
+        from godfield_bot.full_game_phenomenon_smoke import run_full_game_phenomenon_smoke
+
+        report = run_full_game_phenomenon_smoke(
+            catalog_path=catalog,
+            bible_path=bible,
+            batch_size=batch_size,
+            player_count=players,
+            seed=seed,
+        )
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error(
+            "full_game_phenomenon_smoke_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
+@simulation_app.command("full-game-devil-smoke")
+def simulation_full_game_devil_smoke(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    batch_size: Annotated[int, typer.Option(min=1, max=4096)] = 4096,
+    players: Annotated[int, typer.Option(min=2, max=9)] = 3,
+    seed: Annotated[int, typer.Option(min=0)] = 67,
+) -> None:
+    """Probe opt-in post-gift devils offline; not full matches or training."""
+    try:
+        from godfield_bot.full_game_devil_smoke import run_full_game_devil_smoke
+
+        report = run_full_game_devil_smoke(
+            catalog_path=catalog,
+            bible_path=bible,
+            batch_size=batch_size,
+            player_count=players,
+            seed=seed,
+        )
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error(
+            "full_game_devil_smoke_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
 @simulation_app.command("full-game-acquisition-smoke")
 def simulation_full_game_acquisition_smoke(
     catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(

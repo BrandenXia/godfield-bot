@@ -23,15 +23,15 @@ from godfield_bot.reference import (
     verified_chance_attack_miracle_cards,
 )
 
-FULL_GAME_COMBAT_SHA256: Final = "9440a09fe928fbb6c4c1b2a58e3d6703a530230dc2baa4edec927a623dd6833c"
+FULL_GAME_COMBAT_SHA256: Final = "3f03bfeb664a0c37e9fae590ff7dffce4208c6d4a51c50416e0c4b1c9b493b64"
 
 
 class FullGameCombatPlan(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    schema_version: Literal[5] = 5
+    schema_version: Literal[7] = 7
     catalog_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     bible_client_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-    profile_sha256: Literal["9440a09fe928fbb6c4c1b2a58e3d6703a530230dc2baa4edec927a623dd6833c"] = (
+    profile_sha256: Literal["3f03bfeb664a0c37e9fae590ff7dffce4208c6d4a51c50416e0c4b1c9b493b64"] = (
         FULL_GAME_COMBAT_SHA256
     )
     attack_profiles: tuple[tuple[int, int, int, int, int], ...]
@@ -40,6 +40,21 @@ class FullGameCombatPlan(BaseModel):
     special_profiles: tuple[tuple[int, int, int, int, int], ...]
     chance_profiles: tuple[tuple[int, int], ...]
     attack_effect_profiles: tuple[tuple[int, int, int], ...]
+    defense_effect_profiles: tuple[tuple[int, int, int, int, int], ...]
+    defense_effect_fields: tuple[str, ...] = ("model_id", "kind", "value", "element", "hit_rate")
+    defense_effect_kinds: tuple[str, ...] = (
+        "unused-zero",
+        "counter-attack",
+        "counter-mask",
+        "counter-mp",
+        "counter-cp",
+        "filter-element",
+        "self-illness",
+    )
+    counter_defense_count: Literal[8] = 8
+    element_filter_count: Literal[1] = 1
+    self_illness_defense_count: Literal[1] = 1
+    dual_role_ordinary_defense_count: Literal[7] = 7
     attack_effect_fields: tuple[str, ...] = ("model_id", "kind", "value")
     attack_effect_kinds: tuple[str, ...] = (
         "unused-zero",
@@ -55,14 +70,14 @@ class FullGameCombatPlan(BaseModel):
     chance_weapon_count: Literal[17] = 17
     chance_miracle_count: Literal[7] = 7
     dual_role_chance_defense_count: Literal[1] = 1
-    numeric_defense_count: Literal[64] = 64
+    numeric_defense_count: Literal[72] = 72
     excluded_chance_models: tuple[int, ...] = (112,)
-    chance_exclusion_reason: Literal["ascension-variant-not-yet-integrated"] = (
-        "ascension-variant-not-yet-integrated"
+    chance_exclusion_reason: Literal["separately-joined-ascension-profile"] = (
+        "separately-joined-ascension-profile"
     )
     special_fields: tuple[str, ...] = ("model_id", "kind", "origin", "neutral_only", "mp_cost")
     special_kinds: tuple[str, ...] = ("unused-zero", "block", "reflect", "bounce")
-    special_defense_count: Literal[23] = 23
+    special_defense_count: Literal[24] = 24
     attack_fields: tuple[str, ...] = ("model_id", "attack", "element", "origin", "mp_cost")
     armor_fields: tuple[str, ...] = ("model_id", "defense", "element", "kind", "mp_cost")
     boost_fields: tuple[str, ...] = (
@@ -73,20 +88,20 @@ class FullGameCombatPlan(BaseModel):
         "composition_kind",
         "can_lead",
     )
-    ordinary_weapon_count: Literal[56] = 56
+    ordinary_weapon_count: Literal[63] = 63
     attack_miracle_count: Literal[7] = 7
-    ordinary_armor_count: Literal[63] = 63
+    ordinary_armor_count: Literal[64] = 64
     additive_weapon_count: Literal[21] = 21
     additive_armor_count: Literal[4] = 4
     additive_sundry_count: Literal[1] = 1
     additive_miracle_count: Literal[3] = 3
-    combat_effect_count: Literal[183] = 183
+    combat_effect_count: Literal[200] = 200
     composition_kinds: tuple[str, ...] = ("add", "set-element-and-add", "double-and-mix-element")
     composition: Literal[
         "ordered-fixed-weapon-additions-or-standalone-weapon-miracle-chance-direct-curse"
     ] = "ordered-fixed-weapon-additions-or-standalone-weapon-miracle-chance-direct-curse"
     excluded_additive_models: tuple[int, ...] = (232,)
-    exclusion_reason: Literal["unimplemented-area-attack"] = "unimplemented-area-attack"
+    exclusion_reason: Literal["separately-joined-area-profile"] = "separately-joined-area-profile"
     darkness: Literal["positive-post-defense-damage-sets-target-hp-zero"] = (
         "positive-post-defense-damage-sets-target-hp-zero"
     )
@@ -103,6 +118,7 @@ class FullGameCombatPlan(BaseModel):
                     self.special_profiles,
                     self.chance_profiles,
                     self.attack_effect_profiles,
+                    self.defense_effect_profiles,
                 ),
                 separators=(",", ":"),
             ).encode()
@@ -122,6 +138,17 @@ class FullGameCombatPlan(BaseModel):
             or self.chance_fields != ("model_id", "hit_rate")
             or self.excluded_chance_models != (112,)
             or self.attack_effect_fields != ("model_id", "kind", "value")
+            or self.defense_effect_fields != ("model_id", "kind", "value", "element", "hit_rate")
+            or self.defense_effect_kinds
+            != (
+                "unused-zero",
+                "counter-attack",
+                "counter-mask",
+                "counter-mp",
+                "counter-cp",
+                "filter-element",
+                "self-illness",
+            )
             or self.attack_effect_kinds
             != (
                 "unused-zero",
@@ -242,6 +269,10 @@ def build_full_game_combat_plan(
     defenses.extend(chance_defenses)
     attack_effects, effect_attacks, effect_chances = _attack_effect_profiles(catalog, by_reference)
     attacks.extend(effect_attacks)
+    dual_attacks, dual_defenses = _ordinary_dual_profiles(catalog, by_reference)
+    defense_effects, effect_defenses = _defense_effect_profiles(catalog, by_reference)
+    attacks.extend(dual_attacks)
+    defenses.extend((*dual_defenses, *effect_defenses))
     return FullGameCombatPlan(
         catalog_sha256=catalog.content_sha256,
         bible_client_sha256=bible.client.sha256,
@@ -251,7 +282,233 @@ def build_full_game_combat_plan(
         special_profiles=specials,
         chance_profiles=tuple(sorted((*chances, *effect_chances))),
         attack_effect_profiles=attack_effects,
+        defense_effect_profiles=defense_effects,
     )
+
+
+def _ordinary_dual_profiles(
+    catalog: ApiCatalogSnapshot, by_reference: dict[tuple[str, str], ArtifactRecord]
+) -> tuple[list[tuple[int, int, int, int, int]], list[tuple[int, int, int, int, int]]]:
+    specs: tuple[tuple[int, str, int, int, CombatElement, int], ...] = (
+        (11, "Saver Rod", 2, 6, "non-element", 10),
+        (17, "Spiked Belt", 4, 2, "non-element", 3),
+        (20, "Plate of Strike", 5, 7, "non-element", 3),
+        (24, "Elbow Sack", 6, 3, "non-element", 3),
+        (37, "Sword Shield", 10, 10, "non-element", 15),
+        (49, "Legendary Scabbard", 13, 1, "non-element", 3),
+        (77, "Flaming Roll", 4, 4, "fire", 8),
+    )
+    items = {item.model_id: item for item in catalog.items}
+    attacks, defenses = [], []
+    for model, name, attack, defense, element, price in specs:
+        raw = items[model].raw
+        reference = by_reference.get(("weapons", str(raw.get("imageName"))))
+        if (
+            reference is None
+            or raw.get("name") != name
+            or raw.get("category") != "weapons"
+            or raw.get("atk") != attack
+            or raw.get("def") != defense
+            or raw.get("element", "non-element") != element
+            or raw.get("price") != price
+            or raw.get("giftRate") != 1
+            or raw.get("hitRate", 100) != 100
+            or raw.get("ability") is not None
+            or raw.get("isPlusAtk", False) is not False
+            or raw.get("cost", 0) != 0
+            or reference.detail
+            != (name, f"ATK{attack}", f"DEF{defense}", f"${price}", "Gift Rate: 1/500")
+            or reference.element_image_paths
+            != (() if element == "non-element" else (f"/images/elements/{element}.webp",))
+        ):
+            raise ValueError(f"ordinary dual-role API and Bible identity differs ({model})")
+        element_id = COMBAT_ELEMENT_IDS[element]
+        attacks.append((model, attack, element_id, 0, 0))
+        defenses.append((model, defense, element_id, 0, 0))
+    return attacks, defenses
+
+
+def _defense_effect_profiles(
+    catalog: ApiCatalogSnapshot, by_reference: dict[tuple[str, str], ArtifactRecord]
+) -> tuple[tuple[tuple[int, int, int, int, int], ...], list[tuple[int, int, int, int, int]]]:
+    specs: tuple[
+        tuple[int, str, int, int, CombatElement, int, int, int, str, str | None, tuple[str, ...]],
+        ...,
+    ] = (
+        (
+            168,
+            "Fever Mask",
+            6,
+            2,
+            "fire",
+            100,
+            10,
+            1,
+            "selfCurse",
+            "fever",
+            ("DEF10", "Catch Fever"),
+        ),
+        (
+            181,
+            "Mars Ring",
+            1,
+            1,
+            "fire",
+            75,
+            10,
+            1,
+            "counterAtk",
+            None,
+            ("Counterattack", "75%ATK{damage}"),
+        ),
+        (
+            182,
+            "Mercury Ring",
+            2,
+            1,
+            "water",
+            100,
+            10,
+            1,
+            "counterCurse",
+            "fog",
+            ("Counterattack", "Fog"),
+        ),
+        (
+            183,
+            "Jupiter Ring",
+            2,
+            2,
+            "wood",
+            100,
+            10,
+            1,
+            "counterCurse",
+            "dream",
+            ("Counterattack", "Dream"),
+        ),
+        (
+            184,
+            "Saturn Ring",
+            1,
+            2,
+            "stone",
+            100,
+            10,
+            1,
+            "counter2xAtk",
+            None,
+            ("Counterattack", "ATK{2\u00d7damage}"),
+        ),
+        (
+            185,
+            "Uranus Ring",
+            2,
+            4,
+            "light",
+            100,
+            10,
+            1,
+            "counterCurse",
+            "flash",
+            ("Counterattack", "Flash"),
+        ),
+        (
+            186,
+            "Pluto Ring",
+            2,
+            8,
+            "darkness",
+            100,
+            10,
+            1,
+            "counterCurse",
+            "darkcloud",
+            ("Counterattack", "Dark Cloud"),
+        ),
+        (
+            187,
+            "Neptune Ring",
+            3,
+            2,
+            "non-element",
+            100,
+            10,
+            1,
+            "counterBoost2xMP",
+            None,
+            ("Counterattack", "MP+{2\u00d7damage}"),
+        ),
+        (
+            188,
+            "Venus Ring",
+            4,
+            1,
+            "non-element",
+            100,
+            10,
+            1,
+            "counterTakeCP",
+            None,
+            ("Counterattack", "Levy ${damage}"),
+        ),
+        (
+            189,
+            "Rainbow Curtain",
+            5,
+            0,
+            "non-element",
+            100,
+            15,
+            3,
+            "filterAtkElement",
+            None,
+            ("Filter the attack", "element"),
+        ),
+    )
+    items = {item.model_id: item for item in catalog.items}
+    effects, defenses = [], []
+    for (
+        model,
+        name,
+        kind,
+        value,
+        element,
+        rate,
+        price,
+        weight,
+        ability,
+        curse,
+        description,
+    ) in specs:
+        raw = items[model].raw
+        reference = by_reference.get(("armor", str(raw.get("imageName"))))
+        defense = 10 if kind == 6 else 0
+        guardian = "neptune" if model == 187 else "venus" if model == 188 else None
+        if (
+            reference is None
+            or raw.get("name") != name
+            or raw.get("category") != "armor"
+            or raw.get("def", 0) != defense
+            or raw.get("atk", 0) != 0
+            or raw.get("element", "non-element") != element
+            or raw.get("hitRate", 100) != rate
+            or raw.get("ability") != ability
+            or raw.get("curse") != curse
+            or raw.get("guardian") != guardian
+            or raw.get("price") != price
+            or raw.get("giftRate") != weight
+            or raw.get("cost", 0) != 0
+            or raw.get("isPlusAtk", False) is not False
+            or reference.detail != (name, *description, f"${price}", f"Gift Rate: {weight}/500")
+            or reference.element_image_paths
+            != (() if element == "non-element" else (f"/images/elements/{element}.webp",))
+        ):
+            raise ValueError(f"defense effect API and Bible identity differs ({model})")
+        element_id = COMBAT_ELEMENT_IDS[element]
+        effects.append((model, kind, value, element_id, rate))
+        defenses.append((model, defense, element_id, 0, 0))
+    return tuple(effects), defenses
 
 
 def _chance_profiles(

@@ -59,7 +59,7 @@ def game(
         max_decisions=max_decisions,
         initial_mp=mp,
         attack_profiles=ids(attacks),
-        armor_profiles=ids(PLAN.combat.armor_profiles),
+        armor_profiles=ids([row for row in PLAN.combat.armor_profiles if row[1] > 0]),
         boost_profiles=ids(PLAN.combat.boost_profiles),
         special_profiles=ids(specials).reshape(-1, 5),
         gift_profiles=ids([(191, 1)]) if refill else None,
@@ -487,7 +487,7 @@ def test_malformed_native_special_profiles_fail_closed(profiles):
 
 def test_factory_metadata_and_retained_public_snapshot_do_not_claim_full_readiness():
     configured = create_development_full_game_batch(
-        catalog_path=CATALOG, bible_path=BIBLE, batch_size=1, capacity=18
+        resource_cap=100, catalog_path=CATALOG, bible_path=BIBLE, batch_size=1, capacity=18
     )
     batch = configured.batch
     begin(batch, defense=[190])
@@ -498,8 +498,8 @@ def test_factory_metadata_and_retained_public_snapshot_do_not_claim_full_readine
     batch.reset_environments(ids([0]))
     assert not np.any(batch.special_defense_observations())
     assert before.tolist() == [[1, 0, 0, 2, 0]] and batch.reflection_count == 1
-    assert configured.metadata.kernel_schema_version == 7
-    assert PLAN.integrated_artifact_effect_count == 195
+    assert configured.metadata.kernel_schema_version == 31
+    assert PLAN.integrated_artifact_effect_count == 237
     assert (
         not configured.metadata.full_game_training_ready
         and not configured.metadata.promotion_eligible

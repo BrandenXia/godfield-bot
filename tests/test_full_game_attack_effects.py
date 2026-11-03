@@ -55,6 +55,7 @@ def game(
         special_profiles=ids(PLAN.combat.special_profiles),
         chance_profiles=ids(PLAN.combat.chance_profiles),
         attack_effect_profiles=ids(effects).reshape(-1, 3),
+        defense_effect_profiles=ids(PLAN.combat.defense_effect_profiles),
         gift_profiles=ids(gifts) if refill else None,
         refill_on_use=refill,
     )
@@ -526,7 +527,7 @@ def test_late_hidden_defense_failure_rolls_back_absorption_and_all_batch_counter
     batch = game(size=2, refill=True)
     for env in range(2):
         seed(batch, [27], env=env)
-    batch.seed_hand(1, 1, ids([[101, 189, 190, 0]]))
+    batch.seed_hand(1, 1, ids([[101, 178, 190, 0]]))
     batch.start_environments(ids([0, 1]))
     for choice in (1, 0, 20):
         step(batch, [choice, choice])
@@ -581,10 +582,10 @@ def test_malformed_native_effect_profiles_fail_closed(profiles):
 
 def test_source_factory_gates_new_effects_and_cannot_relabel_metadata():
     configured = create_development_full_game_batch(
-        catalog_path=CATALOG, bible_path=BIBLE, batch_size=1, capacity=18
+        resource_cap=100, catalog_path=CATALOG, bible_path=BIBLE, batch_size=1, capacity=18
     )
-    assert configured.metadata.kernel_schema_version == 7
-    assert len(EFFECTS) == 20 and PLAN.integrated_artifact_effect_count == 195
+    assert configured.metadata.kernel_schema_version == 31
+    assert len(EFFECTS) == 20 and PLAN.integrated_artifact_effect_count == 237
     assert (
         not configured.metadata.full_game_training_ready
         and not configured.metadata.promotion_eligible

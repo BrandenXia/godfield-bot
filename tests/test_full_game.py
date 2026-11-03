@@ -158,8 +158,8 @@ def test_setup_start_actor_relative_projection_and_dead_seat_skipping(players):
     unchanged(batch, before)
 
 
-@pytest.mark.parametrize("model,kind,value,cost", PLAN.effect_profiles)
-def test_all_12_effects_join_resources_curses_inventory_and_turns(model, kind, value, cost):
+@pytest.mark.parametrize("model,kind,value,cost", [r for r in PLAN.effect_profiles if r[1] <= 5])
+def test_all_13_effects_join_resources_curses_inventory_and_turns(model, kind, value, cost):
     batch = game()
     load(batch, hp=30, mp=30, cp=17, illness=3, mask=15)
     batch.seed_hand(0, 0, rows([[1, model, 0, 0], [2, 191, 0, 0]]))
@@ -171,7 +171,8 @@ def test_all_12_effects_join_resources_curses_inventory_and_turns(model, kind, v
     if kind != 4:
         hp -= 5  # Hell periodic effect follows utility/mild cure.
     mp = min(100, 30 - cost + value) if kind == 2 else 30 - cost
-    assert player[0] == hp and player[1] == mp and player[2] == 17
+    cp = min(100, 17 + value) if kind == 5 else 17
+    assert player[0] == hp and player[1] == mp and player[2] == cp
     assert player[4] == (0 if kind == 4 else (10 if kind == 3 else 15))
     assert player[5] == 1
     assert batch.episode_snapshot()[0].tolist() == [1, 2, 1, 1, 1, 0, -1, 1, 1]
@@ -567,7 +568,7 @@ def test_native_effect_profile_validation_is_not_artifact_registration(effects):
 
 def test_source_factory_and_protocol_native_parity_recheck_leases_at_commit():
     configured = create_development_full_game_batch(
-        catalog_path=CATALOG, bible_path=BIBLE, batch_size=2, capacity=8
+        resource_cap=100, catalog_path=CATALOG, bible_path=BIBLE, batch_size=2, capacity=8
     )
     batch = configured.batch
     setup = full_game_decision_contexts(configured)
@@ -592,13 +593,21 @@ def test_source_factory_and_protocol_native_parity_recheck_leases_at_commit():
 
 def test_source_plan_metadata_pins_and_serialization():
     assert PLAN.effect_sha256 == FULL_GAME_EFFECT_SHA256
-    assert len(PLAN.effect_profiles) == 12
-    assert Counter(kind for _, kind, _, _ in PLAN.effect_profiles) == {1: 5, 2: 3, 3: 2, 4: 2}
-    assert native.FULL_GAME_KERNEL_SCHEMA_VERSION == 7
+    assert len(PLAN.effect_profiles) == 15
+    assert Counter(kind for _, kind, _, _ in PLAN.effect_profiles) == {
+        1: 5,
+        2: 3,
+        3: 2,
+        4: 2,
+        5: 1,
+        6: 1,
+        7: 1,
+    }
+    assert native.FULL_GAME_KERNEL_SCHEMA_VERSION == 31
     assert native.FULL_GAME_RULESET_ID == FULL_GAME_RULESET_ID
     assert FULL_GAME_PHASES[0] == "setup" and FULL_GAME_PHASES[12] == "terminal"
     configured = create_development_full_game_batch(
-        catalog_path=CATALOG, bible_path=BIBLE, batch_size=2, capacity=8
+        resource_cap=100, catalog_path=CATALOG, bible_path=BIBLE, batch_size=2, capacity=8
     )
     assert (
         FullGameMetadata.model_validate_json(configured.metadata.model_dump_json())
@@ -647,7 +656,7 @@ def test_plan_cannot_relabel_effects_or_claim_more_than_implemented(changes):
 )
 def test_metadata_keeps_incomplete_engine_isolated_and_bounded(changes):
     configured = create_development_full_game_batch(
-        catalog_path=CATALOG, bible_path=BIBLE, batch_size=2, capacity=8
+        resource_cap=100, catalog_path=CATALOG, bible_path=BIBLE, batch_size=2, capacity=8
     )
     with pytest.raises(ValidationError):
         FullGameMetadata.model_validate({**configured.metadata.model_dump(), **changes})
@@ -656,7 +665,9 @@ def test_metadata_keeps_incomplete_engine_isolated_and_bounded(changes):
 def test_factory_fails_closed_on_native_identity_drift(monkeypatch):
     monkeypatch.setattr(native, "FULL_GAME_RULESET_ID", "different")
     with pytest.raises(ProvisionalRuleUnavailableError, match="contract differs"):
-        create_development_full_game_batch(catalog_path=CATALOG, bible_path=BIBLE, batch_size=2)
+        create_development_full_game_batch(
+            resource_cap=100, catalog_path=CATALOG, bible_path=BIBLE, batch_size=2
+        )
 
 
 @pytest.mark.parametrize("model,resource", [(191, 0), (195, 1), (235, 0)])
@@ -778,8 +789,9 @@ def test_development_smoke_is_deterministic_bounded_and_not_a_strength_gate(play
     second = run_full_game_development_smoke(**options)
     assert first == second
     assert first.winners + first.all_dead_draws + first.turn_limit_truncations == 16
-    assert first.actions == first.passes + first.utilities
-    assert first.actions <= 16 * 64 and first.utilities > 0 and first.mp_spent > 0
+    assert first.actions == first.passes + first.utilities + first.selection_commands
+    assert first.selection_commands == first.utilities
+    assert first.actions <= 2 * 16 * 64 and first.utilities > 0 and first.mp_spent > 0
     assert first.consumed_cards + first.retained_miracle_uses == first.utilities
     assert not first.teacher_or_reward_dataset_eligible
     assert not first.local_training_eligible and not first.full_game_training_ready

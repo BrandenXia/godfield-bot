@@ -25,7 +25,7 @@ explicit caller-selected pair of exact owned, used, undisguised catalog
 miracles, then removes both atomically without reordering survivors. This
 models only the inventory projection under that selection. It does not choose
 which miracles Soap removes, establish whether fewer than two can be removed,
-pay the $10 cost, gift replacements, update combat, or infer a missing event.
+apply economy transactions, gift replacements, update combat, or infer a missing event.
 The constructor validates instance IDs, model IDs, and the caller's miracle
 allowlist; failed operations do not mutate state. Tests are synthetic and do
 not count as official validation.
@@ -51,3 +51,8 @@ differs, correct or retire this provisional hypothesis without rewriting
 historical run or model identities. Promotion remains blocked until the
 broader full-game rules, transport, and independent official performance
 criteria are met.
+
+The later source audit in ADR 0112 clarifies that Soap's $10 field is its
+catalog price, not a use cost. The separately versioned joined implementation
+does not charge that amount when casting Soap; this historical primitive and
+its diagnostic identity remain unchanged.

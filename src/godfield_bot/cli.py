@@ -2,7 +2,7 @@ import asyncio
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import TYPE_CHECKING, Annotated, Literal
 
 import structlog
 import typer
@@ -3742,6 +3742,39 @@ def simulation_full_game_episode_probe(
         raise typer.Exit(code=1)
 
 
+if TYPE_CHECKING:
+    from godfield_bot.full_game_training import FullGameTrainingRun, FullGameTrainingUpdate
+
+
+def _full_game_update_progress(index: int, update: "FullGameTrainingUpdate") -> None:
+    state = "updated weights" if update.metrics is not None else "skipped update"
+    typer.echo(f"Batch {index} {state} using {update.terminal_target_decisions} targets", err=True)
+
+
+def _publish_full_game_run(run: "FullGameTrainingRun", checkpoint_root: Path | None) -> bool:
+    from godfield_bot.full_game_training import save_full_game_training
+
+    report = run.report
+    successful = report.updates[-1].collection_error is None and any(
+        update.metrics is not None for update in report.updates
+    )
+    directory = (
+        save_full_game_training(checkpoint_root, run)
+        if successful and checkpoint_root is not None
+        else None
+    )
+    typer.echo(
+        json.dumps(
+            {
+                "checkpoint": str(directory) if directory is not None else None,
+                "training": report.model_dump(mode="json"),
+            },
+            indent=2,
+        )
+    )
+    return successful
+
+
 @simulation_app.command("full-game-train")
 def simulation_full_game_train(
     catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
@@ -3764,9 +3797,7 @@ def simulation_full_game_train(
     try:
         from godfield_bot.full_game_training import (
             FullGameTrainingConfig,
-            FullGameTrainingUpdate,
-            save_full_game_candidate,
-            train_full_game,
+            run_full_game_training,
         )
 
         config = FullGameTrainingConfig(
@@ -3782,36 +3813,47 @@ def simulation_full_game_train(
             apocalypse_after_turns=apocalypse_after_turns,
         )
 
-        def progress(index: int, update: FullGameTrainingUpdate) -> None:
-            state = "updated weights" if update.metrics is not None else "skipped update"
-            typer.echo(
-                f"Batch {index}/{updates} {state} using {update.terminal_target_decisions} targets",
-                err=True,
-            )
-
-        report, policy = train_full_game(
-            catalog_path=catalog, bible_path=bible, config=config, on_update=progress
+        run = run_full_game_training(
+            catalog_path=catalog,
+            bible_path=bible,
+            config=config,
+            on_update=_full_game_update_progress,
         )
-        successful = report.updates[-1].collection_error is None and any(
-            update.metrics is not None for update in report.updates
-        )
-        directory = (
-            save_full_game_candidate(checkpoint_root, report, policy)
-            if successful and checkpoint_root is not None
-            else None
-        )
+        successful = _publish_full_game_run(run, checkpoint_root)
     except (ImportError, OSError, RuntimeError, ValueError) as error:
         structlog.get_logger().error("full_game_training_failed", reason=str(error).splitlines()[0])
         raise typer.Exit(code=1) from None
-    typer.echo(
-        json.dumps(
-            {
-                "checkpoint": str(directory) if directory is not None else None,
-                "training": report.model_dump(mode="json"),
-            },
-            indent=2,
+    if not successful:
+        raise typer.Exit(code=1)
+
+
+@simulation_app.command("full-game-resume")
+def simulation_full_game_resume(
+    checkpoint: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    additional_updates: Annotated[int, typer.Option(min=1, max=256)] = 4,
+    checkpoint_root: Annotated[Path | None, typer.Option(file_okay=False)] = None,
+) -> None:
+    """Continue a local run from its Adam state and next batch seeds."""
+    try:
+        from godfield_bot.full_game_training import resume_full_game_training
+
+        run = resume_full_game_training(
+            checkpoint,
+            catalog_path=catalog,
+            bible_path=bible,
+            additional_updates=additional_updates,
+            on_update=_full_game_update_progress,
         )
-    )
+        successful = _publish_full_game_run(run, checkpoint_root)
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error("full_game_resume_failed", reason=str(error).splitlines()[0])
+        raise typer.Exit(code=1) from None
     if not successful:
         raise typer.Exit(code=1)
 
@@ -3827,8 +3869,9 @@ def simulation_full_game_evaluate(
     ),
     seed: Annotated[int, typer.Option(min=0)] = 100_000,
     games_per_faction: Annotated[int, typer.Option(min=1, max=64)] = 16,
+    baseline: Annotated[Path | None, typer.Option(exists=True, file_okay=False)] = None,
 ) -> None:
-    """Evaluate a local candidate against its frozen initial policy."""
+    """Evaluate against the frozen initial policy or a compatible checkpoint."""
     try:
         from godfield_bot.full_game_evaluation import evaluate_full_game_candidate
 
@@ -3838,6 +3881,7 @@ def simulation_full_game_evaluate(
             bible_path=bible,
             seed=seed,
             games_per_faction=games_per_faction,
+            baseline_directory=baseline,
         )
     except (ImportError, OSError, RuntimeError, ValueError) as error:
         structlog.get_logger().error(

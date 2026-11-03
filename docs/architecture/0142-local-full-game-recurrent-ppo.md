@@ -24,8 +24,8 @@ record a skipped update.
 candidate directory containing weights and a checksummed manifest. The
 manifest records source and ruleset pins, optimizer settings, the recurrent
 boundary, seeds, outcomes and a chain of behavior and resulting policy hashes.
-The loader validates and restores policy weights for inference. Optimizer
-resume requires a follow-up training-state format.
+The loader validates and restores policy weights for inference. ADR0143
+adds version 2 checkpoints with Adam state and deterministic continuation.
 
 `simulation full-game-evaluate` restores the candidate and recreates its
 initial weights as a frozen baseline. It checks the initial tensor digest,

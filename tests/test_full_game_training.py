@@ -1,6 +1,8 @@
 """Full-pool PPO, forced value-only updates and frozen evaluation."""
 
+import hashlib
 import json
+from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
@@ -28,6 +30,8 @@ from godfield_bot.full_game_training import (  # noqa: E402
     FullGamePpoConfig,
     FullGameTrainingConfig,
     load_full_game_candidate,
+    resume_full_game_training,
+    run_full_game_training,
     save_full_game_candidate,
     train_full_game,
     train_full_game_ppo,
@@ -154,3 +158,95 @@ def test_cli_reports_zero_terminal_samples_and_creates_no_candidate(monkeypatch,
     payload = json.loads(result.stdout)
     assert payload["checkpoint"] is None and not path.exists()
     assert payload["training"]["updates"][0]["outcomes"][0]["status"] == "decision-limit"
+
+
+@pytest.fixture(scope="module")
+def resumable_candidate(tmp_path_factory):
+    runner = CliRunner()
+    # Keep the CLI's captured stderr from replacing global logging for other tests.
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr("godfield_bot.cli.configure_logging", lambda **_: None)
+        result = runner.invoke(
+            app,
+            [
+                "simulation",
+                "full-game-train",
+                "--updates",
+                "1",
+                "--batch-size",
+                "2",
+                "--players",
+                "4",
+                "--teams",
+                "1,1,2,2",
+                "--checkpoint-root",
+                str(tmp_path_factory.mktemp("resumable")),
+            ],
+        )
+    assert result.exit_code == 0, result.output
+    return Path(json.loads(result.stdout)["checkpoint"])
+
+
+def test_cli_resume_matches_uninterrupted_training(resumable_candidate, monkeypatch, tmp_path):
+    monkeypatch.setattr("godfield_bot.cli.configure_logging", lambda **_: None)
+    parent_manifest = (resumable_candidate / "manifest.json").read_bytes()
+    parent_adam = (resumable_candidate / "adam.pt").read_bytes()
+    result = CliRunner().invoke(
+        app,
+        [
+            "simulation",
+            "full-game-resume",
+            str(resumable_candidate),
+            "--additional-updates",
+            "2",
+            "--checkpoint-root",
+            str(tmp_path),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    child = Path(json.loads(result.stdout)["checkpoint"])
+    manifest, policy = load_full_game_candidate(child)
+    assert manifest.schema_version == 2 and manifest.adam is not None
+    uninterrupted = run_full_game_training(**PATHS, config=manifest.training.config)
+    assert manifest.training == uninterrupted.report
+    assert full_game_policy_sha256(policy) == full_game_policy_sha256(uninterrupted.policy)
+    resumed_adam = torch.load(child / "adam.pt", map_location="cpu", weights_only=True)
+    expected_adam = uninterrupted.optimizer.state_dict()
+    assert resumed_adam["param_groups"] == expected_adam["param_groups"]
+    assert resumed_adam["state"].keys() == expected_adam["state"].keys()
+    for parameter, moments in expected_adam["state"].items():
+        for name, moment in moments.items():
+            assert torch.equal(resumed_adam["state"][parameter][name], moment)
+    assert (resumable_candidate / "manifest.json").read_bytes() == parent_manifest
+    assert (resumable_candidate / "adam.pt").read_bytes() == parent_adam
+
+
+def test_version_one_still_loads_for_evaluation_but_cannot_resume(trained_candidate):
+    _, _, _, directory = trained_candidate
+    assert load_full_game_candidate(directory)[0].schema_version == 1
+    with pytest.raises(ValueError, match="version 2 checkpoint"):
+        resume_full_game_training(directory, **PATHS, additional_updates=1)
+
+
+def test_frozen_evaluation_accepts_an_earlier_checkpoint(trained_candidate, resumable_candidate):
+    _, baseline, _, directory = trained_candidate
+    result = evaluate_full_game_candidate(
+        resumable_candidate, **PATHS, seed=300000, games_per_faction=1, baseline_directory=directory
+    )
+    assert result.evaluation == "held-out-native-each-faction-vs-checkpoint-v1"
+    assert result.baseline_policy_sha256 == baseline.final_policy_sha256
+    assert result.candidate_policy_sha256 != result.baseline_policy_sha256
+    assert result.wins + result.losses + result.draws + result.truncations == 2
+
+
+def test_checksummed_adam_state_with_wrong_step_count_is_rejected(resumable_candidate, tmp_path):
+    manifest = json.loads((resumable_candidate / "manifest.json").read_bytes())
+    (tmp_path / "weights.pt").write_bytes((resumable_candidate / "weights.pt").read_bytes())
+    state = torch.load(resumable_candidate / "adam.pt", map_location="cpu", weights_only=True)
+    next(iter(state["state"].values()))["step"].add_(1)
+    path = tmp_path / "adam.pt"
+    torch.save(state, path)
+    manifest["adam"]["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+    (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(ValueError, match="Adam step count"):
+        resume_full_game_training(tmp_path, **PATHS, additional_updates=1)

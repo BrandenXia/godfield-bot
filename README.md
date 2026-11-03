@@ -1664,7 +1664,8 @@ In the32-game integration sweep all12,391 decisions receive valid terminal
 targets. The local recurrent PPO trainer now uses those complete episodes and
 saves an optional candidate for frozen evaluation. The 12-update and 32-update
 2v2 runs scored 62–66 and 68–60 against their initial weights on separate
-128-game held-out sets. Optimizer resume and the strength gate remain open. See
+128-game held-out sets. Version 2 checkpoints support Adam-state resume.
+The strength gate remains open. See
 [ADR 0139](docs/architecture/0139-public-full-game-encoding-and-transactional-seat-memory.md)
 and the approved
 [complete-episode collector](docs/architecture/0141-complete-terminal-episode-collection.md)
@@ -1681,6 +1682,18 @@ UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation --extra training \
 ```
 
 Use the `checkpoint` path from the training report as the evaluation directory.
+Resume a version 2 checkpoint with additional updates. The trainer takes the
+roster, optimizer settings and seed schedule from the checkpoint.
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation --extra training \
+  godfield-bot simulation full-game-resume '/path/from/training/report' \
+  --additional-updates 20 --checkpoint-root runs/full-game-candidates
+```
+
+Add `--baseline '/path/to/earlier/checkpoint'` to evaluate against an earlier
+compatible policy. Use evaluation seeds outside both training runs. See
+[Adam resume and frozen checkpoint evaluation](docs/architecture/0143-full-game-adam-resume.md).
 
 That is not full-game fidelity: unobserved combinations, hidden cross-role
 resolution, complete event/virtual commands and learning interfaces remain gated. Attack additions

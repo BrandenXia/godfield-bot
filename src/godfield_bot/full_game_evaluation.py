@@ -31,9 +31,10 @@ class FullGameFactionEvaluation(BaseModel):
 class FullGameFrozenEvaluation(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     schema_version: Literal[1] = 1
-    evaluation: Literal["held-out-native-each-faction-vs-initial-policy-v1"] = (
-        "held-out-native-each-faction-vs-initial-policy-v1"
-    )
+    evaluation: Literal[
+        "held-out-native-each-faction-vs-initial-policy-v1",
+        "held-out-native-each-faction-vs-checkpoint-v1",
+    ] = "held-out-native-each-faction-vs-initial-policy-v1"
     candidate_policy_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     baseline_policy_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     training_environment_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
@@ -82,6 +83,7 @@ def evaluate_full_game_candidate(
     bible_path: Path,
     seed: int = 100_000,
     games_per_faction: int = 16,
+    baseline_directory: Path | None = None,
 ) -> FullGameFrozenEvaluation:
     if (
         type(seed) is not int
@@ -93,10 +95,22 @@ def evaluate_full_game_candidate(
     manifest, candidate = load_full_game_candidate(directory)
     training = manifest.training
     config = training.config
+    exclude = {"batch_size", "seed"}
+    environment = training.initial_collection.environment.model_dump(exclude=exclude)
+    baseline = None
+    histories = training.updates
+    if baseline_directory is not None:
+        baseline_manifest, baseline = load_full_game_candidate(baseline_directory)
+        baseline_training = baseline_manifest.training
+        if (
+            baseline.architecture != candidate.architecture
+            or baseline_training.initial_collection.environment.model_dump(exclude=exclude)
+            != environment
+        ):
+            raise ValueError("full-game evaluation baseline architecture or ruleset differs")
+        histories += baseline_training.updates
     used_seeds = {
-        seed
-        for update in training.updates
-        for seed in (update.environment_seed, update.sampling_seed)
+        seed for update in histories for seed in (update.environment_seed, update.sampling_seed)
     }
     if used_seeds.intersection((seed, seed + 1)):
         raise ValueError("full-game frozen evaluation requires held-out seeds")
@@ -111,12 +125,18 @@ def evaluate_full_game_candidate(
     results = []
     try:
         torch.set_num_threads(config.cpu_threads)
-        with torch.random.fork_rng(devices=[]):
-            torch.manual_seed(config.seed)
-            baseline = FullGameActorCritic(config.architecture).float().cpu().eval()
+        if baseline is None:
+            with torch.random.fork_rng(devices=[]):
+                torch.manual_seed(config.seed)
+                baseline = FullGameActorCritic(config.architecture).float().cpu().eval()
+            if (
+                full_game_policy_sha256(baseline)
+                != training.initial_collection.behavior_policy_sha256
+            ):
+                raise ValueError(
+                    "full-game evaluation could not reproduce the frozen initial weights"
+                )
         baseline_hash = full_game_policy_sha256(baseline)
-        if baseline_hash != training.initial_collection.behavior_policy_sha256:
-            raise ValueError("full-game evaluation could not reproduce the frozen initial weights")
         for candidate_seats in factions.values():
             configured = create_development_full_game_batch(
                 catalog_path=catalog_path,
@@ -131,10 +151,7 @@ def evaluate_full_game_candidate(
                 max_decisions=config.max_decisions,
                 apocalypse_after_turns=config.apocalypse_after_turns,
             )
-            exclude = {"batch_size", "seed"}
-            if configured.metadata.model_dump(
-                exclude=exclude
-            ) != training.initial_collection.environment.model_dump(exclude=exclude):
+            if configured.metadata.model_dump(exclude=exclude) != environment:
                 raise ValueError("full-game evaluation source or ruleset differs from training")
             controller = FullGamePolicyController(
                 configured,
@@ -177,6 +194,11 @@ def evaluate_full_game_candidate(
     finally:
         torch.set_num_threads(previous_threads)
     return FullGameFrozenEvaluation(
+        evaluation=(
+            "held-out-native-each-faction-vs-checkpoint-v1"
+            if baseline_directory is not None
+            else "held-out-native-each-faction-vs-initial-policy-v1"
+        ),
         candidate_policy_sha256=candidate_hash,
         baseline_policy_sha256=baseline_hash,
         training_environment_sha256=training.initial_collection.encoder.environment_metadata_sha256,

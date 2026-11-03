@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import io
 import math
+import platform
 from collections.abc import Callable
 from dataclasses import dataclass, fields
 from pathlib import Path
@@ -330,6 +332,54 @@ class FullGameTrainingReport(BaseModel):
         return self
 
 
+class FullGameTrainingRuntime(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    torch_version: str
+    torch_build_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    system: str
+    machine: str
+    default_dtype: str
+    matmul_precision: str
+    mkldnn_enabled: bool
+    deterministic_algorithms: bool
+
+
+def _training_runtime() -> FullGameTrainingRuntime:
+    return FullGameTrainingRuntime(
+        torch_version=str(torch.__version__),
+        torch_build_sha256=hashlib.sha256(torch.__config__.show().encode()).hexdigest(),
+        system=platform.system(),
+        machine=platform.machine(),
+        default_dtype=str(torch.get_default_dtype()),
+        matmul_precision=torch.get_float32_matmul_precision(),
+        mkldnn_enabled=bool(torch.backends.mkldnn.enabled),
+        deterministic_algorithms=torch.are_deterministic_algorithms_enabled(),
+    )
+
+
+@dataclass(frozen=True)
+class FullGameTrainingRun:
+    report: FullGameTrainingReport
+    policy: FullGameActorCritic
+    optimizer: torch.optim.Adam
+    runtime: FullGameTrainingRuntime
+
+
+def _adam(policy: FullGameActorCritic, config: FullGamePpoConfig) -> torch.optim.Adam:
+    return torch.optim.Adam(policy.parameters(), lr=config.learning_rate)
+
+
+def run_full_game_training(
+    *,
+    catalog_path: Path,
+    bible_path: Path,
+    config: FullGameTrainingConfig,
+    on_update: Callable[[int, FullGameTrainingUpdate], None] | None = None,
+) -> FullGameTrainingRun:
+    """Fresh local full-pool self-play with one frozen behavior batch per update."""
+    return _run_training(catalog_path, bible_path, config, on_update=on_update)
+
+
 def train_full_game(
     *,
     catalog_path: Path,
@@ -337,18 +387,38 @@ def train_full_game(
     config: FullGameTrainingConfig,
     on_update: Callable[[int, FullGameTrainingUpdate], None] | None = None,
 ) -> tuple[FullGameTrainingReport, FullGameActorCritic]:
-    """Fresh local full-pool self-play with one frozen behavior batch per update."""
+    run = run_full_game_training(
+        catalog_path=catalog_path, bible_path=bible_path, config=config, on_update=on_update
+    )
+    return run.report, run.policy
+
+
+def _run_training(
+    catalog_path: Path,
+    bible_path: Path,
+    config: FullGameTrainingConfig,
+    *,
+    parent: FullGameTrainingRun | None = None,
+    on_update: Callable[[int, FullGameTrainingUpdate], None] | None = None,
+) -> FullGameTrainingRun:
     config = FullGameTrainingConfig.model_validate(config.model_dump())
+    runtime = _training_runtime()
     previous_threads = torch.get_num_threads()
     try:
         torch.set_num_threads(config.cpu_threads)
         with torch.random.fork_rng(devices=[]):
             torch.manual_seed(config.seed)
-            policy = FullGameActorCritic(config.architecture).float().cpu()
-            optimizer = torch.optim.Adam(policy.parameters(), lr=config.ppo.learning_rate)
-            initial = None
-            updates = []
-            for i in range(config.updates):
+            if parent is None:
+                policy = FullGameActorCritic(config.architecture).float().cpu()
+                optimizer = _adam(policy, config.ppo)
+                initial = None
+                updates = []
+            else:
+                policy, optimizer = parent.policy, parent.optimizer
+                initial = parent.report.initial_collection
+                updates = list(parent.report.updates)
+            policy.train()
+            for i in range(len(updates), config.updates):
                 environment_seed = config.seed + 2 * i
                 sampling_seed = environment_seed + 1
                 configured = create_development_full_game_batch(
@@ -404,27 +474,58 @@ def train_full_game(
                 if updates[-1].collection_error is not None:
                     break
             assert initial is not None
-            return FullGameTrainingReport(
+            report = FullGameTrainingReport(
                 config=config,
                 initial_collection=initial,
                 updates=tuple(updates),
                 final_policy_sha256=full_game_policy_sha256(policy),
-            ), policy
+            )
+            if runtime != _training_runtime():
+                raise RuntimeError("full-game training runtime changed during the run")
+            return FullGameTrainingRun(report, policy, optimizer, runtime)
     finally:
         torch.set_num_threads(previous_threads)
 
 
+class FullGameAdamCheckpoint(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    parameter_names: tuple[str, ...]
+    runtime: FullGameTrainingRuntime
+
+
 class FullGameCandidateManifest(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    schema_version: int = Field(ge=1, le=1, strict=True)
+    schema_version: int = Field(ge=1, le=2, strict=True)
     source_kind: Literal["local-full-game-ppo-candidate-v1"]
     weights_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     training: FullGameTrainingReport
+    adam: FullGameAdamCheckpoint | None = None
     promotion_eligible: Literal[False] = False
+
+    @model_validator(mode="after")
+    def checkpoint_version(self) -> FullGameCandidateManifest:
+        if (self.schema_version == 2) != (self.adam is not None):
+            raise ValueError("full-game checkpoint version and Adam state differ")
+        return self
 
 
 def save_full_game_candidate(
     root: Path, report: FullGameTrainingReport, policy: FullGameActorCritic
+) -> Path:
+    return _write_candidate(root, report, policy)
+
+
+def save_full_game_training(root: Path, run: FullGameTrainingRun) -> Path:
+    return _write_candidate(root, run.report, run.policy, run=run)
+
+
+def _write_candidate(
+    root: Path,
+    report: FullGameTrainingReport,
+    policy: FullGameActorCritic,
+    *,
+    run: FullGameTrainingRun | None = None,
 ) -> Path:
     report = FullGameTrainingReport.model_validate(report.model_dump())
     if (
@@ -439,17 +540,43 @@ def save_full_game_candidate(
         stage = Path(temporary)
         weights = stage / "weights.pt"
         torch.save(policy.state_dict(), weights)
+        adam = None
+        if run is not None:
+            named = tuple(policy.named_parameters())
+            owned = [p for group in run.optimizer.param_groups for p in group["params"]]
+            if [id(p) for p in owned] != [id(p) for _, p in named]:
+                raise ValueError("full-game checkpoint Adam parameter order differs")
+            state = run.optimizer.state_dict()
+            _validate_adam_state(state, policy, report, _adam(policy, report.config.ppo))
+            optimizer_path = stage / "adam.pt"
+            torch.save(state, optimizer_path)
+            adam = FullGameAdamCheckpoint(
+                sha256=hashlib.sha256(optimizer_path.read_bytes()).hexdigest(),
+                parameter_names=tuple(name for name, _ in named),
+                runtime=run.runtime,
+            )
         manifest = FullGameCandidateManifest(
-            schema_version=1,
+            schema_version=2 if adam is not None else 1,
             source_kind="local-full-game-ppo-candidate-v1",
             weights_sha256=hashlib.sha256(weights.read_bytes()).hexdigest(),
             training=report,
+            adam=adam,
         )
         (stage / "manifest.json").write_text(
-            manifest.model_dump_json(indent=2) + "\n", encoding="utf-8"
+            manifest.model_dump_json(indent=2, exclude={"adam"} if adam is None else None) + "\n",
+            encoding="utf-8",
         )
         stage.rename(directory)
     return directory
+
+
+def _read_checkpoint_tensor(path: Path, sha256: str) -> object:
+    maximum_bytes = 32 * 1024 * 1024
+    with path.open("rb") as source:
+        data = source.read(maximum_bytes + 1)
+    if len(data) > maximum_bytes or hashlib.sha256(data).hexdigest() != sha256:
+        raise ValueError(f"full-game checkpoint {path.name} size or checksum differs")
+    return torch.load(io.BytesIO(data), map_location="cpu", weights_only=True)
 
 
 def load_full_game_candidate(
@@ -458,15 +585,9 @@ def load_full_game_candidate(
     manifest = FullGameCandidateManifest.model_validate_json(
         (directory / "manifest.json").read_bytes()
     )
-    weights = directory / "weights.pt"
-    if (
-        weights.stat().st_size > 32 * 1024 * 1024
-        or hashlib.sha256(weights.read_bytes()).hexdigest() != manifest.weights_sha256
-    ):
-        raise ValueError("full-game candidate weight size or checksum differs")
+    tensors = _read_checkpoint_tensor(directory / "weights.pt", manifest.weights_sha256)
     with torch.random.fork_rng(devices=[]):
         policy = FullGameActorCritic(manifest.training.config.architecture).float().cpu()
-    tensors = torch.load(weights, map_location="cpu", weights_only=True)
     expected = policy.state_dict()
     if (
         not isinstance(tensors, dict)
@@ -483,3 +604,93 @@ def load_full_game_candidate(
     if full_game_policy_sha256(policy) != manifest.training.final_policy_sha256:
         raise ValueError("full-game candidate tensor content differs from training report")
     return manifest, policy.eval()
+
+
+def _validate_adam_state(
+    state: object,
+    policy: FullGameActorCritic,
+    report: FullGameTrainingReport,
+    optimizer: torch.optim.Adam,
+) -> None:
+    if (
+        not isinstance(state, dict)
+        or state.keys() != {"state", "param_groups"}
+        or not isinstance(state["state"], dict)
+        or state["param_groups"] != optimizer.state_dict()["param_groups"]
+    ):
+        raise ValueError("full-game checkpoint Adam settings or parameter layout differs")
+    updates = [update for update in report.updates if update.metrics is not None]
+    expected_steps = {
+        index: report.config.ppo.epochs
+        * sum(
+            update.actor_decisions > 0 or not name.startswith("action_head.") for update in updates
+        )
+        for index, (name, _) in enumerate(policy.named_parameters())
+    }
+    moments = state["state"]
+    if set(moments) != {index for index, steps in expected_steps.items() if steps}:
+        raise ValueError("full-game checkpoint Adam moments differ from completed updates")
+    for index, parameter in enumerate(policy.parameters()):
+        if index not in moments:
+            continue
+        entry = moments[index]
+        if not isinstance(entry, dict) or entry.keys() != {"step", "exp_avg", "exp_avg_sq"}:
+            raise ValueError("full-game checkpoint Adam moment fields differ")
+        step = entry["step"]
+        if (
+            not isinstance(step, Tensor)
+            or step.shape != ()
+            or step.device.type != "cpu"
+            or step.dtype not in (torch.float32, torch.float64)
+            or step.item() != expected_steps[index]
+        ):
+            raise ValueError("full-game checkpoint Adam step count differs")
+        for key in ("exp_avg", "exp_avg_sq"):
+            moment = entry[key]
+            if (
+                not isinstance(moment, Tensor)
+                or moment.shape != parameter.shape
+                or moment.dtype != parameter.dtype
+                or moment.device.type != "cpu"
+                or not bool(torch.isfinite(moment).all())
+                or (key == "exp_avg_sq" and bool((moment < 0).any()))
+            ):
+                raise ValueError("full-game checkpoint Adam moment tensor differs")
+
+
+def resume_full_game_training(
+    directory: Path,
+    *,
+    catalog_path: Path,
+    bible_path: Path,
+    additional_updates: int,
+    on_update: Callable[[int, FullGameTrainingUpdate], None] | None = None,
+) -> FullGameTrainingRun:
+    if type(additional_updates) is not int or not 1 <= additional_updates <= 256:
+        raise ValueError("full-game resume requires a positive number of additional updates")
+    manifest, policy = load_full_game_candidate(directory)
+    adam = manifest.adam
+    report = manifest.training
+    if adam is None:
+        raise ValueError("full-game resume requires a version 2 checkpoint with Adam state")
+    if report.updates[-1].collection_error is not None:
+        raise ValueError("full-game resume requires a completed training run")
+    if adam.runtime != _training_runtime() or adam.parameter_names != tuple(
+        name for name, _ in policy.named_parameters()
+    ):
+        raise ValueError("full-game resume runtime or parameter order differs")
+    config = FullGameTrainingConfig.model_validate(
+        report.config.model_dump() | {"updates": len(report.updates) + additional_updates}
+    )
+    optimizer = _adam(policy, config.ppo)
+    state = _read_checkpoint_tensor(directory / "adam.pt", adam.sha256)
+    _validate_adam_state(state, policy, report, optimizer)
+    assert isinstance(state, dict)
+    optimizer.load_state_dict(state)
+    return _run_training(
+        catalog_path,
+        bible_path,
+        config,
+        parent=FullGameTrainingRun(report, policy, optimizer, adam.runtime),
+        on_update=on_update,
+    )

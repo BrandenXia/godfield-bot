@@ -1771,6 +1771,19 @@ lineage. The zero-initialized property projection preserves the parent's
 predictions before training. Resume and evaluation use the existing commands.
 [Displayed-card feature contract](docs/architecture/0148-approved-public-card-properties.md)
 
+Check collection, deterministic replay and real PPO updates across 2–9 players
+and four representative team layouts with the offline learning probe:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation --extra training \
+  godfield-bot simulation full-game-learning-probe
+```
+
+It reports native mechanic counters and separate endings/limits. Use
+`--players 4 --layouts two-teams --games-per-batch 2` for a smaller reproduction.
+Passing verifies this integration probe; it does not establish strength or
+complete mechanic coverage. [Probe contract and remaining gaps](docs/architecture/0149-roster-wide-learning-probes.md)
+
 That is not full-game fidelity: unobserved combinations, hidden cross-role
 resolution, complete event/virtual commands and learning interfaces remain gated. Attack additions
 include twenty-one weapons, four dual-role Ogre armor, Strength Powder, Fireball,

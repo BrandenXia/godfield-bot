@@ -3744,7 +3744,70 @@ def simulation_full_game_episode_probe(
 
 if TYPE_CHECKING:
     from godfield_bot.full_game_imitation import FullGameImitationUpdate
+    from godfield_bot.full_game_learning_probe import FullGameLearningProbeCase
     from godfield_bot.full_game_training import FullGameTrainingRun, FullGameTrainingUpdate
+
+
+@simulation_app.command("full-game-learning-probe")
+def simulation_full_game_learning_probe(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    players: Annotated[str, typer.Option(help="Comma-separated player counts to probe.")] = (
+        "2,3,4,5,6,7,8,9"
+    ),
+    layouts: Annotated[str, typer.Option(help="Comma-separated roster layouts to probe.")] = (
+        "solo,two-teams,mixed-solo,four-teams"
+    ),
+    games_per_batch: Annotated[int, typer.Option(min=1, max=16)] = 4,
+    seed: Annotated[int, typer.Option(min=0)] = 1400000,
+    max_turns: Annotated[int, typer.Option(min=1, max=1000)] = 256,
+    max_decisions: Annotated[int, typer.Option(min=1, max=2048)] = 2048,
+    apocalypse_after_turns: Annotated[int, typer.Option(min=0, max=1000)] = 64,
+) -> None:
+    """Probe full-pool collection, deterministic replay and PPO across rosters offline."""
+    try:
+        from godfield_bot.full_game_learning_probe import (
+            FullGameLearningProbeConfig,
+            run_full_game_learning_probe,
+        )
+
+        config = FullGameLearningProbeConfig.model_validate(
+            dict(
+                player_counts=tuple(int(value.strip()) for value in players.split(",")),
+                layouts=tuple(value.strip() for value in layouts.split(",")),
+                games_per_batch=games_per_batch,
+                seed=seed,
+                max_turns=max_turns,
+                max_decisions=max_decisions,
+                apocalypse_after_turns=apocalypse_after_turns,
+            )
+        )
+
+        def progress(case: "FullGameLearningProbeCase") -> None:
+            typer.echo(
+                f"Probe {case.training.config.player_count} players / {case.layout}: "
+                f"{'passed' if case.passed else 'failed'}",
+                err=True,
+            )
+
+        report = run_full_game_learning_probe(
+            catalog_path=catalog,
+            bible_path=bible,
+            config=config,
+            on_case=progress,
+        )
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error(
+            "full_game_learning_probe_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+    if not report.passed:
+        raise typer.Exit(code=1)
 
 
 def _full_game_update_progress(index: int, update: "FullGameTrainingUpdate") -> None:

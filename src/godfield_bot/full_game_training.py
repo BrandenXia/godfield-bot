@@ -32,6 +32,7 @@ from godfield_bot.full_game_neural import (
     FullGamePolicyInputs,
     full_game_policy_inputs,
     transfer_full_game_attack_history,
+    transfer_full_game_card_properties,
 )
 from godfield_bot.full_game_observation import FullGameObservation
 from godfield_bot.full_game_replay import full_game_seat_sequences, verify_full_game_behavior
@@ -276,6 +277,24 @@ class FullGameHistoryInitialization(BaseModel):
         return range(self.source_seed, self.source_seed + 2 * self.source_updates)
 
 
+class FullGameCardInitialization(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    method: Literal["copy-v2-policy-zero-card-projection-fresh-adam"] = (
+        "copy-v2-policy-zero-card-projection-fresh-adam"
+    )
+    source_policy_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    initialized_policy_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    source_training_seeds: tuple[Annotated[int, Field(ge=0, lt=2**63, strict=True)], ...] = Field(
+        min_length=1
+    )
+
+    @model_validator(mode="after")
+    def seed_lineage(self) -> FullGameCardInitialization:
+        if tuple(sorted(set(self.source_training_seeds))) != self.source_training_seeds:
+            raise ValueError("full-game card transfer requires unique ordered source seeds")
+        return self
+
+
 class FullGameTrainingReport(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     schema_version: int = Field(default=1, ge=1, le=1, strict=True)
@@ -287,6 +306,7 @@ class FullGameTrainingReport(BaseModel):
     )
     config: FullGameTrainingConfig
     initialization: FullGameHistoryInitialization | None = None
+    card_initialization: FullGameCardInitialization | None = None
     imitation: FullGameImitationReport | None = None
     initial_collection: FullGameCollectionMetadata
     updates: tuple[FullGameTrainingUpdate, ...]
@@ -301,6 +321,8 @@ class FullGameTrainingReport(BaseModel):
             result.update(self.initialization.source_seeds())
         if self.imitation is not None:
             result.update(self.imitation.config.seeds())
+        if self.card_initialization is not None:
+            result.update(self.card_initialization.source_training_seeds)
         return result
 
     @model_validator(mode="after")
@@ -358,6 +380,21 @@ class FullGameTrainingReport(BaseModel):
                 )
             ):
                 raise ValueError("full-game history initialization or seed range differs")
+        if self.card_initialization is not None:
+            card_source = self.card_initialization
+            next_hash = (
+                self.imitation.before_policy_sha256 if self.imitation is not None else previous
+            )
+            current_seeds = set(range(self.config.seed, self.config.seed + 2 * self.config.updates))
+            if self.imitation is not None:
+                current_seeds.update(self.imitation.config.seeds())
+            if (
+                self.initialization is not None
+                or self.config.architecture.schema_version != 3
+                or card_source.initialized_policy_sha256 != next_hash
+                or not set(card_source.source_training_seeds).isdisjoint(current_seeds)
+            ):
+                raise ValueError("full-game card initialization or seed lineage differs")
         for index, update in enumerate(self.updates):
             terminal = sum(
                 o.accepted_commands for o in update.outcomes if o.status in ("winner", "draw")
@@ -471,8 +508,12 @@ def _run_training(
 ) -> FullGameTrainingRun:
     config = FullGameTrainingConfig.model_validate(config.model_dump())
     initialization = parent.report.initialization if parent is not None else None
+    card_initialization = parent.report.card_initialization if parent is not None else None
     scheduled_seeds = range(config.seed, config.seed + 2 * config.updates)
-    if imitation is not None and (parent is not None or initialize_from is not None):
+    if imitation is not None and (
+        parent is not None
+        or (initialize_from is not None and config.architecture.schema_version != 3)
+    ):
         raise ValueError("imitation requires a fresh policy without history transfer or resume")
     warmup_report = parent.report.imitation if parent is not None else None
     warmup_config = imitation or (warmup_report.config if warmup_report is not None else None)
@@ -482,16 +523,23 @@ def _run_training(
         scheduled_seeds
     ):
         raise ValueError("full-game history resume overlaps the source training seeds")
+    if card_initialization is not None and not set(
+        card_initialization.source_training_seeds
+    ).isdisjoint(scheduled_seeds):
+        raise ValueError("full-game card resume overlaps the source training seeds")
     source_environment = None
     environment_exclude = {"seed", "batch_size"}
     source, source_policy = None, None
     if initialize_from is not None:
         source, source_policy = load_full_game_candidate(initialize_from)
-        if source.training.imitation is not None:
+        if config.architecture.schema_version == 2 and source.training.imitation is not None:
             raise ValueError("history transfer from imitation checkpoints is not yet supported")
-        if config.architecture.schema_version != 2:
-            raise ValueError("full-game history initialization requires an attack-history policy")
-        if not source.training.used_seeds().isdisjoint(scheduled_seeds):
+        if config.architecture.schema_version not in (2, 3):
+            raise ValueError("full-game initialization requires a version 2 or 3 policy")
+        requested_seeds = set(scheduled_seeds)
+        if imitation is not None:
+            requested_seeds.update(imitation.seeds())
+        if not source.training.used_seeds().isdisjoint(requested_seeds):
             raise ValueError("full-game history initialization requires new training seeds")
         source_environment = source.training.initial_collection.environment.model_dump(
             exclude=environment_exclude
@@ -507,15 +555,26 @@ def _run_training(
                     policy = FullGameActorCritic(config.architecture).float().cpu()
                 else:
                     assert source is not None
-                    policy = transfer_full_game_attack_history(source_policy)
+                    policy = (
+                        transfer_full_game_card_properties(source_policy)
+                        if config.architecture.schema_version == 3
+                        else transfer_full_game_attack_history(source_policy)
+                    )
                     if policy.architecture != config.architecture:
                         raise ValueError("full-game history initialization architecture differs")
-                    initialization = FullGameHistoryInitialization(
-                        source_policy_sha256=source.training.final_policy_sha256,
-                        initialized_policy_sha256=full_game_policy_sha256(policy),
-                        source_seed=source.training.config.seed,
-                        source_updates=len(source.training.updates),
-                    )
+                    if config.architecture.schema_version == 3:
+                        card_initialization = FullGameCardInitialization(
+                            source_policy_sha256=source.training.final_policy_sha256,
+                            initialized_policy_sha256=full_game_policy_sha256(policy),
+                            source_training_seeds=tuple(sorted(source.training.used_seeds())),
+                        )
+                    else:
+                        initialization = FullGameHistoryInitialization(
+                            source_policy_sha256=source.training.final_policy_sha256,
+                            initialized_policy_sha256=full_game_policy_sha256(policy),
+                            source_seed=source.training.config.seed,
+                            source_updates=len(source.training.updates),
+                        )
                 if imitation is not None:
 
                     def create_imitation_batch(seed: int) -> DevelopmentFullGameBatch:
@@ -613,6 +672,7 @@ def _run_training(
             report = FullGameTrainingReport(
                 config=config,
                 initialization=initialization,
+                card_initialization=card_initialization,
                 imitation=warmup_report,
                 initial_collection=initial,
                 updates=tuple(updates),

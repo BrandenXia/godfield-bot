@@ -19,6 +19,7 @@ from godfield_bot.full_game_neural import (
     FullGameActorCritic,
     FullGamePolicyController,
     transfer_full_game_attack_history,
+    transfer_full_game_card_properties,
 )
 from godfield_bot.full_game_rollout import full_game_policy_sha256
 from godfield_bot.full_game_training import load_full_game_candidate
@@ -130,8 +131,10 @@ def evaluate_full_game_candidate(
         baseline_manifest, baseline = load_full_game_candidate(baseline_directory)
         baseline_training = baseline_manifest.training
         baseline_source_hash = baseline_training.final_policy_sha256
-        if candidate.architecture.schema_version == 2 and baseline.architecture.schema_version == 1:
+        if candidate.architecture.schema_version >= 2 and baseline.architecture.schema_version == 1:
             baseline = transfer_full_game_attack_history(baseline)
+        if candidate.architecture.schema_version == 3 and baseline.architecture.schema_version == 2:
+            baseline = transfer_full_game_card_properties(baseline)
         if (
             baseline.architecture != candidate.architecture
             or baseline_training.initial_collection.environment.model_dump(exclude=exclude)
@@ -140,7 +143,9 @@ def evaluate_full_game_candidate(
             raise ValueError("full-game evaluation baseline architecture or ruleset differs")
         used_seeds.update(baseline_training.used_seeds())
     elif (
-        training.initialization is not None or training.imitation is not None
+        training.initialization is not None
+        or training.imitation is not None
+        or training.card_initialization is not None
     ) and not greedy_baseline:
         raise ValueError(
             "full-game initialized candidate requires an explicit --baseline checkpoint "

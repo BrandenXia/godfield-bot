@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any, Final, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from godfield_bot import full_game as game
+from godfield_bot.full_game_card_features import CARD_PROPERTY_FIELDS, public_card_property_table
 from godfield_bot.full_game_guardians import GENERATED_ACTION_FIELDS
 from godfield_bot.full_game_trade import MARKET_FIELDS, TRADE_FIELDS
 from godfield_bot.provisional_rules import ProvisionalRuleUnavailableError
@@ -29,8 +30,11 @@ MAX_PLAYERS: Final = 9
 MODEL_VOCABULARY: Final = 297  # 0 padding, pinned API model IDs through296.
 OBSERVATION_ID: Final = "full-game-public-18-slot-v1"
 ATTACK_HISTORY_OBSERVATION_ID: Final = "full-game-public-18-slot-attack-history-v2"
+CARD_PROPERTIES_OBSERVATION_ID: Final = "full-game-public-18-slot-card-properties-v3"
 FullGameObservationId = Literal[
-    "full-game-public-18-slot-v1", "full-game-public-18-slot-attack-history-v2"
+    "full-game-public-18-slot-v1",
+    "full-game-public-18-slot-attack-history-v2",
+    "full-game-public-18-slot-card-properties-v3",
 ]
 ATTACK_HISTORY_LENGTH: Final = 8
 ATTACK_HISTORY_FIELDS: Final = (
@@ -97,6 +101,15 @@ HAND_FEATURES: Final = (
     "passive_value_log",
     *(f"slot_{i}" for i in range(18)),
 )
+PROPERTY_HAND_FIELDS: Final = (*HAND_FEATURES, *(f"card.{name}" for name in CARD_PROPERTY_FIELDS))
+
+
+def observation_version(observation_id: FullGameObservationId) -> int:
+    return {OBSERVATION_ID: 1, ATTACK_HISTORY_OBSERVATION_ID: 2, CARD_PROPERTIES_OBSERVATION_ID: 3}[
+        observation_id
+    ]
+
+
 CONTEXT_MODELS: Final = (
     ("guardian_effect_observations", 1),
     ("generated_action_observations", 2),
@@ -132,7 +145,7 @@ HISTORY_PUBLIC_GETTERS: Final = (*PUBLIC_GETTERS, "attack_history_observations")
 
 class FullGameEncoderMetadata(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    schema_version: int = Field(default=1, ge=1, le=2, strict=True)
+    schema_version: int = Field(default=1, ge=1, le=3, strict=True)
     observation_id: FullGameObservationId = OBSERVATION_ID
     ruleset_id: Literal["integrated-full-game-development-v33"] = game.FULL_GAME_RULESET_ID
     kernel_schema_version: Literal[33] = 33
@@ -160,12 +173,13 @@ class FullGameEncoderMetadata(BaseModel):
 
     @model_validator(mode="after")
     def pinned_fields(self) -> FullGameEncoderMetadata:
-        history = self.observation_id == ATTACK_HISTORY_OBSERVATION_ID
+        history = self.observation_id != OBSERVATION_ID
         if (
-            self.schema_version != (2 if history else 1)
+            self.schema_version != observation_version(self.observation_id)
             or self.global_fields != (HISTORY_GLOBAL_FIELDS if history else GLOBAL_FIELDS)
             or self.player_fields != PLAYER_FEATURES
-            or self.hand_fields != HAND_FEATURES
+            or self.hand_fields
+            != (PROPERTY_HAND_FIELDS if self.schema_version == 3 else HAND_FEATURES)
             or self.context_model_columns != CONTEXT_MODELS
             or self.public_getters != (HISTORY_PUBLIC_GETTERS if history else PUBLIC_GETTERS)
         ):
@@ -220,7 +234,7 @@ class FullGameObservationEncoder:
         game.FullGameMetadata.model_validate(configured.metadata.model_dump())
         if configured.metadata.capacity != HAND_SLOTS or configured.metadata.batch_size > 4096:
             raise ValueError("full-game encoder requires18 slots and at most4096 environments")
-        history = observation_id == ATTACK_HISTORY_OBSERVATION_ID
+        history = observation_id != OBSERVATION_ID
         getters = HISTORY_PUBLIC_GETTERS if history else PUBLIC_GETTERS
         if (
             getattr(native, "FULL_GAME_KERNEL_SCHEMA_VERSION", None) != 33
@@ -231,7 +245,10 @@ class FullGameObservationEncoder:
             raise ProvisionalRuleUnavailableError("native public observation interface differs")
         self.configured = configured
         self.metadata = FullGameEncoderMetadata(
-            schema_version=2 if history else 1,
+            schema_version=observation_version(observation_id),
+            hand_fields=PROPERTY_HAND_FIELDS
+            if observation_id == CARD_PROPERTIES_OBSERVATION_ID
+            else HAND_FEATURES,
             observation_id=observation_id,
             global_fields=HISTORY_GLOBAL_FIELDS if history else GLOBAL_FIELDS,
             public_getters=getters,
@@ -242,6 +259,12 @@ class FullGameObservationEncoder:
                     separators=(",", ":"),
                 ).encode()
             ).hexdigest(),
+        )
+
+        self._card_properties = (
+            public_card_property_table(configured.metadata)
+            if observation_id == CARD_PROPERTIES_OBSERVATION_ID
+            else None
         )
 
     def encode(self) -> FullGameObservation:
@@ -304,7 +327,7 @@ class FullGameObservationEncoder:
             ),
             axis=1,
         )
-        if self.metadata.observation_id == ATTACK_HISTORY_OBSERVATION_ID:
+        if self.metadata.observation_id != OBSERVATION_ID:
             announcements = read("attack_history_observations", (ATTACK_HISTORY_LENGTH, 8))
             present = announcements[:, :, 0]
             source, target, power, element, origin, rate, turn = (
@@ -429,6 +452,10 @@ class FullGameObservationEncoder:
             ),
             axis=2,
         )
+        if self._card_properties is not None:
+            hand_features = np.concatenate(
+                (hand_features, self._card_properties[hand[:, :, 1]]), axis=2
+            )
         cards = hand[:, :, 1].copy()
         leases = np.column_stack((np.arange(size), state[:, :4])).astype(np.int64)
         for a in (global_features, context_models):

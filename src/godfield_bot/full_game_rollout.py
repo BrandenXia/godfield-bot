@@ -14,6 +14,7 @@ import torch
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
 
 from godfield_bot.full_game import DevelopmentFullGameBatch, FullGameMetadata
+from godfield_bot.full_game_card_features import public_card_property_table
 from godfield_bot.full_game_neural import (
     FullGameActorCritic,
     FullGamePolicyArchitecture,
@@ -21,6 +22,7 @@ from godfield_bot.full_game_neural import (
     FullGamePolicyStep,
 )
 from godfield_bot.full_game_observation import (
+    CARD_PROPERTIES_OBSERVATION_ID,
     HAND_FEATURES,
     PLAYER_FEATURES,
     FullGameEncoderMetadata,
@@ -420,6 +422,11 @@ def validate_full_game_collection(collection: FullGameEpisodeCollection) -> None
         raise ValueError("full-game collection episode roster differs")
     teams = m.initial_teams or (0,) * m.player_count
     aborted = set()
+    properties = (
+        public_card_property_table(m)
+        if metadata.encoder.observation_id == CARD_PROPERTIES_OBSERVATION_ID
+        else None
+    )
     for episode in collection.episodes:
         o = FullGameCollectedOutcome.model_validate(episode.outcome.model_dump())
         if (
@@ -463,7 +470,7 @@ def validate_full_game_collection(collection: FullGameEpisodeCollection) -> None
             (s.observation.players, (n, 9, len(PLAYER_FEATURES)), np.float32),
             (s.observation.player_mask, (n, 9), np.bool_),
             (s.observation.card_model_ids, (n, 18), np.int64),
-            (s.observation.hand_features, (n, 18, len(HAND_FEATURES)), np.float32),
+            (s.observation.hand_features, (n, 18, len(metadata.encoder.hand_fields)), np.float32),
             (s.observation.hand_mask, (n, 18), np.bool_),
             (s.observation.context_model_ids, (n, 5), np.int64),
             (s.observation.choice_mask, (n, 28), np.bool_),
@@ -477,6 +484,14 @@ def validate_full_game_collection(collection: FullGameEpisodeCollection) -> None
                 or not np.isfinite(a).all()
             ):
                 raise ValueError("full-game collection sample layout or values differ")
+        if properties is not None:
+            models = s.observation.card_model_ids
+            if np.any((models != 0) & ((models < 3) | (models > 239))) or not np.array_equal(
+                s.observation.hand_features[:, :, len(HAND_FEATURES) :], properties[models]
+            ):
+                raise ValueError(
+                    "full-game collection public card properties differ from displayed IDs"
+                )
         commands = s.commands
         if (
             np.any(commands[:, 0] != o.environment)

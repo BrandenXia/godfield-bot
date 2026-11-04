@@ -1748,9 +1748,28 @@ This learns legal choices from completed public tactical demonstrations, then
 uses the existing terminal faction rewards for PPO. The report records both
 stages. Resume uses `full-game-resume` without repeating imitation. Evaluate
 with `--greedy-baseline` or a compatible `--baseline`, using seeds outside both
-training stages. Imitation starts from fresh weights and cannot be combined
-with `--initialize-from`. Local strength and official fidelity remain gated.
+training stages. Imitation starts from fresh weights for observation versions 1 and 2. Version 3
+also supports imitation after explicit card-property transfer, as described
+below. Local strength and official fidelity remain gated.
 [Imitation contract](docs/architecture/0146-approved-tactical-imitation-warm-start.md)
+
+Version 3 adds public properties for each displayed card, including attack,
+defense, costs, element and role. `--public-card-features` includes attack
+history. Copy a compatible version 2 candidate with an explicit transfer:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation --extra training \
+  godfield-bot simulation full-game-train --public-card-features \
+  --initialize-from '/path/to/version-2-checkpoint' \
+  --players 4 --teams 1,1,2,2 --batch-size 8 --updates 64 --seed 1330000 \
+  --imitation-batches 32 --imitation-seed 1340000 --imitation-epochs 8 \
+  --checkpoint-root runs/full-game-property-candidates
+```
+
+Match the source roster and bounds, and choose seeds unused by its full training
+lineage. The zero-initialized property projection preserves the parent's
+predictions before training. Resume and evaluation use the existing commands.
+[Displayed-card feature contract](docs/architecture/0148-approved-public-card-properties.md)
 
 That is not full-game fidelity: unobserved combinations, hidden cross-role
 resolution, complete event/virtual commands and learning interfaces remain gated. Attack additions

@@ -3805,6 +3805,9 @@ def simulation_full_game_train(
     attack_history: Annotated[
         bool, typer.Option(help="Use version 2 attack-history inputs.")
     ] = False,
+    public_card_features: Annotated[
+        bool, typer.Option(help="Use version 3 displayed-card properties and attack history.")
+    ] = False,
     initialize_from: Annotated[Path | None, typer.Option(exists=True, file_okay=False)] = None,
     imitation_batches: Annotated[
         int,
@@ -3819,7 +3822,10 @@ def simulation_full_game_train(
     try:
         from godfield_bot.full_game_imitation import FullGameImitationConfig
         from godfield_bot.full_game_neural import FullGamePolicyArchitecture
-        from godfield_bot.full_game_observation import ATTACK_HISTORY_OBSERVATION_ID
+        from godfield_bot.full_game_observation import (
+            ATTACK_HISTORY_OBSERVATION_ID,
+            CARD_PROPERTIES_OBSERVATION_ID,
+        )
         from godfield_bot.full_game_training import (
             FullGameTrainingConfig,
             run_full_game_training,
@@ -3837,6 +3843,10 @@ def simulation_full_game_train(
             max_decisions=max_decisions,
             apocalypse_after_turns=apocalypse_after_turns,
             architecture=FullGamePolicyArchitecture(
+                schema_version=3, observation_id=CARD_PROPERTIES_OBSERVATION_ID
+            )
+            if public_card_features
+            else FullGamePolicyArchitecture(
                 schema_version=2, observation_id=ATTACK_HISTORY_OBSERVATION_ID
             )
             if attack_history

@@ -1783,6 +1783,9 @@ It reports native mechanic counters and separate endings/limits. Use
 `--players 4 --layouts two-teams --games-per-batch 2` for a smaller reproduction.
 Passing verifies this integration probe; it does not establish strength or
 complete mechanic coverage. [Probe contract and remaining gaps](docs/architecture/0149-roster-wide-learning-probes.md)
+Targeted [rare-mechanic learning checks](docs/architecture/0150-rare-mechanic-terminal-learning-fixtures.md)
+also exercise overflow, protected removals and hidden utility/defense costs through
+terminal collection, replay and actual policy updates.
 
 That is not full-game fidelity: unobserved combinations, hidden cross-role
 resolution, complete event/virtual commands and learning interfaces remain gated. Attack additions

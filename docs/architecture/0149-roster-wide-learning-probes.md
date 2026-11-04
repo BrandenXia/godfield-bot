@@ -97,6 +97,9 @@ learning coverage for them. Add deterministic targeted learning fixtures next,
 preserving the actual terminal reward and excluding forced actor gradients.
 Do not wait for random acquisition to happen to cover rare branches.
 
+Follow-up: ADR0150 adds those targeted complete-episode learning checks. This
+original matrix's counters remain unchanged; the targeted evidence is separate.
+
 Retain the complete local report at
 `runs/full-game-learning-probes/v3-roster-matrix-1400000.json`. The report is
 evidence of collection/replay/optimization integration, not evidence of policy

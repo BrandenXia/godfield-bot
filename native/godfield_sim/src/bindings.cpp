@@ -1,4 +1,5 @@
 #include "attack_defense_batch.h"
+#include "build_identity.h"
 #include "curse_dynamics_batch.h"
 #include "curse_rules.h"
 #include "dream_inventory_batch.h"
@@ -40,6 +41,7 @@ using godfield_sim::StochasticResourceAttackDefenseBatch;
 
 NB_MODULE(_native, module) {
   module.doc() = "Native batched God Field curriculum kernels";
+  module.attr("BUILD_SOURCE_SHA256") = GODFIELD_BUILD_SOURCE_SHA256;
   godfield_sim::bind_dream_inventory(module);
   godfield_sim::bind_full_game(module);
   module.attr("KERNEL_SCHEMA_VERSION") = godfield_sim::kKernelSchemaVersion;

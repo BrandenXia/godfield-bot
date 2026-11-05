@@ -4,6 +4,21 @@ project(godfield_sim LANGUAGES CXX)
 find_package(Python 3.12 REQUIRED COMPONENTS Interpreter Development.Module)
 find_package(nanobind CONFIG REQUIRED)
 
+# Embed the exact native build inputs, independently checked by local acceptance.
+file(GLOB_RECURSE identity_sources CONFIGURE_DEPENDS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
+  "src/*.cpp" "src/*.h" "src/*.hpp" "src/*.py" "src/*.pyi" "src/*.cmake" "src/py.typed")
+list(APPEND identity_sources "CMakeLists.txt" "pyproject.toml")
+list(SORT identity_sources)
+set(identity_manifest "")
+foreach(input IN LISTS identity_sources)
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${input}")
+  file(SHA256 "${CMAKE_CURRENT_SOURCE_DIR}/${input}" input_hash)
+  string(APPEND identity_manifest "${input}\n${input_hash}\n")
+endforeach()
+string(SHA256 identity_hash "${identity_manifest}")
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/build_identity.h"
+  "#pragma once\n#define GODFIELD_BUILD_SOURCE_SHA256 \"${identity_hash}\"\n")
+
 nanobind_add_module(
   _native
   NB_STATIC
@@ -31,6 +46,7 @@ nanobind_add_module(
   src/full_game_generated.cpp
 )
 target_compile_features(_native PRIVATE cxx_std_20)
+target_include_directories(_native PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 
 if(MSVC)
   target_compile_options(_native PRIVATE /W4 /permissive-)

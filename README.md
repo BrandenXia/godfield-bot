@@ -1610,8 +1610,30 @@ This maps all 296 catalog entries (291 Bible artifacts, three held trade cards
 and two virtual controls), all 14 workflow requirements, and provisional rule
 paths. Declared routes are separate from executed validation evidence. The
 approved [versioned acceptance report](docs/architecture/0151-integrated-ledger-and-versioned-acceptance.md)
-will certify local readiness only after matching the actual code, native build,
+certifies local readiness only after matching the actual code, native build,
 tests and learning probes; official fidelity and live promotion remain separate.
+
+Run and later recheck the complete local acceptance boundary:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv sync --frozen --extra simulation --extra training --group dev
+UV_CACHE_DIR=.uv-cache uv run --frozen --no-sync \
+  godfield-bot simulation full-game-acceptance
+UV_CACHE_DIR=.uv-cache uv run --frozen --no-sync \
+  godfield-bot simulation full-game-acceptance-verify runs/full-game-acceptance/UUID
+```
+
+Replace `UUID` with the directory printed by the first command. Acceptance runs
+the non-browser regression suite and a 256-game learning/replay matrix. It rejects
+skipped tests, stale native builds, engine limits and changed sources. The
+separate verified receipt is the authority for local readiness of the pinned
+provisional kernel33/public-observation3 environment; historical checkpoints and
+older component descriptions below retain their original readiness metadata.
+It does not certify playing strength, official accuracy or live compatibility.
+The accepted local revision passed 13,321 tests and all 32 roster cases: 256
+completed games, 64 optimizer updates and 64 matching replay checks. Its retained
+receipt is `runs/full-game-acceptance/98418665-4755-42d6-b777-9628f4e6cb18/acceptance.json`;
+reverify it before relying on it after code or build changes.
 
 Native 0.47.0 now provides a reusable 2–9-player disease/cure component with
 atomic operations, caller-supplied progression tickets, duplicate-tick

@@ -3202,6 +3202,52 @@ def simulation_full_game_integration_audit(
     typer.echo(report.model_dump_json(indent=2))
 
 
+@simulation_app.command("full-game-acceptance")
+def simulation_full_game_acceptance(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+    output_root: Annotated[Path, typer.Option()] = Path("runs/full-game-acceptance"),
+    seed: Annotated[int, typer.Option(min=0)] = 1400000,
+) -> None:
+    """Run the complete local acceptance suite and learning matrix; never enable live play."""
+    try:
+        from godfield_bot.full_game_acceptance import run_full_game_acceptance
+
+        directory = run_full_game_acceptance(
+            repository_root=Path(__file__).resolve().parents[2],
+            output_root=output_root,
+            catalog_path=catalog,
+            bible_path=bible,
+            seed=seed,
+            on_progress=lambda message: typer.echo(message, err=True),
+        )
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error("full_game_acceptance_failed", reason=str(error))
+        raise typer.Exit(code=1) from None
+    typer.echo(str(directory / "acceptance.json"))
+
+
+@simulation_app.command("full-game-acceptance-verify")
+def simulation_full_game_acceptance_verify(
+    directory: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
+) -> None:
+    """Recheck saved acceptance against current code, compiled simulator and evidence."""
+    try:
+        from godfield_bot.full_game_acceptance import verify_full_game_acceptance
+
+        report = verify_full_game_acceptance(
+            directory, repository_root=Path(__file__).resolve().parents[2]
+        )
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error("full_game_acceptance_verification_failed", reason=str(error))
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
 @simulation_app.command("full-game-development-smoke")
 def simulation_full_game_development_smoke(
     catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(

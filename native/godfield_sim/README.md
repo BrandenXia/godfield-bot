@@ -1,8 +1,14 @@
 # godfield-sim
 
 This optional native package contains the batched C++20 curriculum simulator.
-The separate full-game development engine is now native 0.84.0/kernel 33. Its
-source factory defaults to99 HP/MP/CP, with an explicit legacy100 option;
+The separate full-game development engine is now native 0.84.1/kernel 33.
+Version0.84.1 embeds the exact native build-source digest for the separate
+[local acceptance receipt](../../docs/architecture/0151-integrated-ledger-and-versioned-acceptance.md).
+Gameplay contracts and historical component/checkpoint metadata are unchanged;
+only a verified receipt grants local readiness for its exact source/build scope.
+Official fidelity, live compatibility and promotion remain independently gated.
+The historical development stages below retain their original scope statements.
+The source factory defaults to99 HP/MP/CP, with an explicit legacy100 option;
 raw native fixtures retain100 by default. This does not change existing arenas
 or make full-game training/live promotion ready. See
 [ADR 0130](../../docs/architecture/0130-client99-and-explicit-legacy100.md).

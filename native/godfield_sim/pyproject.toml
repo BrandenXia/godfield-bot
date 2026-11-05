@@ -7,7 +7,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "godfield-sim"
-version = "0.84.0"
+version = "0.84.1"
 description = "Native batched curriculum simulator for the God Field bot"
 requires-python = ">=3.12,<3.14"
 dependencies = [
@@ -26,6 +26,8 @@ cache-keys = [
   { file = "CMakeLists.txt" },
   { file = "src/**/*.cpp" },
   { file = "src/**/*.h" },
+  { file = "src/**/*.hpp" },
+  { file = "src/**/*.cmake" },
   { file = "src/godfield_sim/*.py" },
   { file = "src/godfield_sim/*.pyi" },
   { file = "src/godfield_sim/py.typed" },

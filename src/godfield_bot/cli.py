@@ -3180,6 +3180,28 @@ def simulation_full_game_readiness(
     typer.echo(report.model_dump_json(indent=2))
 
 
+@simulation_app.command("full-game-integration-audit")
+def simulation_full_game_integration_audit(
+    catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-10-01/api-catalog-en.json"
+    ),
+    bible: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "data/snapshots/2026-09-20/bible.json"
+    ),
+) -> None:
+    """Map every current integrated route and validation requirement; no games or certification."""
+    try:
+        from godfield_bot.full_game_integration_audit import build_full_game_integration_audit
+
+        report = build_full_game_integration_audit(catalog_path=catalog, bible_path=bible)
+    except (ImportError, OSError, RuntimeError, ValueError) as error:
+        structlog.get_logger().error(
+            "full_game_integration_audit_failed", reason=str(error).splitlines()[0]
+        )
+        raise typer.Exit(code=1) from None
+    typer.echo(report.model_dump_json(indent=2))
+
+
 @simulation_app.command("full-game-development-smoke")
 def simulation_full_game_development_smoke(
     catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(

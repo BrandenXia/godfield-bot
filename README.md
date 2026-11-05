@@ -1581,7 +1581,7 @@ opponent diversity, not new C++ game mechanics or full-game readiness. See
 [ADR 0096](docs/architecture/0096-frozen-guardian-opponent-curriculum.md)
 for commands, source hashes, gradient boundaries, and per-opponent results.
 
-For the **actual integrated training environment**, inspect:
+For the **earlier guardian training subset**, inspect:
 
 ```bash
 UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
@@ -1597,6 +1597,21 @@ The catalog and official client were rechecked on 2026-10-01 and match their
 existing source pins. Full-game readiness remains false. See
 [ADR 0097](docs/architecture/0097-full-game-integration-audit-and-readiness-plan.md)
 for source freshness, the acceptance boundary, and the remaining work.
+
+For the current separate full-game engine, inspect its complete source and
+validation ledger:
+
+```bash
+UV_CACHE_DIR=.uv-cache uv run --frozen --extra simulation \
+  godfield-bot simulation full-game-integration-audit
+```
+
+This maps all 296 catalog entries (291 Bible artifacts, three held trade cards
+and two virtual controls), all 14 workflow requirements, and provisional rule
+paths. Declared routes are separate from executed validation evidence. The
+approved [versioned acceptance report](docs/architecture/0151-integrated-ledger-and-versioned-acceptance.md)
+will certify local readiness only after matching the actual code, native build,
+tests and learning probes; official fidelity and live promotion remain separate.
 
 Native 0.47.0 now provides a reusable 2–9-player disease/cure component with
 atomic operations, caller-supplied progression tickets, duplicate-tick
